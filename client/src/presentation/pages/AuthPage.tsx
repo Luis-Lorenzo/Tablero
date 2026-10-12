@@ -110,12 +110,6 @@ export function AuthPage({ notice, onAuthenticated }: AuthPageProps) {
                 : "Crear cuenta"}
           </button>
         </form>
-
-        <div className="divider"><span>o</span></div>
-
-        <a className="google" href={authApi.googleLoginUrl}>
-          Continuar con Google
-        </a>
       </section>
     </main>
   );

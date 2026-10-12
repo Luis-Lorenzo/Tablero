@@ -1,7 +1,7 @@
 # Tablero de rol SaaS
 
 Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. Incluye
-registro con confirmación por correo, inicio de sesión local y con Google,
+registro con confirmación por correo e inicio de sesión local,
 sesiones persistentes, roles de usuario y administrador, y persistencia real en
 PostgreSQL. El backend sirve al frontend desde el mismo origen.
 
@@ -37,7 +37,7 @@ src/
   services/       Capa de lógica de negocio (reglas, roles, sesión)
   repositories/   Capa de acceso a datos (PostgreSQL e implementación en memoria)
   middleware/     Autenticación, registro de peticiones, manejo de errores
-  lib/            Configuración, base de datos, sesión, hash, correo, OAuth
+  lib/            Configuración, base de datos, sesión, hash de contraseñas y correo
 client/src/
   api/            Capa de comunicación con el servidor (fetch)
   presentation/   Capa de presentación (componentes y páginas React)
@@ -108,9 +108,7 @@ se suben valores reales al repositorio.
 | --- | --- |
 | `DATABASE_URL` | Cadena de conexión a PostgreSQL. Si falta, se usa memoria (solo desarrollo). |
 | `SESSION_SECRET` | Cadena aleatoria para firmar la cookie de sesión. |
-| `APP_BASE_URL` | URL pública de la app (callback de OAuth y enlaces de correo). |
-| `GOOGLE_CLIENT_ID` | Identificador OAuth de Google. |
-| `GOOGLE_CLIENT_SECRET` | Secreto OAuth de Google. |
+| `APP_BASE_URL` | URL pública de la app (enlaces de confirmación por correo). |
 | `EMAIL_API_KEY` | API key del proveedor de correo (Resend). Sin ella, los correos se registran en el log. |
 | `EMAIL_FROM` | Remitente de los correos de confirmación. |
 | `ADMIN_EMAIL` | Correo del primer administrador. |
@@ -138,15 +136,10 @@ Puesta en marcha con Render:
 2. En **New → Blueprint**, selecciona el repositorio. Render leerá `render.yaml`
    y creará el servicio web y la base de datos PostgreSQL.
 3. Rellena las variables marcadas como `sync: false` (`APP_BASE_URL`,
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `EMAIL_API_KEY`, `EMAIL_FROM`,
-   `ADMIN_EMAIL`, `ADMIN_PASSWORD`) con los valores reales. `DATABASE_URL` y
-   `SESSION_SECRET` se generan automáticamente.
+   `EMAIL_API_KEY`, `EMAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`) con los
+   valores reales. `DATABASE_URL` y `SESSION_SECRET` se generan automáticamente.
 4. Fija `APP_BASE_URL` con la URL pública del servicio
    (por ejemplo `https://tablero.onrender.com`).
-5. Registra los callback de OAuth en Google Cloud Console, coincidiendo
-   exactamente:
-   - `http://localhost:8080/api/auth/google/callback` (desarrollo)
-   - `https://TU-URL.onrender.com/api/auth/google/callback` (producción)
 
 > Nota: la instancia gratuita de Render se suspende tras un periodo de
 > inactividad y tarda unos segundos en volver a responder la primera petición.

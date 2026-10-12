@@ -100,17 +100,6 @@ describe("AuthService", () => {
     ).rejects.toThrow("INVALID_CREDENTIALS");
   });
 
-  it("crea una cuenta confirmada al iniciar sesión con OAuth", async () => {
-    const user = await service.loginWithOAuth({
-      email: "google@example.com",
-      emailConfirmed: true
-    });
-
-    expect(user.provider).toBe("GOOGLE");
-    expect(user.emailConfirmed).toBe(true);
-    expect(user.passwordHash).toBeNull();
-  });
-
   it("un usuario eliminado no puede volver a iniciar sesión", async () => {
     await service.register("borrado@example.com", "secreto123");
     await service.confirmEmail(emails.tokenFromLastEmail());

@@ -20,9 +20,6 @@ function readInitialNotice(): string | null {
   if (error === "INVALID_TOKEN") {
     return "El enlace de confirmación no es válido o ya se utilizó.";
   }
-  if (error === "OAUTH_FAILED") {
-    return "No se pudo completar el inicio de sesión con Google.";
-  }
 
   return null;
 }

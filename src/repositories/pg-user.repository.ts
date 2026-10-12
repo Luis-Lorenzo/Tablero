@@ -1,6 +1,5 @@
 import type { Pool } from "pg";
 import {
-  type AuthProvider,
   type User,
   type UserRepository,
   type UserRole
@@ -11,7 +10,6 @@ interface UserRow {
   email: string;
   password_hash: string | null;
   role: UserRole;
-  provider: AuthProvider;
   email_confirmed: boolean;
   confirmation_token: string | null;
   deleted: boolean;
@@ -19,7 +17,7 @@ interface UserRow {
 }
 
 const SELECT_COLUMNS = `
-  id, email, password_hash, role, provider,
+  id, email, password_hash, role,
   email_confirmed, confirmation_token, deleted, created_at
 `;
 
@@ -29,7 +27,6 @@ function toUser(row: UserRow): User {
     email: row.email,
     passwordHash: row.password_hash,
     role: row.role,
-    provider: row.provider,
     emailConfirmed: row.email_confirmed,
     confirmationToken: row.confirmation_token,
     deleted: row.deleted,
@@ -75,14 +72,13 @@ export class PgUserRepository implements UserRepository {
     await this.pool.query(
       `
         INSERT INTO users (
-          id, email, password_hash, role, provider,
+          id, email, password_hash, role,
           email_confirmed, confirmation_token, deleted, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           password_hash = EXCLUDED.password_hash,
           role = EXCLUDED.role,
-          provider = EXCLUDED.provider,
           email_confirmed = EXCLUDED.email_confirmed,
           confirmation_token = EXCLUDED.confirmation_token,
           deleted = EXCLUDED.deleted
@@ -92,7 +88,6 @@ export class PgUserRepository implements UserRepository {
         user.email,
         user.passwordHash,
         user.role,
-        user.provider,
         user.emailConfirmed,
         user.confirmationToken,
         user.deleted,
