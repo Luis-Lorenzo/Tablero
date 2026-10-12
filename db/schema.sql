@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS users (
   email              TEXT NOT NULL,
   password_hash      TEXT,
   role               TEXT NOT NULL DEFAULT 'USER',
-  provider           TEXT NOT NULL DEFAULT 'LOCAL',
   email_confirmed    BOOLEAN NOT NULL DEFAULT FALSE,
   confirmation_token TEXT,
   deleted            BOOLEAN NOT NULL DEFAULT FALSE,

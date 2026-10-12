@@ -1,12 +1,10 @@
 export type UserRole = "USER" | "ADMIN";
-export type AuthProvider = "LOCAL" | "GOOGLE";
 
 export interface User {
   id: string;
   email: string;
   passwordHash: string | null;
   role: UserRole;
-  provider: AuthProvider;
   emailConfirmed: boolean;
   confirmationToken: string | null;
   deleted: boolean;
@@ -26,7 +24,6 @@ export function createUser(input: {
   email: string;
   passwordHash: string | null;
   role?: UserRole;
-  provider?: AuthProvider;
   emailConfirmed?: boolean;
   confirmationToken?: string | null;
 }): User {
@@ -35,7 +32,6 @@ export function createUser(input: {
     email: input.email.trim().toLowerCase(),
     passwordHash: input.passwordHash,
     role: input.role ?? "USER",
-    provider: input.provider ?? "LOCAL",
     emailConfirmed: input.emailConfirmed ?? false,
     confirmationToken: input.confirmationToken ?? null,
     deleted: false,

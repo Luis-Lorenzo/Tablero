@@ -3,7 +3,6 @@ import { errors } from "../lib/errors.js";
 import type { AppConfig } from "../lib/config.js";
 import type { Logger } from "../lib/logger.js";
 import type { PasswordHasher } from "../lib/password.js";
-import type { GoogleProfile } from "../lib/oauth.js";
 import {
   createUser,
   type User,
@@ -90,40 +89,6 @@ export class AuthService {
     await this.users.save(user);
 
     this.logger.info("Cuenta confirmada", { userId: user.id, email: user.email });
-
-    return user;
-  }
-
-  async loginWithOAuth(profile: GoogleProfile): Promise<User> {
-    const email = profile.email.trim().toLowerCase();
-    let user = await this.users.findByEmail(email);
-
-    if (user && user.deleted) {
-      throw errors.oauthFailed();
-    }
-
-    if (!user) {
-      user = createUser({
-        email,
-        passwordHash: null,
-        provider: "GOOGLE",
-        emailConfirmed: profile.emailConfirmed
-      });
-      await this.users.save(user);
-      this.logger.info("Cuenta creada mediante OAuth", {
-        userId: user.id,
-        email: user.email
-      });
-    } else if (!user.emailConfirmed && profile.emailConfirmed) {
-      user.emailConfirmed = true;
-      user.confirmationToken = null;
-      await this.users.save(user);
-    }
-
-    this.logger.info("Inicio de sesion OAuth", {
-      userId: user.id,
-      email: user.email
-    });
 
     return user;
   }

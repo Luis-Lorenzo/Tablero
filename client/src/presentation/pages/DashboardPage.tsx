@@ -50,10 +50,6 @@ export function DashboardPage({ user, onAccountDeleted }: DashboardPageProps) {
           <dd>{user.active ? "Activo" : "Pendiente de confirmar"}</dd>
         </div>
         <div>
-          <dt>Método de acceso</dt>
-          <dd>{user.provider === "GOOGLE" ? "Google" : "Correo y contraseña"}</dd>
-        </div>
-        <div>
           <dt>Alta</dt>
           <dd>{new Date(user.createdAt).toLocaleString()}</dd>
         </div>

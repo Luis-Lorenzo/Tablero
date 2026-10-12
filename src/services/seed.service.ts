@@ -38,7 +38,6 @@ export async function ensureAdmin(
     email,
     passwordHash: await hasher.hash(password),
     role: "ADMIN",
-    provider: "LOCAL",
     emailConfirmed: true
   });
 

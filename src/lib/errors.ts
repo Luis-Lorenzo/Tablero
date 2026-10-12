@@ -19,7 +19,6 @@ export const errors = {
   forbidden: () => new AppError("FORBIDDEN", 403),
   userNotFound: () => new AppError("USER_NOT_FOUND", 404),
   invalidToken: () => new AppError("INVALID_TOKEN", 400),
-  oauthFailed: () => new AppError("OAUTH_FAILED", 401),
   internal: () => new AppError("INTERNAL_ERROR", 500)
 };
 

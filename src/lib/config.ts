@@ -15,10 +15,6 @@ export const config = {
   appBaseUrl: read("APP_BASE_URL", "http://localhost:8080"),
   databaseUrl: read("DATABASE_URL"),
   sessionSecret: read("SESSION_SECRET", "dev-only-insecure-secret"),
-  google: {
-    clientId: read("GOOGLE_CLIENT_ID"),
-    clientSecret: read("GOOGLE_CLIENT_SECRET")
-  },
   email: {
     apiKey: read("EMAIL_API_KEY"),
     from: read("EMAIL_FROM", "Tablero de rol <onboarding@resend.dev>")

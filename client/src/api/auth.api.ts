@@ -10,7 +10,5 @@ export const authApi = {
 
   logout: () => http.post<void>("/api/auth/logout"),
 
-  me: () => http.get<PublicUser>("/api/auth/me"),
-
-  googleLoginUrl: "/api/auth/google"
+  me: () => http.get<PublicUser>("/api/auth/me")
 };

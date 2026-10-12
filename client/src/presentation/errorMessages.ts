@@ -9,7 +9,6 @@ const MESSAGES: Record<string, string> = {
   USER_NOT_FOUND: "El usuario indicado no existe.",
   UNAUTHENTICATED: "Tu sesión ha expirado. Vuelve a iniciar sesión.",
   INVALID_TOKEN: "El enlace de confirmación no es válido o ya se usó.",
-  OAUTH_FAILED: "No se pudo completar el inicio de sesión con Google.",
   NETWORK_ERROR: "No se pudo conectar con el servidor.",
   INTERNAL_ERROR: "Ha ocurrido un error en el servidor."
 };
