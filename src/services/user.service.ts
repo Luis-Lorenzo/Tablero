@@ -17,7 +17,7 @@ export class UserService {
     this.requireAdmin(actor);
 
     const user = await this.users.findById(id);
-    return Boolean(user && !user.deleted && user.emailConfirmed);
+    return Boolean(user && !user.deleted);
   }
 
   async deleteUser(actor: User, targetId: string): Promise<void> {

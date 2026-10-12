@@ -57,16 +57,5 @@ export function createAuthRouter(
     res.json(toPublicUser(req.currentUser!));
   });
 
-  router.get("/confirm", async (req, res) => {
-    const token = String(req.query.token ?? "");
-
-    try {
-      const user = await context.authService.confirmEmail(token);
-      res.redirect(`${context.config.appBaseUrl}/?confirmado=${encodeURIComponent(user.email)}`);
-    } catch {
-      res.redirect(`${context.config.appBaseUrl}/?error=INVALID_TOKEN`);
-    }
-  });
-
   return router;
 }

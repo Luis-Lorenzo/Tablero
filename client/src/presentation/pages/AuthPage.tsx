@@ -4,17 +4,16 @@ import type { PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 
 interface AuthPageProps {
-  notice?: string | null;
   onAuthenticated: (user: PublicUser) => void;
 }
 
 type Mode = "login" | "register";
 
-export function AuthPage({ notice, onAuthenticated }: AuthPageProps) {
+export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(notice ?? null);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -29,9 +28,7 @@ export function AuthPage({ notice, onAuthenticated }: AuthPageProps) {
         await authApi.register(email, password);
         setMode("login");
         setPassword("");
-        setMessage(
-          "Cuenta creada. Revisa tu correo (y la carpeta de spam) para confirmarla antes de iniciar sesión."
-        );
+        setMessage("Cuenta creada correctamente. Ya puedes iniciar sesión.");
         return;
       }
 

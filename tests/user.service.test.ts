@@ -20,14 +20,12 @@ describe("UserService", () => {
     admin = createUser({
       email: "admin@example.com",
       passwordHash: "hash",
-      role: "ADMIN",
-      emailConfirmed: true
+      role: "ADMIN"
     });
 
     normalUser = createUser({
       email: "user@example.com",
-      passwordHash: "hash",
-      emailConfirmed: true
+      passwordHash: "hash"
     });
 
     await repository.save(admin);
@@ -43,18 +41,14 @@ describe("UserService", () => {
     await expect(service.listUsers(normalUser)).rejects.toThrow("FORBIDDEN");
   });
 
-  it("un usuario confirmado y no eliminado está activo", async () => {
+  it("un usuario no eliminado está activo", async () => {
     expect(await service.isActive(admin, normalUser.id)).toBe(true);
   });
 
-  it("un usuario sin confirmar no está activo", async () => {
-    const pending = createUser({
-      email: "pending@example.com",
-      passwordHash: "hash"
-    });
-    await repository.save(pending);
+  it("un usuario eliminado no está activo", async () => {
+    await service.deleteUser(admin, normalUser.id);
 
-    expect(await service.isActive(admin, pending.id)).toBe(false);
+    expect(await service.isActive(admin, normalUser.id)).toBe(false);
   });
 
   it("impide a un usuario normal listar el estado de actividad de otro", async () => {

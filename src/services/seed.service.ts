@@ -23,11 +23,9 @@ export async function ensureAdmin(
   const existing = await users.findByEmail(email);
 
   if (existing) {
-    if (existing.role !== "ADMIN" || !existing.emailConfirmed || existing.deleted) {
+    if (existing.role !== "ADMIN" || existing.deleted) {
       existing.role = "ADMIN";
-      existing.emailConfirmed = true;
       existing.deleted = false;
-      existing.confirmationToken = null;
       await users.save(existing);
       logger.info("Cuenta de administrador promovida", { email });
     }
@@ -37,8 +35,7 @@ export async function ensureAdmin(
   const admin = createUser({
     email,
     passwordHash: await hasher.hash(password),
-    role: "ADMIN",
-    emailConfirmed: true
+    role: "ADMIN"
   });
 
   await users.save(admin);

@@ -4,7 +4,6 @@ export interface PublicUser {
   id: string;
   email: string;
   role: string;
-  emailConfirmed: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -14,8 +13,7 @@ export function toPublicUser(user: User): PublicUser {
     id: user.id,
     email: user.email,
     role: user.role,
-    emailConfirmed: user.emailConfirmed,
-    active: !user.deleted && user.emailConfirmed,
+    active: !user.deleted,
     createdAt: user.createdAt.toISOString()
   };
 }

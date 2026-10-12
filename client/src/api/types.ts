@@ -2,7 +2,6 @@ export interface PublicUser {
   id: string;
   email: string;
   role: string;
-  emailConfirmed: boolean;
   active: boolean;
   createdAt: string;
 }

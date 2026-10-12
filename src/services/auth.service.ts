@@ -1,6 +1,4 @@
-import type { EmailSender } from "../lib/email.js";
 import { errors } from "../lib/errors.js";
-import type { AppConfig } from "../lib/config.js";
 import type { Logger } from "../lib/logger.js";
 import type { PasswordHasher } from "../lib/password.js";
 import {
@@ -16,8 +14,6 @@ export class AuthService {
   constructor(
     private readonly users: UserRepository,
     private readonly hasher: PasswordHasher,
-    private readonly emailSender: EmailSender,
-    private readonly config: AppConfig,
     private readonly logger: Logger
   ) {}
 
@@ -38,14 +34,12 @@ export class AuthService {
 
     const user = createUser({
       email: normalizedEmail,
-      passwordHash: await this.hasher.hash(password),
-      confirmationToken: crypto.randomUUID()
+      passwordHash: await this.hasher.hash(password)
     });
 
     await this.users.save(user);
-    await this.sendConfirmation(user);
 
-    this.logger.info("Usuario registrado (pendiente de confirmacion)", {
+    this.logger.info("Usuario registrado", {
       userId: user.id,
       email: user.email
     });
@@ -65,54 +59,11 @@ export class AuthService {
       throw errors.invalidCredentials();
     }
 
-    if (!user.emailConfirmed) {
-      throw errors.emailNotConfirmed();
-    }
-
     this.logger.info("Inicio de sesion local", {
       userId: user.id,
       email: user.email
     });
 
     return user;
-  }
-
-  async confirmEmail(token: string): Promise<User> {
-    const user = await this.users.findByConfirmationToken(token);
-
-    if (!user || user.deleted) {
-      throw errors.invalidToken();
-    }
-
-    user.emailConfirmed = true;
-    user.confirmationToken = null;
-    await this.users.save(user);
-
-    this.logger.info("Cuenta confirmada", { userId: user.id, email: user.email });
-
-    return user;
-  }
-
-  async requestConfirmation(email: string): Promise<void> {
-    const user = await this.users.findByEmail(email.trim());
-    if (!user || user.deleted || user.emailConfirmed) {
-      return;
-    }
-
-    if (!user.confirmationToken) {
-      user.confirmationToken = crypto.randomUUID();
-      await this.users.save(user);
-    }
-
-    await this.sendConfirmation(user);
-  }
-
-  private async sendConfirmation(user: User): Promise<void> {
-    if (!user.confirmationToken) {
-      return;
-    }
-
-    const url = `${this.config.appBaseUrl}/api/auth/confirm?token=${user.confirmationToken}`;
-    await this.emailSender.sendConfirmation(user.email, url);
   }
 }
