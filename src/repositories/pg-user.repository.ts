@@ -10,15 +10,12 @@ interface UserRow {
   email: string;
   password_hash: string | null;
   role: UserRole;
-  email_confirmed: boolean;
-  confirmation_token: string | null;
   deleted: boolean;
   created_at: Date;
 }
 
 const SELECT_COLUMNS = `
-  id, email, password_hash, role,
-  email_confirmed, confirmation_token, deleted, created_at
+  id, email, password_hash, role, deleted, created_at
 `;
 
 function toUser(row: UserRow): User {
@@ -27,8 +24,6 @@ function toUser(row: UserRow): User {
     email: row.email,
     passwordHash: row.password_hash,
     role: row.role,
-    emailConfirmed: row.email_confirmed,
-    confirmationToken: row.confirmation_token,
     deleted: row.deleted,
     createdAt: new Date(row.created_at)
   };
@@ -53,14 +48,6 @@ export class PgUserRepository implements UserRepository {
     return result.rows[0] ? toUser(result.rows[0]) : undefined;
   }
 
-  async findByConfirmationToken(token: string): Promise<User | undefined> {
-    const result = await this.pool.query<UserRow>(
-      `SELECT ${SELECT_COLUMNS} FROM users WHERE confirmation_token = $1 LIMIT 1`,
-      [token]
-    );
-    return result.rows[0] ? toUser(result.rows[0]) : undefined;
-  }
-
   async list(): Promise<User[]> {
     const result = await this.pool.query<UserRow>(
       `SELECT ${SELECT_COLUMNS} FROM users ORDER BY created_at ASC`
@@ -72,15 +59,12 @@ export class PgUserRepository implements UserRepository {
     await this.pool.query(
       `
         INSERT INTO users (
-          id, email, password_hash, role,
-          email_confirmed, confirmation_token, deleted, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          id, email, password_hash, role, deleted, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           password_hash = EXCLUDED.password_hash,
           role = EXCLUDED.role,
-          email_confirmed = EXCLUDED.email_confirmed,
-          confirmation_token = EXCLUDED.confirmation_token,
           deleted = EXCLUDED.deleted
       `,
       [
@@ -88,8 +72,6 @@ export class PgUserRepository implements UserRepository {
         user.email,
         user.passwordHash,
         user.role,
-        user.emailConfirmed,
-        user.confirmationToken,
         user.deleted,
         user.createdAt
       ]
@@ -97,9 +79,6 @@ export class PgUserRepository implements UserRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await this.pool.query(
-      `UPDATE users SET deleted = TRUE, confirmation_token = NULL WHERE id = $1`,
-      [id]
-    );
+    await this.pool.query(`UPDATE users SET deleted = TRUE WHERE id = $1`, [id]);
   }
 }

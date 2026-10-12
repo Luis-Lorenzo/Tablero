@@ -3,12 +3,9 @@ const MESSAGES: Record<string, string> = {
   WEAK_PASSWORD: "La contraseña debe tener al menos 8 caracteres.",
   EMAIL_EXISTS: "Ya existe una cuenta con ese correo.",
   INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
-  EMAIL_NOT_CONFIRMED:
-    "Debes confirmar tu correo electrónico antes de iniciar sesión.",
   FORBIDDEN: "No tienes permisos para realizar esta acción.",
   USER_NOT_FOUND: "El usuario indicado no existe.",
   UNAUTHENTICATED: "Tu sesión ha expirado. Vuelve a iniciar sesión.",
-  INVALID_TOKEN: "El enlace de confirmación no es válido o ya se usó.",
   NETWORK_ERROR: "No se pudo conectar con el servidor.",
   INTERNAL_ERROR: "Ha ocurrido un error en el servidor."
 };

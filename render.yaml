@@ -32,12 +32,6 @@ services:
         fromDatabase:
           name: tablero-db
           property: connectionString
-      - key: APP_BASE_URL
-        sync: false
-      - key: EMAIL_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

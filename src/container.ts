@@ -3,11 +3,6 @@ import type { AppContext } from "./api/context.js";
 import { createApp } from "./app.js";
 import { config } from "./lib/config.js";
 import { createPool, ensureSchema } from "./lib/db.js";
-import {
-  ConsoleEmailSender,
-  ResendEmailSender,
-  type EmailSender
-} from "./lib/email.js";
 import { logger } from "./lib/logger.js";
 import { BcryptPasswordHasher } from "./lib/password.js";
 import { PgUserRepository } from "./repositories/pg-user.repository.js";
@@ -41,17 +36,8 @@ export async function createContainer(): Promise<Container> {
   }
 
   const hasher = new BcryptPasswordHasher();
-  const emailSender: EmailSender = config.email.apiKey
-    ? new ResendEmailSender(config.email.apiKey, config.email.from, logger)
-    : new ConsoleEmailSender(logger);
 
-  const authService = new AuthService(
-    userRepository,
-    hasher,
-    emailSender,
-    config,
-    logger
-  );
+  const authService = new AuthService(userRepository, hasher, logger);
   const userService = new UserService(userRepository, logger);
 
   await ensureAdmin(userRepository, hasher, config, logger);

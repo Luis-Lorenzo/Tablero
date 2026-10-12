@@ -88,7 +88,6 @@ export function AdminUsersPage({
               <tr>
                 <th>Correo</th>
                 <th>Rol</th>
-                <th>Estado</th>
                 <th>Activo</th>
                 <th aria-label="Acciones" />
               </tr>
@@ -98,7 +97,6 @@ export function AdminUsersPage({
                 <tr key={user.id}>
                   <td>{user.email}</td>
                   <td>{user.role === "ADMIN" ? "Administrador" : "Usuario"}</td>
-                  <td>{user.active ? "Confirmado" : "Pendiente"}</td>
                   <td>
                     {activity[user.id] === undefined ? (
                       <button

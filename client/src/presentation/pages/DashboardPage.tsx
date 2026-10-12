@@ -47,7 +47,7 @@ export function DashboardPage({ user, onAccountDeleted }: DashboardPageProps) {
         </div>
         <div>
           <dt>Estado</dt>
-          <dd>{user.active ? "Activo" : "Pendiente de confirmar"}</dd>
+          <dd>{user.active ? "Activo" : "Inactivo"}</dd>
         </div>
         <div>
           <dt>Alta</dt>

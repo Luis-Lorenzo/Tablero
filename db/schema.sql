@@ -9,14 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
   email              TEXT NOT NULL,
   password_hash      TEXT,
   role               TEXT NOT NULL DEFAULT 'USER',
-  email_confirmed    BOOLEAN NOT NULL DEFAULT FALSE,
-  confirmation_token TEXT,
   deleted            BOOLEAN NOT NULL DEFAULT FALSE,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
   ON users (lower(email));
-
-CREATE INDEX IF NOT EXISTS users_confirmation_token_idx
-  ON users (confirmation_token);

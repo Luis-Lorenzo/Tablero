@@ -1,9 +1,9 @@
 # Tablero de rol SaaS
 
 Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. Incluye
-registro con confirmación por correo e inicio de sesión local,
-sesiones persistentes, roles de usuario y administrador, y persistencia real en
-PostgreSQL. El backend sirve al frontend desde el mismo origen.
+registro e inicio de sesión local, sesiones persistentes, roles de usuario y
+administrador, y persistencia real en PostgreSQL. El backend sirve al frontend
+desde el mismo origen.
 
 ## Tecnologías y justificación
 
@@ -19,8 +19,6 @@ PostgreSQL. El backend sirve al frontend desde el mismo origen.
   almacenadas en PostgreSQL, de modo que sobreviven a reinicios.
 - **bcryptjs**: hash de contraseñas con sal, pensado específicamente para
   contraseñas (nunca texto plano ni cifrado reversible).
-- **Resend**: correo transaccional con capa gratuita mediante API key (los
-  proveedores cloud suelen bloquear el SMTP directo).
 - **Vitest**: pruebas automatizadas rápidas para la capa de lógica.
 - **GitHub Actions + Render**: integración continua y despliegue continuo.
 
@@ -37,7 +35,7 @@ src/
   services/       Capa de lógica de negocio (reglas, roles, sesión)
   repositories/   Capa de acceso a datos (PostgreSQL e implementación en memoria)
   middleware/     Autenticación, registro de peticiones, manejo de errores
-  lib/            Configuración, base de datos, sesión, hash de contraseñas y correo
+  lib/            Configuración, base de datos, sesión y hash de contraseñas
 client/src/
   api/            Capa de comunicación con el servidor (fetch)
   presentation/   Capa de presentación (componentes y páginas React)
@@ -94,10 +92,9 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 19 pruebas unitarias de la capa de lógica (`AuthService` y `UserService`),
+Hay 16 pruebas unitarias de la capa de lógica (`AuthService` y `UserService`),
 incluyendo casos de error: email inválido, contraseña débil, email duplicado,
-cuenta sin confirmar, credenciales incorrectas, token inválido, permisos de rol
-y borrado de usuarios.
+credenciales incorrectas, permisos de rol y borrado de usuarios.
 
 ## Variables de entorno
 
@@ -108,9 +105,6 @@ se suben valores reales al repositorio.
 | --- | --- |
 | `DATABASE_URL` | Cadena de conexión a PostgreSQL. Si falta, se usa memoria (solo desarrollo). |
 | `SESSION_SECRET` | Cadena aleatoria para firmar la cookie de sesión. |
-| `APP_BASE_URL` | URL pública de la app (enlaces de confirmación por correo). |
-| `EMAIL_API_KEY` | API key del proveedor de correo (Resend). Sin ella, los correos se registran en el log. |
-| `EMAIL_FROM` | Remitente de los correos de confirmación. |
 | `ADMIN_EMAIL` | Correo del primer administrador. |
 | `ADMIN_PASSWORD` | Contraseña del primer administrador. |
 | `PORT` | Puerto del servidor (lo define Render; por defecto 8080). |
@@ -119,9 +113,8 @@ se suben valores reales al repositorio.
 
 El primer administrador se crea automáticamente al arrancar el servidor a partir
 de `ADMIN_EMAIL` y `ADMIN_PASSWORD` (si no existe). Si ya existe un usuario con
-ese correo, se promociona a administrador y se marca como confirmado. Las
-credenciales de prueba no se publican en el repositorio: se envían junto con la
-entrega.
+ese correo, se promociona a administrador. Las credenciales de prueba no se
+publican en el repositorio: se envían junto con la entrega.
 
 ## Despliegue (Render) y CI/CD
 
@@ -135,11 +128,9 @@ Puesta en marcha con Render:
 1. Crea una cuenta en https://render.com y conecta tu repositorio de GitHub.
 2. En **New → Blueprint**, selecciona el repositorio. Render leerá `render.yaml`
    y creará el servicio web y la base de datos PostgreSQL.
-3. Rellena las variables marcadas como `sync: false` (`APP_BASE_URL`,
-   `EMAIL_API_KEY`, `EMAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`) con los
-   valores reales. `DATABASE_URL` y `SESSION_SECRET` se generan automáticamente.
-4. Fija `APP_BASE_URL` con la URL pública del servicio
-   (por ejemplo `https://tablero.onrender.com`).
+3. Rellena las variables marcadas como `sync: false` (`ADMIN_EMAIL`,
+   `ADMIN_PASSWORD`) con los valores reales. `DATABASE_URL` y
+   `SESSION_SECRET` se generan automáticamente.
 
 > Nota: la instancia gratuita de Render se suspende tras un periodo de
 > inactividad y tarda unos segundos en volver a responder la primera petición.

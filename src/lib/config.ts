@@ -12,13 +12,8 @@ export const config = {
   isProduction: env === "production",
   isTest: env === "test",
   port: Number(process.env.PORT) || 8080,
-  appBaseUrl: read("APP_BASE_URL", "http://localhost:8080"),
   databaseUrl: read("DATABASE_URL"),
   sessionSecret: read("SESSION_SECRET", "dev-only-insecure-secret"),
-  email: {
-    apiKey: read("EMAIL_API_KEY"),
-    from: read("EMAIL_FROM", "Tablero de rol <onboarding@resend.dev>")
-  },
   admin: {
     email: read("ADMIN_EMAIL"),
     password: read("ADMIN_PASSWORD")
