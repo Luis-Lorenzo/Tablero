@@ -1,33 +1,12 @@
-import {
-  type User,
-  type UserRepository
-} from "../repositories/user.repository.js";
+import { errors } from "../lib/errors.js";
+import type { Logger } from "../lib/logger.js";
+import { type User, type UserRepository } from "../repositories/user.repository.js";
 
 export class UserService {
-  constructor(private readonly users: UserRepository) {}
-
-  async register(email: string): Promise<User> {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      throw new Error("INVALID_EMAIL");
-    }
-
-    if (await this.users.findByEmail(normalizedEmail)) {
-      throw new Error("EMAIL_EXISTS");
-    }
-
-    const user: User = {
-      id: crypto.randomUUID(),
-      email: normalizedEmail,
-      role: "USER",
-      emailConfirmed: false,
-      deleted: false
-    };
-
-    await this.users.save(user);
-    return user;
-  }
+  constructor(
+    private readonly users: UserRepository,
+    private readonly logger: Logger
+  ) {}
 
   async listUsers(actor: User): Promise<User[]> {
     this.requireAdmin(actor);
@@ -45,19 +24,24 @@ export class UserService {
     const target = await this.users.findById(targetId);
 
     if (!target || target.deleted) {
-      throw new Error("USER_NOT_FOUND");
+      throw errors.userNotFound();
     }
 
     if (actor.role !== "ADMIN" && actor.id !== targetId) {
-      throw new Error("FORBIDDEN");
+      throw errors.forbidden();
     }
 
     await this.users.delete(targetId);
+
+    this.logger.info("Usuario eliminado", {
+      actorId: actor.id,
+      targetId
+    });
   }
 
-  private requireAdmin(actor: User) {
+  private requireAdmin(actor: User): void {
     if (actor.role !== "ADMIN") {
-      throw new Error("FORBIDDEN");
+      throw errors.forbidden();
     }
   }
 }

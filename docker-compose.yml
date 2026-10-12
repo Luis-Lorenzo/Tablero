@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: tablero-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tablero
+      POSTGRES_USER: tablero
+      POSTGRES_PASSWORD: tablero
+    ports:
+      - "5432:5432"
+    volumes:
+      - tablero-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tablero -d tablero"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tablero-db-data:

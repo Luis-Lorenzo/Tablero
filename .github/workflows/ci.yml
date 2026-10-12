@@ -23,6 +23,9 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Analizar el frontend (lint)
+        run: npm run lint --workspace client
+
       - name: Ejecutar pruebas
         run: npm test
 
