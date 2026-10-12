@@ -1,0 +1,48 @@
+# Blueprint de Render (Infrastructure as Code).
+# Crea un servicio web Node y una base de datos PostgreSQL gratuita, y conecta
+# automáticamente DATABASE_URL al servicio.
+#
+# Base de datos: la capa gratuita de Render Postgres caduca a los 30 días.
+# Si necesitas más tiempo, usa un Postgres externo gratuito (Neon, Supabase...)
+# definiendo DATABASE_URL a mano y omitiendo el bloque `databases`.
+
+databases:
+  - name: tablero-db
+    databaseName: tablero
+    user: tablero
+    plan: free
+    region: frankfurt
+
+services:
+  - type: web
+    name: tablero
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tablero-db
+          property: connectionString
+      - key: APP_BASE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

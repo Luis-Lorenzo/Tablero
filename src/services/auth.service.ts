@@ -1,0 +1,153 @@
+import type { EmailSender } from "../lib/email.js";
+import { errors } from "../lib/errors.js";
+import type { AppConfig } from "../lib/config.js";
+import type { Logger } from "../lib/logger.js";
+import type { PasswordHasher } from "../lib/password.js";
+import type { GoogleProfile } from "../lib/oauth.js";
+import {
+  createUser,
+  type User,
+  type UserRepository
+} from "../repositories/user.repository.js";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN_LENGTH = 8;
+
+export class AuthService {
+  constructor(
+    private readonly users: UserRepository,
+    private readonly hasher: PasswordHasher,
+    private readonly emailSender: EmailSender,
+    private readonly config: AppConfig,
+    private readonly logger: Logger
+  ) {}
+
+  async register(email: string, password: string): Promise<User> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      throw errors.invalidEmail();
+    }
+
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      throw errors.weakPassword();
+    }
+
+    if (await this.users.findByEmail(normalizedEmail)) {
+      throw errors.emailExists();
+    }
+
+    const user = createUser({
+      email: normalizedEmail,
+      passwordHash: await this.hasher.hash(password),
+      confirmationToken: crypto.randomUUID()
+    });
+
+    await this.users.save(user);
+    await this.sendConfirmation(user);
+
+    this.logger.info("Usuario registrado (pendiente de confirmacion)", {
+      userId: user.id,
+      email: user.email
+    });
+
+    return user;
+  }
+
+  async login(email: string, password: string): Promise<User> {
+    const user = await this.users.findByEmail(email.trim());
+
+    if (!user || user.deleted || !user.passwordHash) {
+      throw errors.invalidCredentials();
+    }
+
+    const passwordMatches = await this.hasher.verify(password, user.passwordHash);
+    if (!passwordMatches) {
+      throw errors.invalidCredentials();
+    }
+
+    if (!user.emailConfirmed) {
+      throw errors.emailNotConfirmed();
+    }
+
+    this.logger.info("Inicio de sesion local", {
+      userId: user.id,
+      email: user.email
+    });
+
+    return user;
+  }
+
+  async confirmEmail(token: string): Promise<User> {
+    const user = await this.users.findByConfirmationToken(token);
+
+    if (!user || user.deleted) {
+      throw errors.invalidToken();
+    }
+
+    user.emailConfirmed = true;
+    user.confirmationToken = null;
+    await this.users.save(user);
+
+    this.logger.info("Cuenta confirmada", { userId: user.id, email: user.email });
+
+    return user;
+  }
+
+  async loginWithOAuth(profile: GoogleProfile): Promise<User> {
+    const email = profile.email.trim().toLowerCase();
+    let user = await this.users.findByEmail(email);
+
+    if (user && user.deleted) {
+      throw errors.oauthFailed();
+    }
+
+    if (!user) {
+      user = createUser({
+        email,
+        passwordHash: null,
+        provider: "GOOGLE",
+        emailConfirmed: profile.emailConfirmed
+      });
+      await this.users.save(user);
+      this.logger.info("Cuenta creada mediante OAuth", {
+        userId: user.id,
+        email: user.email
+      });
+    } else if (!user.emailConfirmed && profile.emailConfirmed) {
+      user.emailConfirmed = true;
+      user.confirmationToken = null;
+      await this.users.save(user);
+    }
+
+    this.logger.info("Inicio de sesion OAuth", {
+      userId: user.id,
+      email: user.email
+    });
+
+    return user;
+  }
+
+  async requestConfirmation(email: string): Promise<void> {
+    const user = await this.users.findByEmail(email.trim());
+    if (!user || user.deleted || user.emailConfirmed) {
+      return;
+    }
+
+    if (!user.confirmationToken) {
+      user.confirmationToken = crypto.randomUUID();
+      await this.users.save(user);
+    }
+
+    await this.sendConfirmation(user);
+  }
+
+  private async sendConfirmation(user: User): Promise<void> {
+    if (!user.confirmationToken) {
+      return;
+    }
+
+    const url = `${this.config.appBaseUrl}/api/auth/confirm?token=${user.confirmationToken}`;
+    await this.emailSender.sendConfirmation(user.email, url);
+  }
+}

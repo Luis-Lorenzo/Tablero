@@ -1,0 +1,110 @@
+import type { Pool } from "pg";
+import {
+  type AuthProvider,
+  type User,
+  type UserRepository,
+  type UserRole
+} from "./user.repository.js";
+
+interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string | null;
+  role: UserRole;
+  provider: AuthProvider;
+  email_confirmed: boolean;
+  confirmation_token: string | null;
+  deleted: boolean;
+  created_at: Date;
+}
+
+const SELECT_COLUMNS = `
+  id, email, password_hash, role, provider,
+  email_confirmed, confirmation_token, deleted, created_at
+`;
+
+function toUser(row: UserRow): User {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    role: row.role,
+    provider: row.provider,
+    emailConfirmed: row.email_confirmed,
+    confirmationToken: row.confirmation_token,
+    deleted: row.deleted,
+    createdAt: new Date(row.created_at)
+  };
+}
+
+export class PgUserRepository implements UserRepository {
+  constructor(private readonly pool: Pool) {}
+
+  async findByEmail(email: string): Promise<User | undefined> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+      [email.trim()]
+    );
+    return result.rows[0] ? toUser(result.rows[0]) : undefined;
+  }
+
+  async findById(id: string): Promise<User | undefined> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    return result.rows[0] ? toUser(result.rows[0]) : undefined;
+  }
+
+  async findByConfirmationToken(token: string): Promise<User | undefined> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users WHERE confirmation_token = $1 LIMIT 1`,
+      [token]
+    );
+    return result.rows[0] ? toUser(result.rows[0]) : undefined;
+  }
+
+  async list(): Promise<User[]> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users ORDER BY created_at ASC`
+    );
+    return result.rows.map(toUser);
+  }
+
+  async save(user: User): Promise<void> {
+    await this.pool.query(
+      `
+        INSERT INTO users (
+          id, email, password_hash, role, provider,
+          email_confirmed, confirmation_token, deleted, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+          email = EXCLUDED.email,
+          password_hash = EXCLUDED.password_hash,
+          role = EXCLUDED.role,
+          provider = EXCLUDED.provider,
+          email_confirmed = EXCLUDED.email_confirmed,
+          confirmation_token = EXCLUDED.confirmation_token,
+          deleted = EXCLUDED.deleted
+      `,
+      [
+        user.id,
+        user.email,
+        user.passwordHash,
+        user.role,
+        user.provider,
+        user.emailConfirmed,
+        user.confirmationToken,
+        user.deleted,
+        user.createdAt
+      ]
+    );
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE users SET deleted = TRUE, confirmation_token = NULL WHERE id = $1`,
+      [id]
+    );
+  }
+}

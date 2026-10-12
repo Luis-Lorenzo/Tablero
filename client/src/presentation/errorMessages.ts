@@ -1,0 +1,23 @@
+const MESSAGES: Record<string, string> = {
+  INVALID_EMAIL: "El correo no tiene un formato válido.",
+  WEAK_PASSWORD: "La contraseña debe tener al menos 8 caracteres.",
+  EMAIL_EXISTS: "Ya existe una cuenta con ese correo.",
+  INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
+  EMAIL_NOT_CONFIRMED:
+    "Debes confirmar tu correo electrónico antes de iniciar sesión.",
+  FORBIDDEN: "No tienes permisos para realizar esta acción.",
+  USER_NOT_FOUND: "El usuario indicado no existe.",
+  UNAUTHENTICATED: "Tu sesión ha expirado. Vuelve a iniciar sesión.",
+  INVALID_TOKEN: "El enlace de confirmación no es válido o ya se usó.",
+  OAUTH_FAILED: "No se pudo completar el inicio de sesión con Google.",
+  NETWORK_ERROR: "No se pudo conectar con el servidor.",
+  INTERNAL_ERROR: "Ha ocurrido un error en el servidor."
+};
+
+export function describeError(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = String((error as { code: unknown }).code);
+    return MESSAGES[code] ?? "Ha ocurrido un error inesperado.";
+  }
+  return "Ha ocurrido un error inesperado.";
+}
