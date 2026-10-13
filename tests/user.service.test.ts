@@ -20,12 +20,14 @@ describe("UserService", () => {
     admin = createUser({
       email: "admin@example.com",
       passwordHash: "hash",
-      role: "ADMIN"
+      role: "ADMIN",
+      status: "ACTIVE"
     });
 
     normalUser = createUser({
       email: "user@example.com",
-      passwordHash: "hash"
+      passwordHash: "hash",
+      status: "ACTIVE"
     });
 
     await repository.save(admin);
@@ -49,6 +51,16 @@ describe("UserService", () => {
     await service.deleteUser(admin, normalUser.id);
 
     expect(await service.isActive(admin, normalUser.id)).toBe(false);
+  });
+
+  it("un usuario pendiente de aprobación no está activo", async () => {
+    const pending = createUser({
+      email: "pendiente@example.com",
+      passwordHash: "hash"
+    });
+    await repository.save(pending);
+
+    expect(await service.isActive(admin, pending.id)).toBe(false);
   });
 
   it("impide a un usuario normal listar el estado de actividad de otro", async () => {

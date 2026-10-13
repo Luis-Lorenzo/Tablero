@@ -28,7 +28,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
         await authApi.register(email, password);
         setMode("login");
         setPassword("");
-        setMessage("Cuenta creada correctamente. Ya puedes iniciar sesión.");
+        setMessage(
+          "Cuenta creada. Un administrador debe aprobarla antes de que puedas iniciar sesión."
+        );
         return;
       }
 

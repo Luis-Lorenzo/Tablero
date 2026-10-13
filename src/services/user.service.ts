@@ -1,6 +1,10 @@
 import { errors } from "../lib/errors.js";
 import type { Logger } from "../lib/logger.js";
-import { type User, type UserRepository } from "../repositories/user.repository.js";
+import {
+  isActiveUser,
+  type User,
+  type UserRepository
+} from "../repositories/user.repository.js";
 
 export class UserService {
   constructor(
@@ -17,7 +21,7 @@ export class UserService {
     this.requireAdmin(actor);
 
     const user = await this.users.findById(id);
-    return Boolean(user && !user.deleted);
+    return Boolean(user && isActiveUser(user));
   }
 
   async deleteUser(actor: User, targetId: string): Promise<void> {

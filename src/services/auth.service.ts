@@ -34,7 +34,9 @@ export class AuthService {
 
     const user = createUser({
       email: normalizedEmail,
-      passwordHash: await this.hasher.hash(password)
+      passwordHash: await this.hasher.hash(password),
+      // Toda cuenta nueva queda pendiente de aprobación.
+      status: "PENDING"
     });
 
     await this.users.save(user);
@@ -57,6 +59,16 @@ export class AuthService {
     const passwordMatches = await this.hasher.verify(password, user.passwordHash);
     if (!passwordMatches) {
       throw errors.invalidCredentials();
+    }
+
+    // La contraseña es correcta; solo entonces se informa del estado de la
+    // cuenta, para no revelar si un correo existe sin autenticarse.
+    if (user.status === "PENDING") {
+      throw errors.accountPending();
+    }
+
+    if (user.status === "REJECTED") {
+      throw errors.accountRejected();
     }
 
     this.logger.info("Inicio de sesion local", {

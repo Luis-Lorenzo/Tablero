@@ -1,9 +1,9 @@
 # Tablero de rol SaaS
 
 Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. Incluye
-registro e inicio de sesión local, sesiones persistentes, roles de usuario y
-administrador, y persistencia real en PostgreSQL. El backend sirve al frontend
-desde el mismo origen.
+registro e inicio de sesión local, aprobación de cuentas por un administrador,
+sesiones persistentes, roles de usuario y administrador, y persistencia real en
+PostgreSQL. El backend sirve al frontend desde el mismo origen.
 
 ## Tecnologías y justificación
 
@@ -84,6 +84,10 @@ desarrollo). Con `DATABASE_URL` apuntando a un PostgreSQL, los datos son
 persistentes y sobreviven a reinicios. Para detener la base de datos:
 `docker compose down` (añade `-v` para borrar los datos).
 
+Las cuentas que se registren desde la interfaz quedan pendientes de aprobación:
+para poder entrar hay que aprobarlas como se explica en
+[Aprobación de cuentas](#aprobación-de-cuentas).
+
 ## Pruebas
 
 Un único comando, sin intervención manual:
@@ -92,9 +96,10 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 16 pruebas unitarias de la capa de lógica (`AuthService` y `UserService`),
-incluyendo casos de error: email inválido, contraseña débil, email duplicado,
-credenciales incorrectas, permisos de rol y borrado de usuarios.
+Hay 23 pruebas unitarias de la capa de lógica (`AuthService`, `UserService` y
+`ensureAdmin`), incluyendo casos de error: email inválido, contraseña débil,
+email duplicado, credenciales incorrectas, cuenta pendiente o rechazada,
+permisos de rol y borrado de usuarios.
 
 ## Variables de entorno
 
@@ -112,9 +117,40 @@ se suben valores reales al repositorio.
 ## Acceso como administrador (revisión)
 
 El primer administrador se crea automáticamente al arrancar el servidor a partir
-de `ADMIN_EMAIL` y `ADMIN_PASSWORD` (si no existe). Si ya existe un usuario con
-ese correo, se promociona a administrador. Las credenciales de prueba no se
+de `ADMIN_EMAIL` y `ADMIN_PASSWORD` (si no existe) y queda aprobado, para poder
+entrar sin depender de nadie. Si ya existe un usuario con ese correo, se
+promociona a administrador y se aprueba. Las credenciales de prueba no se
 publican en el repositorio: se envían junto con la entrega.
+
+## Aprobación de cuentas
+
+Las cuentas nuevas no pueden iniciar sesión hasta que un administrador las
+aprueba. El registro crea el usuario con `status = 'PENDING'` y el inicio de
+sesión responde `ACCOUNT_PENDING` mientras siga en ese estado.
+
+| `status` | Significado |
+| --- | --- |
+| `PENDING` | Registrada y pendiente de aprobación (estado inicial). |
+| `ACTIVE` | Aprobada; puede iniciar sesión. |
+| `REJECTED` | Rechazada; no puede iniciar sesión. |
+
+La aprobación se hace directamente en la base de datos (en Neon,
+**SQL Editor**):
+
+```sql
+-- Aprobar una cuenta
+UPDATE users SET status = 'ACTIVE'
+WHERE lower(email) = lower('persona@correo.com');
+
+-- Rechazarla
+UPDATE users SET status = 'REJECTED'
+WHERE lower(email) = lower('persona@correo.com');
+```
+
+También vale cualquier cliente de PostgreSQL. El panel de administración de la
+aplicación expone el `status` de cada usuario, de modo que se ve quién está
+pendiente antes de aprobarlo; añadir un botón de aprobación en la propia
+interfaz sería el siguiente paso.
 
 ## Base de datos (Neon)
 
@@ -125,6 +161,10 @@ aplicación las crea al arrancar y la operación es idempotente.
 - La tabla `users` la crea `src/lib/db.ts` (`ensureSchema`) a partir de
   `db/schema.sql`.
 - La tabla `session` la crea `connect-pg-simple` (opción `createTableIfMissing`).
+
+`db/schema.sql` incluye además una migración idempotente que añade la columna
+`status` a las bases de datos creadas antes de que existiera (los usuarios que
+ya estaban en uso se dejan aprobados).
 
 Si al entrar en Neon no ves ninguna tabla, significa que la aplicación que está
 en marcha no se conectó a esa base de datos: revisa `DATABASE_URL` en el
