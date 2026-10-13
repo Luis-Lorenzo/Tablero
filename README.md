@@ -103,7 +103,7 @@ se suben valores reales al repositorio.
 
 | Variable | Descripción |
 | --- | --- |
-| `DATABASE_URL` | Cadena de conexión a PostgreSQL. Si falta, se usa memoria (solo desarrollo). |
+| `DATABASE_URL` | Cadena de conexión a PostgreSQL (en producción, la de Neon). Si falta, se usa memoria (solo desarrollo). |
 | `SESSION_SECRET` | Cadena aleatoria para firmar la cookie de sesión. |
 | `ADMIN_EMAIL` | Correo del primer administrador. |
 | `ADMIN_PASSWORD` | Contraseña del primer administrador. |
@@ -116,6 +116,22 @@ de `ADMIN_EMAIL` y `ADMIN_PASSWORD` (si no existe). Si ya existe un usuario con
 ese correo, se promociona a administrador. Las credenciales de prueba no se
 publican en el repositorio: se envían junto con la entrega.
 
+## Base de datos (Neon)
+
+La base de datos es un PostgreSQL externo (Neon) y se conecta con
+`DATABASE_URL`. No hace falta crear tablas ni ejecutar migraciones: la propia
+aplicación las crea al arrancar y la operación es idempotente.
+
+- La tabla `users` la crea `src/lib/db.ts` (`ensureSchema`) a partir de
+  `db/schema.sql`.
+- La tabla `session` la crea `connect-pg-simple` (opción `createTableIfMissing`).
+
+Si al entrar en Neon no ves ninguna tabla, significa que la aplicación que está
+en marcha no se conectó a esa base de datos: revisa `DATABASE_URL` en el
+dashboard de Render y los logs de arranque, donde debe aparecer
+`Persistencia habilitada en PostgreSQL` (si aparece un aviso sobre el
+repositorio en memoria, `DATABASE_URL` no llegó a la aplicación).
+
 ## Despliegue (Render) y CI/CD
 
 - **CI**: GitHub Actions (`.github/workflows/ci.yml`) ejecuta lint, pruebas y
@@ -123,17 +139,25 @@ publican en el repositorio: se envían junto con la entrega.
 - **CD**: Render despliega automáticamente cada cambio de `main`
   (`autoDeploy: true`). El despliegue no requiere intervención manual.
 
-Puesta en marcha con Render:
+Puesta en marcha con Neon y Render:
 
-1. Crea una cuenta en https://render.com y conecta tu repositorio de GitHub.
-2. En **New → Blueprint**, selecciona el repositorio. Render leerá `render.yaml`
-   y creará el servicio web y la base de datos PostgreSQL.
-3. Rellena las variables marcadas como `sync: false` (`ADMIN_EMAIL`,
-   `ADMIN_PASSWORD`) con los valores reales. `DATABASE_URL` y
-   `SESSION_SECRET` se generan automáticamente.
+1. Crea un proyecto gratuito en https://neon.tech y copia su cadena de conexión
+   (**Connection Details → Connection string**). Añade `?sslmode=require` si no
+   la incluye.
+2. Crea una cuenta en https://render.com y conecta tu repositorio de GitHub.
+3. En **New → Blueprint**, selecciona el repositorio. Render leerá `render.yaml`
+   y creará solo el servicio web; la base de datos es la de Neon.
+4. Rellena las variables marcadas como `sync: false` con los valores reales:
+   `DATABASE_URL` (la cadena de conexión de Neon), `ADMIN_EMAIL` y
+   `ADMIN_PASSWORD`. `SESSION_SECRET` se genera automáticamente.
+5. Al arrancar, la aplicación crea el esquema en Neon y, si no existe, la cuenta
+   de administrador. Ábrelo en Neon → **Tables** para comprobar que aparecen
+   `users` y `session`.
 
 > Nota: la instancia gratuita de Render se suspende tras un periodo de
 > inactividad y tarda unos segundos en volver a responder la primera petición.
+> El cómputo de Neon también se suspende por inactividad y se reanuda en la
+> primera conexión.
 
 ## Flujo de trabajo (GitHub Flow)
 
