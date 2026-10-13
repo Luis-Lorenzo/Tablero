@@ -23,8 +23,15 @@ export async function ensureAdmin(
   const existing = await users.findByEmail(email);
 
   if (existing) {
-    if (existing.role !== "ADMIN" || existing.deleted) {
+    if (
+      existing.role !== "ADMIN" ||
+      existing.status !== "ACTIVE" ||
+      existing.deleted
+    ) {
       existing.role = "ADMIN";
+      // El administrador nunca queda pendiente de aprobación: sería
+      // imposible aprobarlo desde la propia aplicación.
+      existing.status = "ACTIVE";
       existing.deleted = false;
       await users.save(existing);
       logger.info("Cuenta de administrador promovida", { email });
@@ -35,7 +42,8 @@ export async function ensureAdmin(
   const admin = createUser({
     email,
     passwordHash: await hasher.hash(password),
-    role: "ADMIN"
+    role: "ADMIN",
+    status: "ACTIVE"
   });
 
   await users.save(admin);

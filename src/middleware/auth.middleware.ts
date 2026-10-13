@@ -13,7 +13,7 @@ export function createRequireAuth(users: UserRepository): RequestHandler {
 
       const user = await users.findById(userId);
 
-      if (!user || user.deleted) {
+      if (!user || user.deleted || user.status !== "ACTIVE") {
         req.session.destroy(() => undefined);
         throw errors.unauthenticated();
       }

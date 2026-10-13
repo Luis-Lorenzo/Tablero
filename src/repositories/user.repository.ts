@@ -1,10 +1,18 @@
 export type UserRole = "USER" | "ADMIN";
 
+/**
+ * Estado de aprobación de la cuenta. Los registros nuevos quedan `PENDING`
+ * hasta que un administrador los aprueba (por ejemplo, desde la propia base
+ * de datos) poniéndolos en `ACTIVE`.
+ */
+export type UserStatus = "PENDING" | "ACTIVE" | "REJECTED";
+
 export interface User {
   id: string;
   email: string;
   passwordHash: string | null;
   role: UserRole;
+  status: UserStatus;
   deleted: boolean;
   createdAt: Date;
 }
@@ -21,15 +29,25 @@ export function createUser(input: {
   email: string;
   passwordHash: string | null;
   role?: UserRole;
+  status?: UserStatus;
 }): User {
   return {
     id: crypto.randomUUID(),
     email: input.email.trim().toLowerCase(),
     passwordHash: input.passwordHash,
     role: input.role ?? "USER",
+    status: input.status ?? "PENDING",
     deleted: false,
     createdAt: new Date()
   };
+}
+
+/**
+ * Una cuenta está activa cuando no ha sido borrada y su registro ha sido
+ * aprobado. Es la condición que se exige para iniciar sesión.
+ */
+export function isActiveUser(user: User): boolean {
+  return !user.deleted && user.status === "ACTIVE";
 }
 
 export class MemoryUserRepository implements UserRepository {

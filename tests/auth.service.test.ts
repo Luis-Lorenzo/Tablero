@@ -18,16 +18,47 @@ describe("AuthService", () => {
 
     expect(user.email).toBe("nuevo@example.com");
     expect(user.role).toBe("USER");
+    expect(user.status).toBe("PENDING");
     expect(user.deleted).toBe(false);
     expect(user.passwordHash).not.toBe("secreto123");
     expect(user.passwordHash).toContain("secreto123");
   });
 
-  it("permite iniciar sesión inmediatamente tras el registro", async () => {
+  it("impide iniciar sesión mientras la cuenta está pendiente de aprobación", async () => {
     await service.register("nuevo@example.com", "secreto123");
+
+    await expect(
+      service.login("nuevo@example.com", "secreto123")
+    ).rejects.toThrow("ACCOUNT_PENDING");
+  });
+
+  it("permite iniciar sesión cuando un administrador aprueba la cuenta", async () => {
+    await service.register("nuevo@example.com", "secreto123");
+
+    const stored = await repository.findByEmail("nuevo@example.com");
+    await repository.save({ ...stored!, status: "ACTIVE" });
 
     const user = await service.login("nuevo@example.com", "secreto123");
     expect(user.email).toBe("nuevo@example.com");
+  });
+
+  it("rechaza iniciar sesión de una cuenta rechazada", async () => {
+    await service.register("rechazado@example.com", "secreto123");
+
+    const stored = await repository.findByEmail("rechazado@example.com");
+    await repository.save({ ...stored!, status: "REJECTED" });
+
+    await expect(
+      service.login("rechazado@example.com", "secreto123")
+    ).rejects.toThrow("ACCOUNT_REJECTED");
+  });
+
+  it("no revela el estado de la cuenta si la contraseña es incorrecta", async () => {
+    await service.register("pendiente@example.com", "secreto123");
+
+    await expect(
+      service.login("pendiente@example.com", "incorrecta")
+    ).rejects.toThrow("INVALID_CREDENTIALS");
   });
 
   it("rechaza un email inválido", async () => {
