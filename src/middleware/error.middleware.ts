@@ -13,6 +13,12 @@ export function createErrorHandler(logger: Logger): ErrorRequestHandler {
       return;
     }
 
+    // Cuerpo de la petición por encima del límite permitido (express.raw).
+    if (esCuerpoDemasiadoGrande(error)) {
+      res.status(413).json({ error: "ARCHIVO_DEMASIADO_GRANDE" });
+      return;
+    }
+
     logger.error("Error no controlado", {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
@@ -20,4 +26,12 @@ export function createErrorHandler(logger: Logger): ErrorRequestHandler {
 
     res.status(500).json({ error: "INTERNAL_ERROR" });
   };
+}
+
+function esCuerpoDemasiadoGrande(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { type?: unknown }).type === "entity.too.large"
+  );
 }

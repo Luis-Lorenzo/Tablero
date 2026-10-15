@@ -28,6 +28,11 @@ export const errors = {
   mesaFull: () => new AppError("MESA_FULL", 409),
   mesaForbidden: () => new AppError("MESA_FORBIDDEN", 403),
   mesaBanned: () => new AppError("MESA_BANNED", 403),
+  archivoNotFound: () => new AppError("ARCHIVO_NOT_FOUND", 404),
+  archivoTipoInvalido: () => new AppError("ARCHIVO_TIPO_INVALIDO", 400),
+  archivoDemasiadoGrande: () =>
+    new AppError("ARCHIVO_DEMASIADO_GRANDE", 413),
+  archivoVacio: () => new AppError("ARCHIVO_VACIO", 400),
   internal: () => new AppError("INTERNAL_ERROR", 500)
 };
 
