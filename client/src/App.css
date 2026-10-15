@@ -426,11 +426,72 @@ button.primary.morado {
   outline-offset: 1px;
 }
 
+/* Escena de la recepción: los dados decorativos a la izquierda y la
+   cuadrícula 2x2 ocupando el resto. */
+.recepcion-escena {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+}
+
 /* Cuadrícula fija de 2x2: siempre hay 4 huecos. */
 .recepcion-cuadricula {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+/* Cuatro dados "tirados" que se reparten por el alto de la cuadrícula. */
+.dados {
+  flex: 0 0 auto;
+  width: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.dado {
+  width: 70px;
+  height: 70px;
+}
+
+.dado rect {
+  fill: #f5f0e8;
+  stroke: #a98fce;
+  stroke-width: 3;
+}
+
+.dado circle {
+  fill: #3a3247;
+}
+
+/* Cada dado, con su giro y su desplazamiento, como si se hubieran lanzado. */
+.dado-a {
+  transform: rotate(-18deg) translate(6px, 0) scale(1.04, 0.96);
+}
+
+.dado-b {
+  transform: rotate(14deg) translate(-9px, 0) scale(0.96, 1.07);
+}
+
+.dado-c {
+  transform: rotate(-8deg) translate(10px, 0) scale(1.06, 0.95);
+}
+
+.dado-d {
+  transform: rotate(23deg) translate(-6px, 0) scale(0.95, 1.06);
+}
+
+/* En pantallas estrechas el adorno estorba: la cuadrícula se queda sola. */
+@media (max-width: 780px) {
+  .dados {
+    display: none;
+  }
 }
 
 /* Resultados de la búsqueda (mesas antiguas): se rellenan por filas. */
