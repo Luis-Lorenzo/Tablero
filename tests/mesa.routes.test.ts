@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+﻿import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { config } from "../src/lib/config.js";
@@ -17,11 +17,23 @@ import type { AppContext } from "../src/api/context.js";
 
 const PASSWORD = "secreto123";
 
+/** Espía del canal en vivo: guarda cuántas veces se ha avisado. */
+function notificadorEspia() {
+  const avisos: number[] = [];
+  return {
+    notificarCambio: () => {
+      avisos.push(avisos.length + 1);
+    },
+    avisos
+  };
+}
+
 /** Monta la aplicación real con repositorios en memoria y usuarios aprobados. */
 function montar() {
   const users = new MemoryUserRepository();
   const mesas = new MemoryMesaRepository();
   const hasher = new FakePasswordHasher();
+  const notifier = notificadorEspia();
 
   const context: AppContext = {
     config,
@@ -31,7 +43,8 @@ function montar() {
     authService: new AuthService(users, hasher, logger),
     userService: new UserService(users, logger),
     bloqueoService: new BloqueoService(logger),
-    mesaService: new MesaService(mesas, users, logger)
+    mesaService: new MesaService(mesas, users, logger),
+    mesasNotifier: notifier
   };
 
   const app = createApp(context);
@@ -56,19 +69,21 @@ function montar() {
     return login.headers["set-cookie"][0].split(";")[0];
   }
 
-  return { app, aprobar, sesionDe };
+  return { app, aprobar, sesionDe, notifier };
 }
 
 describe("rutas de /api/mesas", () => {
   let app: ReturnType<typeof montar>["app"];
   let aprobar: ReturnType<typeof montar>["aprobar"];
   let sesionDe: ReturnType<typeof montar>["sesionDe"];
+  let notifier: ReturnType<typeof montar>["notifier"];
 
   beforeEach(async () => {
     const contexto = montar();
     app = contexto.app;
     aprobar = contexto.aprobar;
     sesionDe = contexto.sesionDe;
+    notifier = contexto.notifier;
     await aprobar("anfitrion@pocket.test");
     await aprobar("invitada@pocket.test");
   });
@@ -160,21 +175,54 @@ describe("rutas de /api/mesas", () => {
       .post("/api/mesas")
       .set("Cookie", cookieAnfitrion);
 
-    const denegada = await request(app)
+    const respuestaForbidden = await request(app)
       .delete(`/api/mesas/${creada.body.id}`)
       .set("Cookie", cookieInvitada);
-    expect(denegada.status).toBe(403);
-    expect(denegada.body.error).toBe("FORBIDDEN");
+    expect(creada.status).toBe(201);
+    expect(respuestaForbidden.status).toBe(403);
+    expect(respuestaForbidden.body.error).toBe("FORBIDDEN");
+  });
+
+  it("avisa por el canal en vivo al crear, unirse y cerrar", async () => {
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieInvitada = await sesionDe("invitada@pocket.test");
+
+    expect(notifier.avisos.length).toBe(0);
+
+    const creada = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieAnfitrion);
+    expect(creada.status).toBe(201);
+    expect(notifier.avisos.length).toBe(1);
+
+    const unida = await request(app)
+      .post(`/api/mesas/${creada.body.id}/unirse`)
+      .set("Cookie", cookieInvitada);
+    expect(unida.status).toBe(200);
+    expect(notifier.avisos.length).toBe(2);
 
     const cerrada = await request(app)
       .delete(`/api/mesas/${creada.body.id}`)
       .set("Cookie", cookieAnfitrion);
     expect(cerrada.status).toBe(204);
+    expect(notifier.avisos.length).toBe(3);
+  });
 
-    const cuadricula = await request(app)
-      .get("/api/mesas/inicio")
-      .set("Cookie", cookieAnfitrion);
-    expect(cuadricula.body.every((mesa: unknown) => mesa === null)).toBe(true);
+  it("no avisa al reutilizar una mesa ya creada (crear sin crear)", async () => {
+    const cookie = await sesionDe("anfitrion@pocket.test");
+
+    const primera = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookie);
+    expect(primera.status).toBe(201);
+    expect(notifier.avisos.length).toBe(1);
+
+    const repetida = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookie);
+    expect(repetida.status).toBe(200);
+    expect(repetida.body.id).toBe(primera.body.id);
+    expect(notifier.avisos.length).toBe(1);
   });
 
   it("busca por el nombre del anfitrión y devuelve 404 si la mesa ya no existe", async () => {
