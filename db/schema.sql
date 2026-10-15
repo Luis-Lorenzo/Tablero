@@ -18,8 +18,10 @@ CREATE TABLE IF NOT EXISTS users (
   -- Instantes (los más recientes) de los inicios de sesión fallidos. Se
   -- conservan como mucho los 5 últimos.
   failed_login_at    TIMESTAMPTZ[] NOT NULL DEFAULT '{}',
-  -- Si es futuro, la cuenta está bloqueada por intentos fallidos hasta ese
-  -- momento. Se puede desbloquear a mano con `locked_until = NULL`.
+  -- Indicador de bloqueo por intentos fallidos. Se puede consultar o cambiar a
+  -- mano (`blocked = FALSE`) para desbloquear una cuenta.
+  blocked            BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Fecha en la que el bloqueo caduca solo.
   locked_until       TIMESTAMPTZ
 );
 
@@ -34,6 +36,7 @@ ALTER TABLE users ALTER COLUMN status SET DEFAULT 'PENDING';
 -- Columnas del bloqueo por intentos fallidos (bases de datos creadas antes de
 -- que existieran). Son idempotentes.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_at TIMESTAMPTZ[] NOT NULL DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique

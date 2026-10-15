@@ -17,7 +17,12 @@ export interface User {
   createdAt: Date;
   /** Fallos de inicio de sesión recientes (los más nuevos al final). */
   failedLoginAt: Date[];
-  /** Si está definido y es futuro, la cuenta está bloqueada hasta ese momento. */
+  /**
+   * Marca de bloqueo por intentos fallidos. Es el indicador que se puede
+   * consultar o cambiar a mano desde la base de datos.
+   */
+  blocked: boolean;
+  /** Fecha en la que el bloqueo caduca solo (null = sin caducidad). */
   lockedUntil: Date | null;
 }
 
@@ -44,6 +49,7 @@ export function createUser(input: {
     deleted: false,
     createdAt: new Date(),
     failedLoginAt: [],
+    blocked: false,
     lockedUntil: null
   };
 }
@@ -58,11 +64,19 @@ export function isActiveUser(user: User): boolean {
 
 /**
  * Indica si la cuenta está bloqueada en este instante por acumular intentos de
- * inicio de sesión fallidos. El bloqueo caduca solo: pasada la fecha de
- * `lockedUntil` la cuenta vuelve a estar operativa.
+ * inicio de sesión fallidos.
+ *
+ * El indicador es `blocked`; `lockedUntil` es la fecha en la que el bloqueo
+ * caduca solo. Una cuenta con `blocked` en true y sin fecha queda bloqueada
+ * hasta que se cambie a mano desde la base de datos, y una con la fecha ya
+ * pasada se considera desbloqueada.
  */
 export function isUserLocked(user: User, now: Date): boolean {
-  return Boolean(user.lockedUntil && user.lockedUntil.getTime() > now.getTime());
+  if (!user.blocked) {
+    return false;
+  }
+
+  return !user.lockedUntil || user.lockedUntil.getTime() > now.getTime();
 }
 
 export class MemoryUserRepository implements UserRepository {

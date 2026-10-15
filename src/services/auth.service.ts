@@ -88,10 +88,11 @@ export class AuthService {
     }
 
     // Un inicio de sesión correcto limpia el historial de fallos y cualquier
-    // bloqueo ya caducado.
-    if (user.failedLoginAt.length > 0 || user.lockedUntil) {
-      user.failedLoginAt = [];
+    // bloqueo (ya caducado o no: si estuviera vigente se habría salido antes).
+    if (user.blocked || user.lockedUntil || user.failedLoginAt.length > 0) {
+      user.blocked = false;
       user.lockedUntil = null;
+      user.failedLoginAt = [];
       await this.users.save(user);
     }
 
@@ -111,6 +112,7 @@ export class AuthService {
     const { fallos, bloqueado, hasta } = registrarFallo(user.failedLoginAt, now);
 
     user.failedLoginAt = fallos;
+    user.blocked = bloqueado;
     user.lockedUntil = bloqueado ? hasta : null;
 
     await this.users.save(user);

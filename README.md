@@ -96,7 +96,7 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 37 pruebas unitarias de la capa de lógica (`AuthService`, `UserService`,
+Hay 38 pruebas unitarias de la capa de lógica (`AuthService`, `UserService`,
 `ensureAdmin` y `BloqueoService`), incluyendo casos de error: email inválido,
 contraseña débil, email duplicado, credenciales incorrectas, cuenta pendiente,
 rechazada o bloqueada, permisos de rol, borrado de usuarios y fechas no válidas
@@ -143,25 +143,23 @@ Reglas (lógica pura, en `src/services/bloqueo.service.ts`):
 
 ### Cómo desbloquear una cuenta desde Neon
 
-Ver quién está bloqueado:
+Ver quién está bloqueado (el indicador está en la columna `blocked`):
 
 ```sql
-SELECT lower(email), locked_until
+SELECT lower(email), blocked, locked_until
 FROM users
-WHERE locked_until IS NOT NULL
+WHERE blocked = TRUE
 ORDER BY locked_until;
 ```
 
 Desbloquear (una sola sentencia, no hace falta más):
 
 ```sql
-UPDATE users SET locked_until = NULL, failed_login_at = '{}'
+UPDATE users SET blocked = FALSE, locked_until = NULL, failed_login_at = '{}'
 WHERE lower(email) = lower('persona@correo.com');
 ```
 
-También vale vaciar únicamente `locked_until`, o esperar a que caduque
-(`locked_until <= now()`). El sistema no vuelve a bloquear la cuenta hasta que
-se acumulen 5 fallos nuevos.
+El sistema no vuelve a bloquear la cuenta hasta que se acumulen 5 fallos nuevos.
 
 Columnas implicadas en `users` (añadidas con migración idempotente en
 `db/schema.sql`):
@@ -169,10 +167,20 @@ Columnas implicadas en `users` (añadidas con migración idempotente en
 | Columna | Descripción |
 | --- | --- |
 | `failed_login_at TIMESTAMPTZ[]` | Instantes de los fallos recientes (se conservan como mucho los 5 últimos). |
-| `locked_until TIMESTAMPTZ` | `NULL` = desbloqueada; si es futuro, bloqueada hasta ese momento. |
+| `blocked BOOLEAN` | Indicador de bloqueo. Es la columna que se consulta o se cambia a mano. |
+| `locked_until TIMESTAMPTZ` | Fecha en la que el bloqueo caduca solo. `NULL` = sin caducidad. |
 
-La API expone `lockedUntil` en el `PublicUser`, y el frontend muestra un
-mensaje propio para `ACCOUNT_LOCKED`.
+La cuenta se considera bloqueada cuando `blocked` es `TRUE` y, además, o bien no
+hay fecha (`locked_until IS NULL`), o bien la fecha todavía no ha pasado. Es
+decir, `blocked = TRUE` con `locked_until` en el pasado es una cuenta ya
+desbloqueada (se limpiará sola en el siguiente intento de inicio de sesión).
+
+La API expone `blocked` (estado efectivo) y `lockedUntil` en el `PublicUser`, y
+el panel de administración muestra una etiqueta de estado por usuario:
+`Bloqueado`, `Activo`, `Pendiente` o `Rechazado`. El bloqueo se muestra por
+encima del estado de aprobación, porque son cosas distintas: una cuenta
+`PENDING` también puede estar `Bloqueado`. El frontend muestra un mensaje propio
+para `ACCOUNT_LOCKED`.
 
 ### Endpoint de prueba
 
@@ -239,8 +247,8 @@ aplicación las crea al arrancar y la operación es idempotente.
 
 `db/schema.sql` incluye además una migración idempotente que añade la columna
 `status` a las bases de datos creadas antes de que existiera (los usuarios que
-ya estaban en uso se dejan aprobados) y las columnas `failed_login_at` y
-`locked_until`, del bloqueo por intentos fallidos.
+ya estaban en uso se dejan aprobados) y las columnas `failed_login_at`,
+`blocked` y `locked_until`, del bloqueo por intentos fallidos.
 
 Si al entrar en Neon no ves ninguna tabla, significa que la aplicación que está
 en marcha no se conectó a esa base de datos: revisa `DATABASE_URL` en el

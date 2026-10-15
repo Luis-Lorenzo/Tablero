@@ -4,7 +4,9 @@ export interface PublicUser {
   role: string;
   status: string;
   active: boolean;
+  blocked: boolean;
   createdAt: string;
+  lockedUntil: string | null;
 }
 
 export interface ActiveStatus {
