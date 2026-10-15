@@ -3,6 +3,10 @@
  * se generan las claves en el almacén y cómo se limpian los nombres.
  */
 
+/** Tipo MIME del Word moderno (.docx). */
+export const TIPO_DOCX =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 /** Tipos MIME aceptados y la extensión con la que se guardan. */
 const TIPOS_PERMITIDOS = new Map<string, string>([
   ["application/pdf", ".pdf"],
@@ -10,6 +14,7 @@ const TIPOS_PERMITIDOS = new Map<string, string>([
   ["image/jpeg", ".jpg"],
   ["image/gif", ".gif"],
   ["image/webp", ".webp"],
+  [TIPO_DOCX, ".docx"],
   ["text/plain", ".txt"]
 ]);
 
@@ -39,10 +44,24 @@ export function extensionDe(tipo: string): string {
   return TIPOS_PERMITIDOS.get(normalizarTipo(tipo)) ?? "";
 }
 
-/** ¿Es un tipo que el navegador puede mostrar dentro de la página? */
-export function tipoVisible(tipo: string): boolean {
+/**
+ * Cómo puede mostrarse un archivo dentro de la página:
+ *  - `pdf`     → dentro de un marco.
+ *  - `imagen`  → como imagen.
+ *  - `docx`    → Word moderno, convertido en el navegador.
+ *  - `texto`   → texto plano.
+ *  - `ninguna` → solo se puede descargar.
+ */
+export type VistaArchivo = "pdf" | "imagen" | "docx" | "texto" | "ninguna";
+
+export function vistaDe(tipo: string): VistaArchivo {
   const base = normalizarTipo(tipo);
-  return base === "application/pdf" || base.startsWith("image/");
+
+  if (base === "application/pdf") return "pdf";
+  if (base.startsWith("image/")) return "imagen";
+  if (base === TIPO_DOCX) return "docx";
+  if (base === "text/plain") return "texto";
+  return "ninguna";
 }
 
 /**

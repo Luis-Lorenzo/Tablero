@@ -5,7 +5,7 @@ import {
   type User
 } from "../repositories/user.repository.js";
 import type { MesaVista } from "../services/mesa.service.js";
-import { tipoVisible } from "../lib/archivos.js";
+import { vistaDe } from "../lib/archivos.js";
 
 export interface PublicUser {
   id: string;
@@ -65,8 +65,8 @@ export interface PublicArchivo {
   id: string;
   nombre: string;
   tipo: string;
-  /** Tipo que el navegador puede mostrar dentro de la página. */
-  visible: boolean;
+  /** Cómo mostrarlo dentro de la página (pdf, imagen, docx, texto o ninguna). */
+  vista: string;
   tamano: number;
   createdAt: string;
 }
@@ -76,7 +76,7 @@ export function toPublicArchivo(archivo: Archivo): PublicArchivo {
     id: archivo.id,
     nombre: archivo.nombre,
     tipo: archivo.tipo,
-    visible: tipoVisible(archivo.tipo),
+    vista: vistaDe(archivo.tipo),
     tamano: archivo.tamano,
     createdAt: archivo.createdAt.toISOString()
   };

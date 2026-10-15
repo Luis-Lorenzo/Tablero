@@ -1215,6 +1215,35 @@ button.primary.amarillo {
   object-fit: contain;
 }
 
+.docx-contenedor {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: #ffffff;
+  padding: 24px;
+}
+
+.docx-canvas {
+  margin: 0 auto;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 15%);
+}
+
+.texto-visor {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 24px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #100e16;
+  color: #e7dff2;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.92rem;
+}
+
 /* En pantallas estrechas, los círculos grandes de las esquinas se reducen
    para no pisar el título. */
 @media (max-width: 1100px) {

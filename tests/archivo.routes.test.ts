@@ -100,7 +100,7 @@ describe("rutas de /api/archivos", () => {
     expect(subida.status).toBe(201);
     expect(subida.body.nombre).toBe("reglas.pdf");
     expect(subida.body.tipo).toBe("application/pdf");
-    expect(subida.body.visible).toBe(true);
+    expect(subida.body.vista).toBe("pdf");
     expect(subida.body.tamano).toBe(PDF.length);
 
     const listado = await request(montado.app)
