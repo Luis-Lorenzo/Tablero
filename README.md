@@ -96,10 +96,11 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 23 pruebas unitarias de la capa de lógica (`AuthService`, `UserService` y
-`ensureAdmin`), incluyendo casos de error: email inválido, contraseña débil,
-email duplicado, credenciales incorrectas, cuenta pendiente o rechazada,
-permisos de rol y borrado de usuarios.
+Hay 31 pruebas unitarias de la capa de lógica (`AuthService`, `UserService`,
+`ensureAdmin` y `BloqueoService`), incluyendo casos de error: email inválido,
+contraseña débil, email duplicado, credenciales incorrectas, cuenta pendiente o
+rechazada, permisos de rol, borrado de usuarios y fechas no válidas en el
+cálculo de bloqueo.
 
 ## Variables de entorno
 
@@ -113,6 +114,27 @@ se suben valores reales al repositorio.
 | `ADMIN_EMAIL` | Correo del primer administrador. |
 | `ADMIN_PASSWORD` | Contraseña del primer administrador. |
 | `PORT` | Puerto del servidor (lo define Render; por defecto 8080). |
+
+## Bloqueo por intentos fallidos (endpoint de prueba)
+
+`POST /api/prueba/bloqueo` calcula si una cuenta quedaría bloqueada a partir de
+sus inicios de sesión fallidos. Es un endpoint de prueba (no requiere sesión) y
+la lógica es pura: recibe el instante actual en el cuerpo en lugar de consultar
+el reloj del sistema, de modo que se puede probar de forma determinista.
+
+- Cuerpo: `{ "fallos": [instantes ISO 8601], "ahora": instante ISO 8601 }`
+- Respuesta 200: `{ "bloqueado": boolean, "hasta": instante ISO 8601 | null }`
+
+Reglas: se toman los 5 fallos más recientes (la lista puede venir desordenada);
+con menos de 5 no hay bloqueo; si entre el primero y el último de esos 5 hay
+como mucho 15 minutos, la cuenta queda bloqueada hasta 15 minutos después del
+último fallo; si el bloqueo ya ha expirado se responde como no bloqueado.
+
+Una fecha no válida responde 400 (`INVALID_DATE`) y una lista de fallos mal
+formada responde 400 (`INVALID_REQUEST`).
+
+Ejemplo: 5 fallos entre las 10:00 y las 10:04 con `"ahora": "2026-03-02T10:10:00Z"`
+devuelve `{ "bloqueado": true, "hasta": "2026-03-02T10:19:00Z" }`.
 
 ## Acceso como administrador (revisión)
 
