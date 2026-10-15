@@ -5,13 +5,15 @@ import type { PublicUser } from "./api/types";
 import { AuthPage } from "./presentation/pages/AuthPage";
 import { DashboardPage } from "./presentation/pages/DashboardPage";
 import { AdminUsersPage } from "./presentation/pages/AdminUsersPage";
+import { RecepcionPage } from "./presentation/pages/RecepcionPage";
+import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
 
-type View = "dashboard" | "admin";
+type View = "recepcion" | "cuenta" | "moderar";
 
 function App() {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>("recepcion");
 
   useEffect(() => {
     authApi
@@ -23,7 +25,7 @@ function App() {
 
   const handleAuthenticated = useCallback((nextUser: PublicUser) => {
     setUser(nextUser);
-    setView("dashboard");
+    setView("recepcion");
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -33,7 +35,7 @@ function App() {
       // Ignoramos el error: la sesión local se descarta igualmente.
     }
     setUser(null);
-    setView("dashboard");
+    setView("recepcion");
   }, []);
 
   if (loading) {
@@ -50,45 +52,47 @@ function App() {
     return <AuthPage onAuthenticated={handleAuthenticated} />;
   }
 
+  const esAdmin = user.role === "ADMIN";
+
   return (
     <main className="page">
       <div className="shell">
         <header className="topbar">
-          <div className="identity">
-            <p className="eyebrow">TABLERO DE ROL</p>
-            <strong>{user.email}</strong>
-            <span className="badge">
-              {user.role === "ADMIN" ? "Administrador" : "Usuario"}
-            </span>
-          </div>
+          <div className="topbar-zona" />
 
-          <nav className="tabs">
-            <button
-              type="button"
-              className={view === "dashboard" ? "tab active" : "tab"}
-              onClick={() => setView("dashboard")}
-            >
-              Mi cuenta
-            </button>
-            {user.role === "ADMIN" && (
+          <LogoPocketRol onClick={() => setView("recepcion")} />
+
+          <div className="topbar-zona acciones">
+            {esAdmin && (
               <button
                 type="button"
-                className={view === "admin" ? "tab active" : "tab"}
-                onClick={() => setView("admin")}
+                className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
+                onClick={() => setView("moderar")}
               >
-                Usuarios
+                Moderar
               </button>
             )}
-            <button type="button" className="tab danger" onClick={handleLogout}>
-              Cerrar sesión
-            </button>
-          </nav>
+
+            <button
+              type="button"
+              className={view === "cuenta" ? "perfil activa" : "perfil"}
+              onClick={() => setView("cuenta")}
+              aria-label="Mi cuenta"
+              title="Mi cuenta"
+            />
+          </div>
         </header>
 
-        {view === "admin" && user.role === "ADMIN" ? (
+        {view === "moderar" && esAdmin ? (
           <AdminUsersPage currentUser={user} onSelfDeleted={handleLogout} />
+        ) : view === "cuenta" ? (
+          <DashboardPage
+            user={user}
+            onAccountDeleted={handleLogout}
+            onLogout={handleLogout}
+          />
         ) : (
-          <DashboardPage user={user} onAccountDeleted={handleLogout} />
+          <RecepcionPage user={user} />
         )}
       </div>
     </main>

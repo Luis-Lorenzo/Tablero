@@ -6,9 +6,10 @@ import { describeError } from "../errorMessages";
 interface DashboardPageProps {
   user: PublicUser;
   onAccountDeleted: () => void;
+  onLogout: () => void;
 }
 
-export function DashboardPage({ user, onAccountDeleted }: DashboardPageProps) {
+export function DashboardPage({ user, onAccountDeleted, onLogout }: DashboardPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -55,9 +56,14 @@ export function DashboardPage({ user, onAccountDeleted }: DashboardPageProps) {
         </div>
       </dl>
 
-      <button type="button" className="danger" onClick={handleDelete} disabled={busy}>
-        {busy ? "Eliminando…" : "Eliminar mi cuenta"}
-      </button>
+      <div className="acciones-cuenta">
+        <button type="button" className="ghost" onClick={onLogout}>
+          Cerrar sesión
+        </button>
+        <button type="button" className="danger" onClick={handleDelete} disabled={busy}>
+          {busy ? "Eliminando…" : "Eliminar mi cuenta"}
+        </button>
+      </div>
     </section>
   );
 }

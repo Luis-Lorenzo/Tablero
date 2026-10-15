@@ -3,7 +3,9 @@
 Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. Incluye
 registro e inicio de sesión local, aprobación de cuentas por un administrador,
 sesiones persistentes, roles de usuario y administrador, y persistencia real en
-PostgreSQL. El backend sirve al frontend desde el mismo origen.
+PostgreSQL. Al entrar se llega a la **recepción** (la interfaz se llama
+**POCKET ROL**), desde la que se crean y se buscan mesas. El backend sirve al
+frontend desde el mismo origen.
 
 ## Tecnologías y justificación
 
@@ -19,7 +21,8 @@ PostgreSQL. El backend sirve al frontend desde el mismo origen.
   almacenadas en PostgreSQL, de modo que sobreviven a reinicios.
 - **bcryptjs**: hash de contraseñas con sal, pensado específicamente para
   contraseñas (nunca texto plano ni cifrado reversible).
-- **Vitest**: pruebas automatizadas rápidas para la capa de lógica.
+- **Vitest + supertest**: pruebas automatizadas rápidas para la capa de lógica y
+  para la API HTTP (rutas, códigos de estado y sesión).
 - **GitHub Actions + Render**: integración continua y despliegue continuo.
 
 ## Arquitectura
@@ -39,12 +42,13 @@ src/
 client/src/
   api/            Capa de comunicación con el servidor (fetch)
   presentation/   Capa de presentación (componentes y páginas React)
-tests/            Pruebas unitarias de la capa de lógica
+tests/            Pruebas de la capa de lógica y de la API (HTTP)
 ```
 
-La capa de lógica depende de la interfaz `UserRepository`, no de una
-implementación concreta. Por eso las pruebas usan `MemoryUserRepository` y
-producción usa `PgUserRepository` **sin cambiar la lógica**.
+La capa de lógica depende de las interfaces `UserRepository` y `MesaRepository`,
+no de una implementación concreta. Por eso las pruebas usan
+`MemoryUserRepository` y `MemoryMesaRepository` y producción usa
+`PgUserRepository` y `PgMesaRepository` **sin cambiar la lógica**.
 
 ## Ejecutar en local
 
@@ -96,11 +100,15 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 38 pruebas unitarias de la capa de lógica (`AuthService`, `UserService`,
-`ensureAdmin` y `BloqueoService`), incluyendo casos de error: email inválido,
-contraseña débil, email duplicado, credenciales incorrectas, cuenta pendiente,
-rechazada o bloqueada, permisos de rol, borrado de usuarios y fechas no válidas
-en el cálculo de bloqueo.
+Hay 53 pruebas (`AuthService`, `UserService`, `ensureAdmin`, `BloqueoService`,
+`MesaService` y las rutas HTTP de `/api/mesas`), incluyendo casos de error: email
+inválido, contraseña débil, email duplicado, credenciales incorrectas, cuenta
+pendiente, rechazada o bloqueada, permisos de rol, borrado de usuarios, fechas no
+válidas en el cálculo de bloqueo y mesas llenas o inexistentes.
+
+Las pruebas de las rutas montan la aplicación real con `supertest` y
+repositorios en memoria: comprueban el contrato HTTP completo (códigos de
+estado, sesión y serialización) sin tocar la base de datos.
 
 ## Variables de entorno
 
@@ -234,6 +242,64 @@ También vale cualquier cliente de PostgreSQL. El panel de administración de la
 aplicación expone el `status` de cada usuario, de modo que se ve quién está
 pendiente antes de aprobarlo; añadir un botón de aprobación en la propia
 interfaz sería el siguiente paso.
+
+## Recepción (mesas)
+
+Al iniciar sesión se entra en la **recepción**, la pantalla principal desde la
+que se crean y se buscan mesas. Es la sala que ve el usuario autenticado.
+
+### Cuadrícula
+
+- Siempre hay **4 huecos** en rejilla 2x2. Los huecos sin mesa muestran la
+  etiqueta `Mesa Vacía`.
+- Cada mesa es un hexágono de **solo el perímetro** con una luna morada en el
+  centro y, encima, una etiqueta cuadrada en amarillo pastel:
+  `Mesa <nombre del anfitrión>`. El nombre es el correo sin `@` ni dominio.
+- Las mesas se colocan **pegadas al final**: la más reciente queda en la última
+  posición, abajo a la derecha.
+- Con más de 4 mesas solo se muestran las 4 más recientes; las antiguas se
+  alcanzan con el botón **Buscar**.
+- En la tarjeta se listan el anfitrión y los jugadores, con el recuento `n/6`.
+
+### Reglas
+
+Lógica en `src/services/mesa.service.ts`:
+
+- **Crear sala** crea al instante una mesa a nombre de quien la pide. Si ya tenía
+  una, se le lleva a la suya en lugar de crear otra (la etiqueta sale con su
+  nombre).
+- Pulsar el hexágono de una mesa ajena **unirse** a ella como jugador. Caben
+  **6 jugadores**; el anfitrión no ocupa plaza. Una mesa llena responde
+  `409 MESA_FULL`.
+- Un usuario solo puede estar en una mesa como jugador: al unirse a otra se
+  cambia y sale de la anterior.
+- Solo el anfitrión ve **Cerrar mesa**; cerrarla la borra y deja a los jugadores
+  sin sitio. Cerrar la mesa de otro responde `403 FORBIDDEN`.
+- **Buscar** filtra por el nombre del anfitrión.
+
+### API
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| `GET` | `/api/mesas/inicio` | Los 4 huecos de la cuadrícula (los vacíos, `null`). |
+| `GET` | `/api/mesas?q=texto` | Mesas, de más nueva a más antigua; con `q` filtra por el anfitrión. |
+| `POST` | `/api/mesas` | Crea la sala de quien hace la petición (201; 200 si ya tenía una). |
+| `POST` | `/api/mesas/:id/unirse` | Se une como jugador (404 si no existe, 409 si está llena). |
+| `DELETE` | `/api/mesas/:id` | Cierra la propia sala (403 si no eres el anfitrión). |
+
+Todas requieren sesión de usuario aprobado. La tabla `mesas` (con `host_id`,
+`players UUID[]` y `created_at`) la crea `db/schema.sql` de forma idempotente,
+igual que el resto.
+
+### Navegación
+
+- El logotipo **POCKET ROL**, centrado arriba, vuelve a la recepción desde
+  cualquier pantalla. Está dibujado con un arco de rótulo de casino (estilo Las
+  Vegas / póker) y tipografía de fantasía, en mayúsculas.
+- El **círculo de perfil** (todavía sin foto) abre **Mi cuenta**, donde están los
+  datos de la cuenta y el botón de cerrar sesión.
+- El botón **Moderar**, en amarillo de aviso, solo aparece para el administrador
+  y abre la pantalla de usuarios.
 
 ## Base de datos (Neon)
 

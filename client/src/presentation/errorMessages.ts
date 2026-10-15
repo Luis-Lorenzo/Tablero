@@ -9,6 +9,8 @@ const MESSAGES: Record<string, string> = {
     "La cuenta está bloqueada temporalmente por demasiados intentos fallidos. Inténtalo más tarde.",
   FORBIDDEN: "No tienes permisos para realizar esta acción.",
   USER_NOT_FOUND: "El usuario indicado no existe.",
+  MESA_NOT_FOUND: "Esa mesa ya no existe. Puede que la haya cerrado su anfitrión.",
+  MESA_FULL: "La mesa está llena. No caben más jugadores.",
   UNAUTHENTICATED: "Tu sesión ha expirado. Vuelve a iniciar sesión.",
   NETWORK_ERROR: "No se pudo conectar con el servidor.",
   INTERNAL_ERROR: "Ha ocurrido un error en el servidor."

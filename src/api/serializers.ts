@@ -27,3 +27,28 @@ export function toPublicUser(user: User): PublicUser {
     lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null
   };
 }
+
+import type { MesaVista } from "../services/mesa.service.js";
+
+export interface PublicMesaJugador {
+  id: string;
+  name: string;
+}
+
+export interface PublicMesa {
+  id: string;
+  hostId: string;
+  hostName: string;
+  players: PublicMesaJugador[];
+  createdAt: string;
+}
+
+export function toPublicMesa(mesa: MesaVista): PublicMesa {
+  return {
+    id: mesa.id,
+    hostId: mesa.hostId,
+    hostName: mesa.hostName,
+    players: mesa.players.map(player => ({ id: player.id, name: player.name })),
+    createdAt: mesa.createdAt.toISOString()
+  };
+}
