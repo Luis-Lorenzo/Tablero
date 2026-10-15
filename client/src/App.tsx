@@ -7,8 +7,17 @@ import { DashboardPage } from "./presentation/pages/DashboardPage";
 import { AdminUsersPage } from "./presentation/pages/AdminUsersPage";
 import { RecepcionPage } from "./presentation/pages/RecepcionPage";
 import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
+import { AccountMenu } from "./presentation/components/AccountMenu";
 
 type View = "recepcion" | "cuenta" | "moderar";
+
+/** Nombre con el que se muestra al usuario: su nickname o la parte del correo. */
+function nombreDeUsuario(user: PublicUser): string {
+  const nickname = user.nickname?.trim();
+  if (nickname) return nickname;
+  const corte = user.email.indexOf("@");
+  return corte === -1 ? user.email : user.email.slice(0, corte);
+}
 
 function App() {
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -73,12 +82,10 @@ function App() {
               </button>
             )}
 
-            <button
-              type="button"
-              className={view === "cuenta" ? "perfil activa" : "perfil"}
-              onClick={() => setView("cuenta")}
-              aria-label="Mi cuenta"
-              title="Mi cuenta"
+            <AccountMenu
+              label={nombreDeUsuario(user)}
+              onOpenAccount={() => setView("cuenta")}
+              onLogout={handleLogout}
             />
           </div>
         </header>
@@ -88,6 +95,7 @@ function App() {
         ) : view === "cuenta" ? (
           <DashboardPage
             user={user}
+            onUserUpdated={setUser}
             onAccountDeleted={handleLogout}
             onLogout={handleLogout}
           />

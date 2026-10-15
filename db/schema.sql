@@ -39,8 +39,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_at TIMESTAMPTZ[] NOT NUL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 
+-- Nombre visible opcional (nickname). Se usa en las mesas en lugar de la parte
+-- del correo cuando está definido. Es único sin distinguir mayúsculas entre las
+-- cuentas no borradas; las cuentas borradas liberan su nombre.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT;
+
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
   ON users (lower(email));
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_nickname_unique
+  ON users (lower(nickname))
+  WHERE nickname IS NOT NULL AND deleted = FALSE;
 
 -- Mesas de la recepción. Una mesa la crea un usuario (anfitrión) y otros se
 -- unen como jugadores. Solo se guardan ids; los nombres visibles se derivan

@@ -22,8 +22,12 @@ export const errors = {
   unauthenticated: () => new AppError("UNAUTHENTICATED", 401),
   forbidden: () => new AppError("FORBIDDEN", 403),
   userNotFound: () => new AppError("USER_NOT_FOUND", 404),
+  invalidNickname: () => new AppError("INVALID_NICKNAME", 400),
+  nicknameTaken: () => new AppError("NICKNAME_TAKEN", 409),
   mesaNotFound: () => new AppError("MESA_NOT_FOUND", 404),
   mesaFull: () => new AppError("MESA_FULL", 409),
+  mesaForbidden: () => new AppError("MESA_FORBIDDEN", 403),
+  mesaBanned: () => new AppError("MESA_BANNED", 403),
   internal: () => new AppError("INTERNAL_ERROR", 500)
 };
 

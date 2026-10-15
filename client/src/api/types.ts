@@ -7,6 +7,7 @@ export interface PublicUser {
   blocked: boolean;
   createdAt: string;
   lockedUntil: string | null;
+  nickname: string | null;
 }
 
 export interface ActiveStatus {

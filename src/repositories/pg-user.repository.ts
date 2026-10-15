@@ -60,6 +60,16 @@ export class PgUserRepository implements UserRepository {
     return result.rows[0] ? toUser(result.rows[0]) : undefined;
   }
 
+  async findByNickname(nickname: string): Promise<User | undefined> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users
+       WHERE deleted = FALSE AND lower(nickname) = lower($1)
+       LIMIT 1`,
+      [nickname.trim()]
+    );
+    return result.rows[0] ? toUser(result.rows[0]) : undefined;
+  }
+
   async findManyByIds(ids: readonly string[]): Promise<User[]> {
     if (ids.length === 0) {
       return [];
@@ -84,8 +94,8 @@ export class PgUserRepository implements UserRepository {
       `
         INSERT INTO users (
           id, email, password_hash, role, status, deleted, created_at,
-          failed_login_at, blocked, locked_until
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          failed_login_at, blocked, locked_until, nickname
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           password_hash = EXCLUDED.password_hash,
@@ -94,7 +104,8 @@ export class PgUserRepository implements UserRepository {
           deleted = EXCLUDED.deleted,
           failed_login_at = EXCLUDED.failed_login_at,
           blocked = EXCLUDED.blocked,
-          locked_until = EXCLUDED.locked_until
+          locked_until = EXCLUDED.locked_until,
+          nickname = EXCLUDED.nickname
       `,
       [
         user.id,
@@ -106,7 +117,8 @@ export class PgUserRepository implements UserRepository {
         user.createdAt,
         user.failedLoginAt.map(fallo => fallo.toISOString()),
         user.blocked,
-        user.lockedUntil ? user.lockedUntil.toISOString() : null
+        user.lockedUntil ? user.lockedUntil.toISOString() : null,
+        user.nickname
       ]
     );
   }

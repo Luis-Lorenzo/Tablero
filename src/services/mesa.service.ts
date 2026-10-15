@@ -1,6 +1,10 @@
 import { errors } from "../lib/errors.js";
 import type { Logger } from "../lib/logger.js";
-import type { User, UserRepository } from "../repositories/user.repository.js";
+import {
+  nombreDeUsuario,
+  type User,
+  type UserRepository
+} from "../repositories/user.repository.js";
 import { createMesa, type Mesa, type MesaRepository } from "../repositories/mesa.repository.js";
 
 /** Cuántos jugadores caben en una mesa (el anfitrión no ocupa plaza). */
@@ -155,7 +159,7 @@ export class MesaService {
 
     const usuarios = await this.users.findManyByIds([...ids]);
     const nombres = new Map(
-      usuarios.map(user => [user.id, nombreVisible(user.email)])
+      usuarios.map(user => [user.id, nombreDeUsuario(user)])
     );
 
     return mesas.map(mesa => ({
