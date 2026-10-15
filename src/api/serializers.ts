@@ -1,4 +1,8 @@
-import { isActiveUser, type User } from "../repositories/user.repository.js";
+import {
+  isActiveUser,
+  isUserLocked,
+  type User
+} from "../repositories/user.repository.js";
 
 export interface PublicUser {
   id: string;
@@ -6,6 +10,7 @@ export interface PublicUser {
   role: string;
   status: string;
   active: boolean;
+  blocked: boolean;
   createdAt: string;
   lockedUntil: string | null;
 }
@@ -17,6 +22,7 @@ export function toPublicUser(user: User): PublicUser {
     role: user.role,
     status: user.status,
     active: isActiveUser(user),
+    blocked: isUserLocked(user, new Date()),
     createdAt: user.createdAt.toISOString(),
     lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null
   };
