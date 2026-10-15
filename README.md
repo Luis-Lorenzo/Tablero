@@ -1,10 +1,10 @@
-# Tablero de rol SaaS
+# POCKET ROL
 
-Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. Incluye
-registro e inicio de sesión local, aprobación de cuentas por un administrador,
-sesiones persistentes, roles de usuario y administrador, y persistencia real en
-PostgreSQL. Al entrar se llega a la **recepción** (la interfaz se llama
-**POCKET ROL**), desde la que se crean y se buscan mesas. El backend sirve al
+Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. La
+interfaz se llama **POCKET ROL**: al entrar se llega a la **recepción**, desde
+la que se crean y se buscan mesas. Incluye registro e inicio de sesión local,
+aprobación de cuentas por un administrador, sesiones persistentes, roles de
+usuario y administrador, y persistencia real en PostgreSQL. El backend sirve al
 frontend desde el mismo origen.
 
 ## Tecnologías y justificación
