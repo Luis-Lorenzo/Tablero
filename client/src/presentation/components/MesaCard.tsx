@@ -24,16 +24,22 @@ function Hexagono({ vacio = false }: { vacio?: boolean }) {
 interface MesaCardProps {
   mesa: PublicMesa | null;
   currentUserId: string;
+  esAdmin?: boolean;
   onJoin: (mesa: PublicMesa) => void;
   onClose: (mesa: PublicMesa) => void;
+  onAbandon: (mesa: PublicMesa) => void;
+  onGestionar: (mesa: PublicMesa) => void;
   busy?: boolean;
 }
 
 export function MesaCard({
   mesa,
   currentUserId,
+  esAdmin = false,
   onJoin,
   onClose,
+  onAbandon,
+  onGestionar,
   busy = false
 }: MesaCardProps) {
   if (!mesa) {
@@ -52,6 +58,8 @@ export function MesaCard({
   const soyJugador = mesa.players.some(jugador => jugador.id === currentUserId);
   const jugadores = mesa.players.map(jugador => jugador.name);
   const puedeUnirse = !esHost && !soyJugador;
+  const puedeGestionar = esHost || esAdmin;
+  const puedeAbandonar = soyJugador && !esAdmin;
 
   const pista = esHost
     ? "Eres el anfitrión"
@@ -95,13 +103,43 @@ export function MesaCard({
       )}
 
       {esHost && (
+        <div className="mesa-botones">
+          <button
+            type="button"
+            className="ghost small"
+            onClick={() => onGestionar(mesa)}
+          >
+            Gestionar
+          </button>
+          <button
+            type="button"
+            className="danger small mesa-cerrar"
+            onClick={() => onClose(mesa)}
+            disabled={busy}
+          >
+            Cerrar mesa
+          </button>
+        </div>
+      )}
+
+      {puedeGestionar && !esHost && (
         <button
           type="button"
-          className="danger small mesa-cerrar"
-          onClick={() => onClose(mesa)}
+          className="ghost small"
+          onClick={() => onGestionar(mesa)}
+        >
+          Gestionar
+        </button>
+      )}
+
+      {puedeAbandonar && (
+        <button
+          type="button"
+          className="danger small"
+          onClick={() => onAbandon(mesa)}
           disabled={busy}
         >
-          Cerrar mesa
+          Abandonar mesa
         </button>
       )}
     </article>

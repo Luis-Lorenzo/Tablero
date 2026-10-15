@@ -61,4 +61,9 @@ CREATE TABLE IF NOT EXISTS mesas (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Jugadores expulsados (no pueden volver a unirse) y cesión de mando pendiente
+-- de aceptar. Idempotente para bases de datos creadas antes de que existieran.
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS expulsados UUID[] NOT NULL DEFAULT '{}';
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS pending_host_id UUID;
+
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);

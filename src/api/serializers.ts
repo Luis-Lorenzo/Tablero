@@ -42,6 +42,7 @@ export interface PublicMesa {
   hostId: string;
   hostName: string;
   players: PublicMesaJugador[];
+  pendingHostId: string | null;
   createdAt: string;
 }
 
@@ -51,6 +52,7 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     hostId: mesa.hostId,
     hostName: mesa.hostName,
     players: mesa.players.map(player => ({ id: player.id, name: player.name })),
+    pendingHostId: mesa.pendingHostId,
     createdAt: mesa.createdAt.toISOString()
   };
 }

@@ -11,6 +11,8 @@ const MESSAGES: Record<string, string> = {
   USER_NOT_FOUND: "El usuario indicado no existe.",
   MESA_NOT_FOUND: "Esa mesa ya no existe. Puede que la haya cerrado su anfitrión.",
   MESA_FULL: "La mesa está llena. No caben más jugadores.",
+  MESA_FORBIDDEN: "No puedes hacer eso en esta mesa.",
+  MESA_BANNED: "Te han expulsado de esta mesa y no puedes volver a entrar.",
   INVALID_NICKNAME:
     "El nombre no es válido: de 3 a 20 caracteres, empieza por letra, termina en letra o número y solo admite letras, números y guion bajo.",
   NICKNAME_TAKEN: "Ese nombre ya está en uso. Prueba con otro.",

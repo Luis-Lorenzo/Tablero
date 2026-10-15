@@ -3,6 +3,13 @@ export interface Mesa {
   hostId: string;
   /** Ids de los jugadores (el anfitrión no está en esta lista). */
   players: string[];
+  /** Jugadores expulsados: no pueden volver a unirse a esta mesa. */
+  expulsados: string[];
+  /**
+   * Jugador al que el anfitrión ha ofrecido el mando y todavía no ha respondido.
+   * `null` cuando no hay ninguna cesión pendiente.
+   */
+  pendingHostId: string | null;
   createdAt: Date;
 }
 
@@ -23,6 +30,8 @@ export function createMesa(hostId: string): Mesa {
     id: crypto.randomUUID(),
     hostId,
     players: [],
+    expulsados: [],
+    pendingHostId: null,
     createdAt: new Date()
   };
 }
@@ -45,7 +54,12 @@ export class MemoryMesaRepository implements MesaRepository {
   }
 
   async save(mesa: Mesa) {
-    this.mesas.set(mesa.id, { ...mesa, players: [...mesa.players] });
+    this.mesas.set(mesa.id, {
+      ...mesa,
+      players: [...(mesa.players ?? [])],
+      expulsados: [...(mesa.expulsados ?? [])],
+      pendingHostId: mesa.pendingHostId ?? null
+    });
   }
 
   async delete(id: string) {
