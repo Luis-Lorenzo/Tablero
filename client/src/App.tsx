@@ -80,38 +80,38 @@ function App() {
     <main className="page">
       <div className="shell">
         <header className="topbar">
-          <div className="topbar-zona">
-            {esAdmin && miMesa && (
-              <button
-                type="button"
-                className="primary verde small listar-mesa"
-                onClick={() => abrirGestion(miMesa)}
-              >
-                Listar mesa
-              </button>
-            )}
-          </div>
-
           <LogoPocketRol onClick={() => setView("recepcion")} />
 
-          <div className="topbar-zona acciones">
-            {esAdmin && (
-              <button
-                type="button"
-                className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
-                onClick={() => setView("moderar")}
-              >
-                Moderar
-              </button>
-            )}
+          {(esAdmin || miMesa) && (
+            <div className="topbar-acciones">
+              {esAdmin && miMesa && (
+                <button
+                  type="button"
+                  className="primary verde small listar-mesa"
+                  onClick={() => abrirGestion(miMesa)}
+                >
+                  Listar mesa
+                </button>
+              )}
 
-            <AccountMenu
-              label={nombreDeUsuario(user)}
-              onOpenAccount={() => setView("cuenta")}
-              onLogout={handleLogout}
-            />
-          </div>
+              {esAdmin && (
+                <button
+                  type="button"
+                  className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
+                  onClick={() => setView("moderar")}
+                >
+                  Moderar
+                </button>
+              )}
+            </div>
+          )}
         </header>
+
+        <AccountMenu
+          label={nombreDeUsuario(user)}
+          onOpenAccount={() => setView("cuenta")}
+          onLogout={handleLogout}
+        />
 
         {view === "gestion" && gestionMesaId ? (
           <GestionMesaPage

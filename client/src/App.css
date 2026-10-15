@@ -59,29 +59,27 @@ h2 {
   margin: 0 0 12px;
 }
 
-/* La barra es una rejilla de tres columnas para que el logotipo quede
-   exactamente en el centro: a la izquierda hueco, a la derecha las acciones. */
+/* La barra ya no es un recuadro: el logotipo queda centrado y las acciones
+   del administrador van en una fila debajo. */
 .topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 14px 22px;
-  border: 1px solid #61536c;
-  border-radius: 20px;
-  background: rgb(26 23 34 / 85%);
+  gap: 12px;
+  padding: 4px 0 0;
 }
 
-.topbar-zona.acciones {
+.topbar-acciones {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .logo-poker {
   display: block;
-  width: min(100%, 340px);
+  width: min(100%, 620px);
   padding: 0;
   border: none;
   background: transparent;
@@ -520,20 +518,46 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
   height: auto;
 }
 
-.hexagono polygon {
+.hexagono .perimetro {
   fill: none;
   stroke: #a98fce;
   stroke-width: 3;
   stroke-linejoin: round;
 }
 
-.hexagono path {
+.hexagono .luna {
   fill: #a86fd0;
 }
 
-.hexagono.vacio polygon {
+.hexagono.vacio .perimetro {
   stroke: #6f6480;
   stroke-dasharray: 6 7;
+}
+
+/* Sol de la mesa con jugadores: círculo amarillo y una punta por jugador. */
+.hexagono .sol circle {
+  fill: #f4c542;
+  stroke: #b98a12;
+  stroke-width: 1.4;
+}
+
+.hexagono .rayo {
+  fill: #f4c533;
+  stroke: none;
+}
+
+/* Distintivo "LLENO" cuando la mesa alcanza el máximo de jugadores. */
+.mesa-lleno {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 7px;
+  border: 1px solid #e2bf62;
+  background: #c49a2e;
+  color: #2a1f04;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .mesa-info {
@@ -580,14 +604,17 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
   font-size: 0.78rem;
 }
 
-/* Círculo de cuenta de la barra superior y su menú desplegable. */
+/* Círculo de cuenta anclado a la esquina superior derecha de la página. */
 .cuenta-menu {
-  position: relative;
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 40;
 }
 
 .cuenta-circulo {
-  width: 52px;
-  height: 52px;
+  width: 130px;
+  height: 130px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -607,8 +634,8 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
 }
 
 .cuenta-circulo svg {
-  width: 30px;
-  height: 30px;
+  width: 74px;
+  height: 74px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;

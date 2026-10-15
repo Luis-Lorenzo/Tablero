@@ -55,7 +55,10 @@ export function GestionMesaPage({
   useMesasLive(refrescar, onSessionExpired);
 
   const esAnfitrion = mesa?.hostId === user.id;
-  const puedeGestionar = esAnfitrion || user.role === "ADMIN";
+  // Un administrador manda en cualquier mesa salvo en la que ya juega: si se le
+  // cedió el mando a otro, deja de poder gestionarla.
+  const soyJugador = mesa?.players.some(jugador => jugador.id === user.id) ?? false;
+  const puedeGestionar = esAnfitrion || (user.role === "ADMIN" && !soyJugador);
 
   async function ceder(playerId: string) {
     if (!mesa) return;
