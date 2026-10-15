@@ -30,9 +30,28 @@ export class PgMesaRepository implements MesaRepository {
     return rows[0] ? toMesa(rows[0]) : undefined;
   }
 
-  async list() {
+  async list(limite?: number) {
+    if (limite === undefined) {
+      const { rows } = await this.pool.query<MesaRow>(
+        `SELECT ${SELECT_COLUMNS} FROM mesas ORDER BY created_at ASC, id ASC`
+      );
+      return rows.map(toMesa);
+    }
+
+    if (limite <= 0) {
+      return [];
+    }
+
+    // Subconsulta: quedarse con las N más recientes (DESC LIMIT) y devolverlas
+    // en orden ascendente, igual que la consulta sin límite.
     const { rows } = await this.pool.query<MesaRow>(
-      `SELECT ${SELECT_COLUMNS} FROM mesas ORDER BY created_at ASC`
+      `SELECT ${SELECT_COLUMNS} FROM (
+         SELECT ${SELECT_COLUMNS} FROM mesas
+         ORDER BY created_at DESC, id DESC
+         LIMIT $1
+       ) AS recientes
+       ORDER BY created_at ASC, id ASC`,
+      [limite]
     );
     return rows.map(toMesa);
   }

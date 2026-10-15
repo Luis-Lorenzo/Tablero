@@ -142,4 +142,93 @@ describe("mesa.service", () => {
     expect(res.length).toBe(1);
     expect(res[0].hostName).toBe("javi");
   });
+
+  test("list con límite devuelve solo las más recientes y en orden ascendente", async () => {
+    const mesas = new MemoryMesaRepository();
+    for (let i = 0; i < 6; i += 1) {
+      await mesas.save({
+        id: `m${i}`,
+        hostId: "h",
+        players: [],
+        createdAt: new Date(Date.UTC(2026, 0, 1, i))
+      });
+    }
+
+    expect((await mesas.list()).map(mesa => mesa.id)).toEqual([
+      "m0",
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+      "m5"
+    ]);
+    expect((await mesas.list(4)).map(mesa => mesa.id)).toEqual([
+      "m2",
+      "m3",
+      "m4",
+      "m5"
+    ]);
+    expect(await mesas.list(0)).toEqual([]);
+  });
+
+  test("inicio muestra las 4 mesas más recientes con el nombre de su anfitrión", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const service = new MesaService(mesas, users, logger as any);
+
+    for (let i = 0; i < 6; i += 1) {
+      const host = addUser(users, `host${i}@test.com`);
+      await mesas.save({
+        id: `m${i}`,
+        hostId: host.id,
+        players: [],
+        createdAt: new Date(Date.UTC(2026, 0, 1, i))
+      });
+    }
+
+    const huecos = await service.inicio();
+    expect(huecos.map(mesa => mesa?.hostName)).toEqual([
+      "host2",
+      "host3",
+      "host4",
+      "host5"
+    ]);
+  });
+
+  test("inicio carga todos los nombres en una sola consulta (sin N+1)", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const configuracion = new MesaService(mesas, users, logger as any);
+
+    const host = addUser(users, "host@test.com");
+    const mesa = (await configuracion.crear(host as any)).mesa;
+    for (let i = 0; i < 6; i += 1) {
+      const jugador = addUser(users, `p${i}@test.com`);
+      await configuracion.unirse(jugador as any, mesa.id);
+    }
+
+    let individuales = 0;
+    let enLote = 0;
+    const vigiladas = {
+      findByEmail: (email: string) => users.findByEmail(email),
+      findById: (id: string) => {
+        individuales += 1;
+        return users.findById(id);
+      },
+      findManyByIds: (ids: readonly string[]) => {
+        enLote += 1;
+        return users.findManyByIds(ids);
+      },
+      list: () => users.list(),
+      save: (user: any) => users.save(user),
+      delete: (id: string) => users.delete(id)
+    };
+
+    const service = new MesaService(mesas, vigiladas as any, logger as any);
+    const huecos = await service.inicio();
+
+    expect(huecos[3]?.players).toHaveLength(6);
+    expect(individuales).toBe(0);
+    expect(enLote).toBe(1);
+  });
 });
