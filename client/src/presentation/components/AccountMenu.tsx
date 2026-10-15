@@ -41,6 +41,10 @@ export function AccountMenu({ label, onOpenAccount, onLogout }: AccountMenuProps
 
   return (
     <div className="cuenta-menu" ref={ref}>
+      <span className="cuenta-etiqueta" title={label}>
+        {label}
+      </span>
+
       <button
         type="button"
         className={abierto ? "cuenta-circulo abierto" : "cuenta-circulo"}

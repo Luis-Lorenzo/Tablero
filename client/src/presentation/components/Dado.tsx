@@ -1,6 +1,6 @@
 /**
- * Adorno de la recepción: cuatro dados "tirados" a la izquierda de la
- * cuadrícula 2x2. Son puramente decorativos (no se pueden pulsar).
+ * Dado decorativo (no pulsable) para acompañar al logotipo de la barra
+ * superior. Cada uso le pasa su cara y una clase para darle su giro.
  */
 
 /** Coordenadas de los puntos de cada cara sobre un cuadrado de 0 a 100. */
@@ -38,7 +38,7 @@ const CARAS: Record<number, Array<[number, number]>> = {
   ]
 };
 
-function Dado({ cara, clase }: { cara: number; clase: string }) {
+export function Dado({ cara, clase }: { cara: number; clase: string }) {
   return (
     <svg
       className={`dado ${clase}`}
@@ -51,16 +51,5 @@ function Dado({ cara, clase }: { cara: number; clase: string }) {
         <circle key={indice} cx={cx} cy={cy} r="9" />
       ))}
     </svg>
-  );
-}
-
-export function Dados() {
-  return (
-    <div className="dados" aria-hidden="true">
-      <Dado cara={5} clase="dado-a" />
-      <Dado cara={2} clase="dado-b" />
-      <Dado cara={6} clase="dado-c" />
-      <Dado cara={3} clase="dado-d" />
-    </div>
   );
 }

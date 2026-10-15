@@ -8,6 +8,7 @@ import { AdminUsersPage } from "./presentation/pages/AdminUsersPage";
 import { RecepcionPage } from "./presentation/pages/RecepcionPage";
 import { GestionMesaPage } from "./presentation/pages/GestionMesaPage";
 import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
+import { Dado } from "./presentation/components/Dado";
 import { AccountMenu } from "./presentation/components/AccountMenu";
 
 type View = "recepcion" | "cuenta" | "moderar" | "gestion";
@@ -80,7 +81,11 @@ function App() {
     <main className="page">
       <div className="shell">
         <header className="topbar">
-          <LogoPocketRol onClick={() => setView("recepcion")} />
+          <div className="titulo-con-dados">
+            <Dado cara={5} clase="dado-izquierda" />
+            <LogoPocketRol onClick={() => setView("recepcion")} />
+            <Dado cara={2} clase="dado-derecha" />
+          </div>
 
           {(esAdmin || miMesa) && (
             <div className="topbar-acciones">

@@ -77,6 +77,46 @@ h2 {
   flex-wrap: wrap;
 }
 
+/* Título con un dado tirado a cada lado. */
+.titulo-con-dados {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.dado {
+  flex: 0 0 auto;
+  width: 70px;
+  height: 70px;
+}
+
+.dado rect {
+  fill: #f5f0e8;
+  stroke: #a98fce;
+  stroke-width: 3;
+}
+
+.dado circle {
+  fill: #3a3247;
+}
+
+.dado-izquierda {
+  transform: rotate(-18deg) translateY(4px) scale(1.05, 0.95);
+}
+
+.dado-derecha {
+  transform: rotate(16deg) translateY(-5px) scale(0.95, 1.06);
+}
+
+/* Si la ventana es muy estrecha, los dados dejan sitio al título. */
+@media (max-width: 640px) {
+  .titulo-con-dados .dado {
+    display: none;
+  }
+}
+
 .logo-poker {
   display: block;
   width: min(100%, 620px);
@@ -426,80 +466,14 @@ button.primary.morado {
   outline-offset: 1px;
 }
 
-/* Escena de la recepción: los dados decorativos a la izquierda y la
-   cuadrícula 2x2 ocupando el resto. */
-.recepcion-escena {
-  display: flex;
-  align-items: stretch;
-  gap: 18px;
-}
-
 /* Cuadrícula fija de 2x2: siempre hay 4 huecos. */
 .recepcion-cuadricula {
-  flex: 1;
-  min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
-/* Cuatro dados "tirados" que se reparten por el alto de la cuadrícula. */
-.dados {
-  flex: 0 0 auto;
-  width: 118px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 0;
-}
-
-.dado {
-  width: 70px;
-  height: 70px;
-}
-
-.dado rect {
-  fill: #f5f0e8;
-  stroke: #a98fce;
-  stroke-width: 3;
-}
-
-.dado circle {
-  fill: #3a3247;
-}
-
-/* Cada dado, con su giro y su desplazamiento, como si se hubieran lanzado. */
-.dado-a {
-  transform: rotate(-18deg) translate(6px, 0) scale(1.04, 0.96);
-}
-
-.dado-b {
-  transform: rotate(14deg) translate(-9px, 0) scale(0.96, 1.07);
-}
-
-.dado-c {
-  transform: rotate(-8deg) translate(10px, 0) scale(1.06, 0.95);
-}
-
-.dado-d {
-  transform: rotate(23deg) translate(-6px, 0) scale(0.95, 1.06);
-}
-
-/* En pantallas estrechas el adorno estorba: la cuadrícula se queda sola. */
-@media (max-width: 780px) {
-  .dados {
-    display: none;
-  }
-}
-
 /* Resultados de la búsqueda (mesas antiguas): se rellenan por filas. */
-.recepcion-lista {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-}
 
 .mesa-card {
   display: flex;
@@ -665,12 +639,28 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
   font-size: 0.78rem;
 }
 
-/* Círculo de cuenta anclado a la esquina superior derecha de la página. */
+/* Círculo de cuenta anclado a la esquina superior derecha de la página, con
+   el nombre del usuario en blanco a su izquierda. */
 .cuenta-menu {
   position: fixed;
   top: 18px;
   right: 22px;
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cuenta-etiqueta {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ffffff;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 50%);
 }
 
 .cuenta-circulo {
