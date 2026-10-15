@@ -52,7 +52,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   return (
     <main className="page">
       <section className="card auth-card">
-        <p className="eyebrow">TABLERO DE ROL</p>
+        <p className="eyebrow">POCKET ROL</p>
         <h1>{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h1>
 
         <div className="tabs tabs-center">
