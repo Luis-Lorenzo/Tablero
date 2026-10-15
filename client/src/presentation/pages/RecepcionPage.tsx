@@ -3,7 +3,6 @@ import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { MesaCard } from "../components/MesaCard";
-import { Dados } from "../components/Dados";
 import { useMesasLive } from "../hooks/useMesasLive";
 
 interface RecepcionPageProps {
@@ -210,42 +209,21 @@ export function RecepcionPage({
             </p>
           )}
 
-          {buscando ? (
-            <div className="recepcion-lista">
-              {cartas.map((mesa, indice) => (
-                <MesaCard
-                  key={mesa ? mesa.id : `vacio-${indice}`}
-                  mesa={mesa}
-                  currentUserId={user.id}
-                  esAdmin={esAdmin}
-                  onJoin={unirse}
-                  onClose={cerrar}
-                  onAbandon={abandonar}
-                  onGestionar={onGestionar}
-                  busy={busy}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="recepcion-escena">
-              <Dados />
-              <div className="recepcion-cuadricula">
-                {cartas.map((mesa, indice) => (
-                  <MesaCard
-                    key={mesa ? mesa.id : `vacio-${indice}`}
-                    mesa={mesa}
-                    currentUserId={user.id}
-                    esAdmin={esAdmin}
-                    onJoin={unirse}
-                    onClose={cerrar}
-                    onAbandon={abandonar}
-                    onGestionar={onGestionar}
-                    busy={busy}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <div className={buscando ? "recepcion-lista" : "recepcion-cuadricula"}>
+            {cartas.map((mesa, indice) => (
+              <MesaCard
+                key={mesa ? mesa.id : `vacio-${indice}`}
+                mesa={mesa}
+                currentUserId={user.id}
+                esAdmin={esAdmin}
+                onJoin={unirse}
+                onClose={cerrar}
+                onAbandon={abandonar}
+                onGestionar={onGestionar}
+                busy={busy}
+              />
+            ))}
+          </div>
         </>
       )}
 
