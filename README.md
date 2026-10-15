@@ -179,10 +179,8 @@ La API expone `blocked` (estado efectivo) y `lockedUntil` en el `PublicUser`, y
 el panel de administración muestra una etiqueta de estado por usuario:
 `Bloqueado`, `Activo`, `Pendiente` o `Rechazado`. El bloqueo se muestra por
 encima del estado de aprobación, porque son cosas distintas: una cuenta
-`PENDING` también puede estar `Bloqueado`.
-
-La API expone `lockedUntil` en el `PublicUser`, y el frontend muestra un
-mensaje propio para `ACCOUNT_LOCKED`.
+`PENDING` también puede estar `Bloqueado`. El frontend muestra un mensaje propio
+para `ACCOUNT_LOCKED`.
 
 ### Endpoint de prueba
 
