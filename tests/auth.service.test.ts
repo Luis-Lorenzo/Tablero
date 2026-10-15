@@ -123,8 +123,22 @@ describe("AuthService", () => {
       ).rejects.toThrow("ACCOUNT_LOCKED");
 
       const stored = await repository.findByEmail("bloqueo@example.com");
+      expect(stored?.blocked).toBe(true);
       expect(stored?.lockedUntil).toBeInstanceOf(Date);
       expect(stored!.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it("una cuenta marcada como bloqueada a mano no puede iniciar sesión", async () => {
+      await approvedUser("manual@example.com");
+
+      const stored = await repository.findByEmail("manual@example.com");
+      // Como haría un administrador desde la base de datos: sin fecha de
+      // caducidad, el bloqueo es indefinido hasta que se cambie a mano.
+      await repository.save({ ...stored!, blocked: true, lockedUntil: null });
+
+      await expect(
+        service.login("manual@example.com", "secreto123")
+      ).rejects.toThrow("ACCOUNT_LOCKED");
     });
 
     it("no bloquea la cuenta antes de llegar a 5 fallos", async () => {
@@ -183,6 +197,7 @@ describe("AuthService", () => {
       ).resolves.toMatchObject({ id: user.id });
 
       const after = await repository.findByEmail("caduca@example.com");
+      expect(after?.blocked).toBe(false);
       expect(after?.lockedUntil).toBeNull();
     });
   });

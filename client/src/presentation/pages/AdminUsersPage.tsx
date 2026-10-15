@@ -8,12 +8,32 @@ interface AdminUsersPageProps {
   onSelfDeleted: () => void;
 }
 
+/**
+ * Etiqueta que se muestra en la columna "Estado". Refleja el bloqueo por
+ * intentos fallidos por encima del estado de aprobación.
+ */
+function estadoDe(user: PublicUser): { texto: string; clase: string } {
+  if (user.blocked) {
+    return { texto: "Bloqueado", clase: "pill blocked" };
+  }
+
+  switch (user.status) {
+    case "ACTIVE":
+      return { texto: "Activo", clase: "pill on" };
+    case "PENDING":
+      return { texto: "Pendiente", clase: "pill pending" };
+    case "REJECTED":
+      return { texto: "Rechazado", clase: "pill off" };
+    default:
+      return { texto: user.status, clase: "pill" };
+  }
+}
+
 export function AdminUsersPage({
   currentUser,
   onSelfDeleted
 }: AdminUsersPageProps) {
   const [users, setUsers] = useState<PublicUser[]>([]);
-  const [activity, setActivity] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,15 +53,6 @@ export function AdminUsersPage({
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function checkActive(id: string) {
-    try {
-      const result = await usersApi.isActive(id);
-      setActivity(current => ({ ...current, [id]: result.active }));
-    } catch (checkError) {
-      setError(describeError(checkError));
-    }
-  }
 
   async function remove(user: PublicUser) {
     const confirmed = window.confirm(
@@ -88,41 +99,33 @@ export function AdminUsersPage({
               <tr>
                 <th>Correo</th>
                 <th>Rol</th>
-                <th>Activo</th>
+                <th>Estado</th>
                 <th aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
-                <tr key={user.id}>
-                  <td>{user.email}</td>
-                  <td>{user.role === "ADMIN" ? "Administrador" : "Usuario"}</td>
-                  <td>
-                    {activity[user.id] === undefined ? (
+              {users.map(user => {
+                const estado = estadoDe(user);
+
+                return (
+                  <tr key={user.id}>
+                    <td>{user.email}</td>
+                    <td>{user.role === "ADMIN" ? "Administrador" : "Usuario"}</td>
+                    <td>
+                      <span className={estado.clase}>{estado.texto}</span>
+                    </td>
+                    <td>
                       <button
                         type="button"
-                        className="ghost small"
-                        onClick={() => checkActive(user.id)}
+                        className="danger small"
+                        onClick={() => remove(user)}
                       >
-                        Comprobar
+                        Eliminar
                       </button>
-                    ) : (
-                      <span className={activity[user.id] ? "pill on" : "pill off"}>
-                        {activity[user.id] ? "Sí" : "No"}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="danger small"
-                      onClick={() => remove(user)}
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

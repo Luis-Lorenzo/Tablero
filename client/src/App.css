@@ -298,6 +298,16 @@ th {
   color: #f4c3cc;
 }
 
+.pill.pending {
+  background: rgb(196 158 74 / 22%);
+  color: #f0dcae;
+}
+
+.pill.blocked {
+  background: rgb(214 122 62 / 26%);
+  color: #f6cfa9;
+}
+
 .muted {
   color: #9a90a8;
 }
