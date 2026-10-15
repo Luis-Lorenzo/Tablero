@@ -5,6 +5,8 @@ const MESSAGES: Record<string, string> = {
   INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
   ACCOUNT_PENDING: "Tu cuenta está pendiente de aprobación por un administrador.",
   ACCOUNT_REJECTED: "Tu cuenta ha sido rechazada.",
+  ACCOUNT_LOCKED:
+    "La cuenta está bloqueada temporalmente por demasiados intentos fallidos. Inténtalo más tarde.",
   FORBIDDEN: "No tienes permisos para realizar esta acción.",
   USER_NOT_FOUND: "El usuario indicado no existe.",
   UNAUTHENTICATED: "Tu sesión ha expirado. Vuelve a iniciar sesión.",

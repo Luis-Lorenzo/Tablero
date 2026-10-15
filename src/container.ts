@@ -11,6 +11,7 @@ import {
   type UserRepository
 } from "./repositories/user.repository.js";
 import { AuthService } from "./services/auth.service.js";
+import { BloqueoService } from "./services/bloqueo.service.js";
 import { ensureAdmin } from "./services/seed.service.js";
 import { UserService } from "./services/user.service.js";
 
@@ -39,6 +40,7 @@ export async function createContainer(): Promise<Container> {
 
   const authService = new AuthService(userRepository, hasher, logger);
   const userService = new UserService(userRepository, logger);
+  const bloqueoService = new BloqueoService(logger);
 
   await ensureAdmin(userRepository, hasher, config, logger);
 
@@ -47,7 +49,8 @@ export async function createContainer(): Promise<Container> {
     logger,
     userRepository,
     authService,
-    userService
+    userService,
+    bloqueoService
   };
 
   return { app: createApp(context, pool), pool };

@@ -6,6 +6,7 @@ import type { AppContext } from "./api/context.js";
 import { createAuthRouter } from "./api/auth.routes.js";
 import { createUserRouter } from "./api/user.routes.js";
 import { createHealthRouter } from "./api/health.routes.js";
+import { createPruebaRouter } from "./api/prueba.routes.js";
 import { createRequireAuth } from "./middleware/auth.middleware.js";
 import { createRequestLogger } from "./middleware/request-logger.middleware.js";
 import { apiNotFound, createErrorHandler } from "./middleware/error.middleware.js";
@@ -30,6 +31,7 @@ export function createApp(context: AppContext, pool?: Pool): express.Express {
   app.use("/api/health", createHealthRouter());
   app.use("/api/auth", createAuthRouter(context, requireAuth));
   app.use("/api/users", createUserRouter(context, requireAuth));
+  app.use("/api/prueba", createPruebaRouter(context));
 
   app.use("/api", apiNotFound);
 

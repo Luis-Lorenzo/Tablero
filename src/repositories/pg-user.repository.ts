@@ -14,10 +14,13 @@ interface UserRow {
   status: UserStatus;
   deleted: boolean;
   created_at: Date;
+  failed_login_at: Date[] | null;
+  locked_until: Date | null;
 }
 
 const SELECT_COLUMNS = `
-  id, email, password_hash, role, status, deleted, created_at
+  id, email, password_hash, role, status, deleted, created_at,
+  failed_login_at, locked_until
 `;
 
 function toUser(row: UserRow): User {
@@ -28,7 +31,9 @@ function toUser(row: UserRow): User {
     role: row.role,
     status: row.status,
     deleted: row.deleted,
-    createdAt: new Date(row.created_at)
+    createdAt: new Date(row.created_at),
+    failedLoginAt: (row.failed_login_at ?? []).map(fallo => new Date(fallo)),
+    lockedUntil: row.locked_until ? new Date(row.locked_until) : null
   };
 }
 
@@ -62,14 +67,17 @@ export class PgUserRepository implements UserRepository {
     await this.pool.query(
       `
         INSERT INTO users (
-          id, email, password_hash, role, status, deleted, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          id, email, password_hash, role, status, deleted, created_at,
+          failed_login_at, locked_until
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           password_hash = EXCLUDED.password_hash,
           role = EXCLUDED.role,
           status = EXCLUDED.status,
-          deleted = EXCLUDED.deleted
+          deleted = EXCLUDED.deleted,
+          failed_login_at = EXCLUDED.failed_login_at,
+          locked_until = EXCLUDED.locked_until
       `,
       [
         user.id,
@@ -78,7 +86,9 @@ export class PgUserRepository implements UserRepository {
         user.role,
         user.status,
         user.deleted,
-        user.createdAt
+        user.createdAt,
+        user.failedLoginAt.map(fallo => fallo.toISOString()),
+        user.lockedUntil ? user.lockedUntil.toISOString() : null
       ]
     );
   }

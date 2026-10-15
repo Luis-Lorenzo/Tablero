@@ -15,6 +15,10 @@ export interface User {
   status: UserStatus;
   deleted: boolean;
   createdAt: Date;
+  /** Fallos de inicio de sesión recientes (los más nuevos al final). */
+  failedLoginAt: Date[];
+  /** Si está definido y es futuro, la cuenta está bloqueada hasta ese momento. */
+  lockedUntil: Date | null;
 }
 
 export interface UserRepository {
@@ -38,7 +42,9 @@ export function createUser(input: {
     role: input.role ?? "USER",
     status: input.status ?? "PENDING",
     deleted: false,
-    createdAt: new Date()
+    createdAt: new Date(),
+    failedLoginAt: [],
+    lockedUntil: null
   };
 }
 
@@ -48,6 +54,15 @@ export function createUser(input: {
  */
 export function isActiveUser(user: User): boolean {
   return !user.deleted && user.status === "ACTIVE";
+}
+
+/**
+ * Indica si la cuenta está bloqueada en este instante por acumular intentos de
+ * inicio de sesión fallidos. El bloqueo caduca solo: pasada la fecha de
+ * `lockedUntil` la cuenta vuelve a estar operativa.
+ */
+export function isUserLocked(user: User, now: Date): boolean {
+  return Boolean(user.lockedUntil && user.lockedUntil.getTime() > now.getTime());
 }
 
 export class MemoryUserRepository implements UserRepository {
@@ -69,7 +84,10 @@ export class MemoryUserRepository implements UserRepository {
   }
 
   async save(user: User) {
-    this.users.set(user.id, { ...user });
+    this.users.set(user.id, {
+      ...user,
+      failedLoginAt: [...user.failedLoginAt]
+    });
   }
 
   async delete(id: string) {
