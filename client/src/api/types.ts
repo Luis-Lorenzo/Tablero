@@ -25,5 +25,6 @@ export interface PublicMesa {
   hostId: string;
   hostName: string;
   players: MesaJugador[];
+  pendingHostId: string | null;
   createdAt: string;
 }

@@ -29,6 +29,8 @@ export interface MesaVista {
   hostId: string;
   hostName: string;
   players: MesaJugador[];
+  /** Jugador con una cesión de mando pendiente de aceptar, o null. */
+  pendingHostId: string | null;
   createdAt: Date;
 }
 
@@ -98,6 +100,10 @@ export class MesaService {
       return this.vista(mesa);
     }
 
+    if (mesa.expulsados.includes(actor.id)) {
+      throw errors.mesaBanned();
+    }
+
     if (mesa.players.length >= MESA_MAX_JUGADORES) {
       throw errors.mesaFull();
     }
@@ -112,6 +118,111 @@ export class MesaService {
     return this.vista(mesa);
   }
 
+  /** Un jugador abandona la mesa en la que está (el anfitrión debe cerrarla). */
+  async abandonar(actor: User, mesaId: string): Promise<void> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    if (mesa.hostId === actor.id) {
+      throw errors.mesaForbidden();
+    }
+
+    if (!mesa.players.includes(actor.id)) {
+      return;
+    }
+
+    mesa.players = mesa.players.filter(id => id !== actor.id);
+    if (mesa.pendingHostId === actor.id) {
+      mesa.pendingHostId = null;
+    }
+    await this.mesas.save(mesa);
+    this.logger.info("Jugador abandona la mesa", { mesaId, playerId: actor.id });
+  }
+
+  /** El anfitrión (o un administrador) expulsa a un jugador y le bloquea el reingreso. */
+  async expulsar(actor: User, mesaId: string, playerId: string): Promise<void> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    this.exigirAnfitrionOAdmin(actor, mesa);
+
+    if (!mesa.players.includes(playerId)) {
+      throw errors.invalidRequest();
+    }
+
+    mesa.players = mesa.players.filter(id => id !== playerId);
+    if (!mesa.expulsados.includes(playerId)) {
+      mesa.expulsados = [...mesa.expulsados, playerId];
+    }
+    if (mesa.pendingHostId === playerId) {
+      mesa.pendingHostId = null;
+    }
+    await this.mesas.save(mesa);
+    this.logger.info("Jugador expulsado", {
+      mesaId,
+      actorId: actor.id,
+      playerId
+    });
+  }
+
+  /** Ofrece el mando a un jugador; debe aceptarlo para que el cambio se aplique. */
+  async solicitarCesion(actor: User, mesaId: string, playerId: string): Promise<void> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    this.exigirAnfitrionOAdmin(actor, mesa);
+
+    if (!mesa.players.includes(playerId)) {
+      throw errors.invalidRequest();
+    }
+
+    mesa.pendingHostId = playerId;
+    await this.mesas.save(mesa);
+    this.logger.info("Cesión de mando solicitada", {
+      mesaId,
+      actorId: actor.id,
+      playerId
+    });
+  }
+
+  /** El jugador elegido acepta el mando: pasa a ser anfitrión y el anterior, jugador. */
+  async aceptarCesion(actor: User, mesaId: string): Promise<void> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    if (mesa.pendingHostId !== actor.id) {
+      throw errors.mesaForbidden();
+    }
+
+    const anterior = mesa.hostId;
+    mesa.hostId = actor.id;
+    mesa.players = mesa.players.filter(id => id !== actor.id);
+    if (!mesa.players.includes(anterior)) {
+      mesa.players = [...mesa.players, anterior];
+    }
+    mesa.pendingHostId = null;
+    await this.mesas.save(mesa);
+    this.logger.info("Cesión de mando aceptada", {
+      mesaId,
+      nuevoAnfitrion: actor.id,
+      anterior
+    });
+  }
+
+  /** El jugador elegido rechaza el mando. */
+  async rechazarCesion(actor: User, mesaId: string): Promise<void> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    if (mesa.pendingHostId !== actor.id) {
+      throw errors.mesaForbidden();
+    }
+
+    mesa.pendingHostId = null;
+    await this.mesas.save(mesa);
+    this.logger.info("Cesión de mando rechazada", { mesaId, playerId: actor.id });
+  }
+
   async cerrar(actor: User, mesaId: string): Promise<void> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
@@ -124,6 +235,33 @@ export class MesaService {
 
   private async mesaDeAnfitrion(hostId: string): Promise<Mesa | undefined> {
     return (await this.mesas.list()).find(mesa => mesa.hostId === hostId);
+  }
+
+  /** Devuelve una mesa concreta o lanza 404. */
+  async obtener(mesaId: string): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+    return this.vista(mesa);
+  }
+
+  /** La mesa que aloja el usuario, o null si no es anfitrión de ninguna. */
+  async mia(actor: User): Promise<MesaVista | null> {
+    const mesa = await this.mesaDeAnfitrion(actor.id);
+    return mesa ? this.vista(mesa) : null;
+  }
+
+  /** La mesa en la que al usuario le han ofrecido el mando, o null. */
+  async pendienteDe(actor: User): Promise<MesaVista | null> {
+    const mesa = (await this.mesas.list()).find(
+      candidata => candidata.pendingHostId === actor.id
+    );
+    return mesa ? this.vista(mesa) : null;
+  }
+
+  private exigirAnfitrionOAdmin(actor: User, mesa: Mesa): void {
+    if (mesa.hostId !== actor.id && actor.role !== "ADMIN") {
+      throw errors.mesaForbidden();
+    }
   }
 
   private async salirDeOtras(playerId: string, excepto: string): Promise<void> {
@@ -170,6 +308,7 @@ export class MesaService {
         id,
         name: nombres.get(id) ?? "desconocido"
       })),
+      pendingHostId: mesa.pendingHostId,
       createdAt: mesa.createdAt
     }));
   }

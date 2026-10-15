@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
-import type { PublicUser } from "./api/types";
+import type { PublicMesa, PublicUser } from "./api/types";
 import { AuthPage } from "./presentation/pages/AuthPage";
 import { DashboardPage } from "./presentation/pages/DashboardPage";
 import { AdminUsersPage } from "./presentation/pages/AdminUsersPage";
 import { RecepcionPage } from "./presentation/pages/RecepcionPage";
+import { GestionMesaPage } from "./presentation/pages/GestionMesaPage";
 import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
 import { AccountMenu } from "./presentation/components/AccountMenu";
 
-type View = "recepcion" | "cuenta" | "moderar";
+type View = "recepcion" | "cuenta" | "moderar" | "gestion";
 
 /** Nombre con el que se muestra al usuario: su nickname o la parte del correo. */
 function nombreDeUsuario(user: PublicUser): string {
@@ -23,6 +24,9 @@ function App() {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("recepcion");
+  const [gestionMesaId, setGestionMesaId] = useState<string | null>(null);
+  /** Mesa que aloja el usuario ahora mismo (para el botón "Listar mesa"). */
+  const [miMesa, setMiMesa] = useState<PublicMesa | null>(null);
 
   useEffect(() => {
     authApi
@@ -47,6 +51,15 @@ function App() {
     setView("recepcion");
   }, []);
 
+  const abrirGestion = useCallback((mesa: PublicMesa) => {
+    setGestionMesaId(mesa.id);
+    setView("gestion");
+  }, []);
+
+  const handleMiMesa = useCallback((mesa: PublicMesa | null) => {
+    setMiMesa(mesa);
+  }, []);
+
   if (loading) {
     return (
       <main className="page">
@@ -67,7 +80,17 @@ function App() {
     <main className="page">
       <div className="shell">
         <header className="topbar">
-          <div className="topbar-zona" />
+          <div className="topbar-zona">
+            {esAdmin && miMesa && (
+              <button
+                type="button"
+                className="primary verde small listar-mesa"
+                onClick={() => abrirGestion(miMesa)}
+              >
+                Listar mesa
+              </button>
+            )}
+          </div>
 
           <LogoPocketRol onClick={() => setView("recepcion")} />
 
@@ -90,7 +113,14 @@ function App() {
           </div>
         </header>
 
-        {view === "moderar" && esAdmin ? (
+        {view === "gestion" && gestionMesaId ? (
+          <GestionMesaPage
+            mesaId={gestionMesaId}
+            user={user}
+            onVolver={() => setView("recepcion")}
+            onSessionExpired={handleLogout}
+          />
+        ) : view === "moderar" && esAdmin ? (
           <AdminUsersPage currentUser={user} onSelfDeleted={handleLogout} />
         ) : view === "cuenta" ? (
           <DashboardPage
@@ -100,7 +130,12 @@ function App() {
             onLogout={handleLogout}
           />
         ) : (
-          <RecepcionPage user={user} onSessionExpired={handleLogout} />
+          <RecepcionPage
+            user={user}
+            onGestionar={abrirGestion}
+            onMiMesa={handleMiMesa}
+            onSessionExpired={handleLogout}
+          />
         )}
       </div>
     </main>

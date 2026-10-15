@@ -5,16 +5,21 @@ interface MesaRow {
   id: string;
   host_id: string;
   players: string[] | null;
+  expulsados: string[] | null;
+  pending_host_id: string | null;
   created_at: Date;
 }
 
-const SELECT_COLUMNS = "id, host_id, players, created_at";
+const SELECT_COLUMNS =
+  "id, host_id, players, expulsados, pending_host_id, created_at";
 
 function toMesa(row: MesaRow): Mesa {
   return {
     id: row.id,
     hostId: row.host_id,
     players: row.players ?? [],
+    expulsados: row.expulsados ?? [],
+    pendingHostId: row.pending_host_id,
     createdAt: new Date(row.created_at)
   };
 }
@@ -58,12 +63,21 @@ export class PgMesaRepository implements MesaRepository {
 
   async save(mesa: Mesa) {
     await this.pool.query(
-      `INSERT INTO mesas (id, host_id, players, created_at)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO mesas (id, host_id, players, expulsados, pending_host_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (id) DO UPDATE SET
          host_id = EXCLUDED.host_id,
-         players = EXCLUDED.players`,
-      [mesa.id, mesa.hostId, mesa.players, mesa.createdAt]
+         players = EXCLUDED.players,
+         expulsados = EXCLUDED.expulsados,
+         pending_host_id = EXCLUDED.pending_host_id`,
+      [
+        mesa.id,
+        mesa.hostId,
+        mesa.players,
+        mesa.expulsados,
+        mesa.pendingHostId,
+        mesa.createdAt
+      ]
     );
   }
 

@@ -254,4 +254,93 @@ describe("rutas de /api/mesas", () => {
     expect(inexistente.status).toBe(404);
     expect(inexistente.body.error).toBe("MESA_NOT_FOUND");
   });
+
+  it("un jugador abandona la mesa y el anfitrión no puede abandonar", async () => {
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieInvitada = await sesionDe("invitada@pocket.test");
+
+    const creada = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieAnfitrion);
+    await request(app)
+      .post(`/api/mesas/${creada.body.id}/unirse`)
+      .set("Cookie", cookieInvitada);
+
+    const abandonada = await request(app)
+      .post(`/api/mesas/${creada.body.id}/abandonar`)
+      .set("Cookie", cookieInvitada);
+    expect(abandonada.status).toBe(204);
+
+    const mesa = await request(app)
+      .get(`/api/mesas/${creada.body.id}`)
+      .set("Cookie", cookieAnfitrion);
+    expect(mesa.body.players).toHaveLength(0);
+
+    const anfitrionAbandona = await request(app)
+      .post(`/api/mesas/${creada.body.id}/abandonar`)
+      .set("Cookie", cookieAnfitrion);
+    expect(anfitrionAbandona.status).toBe(403);
+    expect(anfitrionAbandona.body.error).toBe("MESA_FORBIDDEN");
+  });
+
+  it("expulsar bloquea el reingreso del jugador", async () => {
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieInvitada = await sesionDe("invitada@pocket.test");
+
+    const creada = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieAnfitrion);
+    const unida = await request(app)
+      .post(`/api/mesas/${creada.body.id}/unirse`)
+      .set("Cookie", cookieInvitada);
+    const playerId = unida.body.players[0].id;
+
+    const expulsada = await request(app)
+      .post(`/api/mesas/${creada.body.id}/expulsar`)
+      .set("Cookie", cookieAnfitrion)
+      .send({ playerId });
+    expect(expulsada.status).toBe(204);
+
+    const reingreso = await request(app)
+      .post(`/api/mesas/${creada.body.id}/unirse`)
+      .set("Cookie", cookieInvitada);
+    expect(reingreso.status).toBe(403);
+    expect(reingreso.body.error).toBe("MESA_BANNED");
+  });
+
+  it("ceder el mando exige la aceptación del nuevo anfitrión", async () => {
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieInvitada = await sesionDe("invitada@pocket.test");
+
+    const creada = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieAnfitrion);
+    const unida = await request(app)
+      .post(`/api/mesas/${creada.body.id}/unirse`)
+      .set("Cookie", cookieInvitada);
+    const playerId = unida.body.players[0].id;
+
+    const oferta = await request(app)
+      .post(`/api/mesas/${creada.body.id}/ceder`)
+      .set("Cookie", cookieAnfitrion)
+      .send({ playerId });
+    expect(oferta.status).toBe(204);
+
+    const pendiente = await request(app)
+      .get(`/api/mesas/${creada.body.id}`)
+      .set("Cookie", cookieInvitada);
+    expect(pendiente.body.pendingHostId).toBe(playerId);
+
+    const aceptada = await request(app)
+      .post(`/api/mesas/${creada.body.id}/ceder/aceptar`)
+      .set("Cookie", cookieInvitada);
+    expect(aceptada.status).toBe(204);
+
+    const despues = await request(app)
+      .get(`/api/mesas/${creada.body.id}`)
+      .set("Cookie", cookieInvitada);
+    expect(despues.body.hostId).toBe(playerId);
+    expect(despues.body.pendingHostId).toBeNull();
+    expect(despues.body.players).toHaveLength(1);
+  });
 });
