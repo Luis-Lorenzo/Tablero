@@ -1,11 +1,24 @@
 import { MESA_MAX_JUGADORES } from "../../api/mesas.api";
 import type { PublicMesa } from "../../api/types";
 
+/** Vértices del hexágono donde se coloca cada rayo (arriba y cada 60º). */
+const RAYOS_GRADOS = [0, 60, 120, 180, 240, 300];
+
 /**
- * Perímetro hexagonal de una mesa con la luna morada en el centro. Solo se
- * dibuja el contorno; la luna desaparece cuando el hueco está vacío.
+ * Perímetro hexagonal de una mesa. Con el hueco vacío se dibuja un contorno
+ * discontinuo; con la mesa creada, una luna morada que, en cuanto entra el
+ * primer jugador, deja paso a un sol (círculo amarillo) con una punta por
+ * jugador apuntando a su vértice correspondiente.
  */
-function Hexagono({ vacio = false }: { vacio?: boolean }) {
+function Hexagono({
+  jugadores = 0,
+  vacio = false
+}: {
+  jugadores?: number;
+  vacio?: boolean;
+}) {
+  const conSol = !vacio && jugadores > 0;
+
   return (
     <svg
       className={vacio ? "hexagono vacio" : "hexagono"}
@@ -13,9 +26,26 @@ function Hexagono({ vacio = false }: { vacio?: boolean }) {
       aria-hidden="true"
       focusable="false"
     >
-      <polygon points="50,3 95,29 95,81 50,107 5,81 5,29" />
-      {!vacio && (
-        <path d="M 54 24 C 26 32 26 78 54 86 C 44 72 44 38 54 24 Z" />
+      <polygon className="perimetro" points="50,3 95,29 95,81 50,107 5,81 5,29" />
+
+      {!vacio && !conSol && (
+        <path className="luna" d="M 54 24 C 26 32 26 78 54 86 C 44 72 44 38 54 24 Z" />
+      )}
+
+      {conSol && (
+        <g className="sol">
+          <circle cx="50" cy="55" r="13" />
+          {RAYOS_GRADOS.slice(0, Math.min(jugadores, MESA_MAX_JUGADORES)).map(
+            grados => (
+              <polygon
+                key={grados}
+                className="rayo"
+                points="45.4,38 54.6,38 50,29"
+                transform={`rotate(${grados} 50 55)`}
+              />
+            )
+          )}
+        </g>
       )}
     </svg>
   );
@@ -57,9 +87,13 @@ export function MesaCard({
   const esHost = mesa.hostId === currentUserId;
   const soyJugador = mesa.players.some(jugador => jugador.id === currentUserId);
   const jugadores = mesa.players.map(jugador => jugador.name);
+  const total = mesa.players.length;
   const puedeUnirse = !esHost && !soyJugador;
-  const puedeGestionar = esHost || esAdmin;
+  // Un administrador pierde el mando de una mesa en cuanto es jugador de ella
+  // (por ejemplo, tras cedérsela a otro): deja de poder gestionarla.
+  const puedeGestionar = esHost || (esAdmin && !soyJugador);
   const puedeAbandonar = soyJugador && !esAdmin;
+  const llena = total >= MESA_MAX_JUGADORES;
 
   const pista = esHost
     ? "Eres el anfitrión"
@@ -70,8 +104,9 @@ export function MesaCard({
   const cuerpo = (
     <>
       <span className="mesa-etiqueta">Mesa {mesa.hostName}</span>
+      {llena && <span className="mesa-lleno">LLENO</span>}
       <span className="mesa-hexagono">
-        <Hexagono />
+        <Hexagono jugadores={total} />
       </span>
       <span className="mesa-info">
         <span>

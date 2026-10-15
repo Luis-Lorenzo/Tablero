@@ -130,6 +130,27 @@ describe("mesa.service", () => {
     await expect(service.unirse(otro as any, m.id)).rejects.toThrow("MESA_NOT_FOUND");
   });
 
+  test("un administrador deja de gestionar la mesa cuando pasa a ser jugador", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const service = new MesaService(mesas, users, logger as any);
+
+    const admin = addUser(users, "admin@test.com");
+    admin.role = "ADMIN";
+    const host = addUser(users, "host@test.com");
+    const mesa = (await service.crear(host as any)).mesa;
+    const jugador = addUser(users, "p@test.com");
+    await service.unirse(jugador as any, mesa.id);
+
+    // Mientras no juega en la mesa, el administrador manda en ella.
+    await expect(service.expulsar(admin as any, mesa.id, jugador.id)).resolves
+      .toBeUndefined();
+
+    // En cuanto entra como jugador, pierde el mando de esa mesa.
+    await service.unirse(admin as any, mesa.id);
+    await expect(service.cerrar(admin as any, mesa.id)).rejects.toThrow("FORBIDDEN");
+  });
+
   test("listar filtra por nombre del anfitrión", async () => {
     const users = new MemoryUserRepository();
     const mesas = new MemoryMesaRepository();

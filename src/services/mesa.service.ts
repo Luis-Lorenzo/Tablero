@@ -259,7 +259,10 @@ export class MesaService {
   }
 
   private exigirAnfitrionOAdmin(actor: User, mesa: Mesa): void {
-    if (mesa.hostId !== actor.id && actor.role !== "ADMIN") {
+    // Un administrador es omnipotente, pero pierde el mando de una mesa en
+    // cuanto pasa a ser jugador de ella (por ejemplo, tras cederla a otro).
+    const esAdminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+    if (mesa.hostId !== actor.id && !esAdminLibre) {
       throw errors.mesaForbidden();
     }
   }
