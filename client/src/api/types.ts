@@ -34,8 +34,8 @@ export interface PublicArchivo {
   id: string;
   nombre: string;
   tipo: string;
-  /** El navegador puede mostrarlo dentro de la página (PDF o imagen). */
-  visible: boolean;
+  /** El navegador puede mostrarlo dentro de la página (PDF, imagen o .docx). */
+  vista: string;
   tamano: number;
   createdAt: string;
 }
