@@ -41,3 +41,15 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
   ON users (lower(email));
+
+-- Mesas de la recepción. Una mesa la crea un usuario (anfitrión) y otros se
+-- unen como jugadores. Solo se guardan ids; los nombres visibles se derivan
+-- del correo electrónico.
+CREATE TABLE IF NOT EXISTS mesas (
+  id         UUID PRIMARY KEY,
+  host_id    UUID NOT NULL,
+  players    UUID[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
