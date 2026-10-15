@@ -3,9 +3,12 @@ import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { MesaCard } from "../components/MesaCard";
+import { useMesasLive } from "../hooks/useMesasLive";
 
 interface RecepcionPageProps {
   user: PublicUser;
+  /** La sesión ha caducado en el canal en vivo: hay que volver al login. */
+  onSessionExpired?: () => void;
 }
 
 /**
@@ -13,7 +16,7 @@ interface RecepcionPageProps {
  * 4 huecos: los que nadie ha creado aparecen como "Mesa Vacía" y las mesas se
  * colocan pegadas al final para que la más reciente quede abajo a la derecha.
  */
-export function RecepcionPage({ user }: RecepcionPageProps) {
+export function RecepcionPage({ user, onSessionExpired }: RecepcionPageProps) {
   const [huecos, setHuecos] = useState<Array<PublicMesa | null>>([]);
   const [resultados, setResultados] = useState<PublicMesa[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -36,6 +39,9 @@ export function RecepcionPage({ user }: RecepcionPageProps) {
   useEffect(() => {
     void refrescar();
   }, [refrescar]);
+
+  // La recepción se actualiza sola: cada aviso del servidor dispara un refresco.
+  useMesasLive(refrescar, onSessionExpired);
 
   // Búsqueda con retardo para no mandar una petición por tecla.
   useEffect(() => {

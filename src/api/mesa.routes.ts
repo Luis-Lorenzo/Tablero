@@ -27,6 +27,9 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.post("/", requireAuth, async (req, res, next) => {
     try {
       const { mesa, creada } = await context.mesaService.crear(req.currentUser!);
+      if (creada) {
+        context.mesasNotifier.notificarCambio();
+      }
       res.status(creada ? 201 : 200).json(toPublicMesa(mesa));
     } catch (error) {
       next(error);
@@ -36,6 +39,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.post("/:id/unirse", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.unirse(req.currentUser!, String(req.params.id));
+      context.mesasNotifier.notificarCambio();
       res.json(toPublicMesa(mesa));
     } catch (error) {
       next(error);
@@ -45,6 +49,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.delete("/:id", requireAuth, async (req, res, next) => {
     try {
       await context.mesaService.cerrar(req.currentUser!, String(req.params.id));
+      context.mesasNotifier.notificarCambio();
       res.status(204).end();
     } catch (error) {
       next(error);

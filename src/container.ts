@@ -5,6 +5,7 @@ import { config } from "./lib/config.js";
 import { createPool, ensureSchema } from "./lib/db.js";
 import { logger } from "./lib/logger.js";
 import { BcryptPasswordHasher } from "./lib/password.js";
+import { createSessionStore } from "./lib/session.js";
 import { PgUserRepository } from "./repositories/pg-user.repository.js";
 import { PgMesaRepository } from "./repositories/pg-mesa.repository.js";
 import { MemoryMesaRepository } from "./repositories/mesa.repository.js";
@@ -12,6 +13,7 @@ import {
   MemoryUserRepository,
   type UserRepository
 } from "./repositories/user.repository.js";
+import { MesasBroadcaster } from "./realtime/mesas-broadcaster.js";
 import { AuthService } from "./services/auth.service.js";
 import { BloqueoService } from "./services/bloqueo.service.js";
 import { MesaService } from "./services/mesa.service.js";
@@ -21,6 +23,7 @@ import { UserService } from "./services/user.service.js";
 export interface Container {
   app: ReturnType<typeof createApp>;
   pool?: Pool;
+  notifier: MesasBroadcaster;
 }
 
 export async function createContainer(): Promise<Container> {
@@ -49,6 +52,15 @@ export async function createContainer(): Promise<Container> {
   const bloqueoService = new BloqueoService(logger);
   const mesaService = new MesaService(mesaRepository, userRepository, logger);
 
+  // Un único almacén de sesiones para Express y para el canal en vivo.
+  const sessionStore = createSessionStore(pool);
+  const mesasNotifier = new MesasBroadcaster({
+    config,
+    logger,
+    sessionStore,
+    userRepository
+  });
+
   await ensureAdmin(userRepository, hasher, config, logger);
 
   const context: AppContext = {
@@ -59,8 +71,9 @@ export async function createContainer(): Promise<Container> {
     authService,
     userService,
     bloqueoService,
-    mesaService
+    mesaService,
+    mesasNotifier
   };
 
-  return { app: createApp(context, pool), pool };
+  return { app: createApp(context, sessionStore), pool, notifier: mesasNotifier };
 }

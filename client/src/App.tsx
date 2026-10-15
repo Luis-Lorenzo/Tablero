@@ -92,7 +92,7 @@ function App() {
             onLogout={handleLogout}
           />
         ) : (
-          <RecepcionPage user={user} />
+          <RecepcionPage user={user} onSessionExpired={handleLogout} />
         )}
       </div>
     </main>
