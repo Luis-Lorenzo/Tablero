@@ -10,6 +10,7 @@ import { GestionMesaPage } from "./presentation/pages/GestionMesaPage";
 import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
 import { Dado } from "./presentation/components/Dado";
 import { AccountMenu } from "./presentation/components/AccountMenu";
+import { ArchivosMenu } from "./presentation/components/ArchivosMenu";
 
 type View = "recepcion" | "cuenta" | "moderar" | "gestion";
 
@@ -117,6 +118,8 @@ function App() {
           onOpenAccount={() => setView("cuenta")}
           onLogout={handleLogout}
         />
+
+        <ArchivosMenu />
 
         {view === "gestion" && gestionMesaId ? (
           <GestionMesaPage

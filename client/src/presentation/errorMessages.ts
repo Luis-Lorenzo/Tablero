@@ -17,6 +17,11 @@ const MESSAGES: Record<string, string> = {
     "El nombre no es válido: de 3 a 20 caracteres, empieza por letra, termina en letra o número y solo admite letras, números y guion bajo.",
   NICKNAME_TAKEN: "Ese nombre ya está en uso. Prueba con otro.",
   UNAUTHENTICATED: "Tu sesión ha expirado. Vuelve a iniciar sesión.",
+  ARCHIVO_NOT_FOUND: "Ese archivo ya no existe.",
+  ARCHIVO_TIPO_INVALIDO:
+    "Tipo de archivo no permitido. Solo se aceptan PDF, imágenes y texto plano.",
+  ARCHIVO_DEMASIADO_GRANDE: "El archivo es demasiado grande (máximo 15 MB).",
+  ARCHIVO_VACIO: "El archivo está vacío.",
   NETWORK_ERROR: "No se pudo conectar con el servidor.",
   INTERNAL_ERROR: "Ha ocurrido un error en el servidor."
 };

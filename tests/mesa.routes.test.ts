@@ -9,6 +9,9 @@ import {
   MemoryUserRepository
 } from "../src/repositories/user.repository.js";
 import { MemoryMesaRepository } from "../src/repositories/mesa.repository.js";
+import { MemoryArchivoRepository } from "../src/repositories/archivo.repository.js";
+import { MemoryAlmacen } from "../src/lib/almacen.js";
+import { ArchivoService } from "../src/services/archivo.service.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
@@ -44,6 +47,12 @@ function montar() {
     userService: new UserService(users, logger),
     bloqueoService: new BloqueoService(logger),
     mesaService: new MesaService(mesas, users, logger),
+    archivoService: new ArchivoService(
+      new MemoryArchivoRepository(),
+      new MemoryAlmacen(),
+      logger,
+      config.archivos.maxBytes
+    ),
     mesasNotifier: notifier
   };
 

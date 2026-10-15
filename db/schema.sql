@@ -67,3 +67,18 @@ ALTER TABLE mesas ADD COLUMN IF NOT EXISTS expulsados UUID[] NOT NULL DEFAULT '{
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS pending_host_id UUID;
 
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
+
+-- Archivos personales de cada usuario. Los bytes viven en el almacén de objetos
+-- (Cloudflare R2) bajo `clave`; aquí solo se guardan los metadatos.
+CREATE TABLE IF NOT EXISTS archivos (
+  id         UUID PRIMARY KEY,
+  owner_id   UUID NOT NULL,
+  nombre     TEXT NOT NULL,
+  clave      TEXT NOT NULL,
+  tipo       TEXT NOT NULL,
+  tamano     BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS archivos_owner_idx
+  ON archivos (owner_id, created_at DESC);

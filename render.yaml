@@ -44,3 +44,16 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Almacenamiento de archivos (Cloudflare R2, compatible con S3).
+      # Sin estas variables los archivos se guardan en memoria y se pierden
+      # en cada despliegue, así que en producción hay que rellenarlas.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false

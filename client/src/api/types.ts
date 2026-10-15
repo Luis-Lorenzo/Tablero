@@ -28,3 +28,14 @@ export interface PublicMesa {
   pendingHostId: string | null;
   createdAt: string;
 }
+
+/** Archivo personal subido por el usuario (metadatos; los bytes los sirve la API). */
+export interface PublicArchivo {
+  id: string;
+  nombre: string;
+  tipo: string;
+  /** El navegador puede mostrarlo dentro de la página (PDF o imagen). */
+  visible: boolean;
+  tamano: number;
+  createdAt: string;
+}
