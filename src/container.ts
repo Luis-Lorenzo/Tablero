@@ -62,15 +62,17 @@ export async function createContainer(): Promise<Container> {
     almacen = new R2Almacen(config.r2);
     logger.info("Almacén de archivos: Cloudflare R2");
   } else {
-    if (config.isProduction) {
-      throw new Error(
-        "R2 no está configurado en producción. Define R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME y R2_ENDPOINT."
-      );
-    }
     almacen = new MemoryAlmacen();
-    logger.warn(
-      "R2 sin configurar: los archivos se guardan en memoria y se pierden al reiniciar (solo desarrollo)"
-    );
+    const mensaje =
+      "R2 sin configurar: los archivos se guardan en memoria y se pierden al reiniciar. " +
+      "Define R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME y R2_ENDPOINT " +
+      "(y R2_ACCOUNT_ID) en el entorno.";
+
+    if (config.isProduction) {
+      logger.error(mensaje);
+    } else {
+      logger.warn(mensaje);
+    }
   }
 
   const hasher = new BcryptPasswordHasher();
