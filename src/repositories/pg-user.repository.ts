@@ -17,11 +17,12 @@ interface UserRow {
   failed_login_at: Date[] | null;
   blocked: boolean;
   locked_until: Date | null;
+  nickname: string | null;
 }
 
 const SELECT_COLUMNS = `
   id, email, password_hash, role, status, deleted, created_at,
-  failed_login_at, blocked, locked_until
+  failed_login_at, blocked, locked_until, nickname
 `;
 
 function toUser(row: UserRow): User {
@@ -35,7 +36,8 @@ function toUser(row: UserRow): User {
     createdAt: new Date(row.created_at),
     failedLoginAt: (row.failed_login_at ?? []).map(fallo => new Date(fallo)),
     blocked: row.blocked,
-    lockedUntil: row.locked_until ? new Date(row.locked_until) : null
+    lockedUntil: row.locked_until ? new Date(row.locked_until) : null,
+    nickname: row.nickname
   };
 }
 

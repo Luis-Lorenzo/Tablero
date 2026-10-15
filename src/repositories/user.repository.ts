@@ -1,4 +1,4 @@
-export type UserRole = "USER" | "ADMIN";
+﻿export type UserRole = "USER" | "ADMIN";
 
 /**
  * Estado de aprobación de la cuenta. Los registros nuevos quedan `PENDING`
@@ -24,12 +24,15 @@ export interface User {
   blocked: boolean;
   /** Fecha en la que el bloqueo caduca solo (null = sin caducidad). */
   lockedUntil: Date | null;
+  /** Nombre visible opcional. Único entre usuarios activos cuando está definido. */
+  nickname: string | null;
 }
 
 export interface UserRepository {
   findByEmail(email: string): Promise<User | undefined>;
   findById(id: string): Promise<User | undefined>;
   /**
+  findByNickname?(nickname: string): Promise<User | undefined>;
    * Devuelve los usuarios cuyo id está en la lista, en una sola consulta.
    * Evita el N+1 al componer varias mesas (anfitrión + jugadores de cada una).
    * Con una lista vacía devuelve un array vacío sin tocar la base de datos.
@@ -45,6 +48,7 @@ export function createUser(input: {
   passwordHash: string | null;
   role?: UserRole;
   status?: UserStatus;
+  nickname?: string | null;
 }): User {
   return {
     id: crypto.randomUUID(),
@@ -56,7 +60,8 @@ export function createUser(input: {
     createdAt: new Date(),
     failedLoginAt: [],
     blocked: false,
-    lockedUntil: null
+    lockedUntil: null,
+    nickname: input.nickname ?? null
   };
 }
 
@@ -97,6 +102,13 @@ export class MemoryUserRepository implements UserRepository {
 
   async findById(id: string) {
     return this.users.get(id);
+  }
+
+  async findByNickname(nickname: string) {
+    const normalized = nickname.trim().toLowerCase();
+    return [...this.users.values()].find(
+      user => !user.deleted && user.status === "ACTIVE" && user.nickname?.trim().toLowerCase() === normalized
+    );
   }
 
   async findManyByIds(ids: readonly string[]) {
