@@ -96,11 +96,11 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 31 pruebas unitarias de la capa de lógica (`AuthService`, `UserService`,
+Hay 37 pruebas unitarias de la capa de lógica (`AuthService`, `UserService`,
 `ensureAdmin` y `BloqueoService`), incluyendo casos de error: email inválido,
-contraseña débil, email duplicado, credenciales incorrectas, cuenta pendiente o
-rechazada, permisos de rol, borrado de usuarios y fechas no válidas en el
-cálculo de bloqueo.
+contraseña débil, email duplicado, credenciales incorrectas, cuenta pendiente,
+rechazada o bloqueada, permisos de rol, borrado de usuarios y fechas no válidas
+en el cálculo de bloqueo.
 
 ## Variables de entorno
 
@@ -115,23 +115,76 @@ se suben valores reales al repositorio.
 | `ADMIN_PASSWORD` | Contraseña del primer administrador. |
 | `PORT` | Puerto del servidor (lo define Render; por defecto 8080). |
 
-## Bloqueo por intentos fallidos (endpoint de prueba)
+## Bloqueo por intentos fallidos
 
-`POST /api/prueba/bloqueo` calcula si una cuenta quedaría bloqueada a partir de
-sus inicios de sesión fallidos. Es un endpoint de prueba (no requiere sesión) y
-la lógica es pura: recibe el instante actual en el cuerpo en lugar de consultar
-el reloj del sistema, de modo que se puede probar de forma determinista.
+Una cuenta queda bloqueada cuando acumula 5 inicios de sesión fallidos
+consecutivos dentro de una ventana de 15 minutos. Es un estado **persistido en
+la base de datos**, no una comprobación en memoria: sobrevive a los reinicios
+del servidor y se puede consultar o deshacer desde el panel de SQL.
+
+Reglas (lógica pura, en `src/services/bloqueo.service.ts`):
+
+- Se toman los 5 fallos más recientes (la lista puede venir desordenada).
+- Con menos de 5 fallos no hay bloqueo.
+- Si entre el primero y el último de esos 5 hay como mucho 15 minutos, la
+  cuenta queda bloqueada hasta 15 minutos después del último fallo.
+- Un inicio de sesión correcto limpia el historial de fallos.
+- El bloqueo caduca solo; además puede desbloquearse a mano.
+
+### En el inicio de sesión
+
+`POST /api/auth/login` registra cada fallo de contraseña y aplica esa regla:
+
+- Fallos 1 a 4 → `401 INVALID_CREDENTIALS`.
+- Fallo 5 → `403 ACCOUNT_LOCKED`; la cuenta queda bloqueada hasta `lockedUntil`.
+- Mientras esté bloqueada → `403 ACCOUNT_LOCKED`, **aunque la contraseña sea
+  correcta**. La comprobación se hace antes de validar la contraseña.
+- Si el bloqueo ya expiró, el login vuelve a funcionar y limpia el estado.
+
+### Cómo desbloquear una cuenta desde Neon
+
+Ver quién está bloqueado:
+
+```sql
+SELECT lower(email), locked_until
+FROM users
+WHERE locked_until IS NOT NULL
+ORDER BY locked_until;
+```
+
+Desbloquear (una sola sentencia, no hace falta más):
+
+```sql
+UPDATE users SET locked_until = NULL, failed_login_at = '{}'
+WHERE lower(email) = lower('persona@correo.com');
+```
+
+También vale vaciar únicamente `locked_until`, o esperar a que caduque
+(`locked_until <= now()`). El sistema no vuelve a bloquear la cuenta hasta que
+se acumulen 5 fallos nuevos.
+
+Columnas implicadas en `users` (añadidas con migración idempotente en
+`db/schema.sql`):
+
+| Columna | Descripción |
+| --- | --- |
+| `failed_login_at TIMESTAMPTZ[]` | Instantes de los fallos recientes (se conservan como mucho los 5 últimos). |
+| `locked_until TIMESTAMPTZ` | `NULL` = desbloqueada; si es futuro, bloqueada hasta ese momento. |
+
+La API expone `lockedUntil` en el `PublicUser`, y el frontend muestra un
+mensaje propio para `ACCOUNT_LOCKED`.
+
+### Endpoint de prueba
+
+`POST /api/prueba/bloqueo` evalúa la misma regla sin tocar la base de datos ni
+la sesión: es un endpoint de prueba que recibe el instante actual en el cuerpo
+en lugar de consultar el reloj del sistema, de modo que se puede probar de forma
+determinista.
 
 - Cuerpo: `{ "fallos": [instantes ISO 8601], "ahora": instante ISO 8601 }`
 - Respuesta 200: `{ "bloqueado": boolean, "hasta": instante ISO 8601 | null }`
-
-Reglas: se toman los 5 fallos más recientes (la lista puede venir desordenada);
-con menos de 5 no hay bloqueo; si entre el primero y el último de esos 5 hay
-como mucho 15 minutos, la cuenta queda bloqueada hasta 15 minutos después del
-último fallo; si el bloqueo ya ha expirado se responde como no bloqueado.
-
-Una fecha no válida responde 400 (`INVALID_DATE`) y una lista de fallos mal
-formada responde 400 (`INVALID_REQUEST`).
+- Una fecha no válida responde 400 (`INVALID_DATE`) y una lista de fallos mal
+  formada responde 400 (`INVALID_REQUEST`).
 
 Ejemplo: 5 fallos entre las 10:00 y las 10:04 con `"ahora": "2026-03-02T10:10:00Z"`
 devuelve `{ "bloqueado": true, "hasta": "2026-03-02T10:19:00Z" }`.
@@ -186,7 +239,8 @@ aplicación las crea al arrancar y la operación es idempotente.
 
 `db/schema.sql` incluye además una migración idempotente que añade la columna
 `status` a las bases de datos creadas antes de que existiera (los usuarios que
-ya estaban en uso se dejan aprobados).
+ya estaban en uso se dejan aprobados) y las columnas `failed_login_at` y
+`locked_until`, del bloqueo por intentos fallidos.
 
 Si al entrar en Neon no ves ninguna tabla, significa que la aplicación que está
 en marcha no se conectó a esa base de datos: revisa `DATABASE_URL` en el

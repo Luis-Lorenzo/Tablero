@@ -62,6 +62,29 @@ function formatearInstante(instante: Date): string {
   return instante.toISOString().replace(/\.000Z$/, "Z");
 }
 
+/**
+ * Aplica la regla a una lista de fallos ya guardada más un fallo nuevo. Devuelve
+ * la lista recortada a los 5 fallos más recientes y el resultado del bloqueo,
+ * para poder persistir ambos. Mantener solo los 5 últimos evita que la lista
+ * crezca sin límite.
+ */
+export function registrarFallo(
+  fallos: readonly Date[],
+  momento: Date
+): { fallos: Date[]; bloqueado: boolean; hasta: Date | null } {
+  const recientes = [...fallos, momento]
+    .sort((a, b) => a.getTime() - b.getTime())
+    .slice(-FAILED_ATTEMPTS_THRESHOLD);
+
+  const resultado = calcularBloqueo(recientes, momento);
+
+  return {
+    fallos: recientes,
+    bloqueado: resultado.bloqueado,
+    hasta: resultado.hasta ? new Date(resultado.hasta) : null
+  };
+}
+
 function parsearInstante(valor: unknown): Date {
   if (typeof valor !== "string" || valor.trim().length === 0) {
     throw errors.invalidDate();

@@ -99,4 +99,91 @@ describe("AuthService", () => {
       service.login("borrado@example.com", "secreto123")
     ).rejects.toThrow("INVALID_CREDENTIALS");
   });
+
+  describe("bloqueo por intentos fallidos", () => {
+    /** Registra la cuenta y la deja aprobada para poder iniciar sesión. */
+    async function approvedUser(email: string, password = "secreto123") {
+      await service.register(email, password);
+      const stored = await repository.findByEmail(email);
+      await repository.save({ ...stored!, status: "ACTIVE" });
+      return stored!;
+    }
+
+    it("bloquea la cuenta tras 5 fallos seguidos y rechaza la contraseña correcta", async () => {
+      await approvedUser("bloqueo@example.com");
+
+      for (let intento = 0; intento < 5; intento += 1) {
+        await expect(
+          service.login("bloqueo@example.com", "incorrecta")
+        ).rejects.toThrow();
+      }
+
+      await expect(
+        service.login("bloqueo@example.com", "secreto123")
+      ).rejects.toThrow("ACCOUNT_LOCKED");
+
+      const stored = await repository.findByEmail("bloqueo@example.com");
+      expect(stored?.lockedUntil).toBeInstanceOf(Date);
+      expect(stored!.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it("no bloquea la cuenta antes de llegar a 5 fallos", async () => {
+      await approvedUser("casi@example.com");
+
+      for (let intento = 0; intento < 4; intento += 1) {
+        await expect(
+          service.login("casi@example.com", "incorrecta")
+        ).rejects.toThrow("INVALID_CREDENTIALS");
+      }
+
+      const user = await service.login("casi@example.com", "secreto123");
+      expect(user.email).toBe("casi@example.com");
+    });
+
+    it("un inicio de sesión correcto limpia el historial de fallos", async () => {
+      await approvedUser("limpia@example.com");
+
+      for (let intento = 0; intento < 4; intento += 1) {
+        await expect(
+          service.login("limpia@example.com", "incorrecta")
+        ).rejects.toThrow("INVALID_CREDENTIALS");
+      }
+
+      await service.login("limpia@example.com", "secreto123");
+
+      for (let intento = 0; intento < 4; intento += 1) {
+        await expect(
+          service.login("limpia@example.com", "incorrecta")
+        ).rejects.toThrow("INVALID_CREDENTIALS");
+      }
+
+      await expect(
+        service.login("limpia@example.com", "secreto123")
+      ).resolves.toMatchObject({ email: "limpia@example.com" });
+    });
+
+    it("permite iniciar sesión cuando el bloqueo ya ha caducado", async () => {
+      const user = await approvedUser("caduca@example.com");
+
+      for (let intento = 0; intento < 5; intento += 1) {
+        await expect(
+          service.login("caduca@example.com", "incorrecta")
+        ).rejects.toThrow();
+      }
+
+      // Retrocedemos el bloqueo en el tiempo como si hubiera caducado.
+      const stored = await repository.findByEmail("caduca@example.com");
+      await repository.save({
+        ...stored!,
+        lockedUntil: new Date(Date.now() - 1000)
+      });
+
+      await expect(
+        service.login("caduca@example.com", "secreto123")
+      ).resolves.toMatchObject({ id: user.id });
+
+      const after = await repository.findByEmail("caduca@example.com");
+      expect(after?.lockedUntil).toBeNull();
+    });
+  });
 });

@@ -7,6 +7,7 @@ export interface PublicUser {
   status: string;
   active: boolean;
   createdAt: string;
+  lockedUntil: string | null;
 }
 
 export function toPublicUser(user: User): PublicUser {
@@ -16,6 +17,7 @@ export function toPublicUser(user: User): PublicUser {
     role: user.role,
     status: user.status,
     active: isActiveUser(user),
-    createdAt: user.createdAt.toISOString()
+    createdAt: user.createdAt.toISOString(),
+    lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null
   };
 }

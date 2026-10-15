@@ -18,6 +18,7 @@ export const errors = {
   invalidCredentials: () => new AppError("INVALID_CREDENTIALS", 401),
   accountPending: () => new AppError("ACCOUNT_PENDING", 403),
   accountRejected: () => new AppError("ACCOUNT_REJECTED", 403),
+  accountLocked: () => new AppError("ACCOUNT_LOCKED", 403),
   unauthenticated: () => new AppError("UNAUTHENTICATED", 401),
   forbidden: () => new AppError("FORBIDDEN", 403),
   userNotFound: () => new AppError("USER_NOT_FOUND", 404),

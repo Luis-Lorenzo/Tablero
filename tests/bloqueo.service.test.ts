@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest";
 import { logger } from "../src/lib/logger.js";
 import {
   BloqueoService,
-  calcularBloqueo
+  calcularBloqueo,
+  registrarFallo
 } from "../src/services/bloqueo.service.js";
 
 /** Instantes ISO del 2026-03-02, en UTC, para que las pruebas sean legibles. */
@@ -123,5 +124,37 @@ describe("BloqueoService", () => {
     expect(() => service.evaluar(undefined, "2026-03-02T10:10:00Z")).toThrow(
       "INVALID_REQUEST"
     );
+  });
+
+  test("variante4: registrarFallo conserva los 5 fallos más recientes y bloquea", () => {
+    let fallos: Date[] = [];
+    let bloqueado = false;
+    let hasta: Date | null = null;
+
+    for (const hora of ["10:00", "10:01", "10:02", "10:03", "10:04"]) {
+      const paso = registrarFallo(fallos, instante(hora));
+      fallos = paso.fallos;
+      bloqueado = paso.bloqueado;
+      hasta = paso.hasta;
+    }
+
+    expect(fallos).toHaveLength(5);
+    expect(bloqueado).toBe(true);
+    expect(hasta?.toISOString()).toBe("2026-03-02T10:19:00.000Z");
+  });
+
+  test("variante4: registrarFallo recorta la lista y descarta los fallos antiguos", () => {
+    let fallos: Date[] = [];
+    let bloqueado = false;
+
+    // Fallos muy separados en el tiempo: nunca deberían bloquear.
+    for (const hora of ["08:00", "09:00", "10:00", "11:00", "12:00"]) {
+      const paso = registrarFallo(fallos, instante(hora));
+      fallos = paso.fallos;
+      bloqueado = paso.bloqueado;
+    }
+
+    expect(fallos).toHaveLength(5);
+    expect(bloqueado).toBe(false);
   });
 });
