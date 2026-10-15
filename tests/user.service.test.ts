@@ -94,4 +94,43 @@ describe("UserService", () => {
       service.deleteUser(admin, "id-inexistente")
     ).rejects.toThrow("USER_NOT_FOUND");
   });
+
+  it("guarda un nickname válido", async () => {
+    const actualizado = await service.setNickname(normalUser, "Javi_92");
+    expect(actualizado.nickname).toBe("Javi_92");
+
+    const stored = await repository.findById(normalUser.id);
+    expect(stored?.nickname).toBe("Javi_92");
+  });
+
+  it("borra el nickname con null o cadena vacía", async () => {
+    await service.setNickname(normalUser, "Javi_92");
+    const borrado = await service.setNickname(normalUser, null);
+    expect(borrado.nickname).toBeNull();
+
+    await service.setNickname(normalUser, "Otro_1");
+    const vacio = await service.setNickname(normalUser, "   ");
+    expect(vacio.nickname).toBeNull();
+  });
+
+  it("rechaza nicknames que no cumplen las reglas", async () => {
+    for (const invalido of ["ab", "a".repeat(21), "1Javi", "Javi-92", "Javi 92", "Javi@"]) {
+      await expect(service.setNickname(normalUser, invalido)).rejects.toThrow(
+        "INVALID_NICKNAME"
+      );
+    }
+  });
+
+  it("rechaza un nickname ya usado por otro (sin distinguir mayúsculas)", async () => {
+    await service.setNickname(admin, "Anfitrion");
+    await expect(service.setNickname(normalUser, "anfitrion")).rejects.toThrow(
+      "NICKNAME_TAKEN"
+    );
+  });
+
+  it("permite conservar el propio nickname", async () => {
+    await service.setNickname(normalUser, "Javi_92");
+    const mismo = await service.setNickname(normalUser, "Javi_92");
+    expect(mismo.nickname).toBe("Javi_92");
+  });
 });

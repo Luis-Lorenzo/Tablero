@@ -13,6 +13,7 @@ export interface PublicUser {
   blocked: boolean;
   createdAt: string;
   lockedUntil: string | null;
+  nickname: string | null;
 }
 
 export function toPublicUser(user: User): PublicUser {
@@ -24,7 +25,8 @@ export function toPublicUser(user: User): PublicUser {
     active: isActiveUser(user),
     blocked: isUserLocked(user, new Date()),
     createdAt: user.createdAt.toISOString(),
-    lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null
+    lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null,
+    nickname: user.nickname
   };
 }
 

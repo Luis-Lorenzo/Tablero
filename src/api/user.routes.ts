@@ -18,6 +18,24 @@ export function createUserRouter(
     }
   });
 
+  router.patch("/me/nickname", requireAuth, async (req, res, next) => {
+    try {
+      const raw = (req.body ?? {}) as { nickname?: unknown };
+      const nickname =
+        raw.nickname === null || raw.nickname === undefined
+          ? null
+          : String(raw.nickname);
+
+      const user = await context.userService.setNickname(
+        req.currentUser!,
+        nickname
+      );
+      res.json(toPublicUser(user));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/:id/active", requireAuth, requireAdmin, async (req, res, next) => {
     try {
       const id = String(req.params.id);

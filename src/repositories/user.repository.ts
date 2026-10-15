@@ -31,8 +31,9 @@ export interface User {
 export interface UserRepository {
   findByEmail(email: string): Promise<User | undefined>;
   findById(id: string): Promise<User | undefined>;
+  /** Busca un usuario no borrado por su nombre visible (sin distinguir mayúsculas). */
+  findByNickname(nickname: string): Promise<User | undefined>;
   /**
-  findByNickname?(nickname: string): Promise<User | undefined>;
    * Devuelve los usuarios cuyo id está en la lista, en una sola consulta.
    * Evita el N+1 al componer varias mesas (anfitrión + jugadores de cada una).
    * Con una lista vacía devuelve un array vacío sin tocar la base de datos.
@@ -74,6 +75,20 @@ export function isActiveUser(user: User): boolean {
 }
 
 /**
+ * Nombre con el que se muestra un usuario: su nombre visible (nickname) si lo
+ * tiene, o la parte del correo anterior a la @ en caso contrario.
+ */
+export function nombreDeUsuario(user: Pick<User, "email" | "nickname">): string {
+  const nickname = user.nickname?.trim();
+  if (nickname) {
+    return nickname;
+  }
+
+  const corte = user.email.indexOf("@");
+  return corte === -1 ? user.email : user.email.slice(0, corte);
+}
+
+/**
  * Indica si la cuenta está bloqueada en este instante por acumular intentos de
  * inicio de sesión fallidos.
  *
@@ -107,7 +122,7 @@ export class MemoryUserRepository implements UserRepository {
   async findByNickname(nickname: string) {
     const normalized = nickname.trim().toLowerCase();
     return [...this.users.values()].find(
-      user => !user.deleted && user.status === "ACTIVE" && user.nickname?.trim().toLowerCase() === normalized
+      user => !user.deleted && user.nickname?.trim().toLowerCase() === normalized
     );
   }
 

@@ -81,7 +81,7 @@ h2 {
 
 .logo-poker {
   display: block;
-  width: min(100%, 250px);
+  width: min(100%, 340px);
   padding: 0;
   border: none;
   background: transparent;
@@ -574,3 +574,112 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
   align-items: center;
   gap: 12px;
 }
+
+.ayuda-nickname {
+  margin: -4px 0 0;
+  font-size: 0.78rem;
+}
+
+/* Círculo de cuenta de la barra superior y su menú desplegable. */
+.cuenta-menu {
+  position: relative;
+}
+
+.cuenta-circulo {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #8f6fd0;
+  background: radial-gradient(circle at 35% 25%, #7c5cd0, #4a3577);
+  color: #f3ecff;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.cuenta-circulo:hover,
+.cuenta-circulo.abierto {
+  border-color: #c3a6f0;
+  box-shadow: 0 8px 22px rgb(124 92 208 / 45%);
+  transform: translateY(-1px);
+}
+
+.cuenta-circulo svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.cuenta-desplegable {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid #61536c;
+  border-radius: 14px;
+  background: #201c2b;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 45%);
+  transform-origin: top right;
+  animation: cuenta-aparecer 0.16s ease-out;
+}
+
+@keyframes cuenta-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cuenta-nombre {
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid #3a3247;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  color: #c8a8e5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cuenta-desplegable button {
+  padding: 9px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #e7dff2;
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.cuenta-desplegable button:hover:not(:disabled) {
+  background: #332b44;
+}
+
+.cuenta-desplegable button:disabled {
+  color: #7d7489;
+  cursor: default;
+}
+
+.cuenta-desplegable button.salir {
+  color: #f4b6c2;
+}
+
+.cuenta-desplegable button.salir:hover {
+  background: #3a2731;
+}
+

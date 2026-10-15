@@ -25,9 +25,9 @@ export function LogoPocketRol({ onClick }: LogoPocketRolProps) {
         <defs>
           <path id={arco} d="M 16 76 Q 170 4 324 76" fill="none" />
           <linearGradient id={oro} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fff3c4" />
-            <stop offset="45%" stopColor="#f0c651" />
-            <stop offset="100%" stopColor="#9a6d18" />
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="55%" stopColor="#f7f4ff" />
+            <stop offset="100%" stopColor="#d9d2ea" />
           </linearGradient>
         </defs>
 
