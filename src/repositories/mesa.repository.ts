@@ -8,7 +8,12 @@ export interface Mesa {
 
 export interface MesaRepository {
   findById(id: string): Promise<Mesa | undefined>;
-  list(): Promise<Mesa[]>;
+  /**
+   * Devuelve las mesas de más antigua a más reciente. Con `limite` devuelve
+   * solo las N más recientes (y no todas), que es lo único que necesita la
+   * cuadrícula de la recepción.
+   */
+  list(limite?: number): Promise<Mesa[]>;
   save(mesa: Mesa): Promise<void>;
   delete(id: string): Promise<void>;
 }
@@ -29,8 +34,14 @@ export class MemoryMesaRepository implements MesaRepository {
     return this.mesas.get(id);
   }
 
-  async list() {
-    return [...this.mesas.values()];
+  async list(limite?: number) {
+    const ordenadas = [...this.mesas.values()].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+    );
+
+    if (limite === undefined) return ordenadas;
+    if (limite <= 0) return [];
+    return ordenadas.slice(-limite);
   }
 
   async save(mesa: Mesa) {

@@ -58,6 +58,18 @@ export class PgUserRepository implements UserRepository {
     return result.rows[0] ? toUser(result.rows[0]) : undefined;
   }
 
+  async findManyByIds(ids: readonly string[]): Promise<User[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users WHERE id = ANY($1::uuid[])`,
+      [ids]
+    );
+    return result.rows.map(toUser);
+  }
+
   async list(): Promise<User[]> {
     const result = await this.pool.query<UserRow>(
       `SELECT ${SELECT_COLUMNS} FROM users ORDER BY created_at ASC`

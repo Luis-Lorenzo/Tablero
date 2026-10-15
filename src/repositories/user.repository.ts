@@ -29,6 +29,12 @@ export interface User {
 export interface UserRepository {
   findByEmail(email: string): Promise<User | undefined>;
   findById(id: string): Promise<User | undefined>;
+  /**
+   * Devuelve los usuarios cuyo id está en la lista, en una sola consulta.
+   * Evita el N+1 al componer varias mesas (anfitrión + jugadores de cada una).
+   * Con una lista vacía devuelve un array vacío sin tocar la base de datos.
+   */
+  findManyByIds(ids: readonly string[]): Promise<User[]>;
   list(): Promise<User[]>;
   save(user: User): Promise<void>;
   delete(id: string): Promise<void>;
@@ -91,6 +97,11 @@ export class MemoryUserRepository implements UserRepository {
 
   async findById(id: string) {
     return this.users.get(id);
+  }
+
+  async findManyByIds(ids: readonly string[]) {
+    const buscados = new Set(ids);
+    return [...this.users.values()].filter(user => buscados.has(user.id));
   }
 
   async list() {

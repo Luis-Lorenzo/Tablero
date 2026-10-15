@@ -53,14 +53,18 @@ export class MesaService {
   ) {}
 
   async inicio(): Promise<Array<MesaVista | null>> {
-    const mesas = await this.mesas.list();
+    const mesas = await this.mesas.list(MESAS_EN_INICIO);
     const huecos = colocarMesasDelInicio(mesas);
-    return Promise.all(huecos.map(mesa => (mesa ? this.vista(mesa) : null)));
+
+    const presentes = huecos.filter((mesa): mesa is Mesa => mesa !== null);
+    const porId = new Map((await this.vistas(presentes)).map(vista => [vista.id, vista]));
+
+    return huecos.map(mesa => (mesa ? porId.get(mesa.id)! : null));
   }
 
   async listar(busqueda?: string): Promise<MesaVista[]> {
     const mesas = await this.mesas.list();
-    const vistas = await Promise.all(mesas.map(mesa => this.vista(mesa)));
+    const vistas = await this.vistas(mesas);
     vistas.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     const texto = busqueda?.trim().toLowerCase();
@@ -130,19 +134,39 @@ export class MesaService {
   }
 
   private async vista(mesa: Mesa): Promise<MesaVista> {
-    return {
-      id: mesa.id,
-      hostId: mesa.hostId,
-      hostName: await this.nombreDe(mesa.hostId),
-      players: await Promise.all(
-        mesa.players.map(async id => ({ id, name: await this.nombreDe(id) }))
-      ),
-      createdAt: mesa.createdAt
-    };
+    const [unica] = await this.vistas([mesa]);
+    return unica;
   }
 
-  private async nombreDe(userId: string): Promise<string> {
-    const user = await this.users.findById(userId);
-    return user ? nombreVisible(user.email) : "desconocido";
+  /**
+   * Compone varias mesas a la vez cargando todos los nombres implicados en una
+   * única consulta (`findManyByIds`) en lugar de preguntar usuario a usuario.
+   */
+  private async vistas(mesas: readonly Mesa[]): Promise<MesaVista[]> {
+    if (mesas.length === 0) {
+      return [];
+    }
+
+    const ids = new Set<string>();
+    for (const mesa of mesas) {
+      ids.add(mesa.hostId);
+      for (const jugador of mesa.players) ids.add(jugador);
+    }
+
+    const usuarios = await this.users.findManyByIds([...ids]);
+    const nombres = new Map(
+      usuarios.map(user => [user.id, nombreVisible(user.email)])
+    );
+
+    return mesas.map(mesa => ({
+      id: mesa.id,
+      hostId: mesa.hostId,
+      hostName: nombres.get(mesa.hostId) ?? "desconocido",
+      players: mesa.players.map(id => ({
+        id,
+        name: nombres.get(id) ?? "desconocido"
+      })),
+      createdAt: mesa.createdAt
+    }));
   }
 }
