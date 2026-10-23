@@ -60,7 +60,6 @@ export const CALIBRACION_INICIAL: Calibracion = {
   },
   dock: { x: 50.17360986447802, y: 80.47148201057503 }
 };
-};
 
 export const POSITS_INICIALES: PositPreview[] = [
   {
