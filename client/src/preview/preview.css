@@ -339,9 +339,82 @@
   background: rgb(150 251 199 / 12%);
 }
 
-.sala-hotspot.hotspot-mapa:hover {
-  border-color: rgb(232 197 106 / 85%);
-  background: rgb(232 197 106 / 12%);
+/* Mapa: el área está dibujada en perspectiva, así que es un cuadrilátero. */
+.mapa-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.mapa-poligono {
+  fill: rgb(255 255 255 / 0.1%);
+  stroke: transparent;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+  cursor: pointer;
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.mapa-poligono:hover,
+.mapa-poligono:focus-visible {
+  fill: rgb(232 197 106 / 14%);
+  stroke: rgb(232 197 106 / 85%);
+  outline: none;
+}
+
+.mapa-poligono-ajuste {
+  fill: rgb(232 197 106 / 14%);
+  stroke: #e8c56a;
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.mapa-etiqueta-flotante,
+.mapa-etiqueta-ajuste {
+  position: absolute;
+  z-index: 5;
+  padding: 6px 12px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 999px;
+  background: rgb(13 11 17 / 78%);
+  color: #fff;
+  font-size: 12px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.mapa-etiqueta-ajuste {
+  padding: 1px 8px;
+  border: 0;
+  background: #e8c56a;
+  color: #241d12;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Esquinas arrastrables del mapa. */
+.mapa-vertice {
+  position: absolute;
+  z-index: 6;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #241d12;
+  border-radius: 50%;
+  background: #e8c56a;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+}
+
+.mapa-vertice:active {
+  cursor: grabbing;
 }
 
 /* Recuadros del calibrador. */
@@ -356,11 +429,6 @@
 .rect-pizarra {
   border-color: #96fbc7;
   background: rgb(150 251 199 / 12%);
-}
-
-.rect-mapa {
-  border-color: #e8c56a;
-  background: rgb(232 197 106 / 14%);
 }
 
 .rect-calibrado-etiqueta {
@@ -378,29 +446,16 @@
   color: #10231a;
 }
 
-.rect-mapa .rect-calibrado-etiqueta {
-  background: #e8c56a;
-  color: #241d12;
-}
-
 .rect-tirador {
   position: absolute;
   right: -7px;
   bottom: -7px;
   width: 16px;
   height: 16px;
-  border-radius: 4px;
-  cursor: nwse-resize;
-}
-
-.rect-pizarra .rect-tirador {
   border: 2px solid #10231a;
+  border-radius: 4px;
   background: #96fbc7;
-}
-
-.rect-mapa .rect-tirador {
-  border: 2px solid #241d12;
-  background: #e8c56a;
+  cursor: nwse-resize;
 }
 
 /* --------------------------------------------------------------- Barra superior */

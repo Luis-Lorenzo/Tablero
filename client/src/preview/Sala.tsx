@@ -3,7 +3,6 @@ import type {
   CSSProperties,
   Dispatch,
   PointerEvent as ReactPointerEvent,
-  ReactNode,
   SetStateAction
 } from "react";
 import { CALIBRACION_INICIAL, FONDO_SALA } from "./datos";
@@ -11,6 +10,8 @@ import type {
   Asiento,
   Calibracion,
   JugadorPreview,
+  Punto,
+  QuadMapa,
   RectPizarra
 } from "./tipos";
 
@@ -46,10 +47,18 @@ type Arrastre =
       medidas: Medidas;
     }
   | {
-      tipo: "pizarra" | "mapa" | "pizarra-tam" | "mapa-tam";
+      tipo: "pizarra" | "pizarra-tam";
       inicioX: number;
       inicioY: number;
       base: RectPizarra;
+      medidas: Medidas;
+    }
+  | {
+      tipo: "mapa-vertice";
+      indice: number;
+      inicioX: number;
+      inicioY: number;
+      base: Punto;
       medidas: Medidas;
     };
 
@@ -83,6 +92,23 @@ function redimensionarRect(
   const w = limitar(base.w + dx, 6, 100 - base.x);
   const h = limitar(base.h + dy, 6, 100 - base.y);
   return { ...base, w, h };
+}
+
+/** Puntos para un `<polygon>` con `viewBox="0 0 100 100"`. */
+function puntosSvg(quad: QuadMapa): string {
+  return quad.vertices.map(v => `${v.x},${v.y}`).join(" ");
+}
+
+function centroide(quad: QuadMapa): Punto {
+  const suma = quad.vertices.reduce(
+    (acumulado, vertice) => ({
+      x: acumulado.x + vertice.x,
+      y: acumulado.y + vertice.y
+    }),
+    { x: 0, y: 0 }
+  );
+
+  return { x: suma.x / 4, y: suma.y / 4 };
 }
 
 function IconoD20() {
@@ -145,6 +171,7 @@ export function Sala({
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<number | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [sobreMapa, setSobreMapa] = useState(false);
 
   const plano = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
@@ -177,6 +204,23 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "mapa-vertice") {
+        const x = limitar(actual.base.x + dx, 0, 100);
+        const y = limitar(actual.base.y + dy, 0, 100);
+
+        onCalibracion(prev => {
+          const vertices = [...prev.mapa.vertices] as [
+            Punto,
+            Punto,
+            Punto,
+            Punto
+          ];
+          vertices[actual.indice] = { x, y };
+          return { ...prev, mapa: { vertices } };
+        });
+        return;
+      }
+
       if (actual.tipo === "pizarra") {
         onCalibracion(prev => ({
           ...prev,
@@ -185,25 +229,9 @@ export function Sala({
         return;
       }
 
-      if (actual.tipo === "mapa") {
-        onCalibracion(prev => ({
-          ...prev,
-          mapa: moverRect(actual.base, dx, dy)
-        }));
-        return;
-      }
-
-      if (actual.tipo === "pizarra-tam") {
-        onCalibracion(prev => ({
-          ...prev,
-          pizarra: redimensionarRect(actual.base, dx, dy)
-        }));
-        return;
-      }
-
       onCalibracion(prev => ({
         ...prev,
-        mapa: redimensionarRect(actual.base, dx, dy)
+        pizarra: redimensionarRect(actual.base, dx, dy)
       }));
     }
 
@@ -270,36 +298,45 @@ export function Sala({
     };
   }
 
-  function iniciarRect(
-    tipo: "pizarra" | "mapa",
-    evento: ReactPointerEvent
-  ): void {
+  function iniciarPizarra(evento: ReactPointerEvent): void {
     const medidas = medidasPlano();
     if (!medidas) return;
 
     evento.stopPropagation();
     arrastre.current = {
-      tipo,
+      tipo: "pizarra",
       inicioX: evento.clientX,
       inicioY: evento.clientY,
-      base: calibracion[tipo],
+      base: calibracion.pizarra,
       medidas
     };
   }
 
-  function iniciarTam(
-    tipo: "pizarra-tam" | "mapa-tam",
-    evento: ReactPointerEvent
-  ): void {
+  function iniciarPizarraTam(evento: ReactPointerEvent): void {
     const medidas = medidasPlano();
     if (!medidas) return;
 
     evento.stopPropagation();
     arrastre.current = {
-      tipo,
+      tipo: "pizarra-tam",
       inicioX: evento.clientX,
       inicioY: evento.clientY,
-      base: calibracion[tipo === "pizarra-tam" ? "pizarra" : "mapa"],
+      base: calibracion.pizarra,
+      medidas
+    };
+  }
+
+  function iniciarVertice(indice: number, evento: ReactPointerEvent): void {
+    const medidas = medidasPlano();
+    if (!medidas) return;
+
+    evento.stopPropagation();
+    arrastre.current = {
+      tipo: "mapa-vertice",
+      indice,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      base: calibracion.mapa.vertices[indice],
       medidas
     };
   }
@@ -346,23 +383,7 @@ export function Sala({
     }
   }
 
-  function rectCalibrado(clave: "pizarra" | "mapa"): ReactNode {
-    const tamTipo = clave === "pizarra" ? "pizarra-tam" : "mapa-tam";
-
-    return (
-      <div
-        className={`rect-calibrado rect-${clave}`}
-        style={estiloRect(calibracion[clave])}
-        onPointerDown={evento => iniciarRect(clave, evento)}
-      >
-        <span className="rect-calibrado-etiqueta">{clave}</span>
-        <span
-          className="rect-tirador"
-          onPointerDown={evento => iniciarTam(tamTipo, evento)}
-        />
-      </div>
-    );
-  }
+  const centro = centroide(calibracion.mapa);
 
   return (
     <div className="sala">
@@ -373,7 +394,14 @@ export function Sala({
           style={{ backgroundImage: `url(${FONDO_SALA})` }}
         >
           {ajuste ? (
-            rectCalibrado("pizarra")
+            <div
+              className="rect-calibrado rect-pizarra"
+              style={estiloRect(calibracion.pizarra)}
+              onPointerDown={iniciarPizarra}
+            >
+              <span className="rect-calibrado-etiqueta">pizarra</span>
+              <span className="rect-tirador" onPointerDown={iniciarPizarraTam} />
+            </div>
           ) : (
             <button
               type="button"
@@ -386,18 +414,62 @@ export function Sala({
             </button>
           )}
 
+          <svg
+            className="mapa-svg"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden={ajuste ? "true" : undefined}
+          >
+            <polygon
+              className={ajuste ? "mapa-poligono-ajuste" : "mapa-poligono"}
+              points={puntosSvg(calibracion.mapa)}
+              role={ajuste ? undefined : "button"}
+              tabIndex={ajuste ? undefined : 0}
+              aria-label={ajuste ? undefined : "Abrir el mapa"}
+              onClick={ajuste ? undefined : onAbrirMapa}
+              onKeyDown={
+                ajuste
+                  ? undefined
+                  : evento => {
+                      if (evento.key === "Enter" || evento.key === " ") {
+                        evento.preventDefault();
+                        onAbrirMapa();
+                      }
+                    }
+              }
+              onPointerEnter={ajuste ? undefined : () => setSobreMapa(true)}
+              onPointerLeave={ajuste ? undefined : () => setSobreMapa(false)}
+              onFocus={ajuste ? undefined : () => setSobreMapa(true)}
+              onBlur={ajuste ? undefined : () => setSobreMapa(false)}
+            />
+          </svg>
+
           {ajuste ? (
-            rectCalibrado("mapa")
+            <>
+              <span
+                className="mapa-etiqueta-ajuste"
+                style={{ left: `${centro.x}%`, top: `${centro.y}%` }}
+              >
+                mapa
+              </span>
+              {calibracion.mapa.vertices.map((vertice, indice) => (
+                <span
+                  key={indice}
+                  className="mapa-vertice"
+                  style={{ left: `${vertice.x}%`, top: `${vertice.y}%` }}
+                  onPointerDown={evento => iniciarVertice(indice, evento)}
+                />
+              ))}
+            </>
           ) : (
-            <button
-              type="button"
-              className="sala-hotspot hotspot-mapa"
-              style={estiloRect(calibracion.mapa)}
-              onClick={onAbrirMapa}
-              title="Abrir el mapa"
-            >
-              <span>Abrir mapa</span>
-            </button>
+            sobreMapa && (
+              <span
+                className="mapa-etiqueta-flotante"
+                style={{ left: `${centro.x}%`, top: `${centro.y}%` }}
+              >
+                Abrir mapa
+              </span>
+            )
           )}
 
           {jugadores
@@ -454,9 +526,9 @@ export function Sala({
       {ajuste && (
         <div className="ajuste-panel">
           <p>
-            Arrastra las esferas a su silla, ajusta los recuadros de la pizarra y
-            el mapa, y mueve la bandeja de dados. Se guarda solo en este
-            navegador.
+            Arrastra las esferas a su silla, mueve el recuadro de la pizarra y
+            cada una de las cuatro esquinas del mapa, y coloca la bandeja de
+            dados. Se guarda solo en este navegador.
           </p>
           <div className="ajuste-botones">
             <button type="button" className="ajuste-btn" onClick={copiarConfiguracion}>

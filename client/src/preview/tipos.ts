@@ -12,11 +12,13 @@ export interface JugadorPreview {
   activo: boolean;
 }
 
-export interface Asiento {
+export interface Punto {
   /** Posición normalizada dentro de la imagen del fondo (0-100). */
   x: number;
   y: number;
 }
+
+export type Asiento = Punto;
 
 export interface RectPizarra {
   x: number;
@@ -25,11 +27,19 @@ export interface RectPizarra {
   h: number;
 }
 
+export interface QuadMapa {
+  /**
+   * Vértices en orden: arriba-izquierda, arriba-derecha, abajo-derecha y
+   * abajo-izquierda. El mapa está dibujado en perspectiva, así que no es un
+   * rectángulo: hay que poder mover cada esquina.
+   */
+  vertices: [Punto, Punto, Punto, Punto];
+}
+
 export interface Calibracion {
   asientos: Record<string, Asiento>;
   pizarra: RectPizarra;
-  /** Mapa de papel sobre la mesa. Aún no tiene contenido (fase 1). */
-  mapa: RectPizarra;
+  mapa: QuadMapa;
   /** Centro de la bandeja de dados, en % del viewport. */
   dock: Asiento;
 }

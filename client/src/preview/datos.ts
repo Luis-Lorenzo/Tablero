@@ -18,15 +18,18 @@ export const COLORES_POSIT = [
 
 /**
  * Jugadores de mentira para la preview: el máster y seis asientos laterales.
- * `p6` es el trasero derecho y arranca desactivado (una línea para activarlo).
+ *
+ * Van en orden de llegada: Aria, Celeste, Elena, Borin, Dorian y Fenrir. Si
+ * llegan menos de seis, las sillas se llenan en ese mismo orden (p1 → p6) y
+ * las últimas quedan libres. `p6` arranca desactivado (una línea para activarlo).
  */
 export const JUGADORES_INICIALES: JugadorPreview[] = [
   { id: "master", nombre: "Máster", color: "#e8c56a", esMaster: true, activo: true },
   { id: "p1", nombre: "Aria", color: "#74569b", esMaster: false, activo: true },
-  { id: "p2", nombre: "Borin", color: "#96fbc7", esMaster: false, activo: true },
-  { id: "p3", nombre: "Celeste", color: "#f7ffae", esMaster: false, activo: true },
-  { id: "p4", nombre: "Dorian", color: "#ffb3cb", esMaster: false, activo: true },
-  { id: "p5", nombre: "Elena", color: "#d8bfd8", esMaster: false, activo: true },
+  { id: "p2", nombre: "Celeste", color: "#f7ffae", esMaster: false, activo: true },
+  { id: "p3", nombre: "Elena", color: "#d8bfd8", esMaster: false, activo: true },
+  { id: "p4", nombre: "Borin", color: "#96fbc7", esMaster: false, activo: true },
+  { id: "p5", nombre: "Dorian", color: "#ffb3cb", esMaster: false, activo: true },
   { id: "p6", nombre: "Fenrir", color: "#8fb8ff", esMaster: false, activo: false }
 ];
 
@@ -44,11 +47,18 @@ export const CALIBRACION_INICIAL: Calibracion = {
     p3: { x: 30.91, y: 51.06 },
     p4: { x: 85.62, y: 68.37 },
     p5: { x: 76.03, y: 57.95 },
-    p6: { x: 75, y: 33 }
+    p6: { x: 14.99, y: 68.75 }
   },
   pizarra: { x: 32.03, y: 12.84, w: 36.19, h: 24.64 },
-  mapa: { x: 40, y: 60, w: 20, h: 24 },
-  dock: { x: 50, y: 94 }
+  mapa: {
+    vertices: [
+      { x: 35.47, y: 48.61 },
+      { x: 64.65, y: 48.61 },
+      { x: 64.65, y: 62.68 },
+      { x: 35.47, y: 62.68 }
+    ]
+  },
+  dock: { x: 50.17, y: 80.47 }
 };
 
 export const POSITS_INICIALES: PositPreview[] = [
