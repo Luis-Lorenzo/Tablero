@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Lobby } from "./Lobby";
+import { Mapa } from "./Mapa";
 import { Pizarra } from "./Pizarra";
 import { Sala } from "./Sala";
 import {
@@ -25,7 +26,9 @@ import "./preview.css";
 /** Permite abrir directamente una fase: `?preview=1&fase=sala`. */
 function faseInicial(): FasePreview {
   const valor = new URLSearchParams(window.location.search).get("fase");
-  return valor === "sala" || valor === "pizarra" ? valor : "lobby";
+  return valor === "sala" || valor === "pizarra" || valor === "mapa"
+    ? valor
+    : "lobby";
 }
 
 export default function PreviewApp() {
@@ -62,12 +65,17 @@ export default function PreviewApp() {
     return <Pizarra posits={posits} onPosits={setPosits} onVolver={volverASala} />;
   }
 
+  if (fase === "mapa") {
+    return <Mapa onVolver={volverASala} />;
+  }
+
   return (
     <Sala
       jugadores={jugadores}
       calibracion={calibracion}
       onCalibracion={setCalibracion}
       onAbrirPizarra={() => setFase("pizarra")}
+      onAbrirMapa={() => setFase("mapa")}
       onVolver={() => setFase("lobby")}
     />
   );

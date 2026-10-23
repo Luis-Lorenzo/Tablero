@@ -33,18 +33,22 @@ export const JUGADORES_INICIALES: JugadorPreview[] = [
 /**
  * Colocación de partida (se ajusta a mano con el calibrador). Las posiciones
  * son porcentajes de la imagen del fondo, no píxeles.
+ *
+ * Estos valores salen del calibrado real sobre `sala-default.png`.
  */
 export const CALIBRACION_INICIAL: Calibracion = {
   asientos: {
-    master: { x: 50, y: 90 },
-    p1: { x: 26, y: 72 },
-    p2: { x: 13, y: 52 },
-    p3: { x: 25, y: 33 },
-    p4: { x: 74, y: 72 },
-    p5: { x: 87, y: 52 },
+    master: { x: 50.04, y: 42.93 },
+    p1: { x: 68.93, y: 50.1 },
+    p2: { x: 24.5, y: 58.02 },
+    p3: { x: 30.91, y: 51.06 },
+    p4: { x: 85.62, y: 68.37 },
+    p5: { x: 76.03, y: 57.95 },
     p6: { x: 75, y: 33 }
   },
-  pizarra: { x: 37, y: 9, w: 26, h: 20 }
+  pizarra: { x: 32.03, y: 12.84, w: 36.19, h: 24.64 },
+  mapa: { x: 40, y: 60, w: 20, h: 24 },
+  dock: { x: 50, y: 94 }
 };
 
 export const POSITS_INICIALES: PositPreview[] = [

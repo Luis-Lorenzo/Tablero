@@ -28,6 +28,10 @@ export interface RectPizarra {
 export interface Calibracion {
   asientos: Record<string, Asiento>;
   pizarra: RectPizarra;
+  /** Mapa de papel sobre la mesa. Aún no tiene contenido (fase 1). */
+  mapa: RectPizarra;
+  /** Centro de la bandeja de dados, en % del viewport. */
+  dock: Asiento;
 }
 
 export interface PositPreview {
@@ -41,4 +45,4 @@ export interface PositPreview {
   giro: number;
 }
 
-export type FasePreview = "lobby" | "sala" | "pizarra";
+export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa";

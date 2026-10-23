@@ -3,17 +3,30 @@ import type {
   CSSProperties,
   Dispatch,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
   SetStateAction
 } from "react";
 import { CALIBRACION_INICIAL, FONDO_SALA } from "./datos";
-import type { Calibracion, JugadorPreview, RectPizarra } from "./tipos";
+import type {
+  Asiento,
+  Calibracion,
+  JugadorPreview,
+  RectPizarra
+} from "./tipos";
 
 interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
   onCalibracion: Dispatch<SetStateAction<Calibracion>>;
   onAbrirPizarra: () => void;
+  onAbrirMapa: () => void;
   onVolver: () => void;
+}
+
+/** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
+interface Medidas {
+  width: number;
+  height: number;
 }
 
 type Arrastre =
@@ -22,19 +35,54 @@ type Arrastre =
       id: string;
       inicioX: number;
       inicioY: number;
-      base: { x: number; y: number };
-      rect: DOMRect;
+      base: Asiento;
+      medidas: Medidas;
     }
   | {
-      tipo: "pizarra" | "pizarra-tam";
+      tipo: "dock";
+      inicioX: number;
+      inicioY: number;
+      base: Asiento;
+      medidas: Medidas;
+    }
+  | {
+      tipo: "pizarra" | "mapa" | "pizarra-tam" | "mapa-tam";
       inicioX: number;
       inicioY: number;
       base: RectPizarra;
-      rect: DOMRect;
+      medidas: Medidas;
     };
+
+/** Segundos que el resultado del dado sigue en pantalla antes de irse. */
+const DURACION_RESULTADO = 3500;
 
 function limitar(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
+}
+
+function estiloRect(rect: RectPizarra): CSSProperties {
+  return {
+    left: `${rect.x}%`,
+    top: `${rect.y}%`,
+    width: `${rect.w}%`,
+    height: `${rect.h}%`
+  };
+}
+
+function moverRect(base: RectPizarra, dx: number, dy: number): RectPizarra {
+  const x = limitar(base.x + dx, 0, 100 - base.w);
+  const y = limitar(base.y + dy, 0, 100 - base.h);
+  return { ...base, x, y };
+}
+
+function redimensionarRect(
+  base: RectPizarra,
+  dx: number,
+  dy: number
+): RectPizarra {
+  const w = limitar(base.w + dx, 6, 100 - base.x);
+  const h = limitar(base.h + dy, 6, 100 - base.y);
+  return { ...base, w, h };
 }
 
 function IconoD20() {
@@ -88,9 +136,12 @@ export function Sala({
   calibracion,
   onCalibracion,
   onAbrirPizarra,
+  onAbrirMapa,
   onVolver
 }: SalaProps) {
-  const [ajuste, setAjuste] = useState(false);
+  const [ajuste, setAjuste] = useState(
+    () => new URLSearchParams(window.location.search).get("ajuste") === "1"
+  );
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<number | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -98,6 +149,7 @@ export function Sala({
   const plano = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
   const temporizador = useRef<number | null>(null);
+  const ocultarResultado = useRef<number | null>(null);
   const avisoTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -105,8 +157,8 @@ export function Sala({
       const actual = arrastre.current;
       if (!actual) return;
 
-      const dx = ((evento.clientX - actual.inicioX) / actual.rect.width) * 100;
-      const dy = ((evento.clientY - actual.inicioY) / actual.rect.height) * 100;
+      const dx = ((evento.clientX - actual.inicioX) / actual.medidas.width) * 100;
+      const dy = ((evento.clientY - actual.inicioY) / actual.medidas.height) * 100;
 
       if (actual.tipo === "asiento") {
         const x = limitar(actual.base.x + dx, 2, 98);
@@ -118,17 +170,41 @@ export function Sala({
         return;
       }
 
-      onCalibracion(prev => {
-        if (actual.tipo === "pizarra") {
-          const x = limitar(actual.base.x + dx, 0, 100 - actual.base.w);
-          const y = limitar(actual.base.y + dy, 0, 100 - actual.base.h);
-          return { ...prev, pizarra: { ...actual.base, x, y } };
-        }
+      if (actual.tipo === "dock") {
+        const x = limitar(actual.base.x + dx, 4, 96);
+        const y = limitar(actual.base.y + dy, 6, 96);
+        onCalibracion(prev => ({ ...prev, dock: { x, y } }));
+        return;
+      }
 
-        const w = limitar(actual.base.w + dx, 6, 100 - actual.base.x);
-        const h = limitar(actual.base.h + dy, 6, 100 - actual.base.y);
-        return { ...prev, pizarra: { ...actual.base, w, h } };
-      });
+      if (actual.tipo === "pizarra") {
+        onCalibracion(prev => ({
+          ...prev,
+          pizarra: moverRect(actual.base, dx, dy)
+        }));
+        return;
+      }
+
+      if (actual.tipo === "mapa") {
+        onCalibracion(prev => ({
+          ...prev,
+          mapa: moverRect(actual.base, dx, dy)
+        }));
+        return;
+      }
+
+      if (actual.tipo === "pizarra-tam") {
+        onCalibracion(prev => ({
+          ...prev,
+          pizarra: redimensionarRect(actual.base, dx, dy)
+        }));
+        return;
+      }
+
+      onCalibracion(prev => ({
+        ...prev,
+        mapa: redimensionarRect(actual.base, dx, dy)
+      }));
     }
 
     function soltar() {
@@ -149,6 +225,9 @@ export function Sala({
   useEffect(
     () => () => {
       if (temporizador.current !== null) window.clearTimeout(temporizador.current);
+      if (ocultarResultado.current !== null) {
+        window.clearTimeout(ocultarResultado.current);
+      }
       if (avisoTimer.current !== null) window.clearTimeout(avisoTimer.current);
     },
     []
@@ -160,9 +239,14 @@ export function Sala({
     avisoTimer.current = window.setTimeout(() => setAviso(null), 3200);
   }
 
-  function iniciarAsiento(id: string, evento: ReactPointerEvent): void {
+  function medidasPlano(): Medidas | null {
     const rect = plano.current?.getBoundingClientRect();
-    if (!rect) return;
+    return rect ? { width: rect.width, height: rect.height } : null;
+  }
+
+  function iniciarAsiento(id: string, evento: ReactPointerEvent): void {
+    const medidas = medidasPlano();
+    if (!medidas) return;
 
     evento.stopPropagation();
     arrastre.current = {
@@ -171,40 +255,62 @@ export function Sala({
       inicioX: evento.clientX,
       inicioY: evento.clientY,
       base: calibracion.asientos[id] ?? { x: 50, y: 50 },
-      rect
+      medidas
     };
   }
 
-  function iniciarPizarra(evento: ReactPointerEvent): void {
-    const rect = plano.current?.getBoundingClientRect();
-    if (!rect) return;
-
+  function iniciarDock(evento: ReactPointerEvent): void {
     evento.stopPropagation();
     arrastre.current = {
-      tipo: "pizarra",
+      tipo: "dock",
       inicioX: evento.clientX,
       inicioY: evento.clientY,
-      base: calibracion.pizarra,
-      rect
+      base: calibracion.dock,
+      medidas: { width: window.innerWidth, height: window.innerHeight }
     };
   }
 
-  function iniciarTam(evento: ReactPointerEvent): void {
-    const rect = plano.current?.getBoundingClientRect();
-    if (!rect) return;
+  function iniciarRect(
+    tipo: "pizarra" | "mapa",
+    evento: ReactPointerEvent
+  ): void {
+    const medidas = medidasPlano();
+    if (!medidas) return;
 
     evento.stopPropagation();
     arrastre.current = {
-      tipo: "pizarra-tam",
+      tipo,
       inicioX: evento.clientX,
       inicioY: evento.clientY,
-      base: calibracion.pizarra,
-      rect
+      base: calibracion[tipo],
+      medidas
+    };
+  }
+
+  function iniciarTam(
+    tipo: "pizarra-tam" | "mapa-tam",
+    evento: ReactPointerEvent
+  ): void {
+    const medidas = medidasPlano();
+    if (!medidas) return;
+
+    evento.stopPropagation();
+    arrastre.current = {
+      tipo,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      base: calibracion[tipo === "pizarra-tam" ? "pizarra" : "mapa"],
+      medidas
     };
   }
 
   function tirarDado(): void {
     if (tirando) return;
+
+    if (ocultarResultado.current !== null) {
+      window.clearTimeout(ocultarResultado.current);
+      ocultarResultado.current = null;
+    }
 
     setTirando(true);
     let pasos = 0;
@@ -218,6 +324,10 @@ export function Sala({
       } else {
         setTirada(1 + Math.floor(Math.random() * 20));
         setTirando(false);
+        ocultarResultado.current = window.setTimeout(() => {
+          setTirada(null);
+          ocultarResultado.current = null;
+        }, DURACION_RESULTADO);
       }
     };
 
@@ -236,7 +346,23 @@ export function Sala({
     }
   }
 
-  const pizarra = calibracion.pizarra;
+  function rectCalibrado(clave: "pizarra" | "mapa"): ReactNode {
+    const tamTipo = clave === "pizarra" ? "pizarra-tam" : "mapa-tam";
+
+    return (
+      <div
+        className={`rect-calibrado rect-${clave}`}
+        style={estiloRect(calibracion[clave])}
+        onPointerDown={evento => iniciarRect(clave, evento)}
+      >
+        <span className="rect-calibrado-etiqueta">{clave}</span>
+        <span
+          className="rect-tirador"
+          onPointerDown={evento => iniciarTam(tamTipo, evento)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="sala">
@@ -247,33 +373,30 @@ export function Sala({
           style={{ backgroundImage: `url(${FONDO_SALA})` }}
         >
           {ajuste ? (
-            <div
-              className="pizarra-rect"
-              style={{
-                left: `${pizarra.x}%`,
-                top: `${pizarra.y}%`,
-                width: `${pizarra.w}%`,
-                height: `${pizarra.h}%`
-              }}
-              onPointerDown={iniciarPizarra}
-            >
-              <span className="pizarra-rect-etiqueta">pizarra</span>
-              <span className="pizarra-tirador" onPointerDown={iniciarTam} />
-            </div>
+            rectCalibrado("pizarra")
           ) : (
             <button
               type="button"
-              className="pizarra-hotspot"
-              style={{
-                left: `${pizarra.x}%`,
-                top: `${pizarra.y}%`,
-                width: `${pizarra.w}%`,
-                height: `${pizarra.h}%`
-              }}
+              className="sala-hotspot hotspot-pizarra"
+              style={estiloRect(calibracion.pizarra)}
               onClick={onAbrirPizarra}
               title="Abrir la pizarra"
             >
               <span>Abrir pizarra</span>
+            </button>
+          )}
+
+          {ajuste ? (
+            rectCalibrado("mapa")
+          ) : (
+            <button
+              type="button"
+              className="sala-hotspot hotspot-mapa"
+              style={estiloRect(calibracion.mapa)}
+              onClick={onAbrirMapa}
+              title="Abrir el mapa"
+            >
+              <span>Abrir mapa</span>
             </button>
           )}
 
@@ -331,8 +454,9 @@ export function Sala({
       {ajuste && (
         <div className="ajuste-panel">
           <p>
-            Arrastra cada esfera a su silla y ajusta el recuadro de la pizarra.
-            Se guarda solo en este navegador.
+            Arrastra las esferas a su silla, ajusta los recuadros de la pizarra y
+            el mapa, y mueve la bandeja de dados. Se guarda solo en este
+            navegador.
           </p>
           <div className="ajuste-botones">
             <button type="button" className="ajuste-btn" onClick={copiarConfiguracion}>
@@ -350,7 +474,10 @@ export function Sala({
       )}
 
       {tirada !== null && (
-        <div className="tirada-panel">
+        <div
+          className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}`}
+          style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+        >
           <span className="tirada-icono">
             <IconoD20 />
           </span>
@@ -359,7 +486,11 @@ export function Sala({
         </div>
       )}
 
-      <div className="sala-dock">
+      <div
+        className={`sala-dock${ajuste ? " ajustable" : ""}`}
+        style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+        onPointerDown={ajuste ? iniciarDock : undefined}
+      >
         <button
           type="button"
           className="dock-btn"

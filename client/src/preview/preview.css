@@ -302,9 +302,9 @@
   color: #f0d48a;
 }
 
-/* --------------------------------------------------------------- Pizarra (fondo) */
+/* ------------------------------------------------- Pizarra y mapa (hotspots) */
 
-.pizarra-hotspot {
+.sala-hotspot {
   position: absolute;
   z-index: 4;
   display: grid;
@@ -318,7 +318,7 @@
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.pizarra-hotspot span {
+.sala-hotspot span {
   padding: 6px 12px;
   border-radius: 999px;
   background: rgb(13 11 17 / 78%);
@@ -329,47 +329,78 @@
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.pizarra-hotspot:hover {
-  border-color: rgb(150 251 199 / 80%);
-  background: rgb(150 251 199 / 12%);
-}
-
-.pizarra-hotspot:hover span {
+.sala-hotspot:hover span {
   opacity: 1;
   transform: none;
 }
 
-.pizarra-rect {
+.sala-hotspot.hotspot-pizarra:hover {
+  border-color: rgb(150 251 199 / 80%);
+  background: rgb(150 251 199 / 12%);
+}
+
+.sala-hotspot.hotspot-mapa:hover {
+  border-color: rgb(232 197 106 / 85%);
+  background: rgb(232 197 106 / 12%);
+}
+
+/* Recuadros del calibrador. */
+.rect-calibrado {
   position: absolute;
   z-index: 4;
-  border: 2px dashed #96fbc7;
+  border: 2px dashed;
   border-radius: 8px;
-  background: rgb(150 251 199 / 12%);
   cursor: move;
 }
 
-.pizarra-rect-etiqueta {
+.rect-pizarra {
+  border-color: #96fbc7;
+  background: rgb(150 251 199 / 12%);
+}
+
+.rect-mapa {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 14%);
+}
+
+.rect-calibrado-etiqueta {
   position: absolute;
   top: -24px;
   left: 0;
   padding: 1px 8px;
   border-radius: 999px;
-  background: #96fbc7;
-  color: #10231a;
   font-size: 11px;
   font-weight: 700;
 }
 
-.pizarra-tirador {
+.rect-pizarra .rect-calibrado-etiqueta {
+  background: #96fbc7;
+  color: #10231a;
+}
+
+.rect-mapa .rect-calibrado-etiqueta {
+  background: #e8c56a;
+  color: #241d12;
+}
+
+.rect-tirador {
   position: absolute;
   right: -7px;
   bottom: -7px;
   width: 16px;
   height: 16px;
-  border: 2px solid #10231a;
   border-radius: 4px;
-  background: #96fbc7;
   cursor: nwse-resize;
+}
+
+.rect-pizarra .rect-tirador {
+  border: 2px solid #10231a;
+  background: #96fbc7;
+}
+
+.rect-mapa .rect-tirador {
+  border: 2px solid #241d12;
+  background: #e8c56a;
 }
 
 /* --------------------------------------------------------------- Barra superior */
@@ -472,12 +503,22 @@
 
 .sala-dock {
   position: absolute;
-  left: 50%;
-  bottom: 26px;
   z-index: 24;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: flex;
   gap: 16px;
+}
+
+.sala-dock.ajustable {
+  padding: 8px;
+  border-radius: 999px;
+  outline: 2px dashed rgb(232 197 106 / 80%);
+  outline-offset: 8px;
+  cursor: move;
+}
+
+.sala-dock.ajustable .dock-btn {
+  pointer-events: none;
 }
 
 .dock-btn {
@@ -509,10 +550,8 @@
 
 .tirada-panel {
   position: absolute;
-  left: 50%;
-  bottom: 106px;
   z-index: 24;
-  transform: translateX(-50%);
+  transform: translate(-50%, calc(-100% - 54px));
   display: flex;
   align-items: center;
   gap: 12px;
@@ -521,6 +560,10 @@
   border-radius: 16px;
   background: rgb(18 15 24 / 92%);
   box-shadow: 0 16px 40px rgb(0 0 0 / 45%);
+}
+
+.tirada-panel.debajo {
+  transform: translate(-50%, 54px);
 }
 
 .tirada-icono svg {
@@ -808,4 +851,76 @@
 .posit-borrar:hover {
   background: rgb(255 179 203 / 22%);
   color: #fff;
+}
+
+/* --------------------------------------------------------------- Mapa (página) */
+
+.mapa-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  color: #3a3226;
+}
+
+.mapa-papel {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 22% 28%, rgb(140 110 70 / 16%), transparent 58%),
+    radial-gradient(ellipse at 78% 72%, rgb(120 95 60 / 14%), transparent 58%),
+    linear-gradient(135deg, #efe4cb 0%, #e4d4b2 45%, #f2e8d2 100%);
+}
+
+/* Fibras y grano del papel. */
+.mapa-papel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.4;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgb(120 95 60 / 5%) 0 1px,
+      transparent 1px 5px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgb(255 255 255 / 14%) 0 1px,
+      transparent 1px 7px
+    );
+}
+
+.mapa-papel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.mapa-lienzo {
+  position: absolute;
+  inset: 64px 0 0 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.mapa-vacio {
+  margin: 0;
+  color: rgb(90 70 40 / 40%);
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+}
+
+.mapa-etiqueta {
+  padding: 5px 12px;
+  border: 1px solid rgb(90 70 40 / 35%);
+  border-radius: 999px;
+  color: rgb(90 70 40 / 75%);
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }

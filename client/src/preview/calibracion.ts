@@ -42,7 +42,9 @@ export function cargarCalibracion(): Calibracion {
 
   return {
     asientos: { ...CALIBRACION_INICIAL.asientos, ...(guardada.asientos ?? {}) },
-    pizarra: { ...CALIBRACION_INICIAL.pizarra, ...(guardada.pizarra ?? {}) }
+    pizarra: { ...CALIBRACION_INICIAL.pizarra, ...(guardada.pizarra ?? {}) },
+    mapa: { ...CALIBRACION_INICIAL.mapa, ...(guardada.mapa ?? {}) },
+    dock: { ...CALIBRACION_INICIAL.dock, ...(guardada.dock ?? {}) }
   };
 }
 
