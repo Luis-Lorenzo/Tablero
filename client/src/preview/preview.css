@@ -1,0 +1,811 @@
+/* ==========================================================================
+   Previsualización de la sala (Fase 0). Autocontenida: no depende de App.css.
+   ========================================================================== */
+
+/* --------------------------------------------------------------- Sala de espera */
+
+.preview-lobby {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+  background:
+    radial-gradient(ellipse at top, #493c5c 0%, transparent 55%),
+    #15131b;
+  color: #f5f0e8;
+}
+
+.preview-card {
+  width: min(100%, 660px);
+  padding: 32px 28px;
+  border: 1px solid #61536c;
+  border-radius: 24px;
+  background: rgb(26 23 34 / 88%);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 35%);
+}
+
+.preview-eyebrow {
+  margin: 0;
+  color: #c8a8e5;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+.preview-card h1 {
+  margin: 10px 0 8px;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+}
+
+.preview-muted {
+  margin: 0 0 22px;
+  color: #b9afc7;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.jugadores-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jugador {
+  display: grid;
+  grid-template-columns: 26px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid #4a3f57;
+  border-radius: 12px;
+  background: rgb(37 32 47 / 75%);
+  transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.jugador.inactivo {
+  opacity: 0.45;
+}
+
+.jugador.master {
+  border-color: #b9923f;
+  background: rgb(58 46 30 / 55%);
+}
+
+.jugador-esfera {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 45%);
+  box-shadow: inset 0 -4px 7px rgb(0 0 0 / 30%);
+}
+
+.jugador-nombre {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.jugador-rol {
+  color: #e8c56a;
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
+.jugador-color {
+  width: 38px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #61536c;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.jugador-estado {
+  color: #9c92a9;
+  font-size: 0.78rem;
+}
+
+.jugador-toggle {
+  padding: 6px 10px;
+  border: 1px solid #61536c;
+  border-radius: 8px;
+  background: transparent;
+  color: #d8cde6;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.jugador-toggle:hover {
+  border-color: #a98fce;
+  color: #fff;
+}
+
+.preview-acciones {
+  margin-top: 22px;
+  display: flex;
+  justify-content: center;
+}
+
+.preview-primary {
+  padding: 13px 30px;
+  border: 1px solid #e8c56a;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f0d48a, #c9a03f);
+  color: #241d12;
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 35%);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.preview-primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+}
+
+.preview-nota {
+  margin: 18px 0 0;
+  color: #8f859d;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------- Sala */
+
+.sala {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 50%, #241f2e 0%, #100d15 68%),
+    #0d0b11;
+  color: #f5f0e8;
+}
+
+.sala-escena {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  perspective: 1500px;
+  perspective-origin: 50% 44%;
+}
+
+.sala-plano {
+  position: relative;
+  width: min(96vw, 1700px, calc(88vh * 1.7787));
+  aspect-ratio: 1672 / 940;
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 18px;
+  transform: rotateX(22deg) scale(1.03);
+  transform-origin: 50% 52%;
+  box-shadow: 0 40px 110px rgb(0 0 0 / 65%);
+  transition: transform 0.6s ease, box-shadow 0.6s ease;
+  will-change: transform;
+}
+
+.sala-plano.ajuste {
+  transform: none;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 12%);
+  cursor: default;
+}
+
+/* Rejilla de referencia solo en modo ajuste. */
+.sala-plano.ajuste::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgb(255 255 255 / 9%) 0 1px,
+      transparent 1px 5%
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 9%) 0 1px,
+      transparent 1px 5%
+    );
+}
+
+.sala-vineta {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 54%,
+    transparent 42%,
+    rgb(8 6 12 / 58%) 100%
+  );
+}
+
+/* --------------------------------------------------------------- Asientos */
+
+.asiento {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  transition: left 0.18s ease, top 0.18s ease;
+}
+
+.asiento.ajustable {
+  pointer-events: auto;
+  cursor: grab;
+  transition: none;
+}
+
+.asiento.ajustable:active {
+  cursor: grabbing;
+}
+
+.esfera {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 55%);
+  background:
+    radial-gradient(circle at 32% 27%, rgb(255 255 255 / 55%), transparent 46%),
+    var(--color, #999);
+  box-shadow:
+    0 8px 18px rgb(0 0 0 / 50%),
+    inset 0 -8px 12px rgb(0 0 0 / 28%);
+}
+
+.asiento.ajustable .esfera {
+  width: 30px;
+  height: 30px;
+  border-width: 3px;
+  border-color: #96fbc7;
+  box-shadow: 0 0 0 3px rgb(150 251 199 / 25%);
+}
+
+.asiento.master .esfera {
+  border-color: #e8c56a;
+  box-shadow:
+    0 0 0 4px rgb(232 197 106 / 28%),
+    0 8px 18px rgb(0 0 0 / 50%),
+    inset 0 -8px 12px rgb(0 0 0 / 28%);
+}
+
+.asiento-nombre {
+  padding: 2px 9px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  background: rgb(13 11 17 / 70%);
+  color: #f5f0e8;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.asiento.master .asiento-nombre {
+  border-color: rgb(232 197 106 / 60%);
+  color: #f0d48a;
+}
+
+/* --------------------------------------------------------------- Pizarra (fondo) */
+
+.pizarra-hotspot {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px dashed transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.pizarra-hotspot span {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(13 11 17 / 78%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  font-size: 12px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pizarra-hotspot:hover {
+  border-color: rgb(150 251 199 / 80%);
+  background: rgb(150 251 199 / 12%);
+}
+
+.pizarra-hotspot:hover span {
+  opacity: 1;
+  transform: none;
+}
+
+.pizarra-rect {
+  position: absolute;
+  z-index: 4;
+  border: 2px dashed #96fbc7;
+  border-radius: 8px;
+  background: rgb(150 251 199 / 12%);
+  cursor: move;
+}
+
+.pizarra-rect-etiqueta {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #96fbc7;
+  color: #10231a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pizarra-tirador {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #10231a;
+  border-radius: 4px;
+  background: #96fbc7;
+  cursor: nwse-resize;
+}
+
+/* --------------------------------------------------------------- Barra superior */
+
+.sala-barra {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  background: rgb(16 13 21 / 82%);
+  backdrop-filter: blur(8px);
+}
+
+.sala-titulo {
+  padding: 0 10px;
+  color: #e7ddf2;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.sala-btn {
+  padding: 7px 14px;
+  border: 1px solid #574a66;
+  border-radius: 999px;
+  background: transparent;
+  color: #cdc2da;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.sala-btn:hover {
+  border-color: #a98fce;
+  color: #fff;
+}
+
+.sala-btn.activo {
+  border-color: #96fbc7;
+  background: rgb(150 251 199 / 14%);
+  color: #c8ffe6;
+}
+
+/* --------------------------------------------------------------- Ajuste */
+
+.ajuste-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 108px;
+  z-index: 22;
+  transform: translateX(-50%);
+  width: min(92vw, 520px);
+  padding: 14px 18px;
+  border: 1px solid rgb(150 251 199 / 45%);
+  border-radius: 16px;
+  background: rgb(14 24 20 / 92%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 45%);
+  text-align: center;
+}
+
+.ajuste-panel p {
+  margin: 0 0 10px;
+  color: #d4f7e6;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.ajuste-botones {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ajuste-btn {
+  padding: 7px 14px;
+  border: 1px solid #96fbc7;
+  border-radius: 999px;
+  background: rgb(150 251 199 / 12%);
+  color: #c8ffe6;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ajuste-btn:hover {
+  background: rgb(150 251 199 / 22%);
+}
+
+/* --------------------------------------------------------------- Dock y dados */
+
+.sala-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  z-index: 24;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+}
+
+.dock-btn {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  padding: 0;
+  border: 2px solid #a98fce;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, #453b55, #1a1622 72%);
+  color: #f0e7fb;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 55%);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.dock-btn:hover {
+  transform: translateY(-3px) scale(1.05);
+  border-color: #e8c56a;
+  color: #f6e3b0;
+}
+
+.dock-btn svg {
+  width: 34px;
+  height: 34px;
+}
+
+.tirada-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 106px;
+  z-index: 24;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  border: 1px solid #61536c;
+  border-radius: 16px;
+  background: rgb(18 15 24 / 92%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 45%);
+}
+
+.tirada-icono svg {
+  width: 26px;
+  height: 26px;
+  color: #a98fce;
+}
+
+.tirada-num {
+  min-width: 2ch;
+  color: #e8c56a;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 1.9rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.tirada-num.girando {
+  animation: tirada-temblor 0.12s linear infinite;
+}
+
+.tirada-etiqueta {
+  color: #9c92a9;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@keyframes tirada-temblor {
+  0% {
+    transform: translate(0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate(1px, -2px) rotate(2deg);
+  }
+  100% {
+    transform: translate(-1px, 1px) rotate(-1deg);
+  }
+}
+
+.sala-aviso {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  z-index: 30;
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  border: 1px solid rgb(150 251 199 / 45%);
+  border-radius: 999px;
+  background: rgb(12 30 22 / 94%);
+  color: #c8ffe6;
+  font-size: 0.82rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 40%);
+}
+
+/* --------------------------------------------------------------- Pizarra (página) */
+
+.pizarra-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  color: #2a2433;
+}
+
+.marmol {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 18% 22%, rgb(90 90 110 / 11%), transparent 55%),
+    radial-gradient(ellipse at 82% 78%, rgb(70 70 95 / 11%), transparent 55%),
+    linear-gradient(120deg, #ffffff 0%, #f0f0f2 38%, #fafafa 58%, #e8e8ec 100%);
+}
+
+.marmol svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Grano fino (ruido) para que el mármol no parezca un degradado plano. */
+.marmol::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.pizarra-barra {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 64px;
+  padding: 0 20px;
+  border-bottom: 1px solid rgb(90 90 110 / 22%);
+  background: rgb(255 255 255 / 58%);
+  backdrop-filter: blur(10px);
+}
+
+.pizarra-titulo {
+  flex: 1;
+  color: #4a3f57;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.pizarra-btn {
+  padding: 8px 16px;
+  border: 1px solid rgb(90 70 120 / 35%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 65%);
+  color: #4a3f57;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pizarra-btn:hover {
+  border-color: #74569b;
+  background: #fff;
+}
+
+.pizarra-btn-nuevo {
+  border-color: #74569b;
+  background: #74569b;
+  color: #fff;
+}
+
+.pizarra-btn-nuevo:hover {
+  background: #624786;
+}
+
+.pizarra-lienzo {
+  position: absolute;
+  inset: 64px 0 0 0;
+}
+
+.pizarra-pista {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  margin: 0;
+  color: rgb(74 63 87 / 62%);
+  font-size: 0.76rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- Posits */
+
+.posit {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: 216px;
+  min-height: 152px;
+  padding: 10px 12px 14px;
+  border-radius: 2px;
+  transform: translate(-50%, -50%) rotate(var(--giro, 0deg));
+  box-shadow:
+    0 16px 28px rgb(40 35 50 / 22%),
+    0 2px 0 rgb(0 0 0 / 5%);
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.15s ease;
+}
+
+.posit.activo,
+.posit:focus-within {
+  z-index: 8;
+  box-shadow:
+    0 22px 38px rgb(40 35 50 / 30%),
+    0 0 0 2px rgb(116 86 155 / 55%);
+}
+
+.posit:active {
+  cursor: grabbing;
+}
+
+/* Esquina doblada. */
+.posit::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 0 20px 20px;
+  border-color: transparent transparent rgb(0 0 0 / 10%) transparent;
+  pointer-events: none;
+}
+
+.posit textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 108px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.42;
+  overflow: hidden;
+  resize: none;
+  cursor: text;
+  user-select: text;
+}
+
+.posit textarea::placeholder {
+  color: currentColor;
+  opacity: 0.45;
+}
+
+.posit-barra {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgb(24 20 32 / 94%);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 28%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.posit:hover .posit-barra,
+.posit:focus-within .posit-barra,
+.posit.activo .posit-barra {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cuadro {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 35%);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.cuadro:hover {
+  transform: scale(1.12);
+}
+
+.cuadro.activo {
+  border-color: #fff;
+}
+
+.posit-borrar {
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 12%);
+  color: #ffb3cb;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.posit-borrar:hover {
+  background: rgb(255 179 203 / 22%);
+  color: #fff;
+}
