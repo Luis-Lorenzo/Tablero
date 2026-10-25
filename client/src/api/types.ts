@@ -26,6 +26,8 @@ export interface PublicMesa {
   hostName: string;
   players: MesaJugador[];
   pendingHostId: string | null;
+  /** Si el máster ya ha empezado la partida. */
+  estado: "ESPERA" | "EN_CURSO";
   createdAt: string;
 }
 

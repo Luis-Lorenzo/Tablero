@@ -5,7 +5,7 @@ import {
   type User,
   type UserRepository
 } from "../repositories/user.repository.js";
-import { createMesa, type Mesa, type MesaRepository } from "../repositories/mesa.repository.js";
+import { createMesa, type EstadoMesa, type Mesa, type MesaRepository } from "../repositories/mesa.repository.js";
 
 /** Cuántos jugadores caben en una mesa (el anfitrión no ocupa plaza). */
 export const MESA_MAX_JUGADORES = 6;
@@ -31,6 +31,8 @@ export interface MesaVista {
   players: MesaJugador[];
   /** Jugador con una cesión de mando pendiente de aceptar, o null. */
   pendingHostId: string | null;
+  /** Si el máster ya ha empezado la partida. */
+  estado: EstadoMesa;
   createdAt: Date;
 }
 
@@ -114,6 +116,41 @@ export class MesaService {
     await this.mesas.save(mesa);
 
     this.logger.info("Jugador unido a la mesa", { mesaId: mesa.id, playerId: actor.id });
+
+    return this.vista(mesa);
+  }
+
+  /**
+   * El máster (anfitrión) empieza la partida. No hace falta un mínimo de
+   * jugadores: se permite empezar solo para poder probar la sala.
+   */
+  async iniciar(actor: User, mesaId: string): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    if (mesa.hostId !== actor.id) throw errors.mesaForbidden();
+
+    if (mesa.estado !== "EN_CURSO") {
+      mesa.estado = "EN_CURSO";
+      await this.mesas.save(mesa);
+      this.logger.info("Partida iniciada", { mesaId, hostId: actor.id });
+    }
+
+    return this.vista(mesa);
+  }
+
+  /** El máster devuelve la mesa a la sala de espera. */
+  async terminar(actor: User, mesaId: string): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    if (mesa.hostId !== actor.id) throw errors.mesaForbidden();
+
+    if (mesa.estado !== "ESPERA") {
+      mesa.estado = "ESPERA";
+      await this.mesas.save(mesa);
+      this.logger.info("Partida terminada", { mesaId, hostId: actor.id });
+    }
 
     return this.vista(mesa);
   }
@@ -312,6 +349,7 @@ export class MesaService {
         name: nombres.get(id) ?? "desconocido"
       })),
       pendingHostId: mesa.pendingHostId,
+      estado: mesa.estado,
       createdAt: mesa.createdAt
     }));
   }

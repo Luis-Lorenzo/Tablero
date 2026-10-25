@@ -144,7 +144,7 @@ export function MesaCard({
             className="ghost small"
             onClick={() => onGestionar(mesa)}
           >
-            Gestionar
+            {mesa.estado === "EN_CURSO" ? "Volver a la mesa" : "Gestionar"}
           </button>
           <button
             type="button"
@@ -163,7 +163,7 @@ export function MesaCard({
           className="ghost small"
           onClick={() => onGestionar(mesa)}
         >
-          Gestionar
+          {mesa.estado === "EN_CURSO" ? "Ir a la mesa" : "Gestionar"}
         </button>
       )}
 

@@ -1,3 +1,6 @@
+/** ESPERA: la mesa está en la recepción; EN_CURSO: el máster ya la ha empezado. */
+export type EstadoMesa = "ESPERA" | "EN_CURSO";
+
 export interface Mesa {
   id: string;
   hostId: string;
@@ -10,6 +13,8 @@ export interface Mesa {
    * `null` cuando no hay ninguna cesión pendiente.
    */
   pendingHostId: string | null;
+  /** Si el máster ya ha empezado la partida. */
+  estado: EstadoMesa;
   createdAt: Date;
 }
 
@@ -32,6 +37,7 @@ export function createMesa(hostId: string): Mesa {
     players: [],
     expulsados: [],
     pendingHostId: null,
+    estado: "ESPERA",
     createdAt: new Date()
   };
 }
@@ -58,7 +64,8 @@ export class MemoryMesaRepository implements MesaRepository {
       ...mesa,
       players: [...(mesa.players ?? [])],
       expulsados: [...(mesa.expulsados ?? [])],
-      pendingHostId: mesa.pendingHostId ?? null
+      pendingHostId: mesa.pendingHostId ?? null,
+      estado: mesa.estado ?? "ESPERA"
     });
   }
 

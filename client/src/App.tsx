@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
+import { mesasApi } from "./api/mesas.api";
 import type { PublicMesa, PublicUser } from "./api/types";
 import { AuthPage } from "./presentation/pages/AuthPage";
 import { DashboardPage } from "./presentation/pages/DashboardPage";
 import { AdminUsersPage } from "./presentation/pages/AdminUsersPage";
 import { RecepcionPage } from "./presentation/pages/RecepcionPage";
 import { GestionMesaPage } from "./presentation/pages/GestionMesaPage";
+import { SalaReal } from "./presentation/pages/SalaReal";
 import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
 import { Dado } from "./presentation/components/Dado";
 import { AccountMenu } from "./presentation/components/AccountMenu";
 import { ArchivosMenu } from "./presentation/components/ArchivosMenu";
+import { useMesasLive } from "./presentation/hooks/useMesasLive";
 
-type View = "recepcion" | "cuenta" | "moderar" | "gestion";
+type View = "recepcion" | "cuenta" | "moderar" | "gestion" | "sala";
 
 /** Nombre con el que se muestra al usuario: su nickname o la parte del correo. */
 function nombreDeUsuario(user: PublicUser): string {
@@ -29,6 +32,8 @@ function App() {
   const [gestionMesaId, setGestionMesaId] = useState<string | null>(null);
   /** Mesa que aloja el usuario ahora mismo (para el botón "Listar mesa"). */
   const [miMesa, setMiMesa] = useState<PublicMesa | null>(null);
+  /** Mesa abierta en la sala real (la partida empezada). */
+  const [salaMesa, setSalaMesa] = useState<PublicMesa | null>(null);
 
   useEffect(() => {
     authApi
@@ -37,6 +42,38 @@ function App() {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  const refrescarMiSala = useCallback(async () => {
+    if (!user) return;
+    try {
+      const mesa = await mesasApi.mia();
+      if (mesa && mesa.estado === "EN_CURSO") {
+        setSalaMesa(mesa);
+        setView("sala");
+        setMiMesa(mesa);
+        return;
+      }
+
+      const pendiente = await mesasApi.pendiente();
+      const candidatos = [mesa, pendiente].filter(Boolean) as PublicMesa[];
+      for (const candidata of candidatos) {
+        if (candidata.estado === "EN_CURSO") {
+          setSalaMesa(candidata);
+          setView("sala");
+          break;
+        }
+      }
+    } catch {
+      // Ignorar: la vista de recepción seguirá funcionando.
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void refrescarMiSala();
+  }, [user, refrescarMiSala]);
+
+  useMesasLive(refrescarMiSala);
 
   const handleAuthenticated = useCallback((nextUser: PublicUser) => {
     setUser(nextUser);
@@ -51,6 +88,8 @@ function App() {
     }
     setUser(null);
     setView("recepcion");
+    setSalaMesa(null);
+    setMiMesa(null);
   }, []);
 
   const abrirGestion = useCallback((mesa: PublicMesa) => {
@@ -58,8 +97,22 @@ function App() {
     setView("gestion");
   }, []);
 
+  const abrirSala = useCallback((mesa: PublicMesa) => {
+    setSalaMesa(mesa);
+    setView("sala");
+  }, []);
+
+  const volverRecpcion = useCallback(() => {
+    setView("recepcion");
+    void refrescarMiSala();
+  }, [refrescarMiSala]);
+
   const handleMiMesa = useCallback((mesa: PublicMesa | null) => {
     setMiMesa(mesa);
+    if (mesa?.estado === "EN_CURSO") {
+      setSalaMesa(mesa);
+      setView("sala");
+    }
   }, []);
 
   if (loading) {
@@ -88,7 +141,7 @@ function App() {
             <Dado cara={2} clase="dado-derecha" />
           </div>
 
-          {(esAdmin || miMesa) && (
+          {(esAdmin || miMesa) && view !== "sala" && (
             <div className="topbar-acciones">
               {esAdmin && miMesa && (
                 <button
@@ -121,11 +174,20 @@ function App() {
 
         <ArchivosMenu />
 
-        {view === "gestion" && gestionMesaId ? (
+        {view === "sala" && salaMesa ? (
+          <SalaReal
+            mesa={salaMesa}
+            user={user}
+            onActualizarMesa={setSalaMesa}
+            onVolver={volverRecpcion}
+            onSessionExpired={handleLogout}
+          />
+        ) : view === "gestion" && gestionMesaId ? (
           <GestionMesaPage
             mesaId={gestionMesaId}
             user={user}
             onVolver={() => setView("recepcion")}
+            onAbrirSala={abrirSala}
             onSessionExpired={handleLogout}
           />
         ) : view === "moderar" && esAdmin ? (

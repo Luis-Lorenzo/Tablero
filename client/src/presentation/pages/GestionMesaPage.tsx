@@ -8,6 +8,7 @@ interface GestionMesaPageProps {
   mesaId: string;
   user: PublicUser;
   onVolver: () => void;
+  onAbrirSala?: (mesa: PublicMesa) => void;
   onSessionExpired?: () => void;
 }
 
@@ -27,6 +28,7 @@ export function GestionMesaPage({
   mesaId,
   user,
   onVolver,
+  onAbrirSala,
   onSessionExpired
 }: GestionMesaPageProps) {
   const [mesa, setMesa] = useState<PublicMesa | null>(null);
@@ -110,6 +112,24 @@ export function GestionMesaPage({
       onVolver();
     } catch (cerrarError) {
       setError(describeError(cerrarError));
+      setBusy(false);
+    }
+  }
+
+  async function iniciarPartida() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.iniciar(mesa.id);
+      setMesa(actualizada);
+      if (onAbrirSala) {
+        onAbrirSala(actualizada);
+      }
+    } catch (iniciarError) {
+      setError(describeError(iniciarError));
+    } finally {
       setBusy(false);
     }
   }
@@ -207,6 +227,14 @@ export function GestionMesaPage({
 
       {esAnfitrion && (
         <div className="acciones-cuenta">
+          <button
+            type="button"
+            className="primary amarillo"
+            onClick={() => void iniciarPartida()}
+            disabled={busy || mesa.estado === "EN_CURSO"}
+          >
+            {mesa.estado === "EN_CURSO" ? "Partida iniciada" : "Empezar partida"}
+          </button>
           <button type="button" className="danger" onClick={cerrar} disabled={busy}>
             Cerrar mesa
           </button>
