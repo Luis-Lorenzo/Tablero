@@ -168,7 +168,7 @@ function App() {
           )}
         </header>
 
-        {!(view === "sala" || view === "gestion") && (
+        {view !== "sala" && view !== "gestion" && (
           <AccountMenu
             label={nombreDeUsuario(user)}
             onOpenAccount={() => setView("cuenta")}
@@ -176,7 +176,7 @@ function App() {
           />
         )}
 
-        {!(view === "sala" || view === "gestion") && <ArchivosMenu />}
+        {view !== "sala" && view !== "gestion" && <ArchivosMenu />}
 
         {view === "sala" && salaMesa ? (
           <SalaReal

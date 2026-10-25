@@ -924,6 +924,12 @@ button.primary.amarillo {
   display: none !important;
 }
 
+/* En la sala real nunca se muestran los menús superiores. */
+.page:has(.sala) .cuenta-menu,
+.page:has(.sala) .archivos {
+  display: none !important;
+}
+
 .archivos-fila {
   display: flex;
   align-items: flex-end;

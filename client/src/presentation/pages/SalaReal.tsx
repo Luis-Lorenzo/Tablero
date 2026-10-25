@@ -38,7 +38,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   const lista: JugadorPreview[] = [
     {
       id: "master",
-      nombre: "Máster",
+      nombre: mesa.hostName,
       color: "#e8c56a",
       esMaster: true,
       activo: true
@@ -47,7 +47,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
 
   mesa.players.forEach((jugador, indice) => {
     lista.push({
-      id: jugador.id,
+      id: `p${indice + 1}`,
       nombre: jugador.name,
       color: PALETA_COLORES[indice % PALETA_COLORES.length],
       esMaster: false,
