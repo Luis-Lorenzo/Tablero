@@ -481,6 +481,15 @@
   display: none;
 }
 
+.sala-titulo-visible {
+  padding: 0 16px;
+  color: #e7ddf2;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 .sala-btn {
   padding: 7px 14px;
   border: 1px solid #574a66;

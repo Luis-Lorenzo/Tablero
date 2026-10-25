@@ -22,6 +22,7 @@ interface SalaProps {
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
   onVolver: () => void;
+  hostName?: string;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -163,7 +164,8 @@ export function Sala({
   onCalibracion,
   onAbrirPizarra,
   onAbrirMapa,
-  onVolver
+  onVolver,
+  hostName
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -512,6 +514,9 @@ export function Sala({
           <button type="button" className="sala-btn" onClick={onVolver}>
             ← Sala de espera
           </button>
+          <span className="sala-titulo-visible">
+            SALA DE {hostName ? hostName.toUpperCase() : "MESA"}
+          </span>
           <button
             type="button"
             className={`sala-btn${ajuste ? " activo" : ""}`}
