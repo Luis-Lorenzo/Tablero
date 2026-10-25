@@ -714,6 +714,7 @@
   z-index: 10;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 14px;
   height: 64px;
   padding: 0 20px;
@@ -723,12 +724,7 @@
 }
 
 .pizarra-titulo {
-  flex: 1;
-  color: #4a3f57;
-  font-family: "Cinzel Decorative", "Times New Roman", serif;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
-  text-align: center;
+  display: none;
 }
 
 .pizarra-btn {

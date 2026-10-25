@@ -69,6 +69,10 @@ h2 {
   padding: 4px 0 0;
 }
 
+.topbar.oculto {
+  display: none;
+}
+
 .topbar-acciones {
   display: flex;
   align-items: center;
@@ -649,6 +653,8 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
   display: flex;
   align-items: center;
   gap: 14px;
+  transform: scale(0.6);
+  transform-origin: top right;
 }
 
 .cuenta-etiqueta {
@@ -909,6 +915,19 @@ button.primary.amarillo {
   z-index: 40;
   display: flex;
   flex-direction: column;
+  transform: scale(0.6);
+  transform-origin: top left;
+}
+
+#root.ocultar-menus .cuenta-menu,
+#root.ocultar-menus .archivos {
+  display: none !important;
+}
+
+/* En la sala real nunca se muestran los menús superiores. */
+.page:has(.sala) .cuenta-menu,
+.page:has(.sala) .archivos {
+  display: none !important;
 }
 
 .archivos-fila {

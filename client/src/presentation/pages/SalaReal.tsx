@@ -6,7 +6,6 @@ import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
-
 import {
   cargarCalibracion,
   cargarPosits,
@@ -35,11 +34,11 @@ const PALETA_COLORES = [
   "#8fb8ff"
 ];
 
-function construirJugadores(mesa: PublicMesa, currentUserId: string): JugadorPreview[] {
+function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   const lista: JugadorPreview[] = [
     {
       id: "master",
-      nombre: "Máster",
+      nombre: mesa.hostName,
       color: "#e8c56a",
       esMaster: true,
       activo: true
@@ -48,7 +47,7 @@ function construirJugadores(mesa: PublicMesa, currentUserId: string): JugadorPre
 
   mesa.players.forEach((jugador, indice) => {
     lista.push({
-      id: jugador.id,
+      id: `p${indice + 1}`,
       nombre: jugador.name,
       color: PALETA_COLORES[indice % PALETA_COLORES.length],
       esMaster: false,
@@ -56,12 +55,10 @@ function construirJugadores(mesa: PublicMesa, currentUserId: string): JugadorPre
     });
   });
 
-  // Marcar si soy yo (no cambia el aspecto, útil para depurar)
-  void currentUserId;
   return lista;
 }
 
-export function SalaReal({
+function SalaRealContent({
   mesa,
   user,
   onActualizarMesa,
@@ -75,6 +72,16 @@ export function SalaReal({
   const [busy, setBusy] = useState(false);
 
   const esMaster = mesa.hostId === user.id;
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (fase === "pizarra" || fase === "mapa") {
+      root?.classList.add("ocultar-menus");
+    } else {
+      root?.classList.remove("ocultar-menus");
+    }
+    return () => root?.classList.remove("ocultar-menus");
+  }, [fase]);
 
   useEffect(() => {
     guardarCalibracion(calibracion);
@@ -116,7 +123,7 @@ export function SalaReal({
     }
   }
 
-  const jugadores = construirJugadores(mesa, user.id);
+  const jugadores = construirJugadores(mesa);
 
   if (fase === "pizarra") {
     return <Pizarra posits={posits} onPosits={setPosits} onVolver={() => setFase("sala")} />;
@@ -185,4 +192,8 @@ export function SalaReal({
       )}
     </div>
   );
+}
+
+export function SalaReal(props: SalaRealProps) {
+  return <SalaRealContent {...props} />;
 }

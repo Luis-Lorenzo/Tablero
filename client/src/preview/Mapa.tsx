@@ -13,12 +13,8 @@ export function Mapa({ onVolver }: MapaProps) {
 
       <div className="pizarra-barra">
         <button type="button" className="pizarra-btn" onClick={onVolver}>
-          ← Volver a la sala
+          ← Volver
         </button>
-
-        <span className="pizarra-titulo">Mapa</span>
-
-        <span className="mapa-etiqueta">fase 1</span>
       </div>
 
       <div className="mapa-lienzo">

@@ -131,10 +131,12 @@ function App() {
 
   const esAdmin = user.role === "ADMIN";
 
+  const ocultarMenusSuperiores = view === "sala" || view === "gestion";
+
   return (
     <main className="page">
       <div className="shell">
-        <header className="topbar">
+        <header className={`topbar${ocultarMenusSuperiores ? " oculto" : ""}`}>
           <div className="titulo-con-dados">
             <Dado cara={5} clase="dado-izquierda" />
             <LogoPocketRol onClick={() => setView("recepcion")} />
@@ -166,13 +168,15 @@ function App() {
           )}
         </header>
 
-        <AccountMenu
-          label={nombreDeUsuario(user)}
-          onOpenAccount={() => setView("cuenta")}
-          onLogout={handleLogout}
-        />
+        {view !== "sala" && view !== "gestion" && (
+          <AccountMenu
+            label={nombreDeUsuario(user)}
+            onOpenAccount={() => setView("cuenta")}
+            onLogout={handleLogout}
+          />
+        )}
 
-        <ArchivosMenu />
+        {view !== "sala" && view !== "gestion" && <ArchivosMenu />}
 
         {view === "sala" && salaMesa ? (
           <SalaReal
