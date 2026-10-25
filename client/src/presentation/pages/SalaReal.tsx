@@ -69,7 +69,6 @@ function SalaRealContent({
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const esMaster = mesa.hostId === user.id;
 
@@ -111,7 +110,6 @@ function SalaRealContent({
       return;
     }
 
-    setBusy(true);
     setError(null);
     try {
       const actualizada = await mesasApi.terminar(mesa.id);
@@ -119,7 +117,6 @@ function SalaRealContent({
       onVolver();
     } catch (volverError) {
       setError(describeError(volverError));
-      setBusy(false);
     }
   }
 
@@ -142,37 +139,8 @@ function SalaRealContent({
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
         onVolver={volverAEspera}
+        hostName={mesa.hostName}
       />
-      <div
-        style={{
-          position: "fixed",
-          top: 16,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 40,
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          padding: "8px 14px",
-          borderRadius: 999,
-          background: "rgb(16 13 21 / 82%)",
-          color: "#e7ddf2",
-          fontFamily: '"Cinzel Decorative", "Times New Roman", serif',
-          letterSpacing: "0.06em"
-        }}
-      >
-        <span>{mesa.hostName}</span>
-        {esMaster && (
-          <button
-            type="button"
-            className="sala-btn"
-            onClick={() => void volverAEspera()}
-            disabled={busy}
-          >
-            {busy ? "Volviendo…" : "Volver a espera"}
-          </button>
-        )}
-      </div>
       {error && (
         <div
           style={{

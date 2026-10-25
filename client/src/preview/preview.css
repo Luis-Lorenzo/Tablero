@@ -474,14 +474,19 @@
   border-radius: 999px;
   background: rgb(16 13 21 / 82%);
   backdrop-filter: blur(8px);
+  justify-content: center;
 }
 
 .sala-titulo {
-  padding: 0 10px;
+  display: none;
+}
+
+.sala-titulo-visible {
+  padding: 0 16px;
   color: #e7ddf2;
   font-family: "Cinzel Decorative", "Times New Roman", serif;
-  font-size: 0.86rem;
-  letter-spacing: 0.06em;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
   white-space: nowrap;
 }
 
