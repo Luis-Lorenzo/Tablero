@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { Mesa, MesaRepository } from "./mesa.repository.js";
+import type { EstadoMesa, Mesa, MesaRepository } from "./mesa.repository.js";
 
 interface MesaRow {
   id: string;
@@ -7,11 +7,12 @@ interface MesaRow {
   players: string[] | null;
   expulsados: string[] | null;
   pending_host_id: string | null;
+  estado: string;
   created_at: Date;
 }
 
 const SELECT_COLUMNS =
-  "id, host_id, players, expulsados, pending_host_id, created_at";
+  "id, host_id, players, expulsados, pending_host_id, estado, created_at";
 
 function toMesa(row: MesaRow): Mesa {
   return {
@@ -20,6 +21,7 @@ function toMesa(row: MesaRow): Mesa {
     players: row.players ?? [],
     expulsados: row.expulsados ?? [],
     pendingHostId: row.pending_host_id,
+    estado: (row.estado === "EN_CURSO" ? "EN_CURSO" : "ESPERA") as EstadoMesa,
     createdAt: new Date(row.created_at)
   };
 }
@@ -63,19 +65,21 @@ export class PgMesaRepository implements MesaRepository {
 
   async save(mesa: Mesa) {
     await this.pool.query(
-      `INSERT INTO mesas (id, host_id, players, expulsados, pending_host_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO mesas (id, host_id, players, expulsados, pending_host_id, estado, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE SET
          host_id = EXCLUDED.host_id,
          players = EXCLUDED.players,
          expulsados = EXCLUDED.expulsados,
-         pending_host_id = EXCLUDED.pending_host_id`,
+         pending_host_id = EXCLUDED.pending_host_id,
+         estado = EXCLUDED.estado`,
       [
         mesa.id,
         mesa.hostId,
         mesa.players,
         mesa.expulsados,
         mesa.pendingHostId,
+        mesa.estado,
         mesa.createdAt
       ]
     );

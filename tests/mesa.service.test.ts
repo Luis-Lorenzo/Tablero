@@ -171,6 +171,9 @@ describe("mesa.service", () => {
         id: `m${i}`,
         hostId: "h",
         players: [],
+        expulsados: [],
+        pendingHostId: null,
+        estado: "ESPERA",
         createdAt: new Date(Date.UTC(2026, 0, 1, i))
       });
     }
@@ -203,6 +206,9 @@ describe("mesa.service", () => {
         id: `m${i}`,
         hostId: host.id,
         players: [],
+        expulsados: [],
+        pendingHostId: null,
+        estado: "ESPERA",
         createdAt: new Date(Date.UTC(2026, 0, 1, i))
       });
     }

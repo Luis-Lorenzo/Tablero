@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS mesas (
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS expulsados UUID[] NOT NULL DEFAULT '{}';
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS pending_host_id UUID;
 
+-- Estado de la partida: 'ESPERA' mientras la mesa está en la recepción y
+-- 'EN_CURSO' cuando el máster ya la ha empezado. Idempotente para bases de
+-- datos creadas antes de que existiera.
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'ESPERA';
+
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
 
 -- Archivos personales de cada usuario. Los bytes viven en el almacén de objetos

@@ -40,5 +40,11 @@ export const mesasApi = {
 
   rechazarCesion: (id: string) => http.post<void>(`/api/mesas/${id}/ceder/rechazar`),
 
-  cerrar: (id: string) => http.delete<void>(`/api/mesas/${id}`)
+  cerrar: (id: string) => http.delete<void>(`/api/mesas/${id}`),
+
+  /** El máster empieza la partida (va a la sala). */
+  iniciar: (id: string) => http.post<PublicMesa>(`/api/mesas/${id}/iniciar`),
+
+  /** Vuelve la partida a la sala de espera. */
+  terminar: (id: string) => http.post<PublicMesa>(`/api/mesas/${id}/terminar`)
 };

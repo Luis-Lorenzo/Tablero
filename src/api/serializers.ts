@@ -44,6 +44,8 @@ export interface PublicMesa {
   hostName: string;
   players: PublicMesaJugador[];
   pendingHostId: string | null;
+  /** Si el máster ya ha empezado la partida. */
+  estado: MesaVista["estado"];
   createdAt: string;
 }
 
@@ -57,6 +59,7 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
       name: jugador.name
     })),
     pendingHostId: mesa.pendingHostId,
+    estado: mesa.estado,
     createdAt: mesa.createdAt.toISOString()
   };
 }

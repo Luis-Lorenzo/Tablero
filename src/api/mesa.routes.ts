@@ -84,6 +84,32 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.post("/:id/iniciar", requireAuth, async (req, res, next) => {
+    try {
+      const mesa = await context.mesaService.iniciar(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/terminar", requireAuth, async (req, res, next) => {
+    try {
+      const mesa = await context.mesaService.terminar(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/:id/expulsar", requireAuth, async (req, res, next) => {
     try {
       const playerId = String((req.body ?? {}).playerId ?? "");
