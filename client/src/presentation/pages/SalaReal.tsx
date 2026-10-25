@@ -161,7 +161,7 @@ function SalaRealContent({
           letterSpacing: "0.06em"
         }}
       >
-        <span>{mesa.hostName}</span>
+        <span>SALA DE {mesa.hostName.toUpperCase()}</span>
         {esMaster && (
           <button
             type="button"
