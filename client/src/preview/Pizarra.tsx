@@ -269,10 +269,8 @@ export function Pizarra({ posits, onPosits, onVolver }: PizarraProps) {
 
       <div className="pizarra-barra">
         <button type="button" className="pizarra-btn" onClick={onVolver}>
-          ← Volver a la sala
+          ← Volver
         </button>
-
-        <span className="pizarra-titulo">Pizarra</span>
 
         <button
           type="button"
