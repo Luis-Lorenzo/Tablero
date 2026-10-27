@@ -864,6 +864,65 @@ button.primary.amarillo {
   font-weight: 600;
 }
 
+.jugador-color {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 4px;
+}
+
+.jugador-yo {
+  color: #b8a9d4;
+  font-weight: 500;
+}
+
+/* Selector de color del jugador: cuadrado grande y paleta de 32 tonos. */
+.color-propio {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.color-cuadrado {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgb(0 0 0 / 25%);
+}
+
+.paleta-colores {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  max-width: 340px;
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid #4a4057;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.paleta-color {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.paleta-color.activa {
+  outline: 2px solid #f7ffae;
+  outline-offset: 2px;
+}
+
 .jugador-acciones {
   display: flex;
   flex-wrap: wrap;
