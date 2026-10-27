@@ -258,4 +258,38 @@ describe("mesa.service", () => {
     expect(individuales).toBe(0);
     expect(enLote).toBe(1);
   });
+
+  test("mia devuelve también la mesa en la que el usuario es jugador", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const service = new MesaService(mesas, users, logger as any);
+    const host = addUser(users, "host@test.com");
+    const jugador = addUser(users, "p@test.com");
+    const mesa = (await service.crear(host as any)).mesa;
+    await service.unirse(jugador as any, mesa.id);
+
+    expect((await service.mia(host as any))?.id).toBe(mesa.id);
+    expect((await service.mia(jugador as any))?.id).toBe(mesa.id);
+
+    const ajeno = addUser(users, "nadie@test.com");
+    expect(await service.mia(ajeno as any)).toBeNull();
+  });
+
+  test("solo el anfitrión inicia la partida y los jugadores la ven EN_CURSO", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const service = new MesaService(mesas, users, logger as any);
+    const host = addUser(users, "host@test.com");
+    const jugador = addUser(users, "p@test.com");
+    const mesa = (await service.crear(host as any)).mesa;
+    await service.unirse(jugador as any, mesa.id);
+
+    await expect(service.iniciar(jugador as any, mesa.id)).rejects.toThrow(
+      "MESA_FORBIDDEN"
+    );
+
+    const iniciada = await service.iniciar(host as any, mesa.id);
+    expect(iniciada.estado).toBe("EN_CURSO");
+    expect((await service.mia(jugador as any))?.estado).toBe("EN_CURSO");
+  });
 });
