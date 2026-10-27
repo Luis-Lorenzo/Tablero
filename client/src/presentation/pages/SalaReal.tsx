@@ -39,7 +39,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
     {
       id: "master",
       nombre: mesa.hostName,
-      color: "#e8c56a",
+      color: mesa.colores?.[mesa.hostId] ?? "#e8c56a",
       esMaster: true,
       activo: true
     }
@@ -49,7 +49,10 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
     lista.push({
       id: `p${indice + 1}`,
       nombre: jugador.name,
-      color: PALETA_COLORES[indice % PALETA_COLORES.length],
+      color:
+        mesa.colores?.[jugador.id] ??
+        jugador.color ??
+        PALETA_COLORES[indice % PALETA_COLORES.length],
       esMaster: false,
       activo: true
     });
@@ -94,13 +97,10 @@ function SalaRealContent({
     try {
       const actualizada = await mesasApi.obtener(mesa.id);
       onActualizarMesa(actualizada);
-      if (actualizada.estado === "ESPERA") {
-        onVolver();
-      }
     } catch (refrescoError) {
       setError(describeError(refrescoError));
     }
-  }, [mesa.id, onActualizarMesa, onVolver]);
+  }, [mesa.id, onActualizarMesa]);
 
   useMesasLive(refrescar, onSessionExpired);
 

@@ -29,6 +29,7 @@ export interface PublicMesa {
   pendingHostId: string | null;
   /** Si el máster ya ha empezado la partida. */
   estado: "ESPERA" | "EN_CURSO";
+  colores?: Record<string, string>;
   createdAt: string;
 }
 
