@@ -157,7 +157,17 @@ export function MesaCard({
         </div>
       )}
 
-      {puedeGestionar && !esHost && (
+      {soyJugador && !esHost && (
+        <button
+          type="button"
+          className="ghost small"
+          onClick={() => onGestionar(mesa)}
+        >
+          {mesa.estado === "EN_CURSO" ? "Ver mesa" : "Ver sala"}
+        </button>
+      )}
+
+      {puedeGestionar && !esHost && !soyJugador && (
         <button
           type="button"
           className="ghost small"
