@@ -36,6 +36,7 @@ export function toPublicUser(user: User): PublicUser {
 export interface PublicMesaJugador {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 export interface PublicMesa {
@@ -46,6 +47,7 @@ export interface PublicMesa {
   pendingHostId: string | null;
   /** Si el máster ya ha empezado la partida. */
   estado: MesaVista["estado"];
+  colores: Record<string, string>;
   createdAt: string;
 }
 
@@ -56,10 +58,12 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     hostName: mesa.hostName,
     players: mesa.players.map(jugador => ({
       id: jugador.id,
-      name: jugador.name
+      name: jugador.name,
+      color: jugador.color ?? null
     })),
     pendingHostId: mesa.pendingHostId,
     estado: mesa.estado,
+    colores: mesa.colores ?? {},
     createdAt: mesa.createdAt.toISOString()
   };
 }

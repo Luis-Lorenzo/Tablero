@@ -71,6 +71,13 @@ ALTER TABLE mesas ADD COLUMN IF NOT EXISTS pending_host_id UUID;
 -- datos creadas antes de que existiera.
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'ESPERA';
 
+CREATE TABLE IF NOT EXISTS mesa_jugadores ( 
+  mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
+  user_id UUID NOT NULL, 
+  color   TEXT, 
+  PRIMARY KEY (mesa_id, user_id) 
+);
+
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
 
 -- Archivos personales de cada usuario. Los bytes viven en el almacén de objetos

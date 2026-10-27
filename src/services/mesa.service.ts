@@ -22,6 +22,7 @@ export function nombreVisible(email: string): string {
 export interface MesaJugador {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 export interface MesaVista {
@@ -33,6 +34,7 @@ export interface MesaVista {
   pendingHostId: string | null;
   /** Si el máster ya ha empezado la partida. */
   estado: EstadoMesa;
+  colores?: Record<string, string>;
   createdAt: Date;
 }
 
@@ -346,11 +348,34 @@ export class MesaService {
       hostName: nombres.get(mesa.hostId) ?? "desconocido",
       players: mesa.players.map(id => ({
         id,
-        name: nombres.get(id) ?? "desconocido"
+        name: nombres.get(id) ?? "desconocido",
+        color: (mesa as any).colores?.[id] ?? null
       })),
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
+      colores: (mesa as any).colores ?? {},
       createdAt: mesa.createdAt
     }));
+  }
+
+  async ponerColor(actor: User, mesaId: string, color: string | null): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    const esAnfitrion = mesa.hostId === actor.id;
+    const esJugador = (mesa.players ?? []).includes(actor.id);
+    if (!esAnfitrion && !esJugador) {
+      throw errors.mesaForbidden();
+    }
+
+    if (!(mesa as any).colores) (mesa as any).colores = {};
+    if (color) {
+      (mesa as any).colores[actor.id] = color;
+    } else {
+      delete (mesa as any).colores[actor.id];
+    }
+    await this.mesas.save(mesa as any);
+    const vistas = await this.vistas([mesa as any]);
+    return vistas[0];
   }
 }
