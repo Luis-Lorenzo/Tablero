@@ -283,9 +283,16 @@ export class MesaService {
     return this.vista(mesa);
   }
 
-  /** La mesa que aloja el usuario, o null si no es anfitrión de ninguna. */
+  /**
+   * La mesa en la que está el usuario ahora mismo, ya sea como anfitrión o
+   * como jugador. El cliente la usa para meterlo automáticamente en la sala
+   * cuando el máster empieza la partida.
+   */
   async mia(actor: User): Promise<MesaVista | null> {
-    const mesa = await this.mesaDeAnfitrion(actor.id);
+    const mesas = await this.mesas.list();
+    const mesa =
+      mesas.find(candidata => candidata.hostId === actor.id) ??
+      mesas.find(candidata => candidata.players.includes(actor.id));
     return mesa ? this.vista(mesa) : null;
   }
 
