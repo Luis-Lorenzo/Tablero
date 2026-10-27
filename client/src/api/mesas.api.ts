@@ -46,5 +46,9 @@ export const mesasApi = {
   iniciar: (id: string) => http.post<PublicMesa>(`/api/mesas/${id}/iniciar`),
 
   /** Vuelve la partida a la sala de espera. */
-  terminar: (id: string) => http.post<PublicMesa>(`/api/mesas/${id}/terminar`)
+  terminar: (id: string) => http.post<PublicMesa>(`/api/mesas/${id}/terminar`),
+
+  /** Cambia el color del jugador dentro de la mesa. */
+  ponerColor: (id: string, color: string | null) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/color`, { color })
 };
