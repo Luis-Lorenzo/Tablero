@@ -15,6 +15,7 @@ export interface Mesa {
   pendingHostId: string | null;
   /** Si el máster ya ha empezado la partida. */
   estado: EstadoMesa;
+  colores: Record<string, string>;
   createdAt: Date;
 }
 
@@ -38,6 +39,7 @@ export function createMesa(hostId: string): Mesa {
     expulsados: [],
     pendingHostId: null,
     estado: "ESPERA",
+    colores: {},
     createdAt: new Date()
   };
 }
@@ -65,7 +67,8 @@ export class MemoryMesaRepository implements MesaRepository {
       players: [...(mesa.players ?? [])],
       expulsados: [...(mesa.expulsados ?? [])],
       pendingHostId: mesa.pendingHostId ?? null,
-      estado: mesa.estado ?? "ESPERA"
+      estado: mesa.estado ?? "ESPERA",
+      colores: mesa.colores ?? {}
     });
   }
 

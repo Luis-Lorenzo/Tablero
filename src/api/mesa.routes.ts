@@ -110,6 +110,17 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.post("/:id/color", requireAuth, async (req, res, next) => {
+    try {
+      const color = typeof (req.body ?? {}).color === "string" ? (req.body ?? {}).color : null;
+      const mesa = await context.mesaService.ponerColor(req.currentUser!, String(req.params.id), color);
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/:id/expulsar", requireAuth, async (req, res, next) => {
     try {
       const playerId = String((req.body ?? {}).playerId ?? "");

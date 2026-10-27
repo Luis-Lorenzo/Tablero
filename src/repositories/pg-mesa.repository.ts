@@ -11,10 +11,15 @@ interface MesaRow {
   created_at: Date;
 }
 
+interface MesaColorRow {
+  user_id: string;
+  color: string | null;
+}
+
 const SELECT_COLUMNS =
   "id, host_id, players, expulsados, pending_host_id, estado, created_at";
 
-function toMesa(row: MesaRow): Mesa {
+function toMesa(row: MesaRow, colores: Record<string, string> = {}): Mesa {
   return {
     id: row.id,
     hostId: row.host_id,
@@ -22,6 +27,7 @@ function toMesa(row: MesaRow): Mesa {
     expulsados: row.expulsados ?? [],
     pendingHostId: row.pending_host_id,
     estado: (row.estado === "EN_CURSO" ? "EN_CURSO" : "ESPERA") as EstadoMesa,
+    colores,
     createdAt: new Date(row.created_at)
   };
 }
@@ -29,12 +35,40 @@ function toMesa(row: MesaRow): Mesa {
 export class PgMesaRepository implements MesaRepository {
   constructor(private readonly pool: Pool) {}
 
+  private async cargarColores(mesaIds: string[]): Promise<Map<string, Record<string, string>>> {
+    const mapa = new Map<string, Record<string, string>>();
+    if (mesaIds.length === 0) return mapa;
+
+    const { rows } = await this.pool.query<MesaColorRow & { mesa_id: string }>(
+      `SELECT mesa_id, user_id, color FROM mesa_jugadores WHERE mesa_id = ANY($1)`,
+      [mesaIds]
+    );
+
+    for (const id of mesaIds) {
+      mapa.set(id, {});
+    }
+
+    for (const row of rows) {
+      const obj = mapa.get(row.mesa_id) ?? {};
+      if (row.color) {
+        obj[row.user_id] = row.color;
+      }
+      mapa.set(row.mesa_id, obj);
+    }
+
+    return mapa;
+  }
+
   async findById(id: string) {
     const { rows } = await this.pool.query<MesaRow>(
       `SELECT ${SELECT_COLUMNS} FROM mesas WHERE id = $1`,
       [id]
     );
-    return rows[0] ? toMesa(rows[0]) : undefined;
+    if (rows[0]) {
+      const colores = await this.cargarColores([id]);
+      return toMesa(rows[0], colores.get(id));
+    }
+    return undefined;
   }
 
   async list(limite?: number) {
@@ -42,15 +76,14 @@ export class PgMesaRepository implements MesaRepository {
       const { rows } = await this.pool.query<MesaRow>(
         `SELECT ${SELECT_COLUMNS} FROM mesas ORDER BY created_at ASC, id ASC`
       );
-      return rows.map(toMesa);
+      const colores = await this.cargarColores(rows.map(r => r.id));
+      return rows.map(row => toMesa(row, colores.get(row.id)));
     }
 
     if (limite <= 0) {
       return [];
     }
 
-    // Subconsulta: quedarse con las N más recientes (DESC LIMIT) y devolverlas
-    // en orden ascendente, igual que la consulta sin límite.
     const { rows } = await this.pool.query<MesaRow>(
       `SELECT ${SELECT_COLUMNS} FROM (
          SELECT ${SELECT_COLUMNS} FROM mesas
@@ -60,7 +93,8 @@ export class PgMesaRepository implements MesaRepository {
        ORDER BY created_at ASC, id ASC`,
       [limite]
     );
-    return rows.map(toMesa);
+    const colores = await this.cargarColores(rows.map(r => r.id));
+    return rows.map(row => toMesa(row, colores.get(row.id)));
   }
 
   async save(mesa: Mesa) {
@@ -83,6 +117,17 @@ export class PgMesaRepository implements MesaRepository {
         mesa.createdAt
       ]
     );
+
+    if (mesa.colores) {
+      const entries = Object.entries(mesa.colores).filter(([, color]) => Boolean(color));
+      await this.pool.query(`DELETE FROM mesa_jugadores WHERE mesa_id = $1`, [mesa.id]);
+      for (const [userId, color] of entries) {
+        await this.pool.query(
+          `INSERT INTO mesa_jugadores (mesa_id, user_id, color) VALUES ($1, $2, $3) ON CONFLICT (mesa_id, user_id) DO UPDATE SET color = EXCLUDED.color`,
+          [mesa.id, userId, color]
+        );
+      }
+    }
   }
 
   async delete(id: string) {
