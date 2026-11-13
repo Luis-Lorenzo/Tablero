@@ -597,7 +597,8 @@
   transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.dock-btn:hover {
+.dock-btn:hover,
+.dock-btn.activo {
   transform: translateY(-3px) scale(1.05);
   border-color: #e8c56a;
   color: #f6e3b0;
@@ -645,11 +646,165 @@
   animation: tirada-temblor 0.12s linear infinite;
 }
 
+.tirada-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .tirada-etiqueta {
   color: #9c92a9;
   font-size: 0.74rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.tirada-desglose {
+  color: #d6cde3;
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+.dados-selector {
+  position: absolute;
+  z-index: 25;
+  transform: translate(-50%, calc(-100% - 54px));
+  width: min(300px, calc(100vw - 24px));
+  padding: 14px 16px;
+  border: 1px solid #61536c;
+  border-radius: 16px;
+  background: rgb(18 15 24 / 96%);
+  box-shadow: 0 18px 44px rgb(0 0 0 / 55%);
+  color: #f0e7fb;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dados-selector.debajo {
+  transform: translate(-50%, 54px);
+}
+
+.dados-selector-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8c56a;
+}
+
+.dados-cerrar {
+  border: none;
+  background: transparent;
+  color: #9c92a9;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.dados-cerrar:hover {
+  color: #f0e7fb;
+}
+
+.dados-fila {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dados-campo-etiqueta {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9c92a9;
+}
+
+.dados-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dados-stepper button {
+  width: 34px;
+  height: 32px;
+  border: 1px solid #61536c;
+  border-radius: 8px;
+  background: #272033;
+  color: #f0e7fb;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.dados-stepper button:hover {
+  border-color: #e8c56a;
+  color: #e8c56a;
+}
+
+.dados-stepper input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #61536c;
+  border-radius: 8px;
+  background: #14101c;
+  color: #f6e3b0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.dados-tipos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.dado-tipo-btn {
+  padding: 6px 4px;
+  border: 1px solid #61536c;
+  border-radius: 8px;
+  background: #272033;
+  color: #d6cde3;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dado-tipo-btn:hover {
+  border-color: #a98fce;
+  color: #f0e7fb;
+}
+
+.dado-tipo-btn.activo {
+  border-color: #e8c56a;
+  background: #3d314d;
+  color: #f6e3b0;
+}
+
+.dados-lanzar {
+  margin-top: 2px;
+  padding: 10px 14px;
+  border: 1px solid #e8c56a;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #564173, #37284b);
+  color: #f6e3b0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.dados-lanzar:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.dados-lanzar:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 @keyframes tirada-temblor {
