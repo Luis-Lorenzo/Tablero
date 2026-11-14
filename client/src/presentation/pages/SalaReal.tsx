@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
 import { mesasApi } from "../../api/mesas.api";
-import type { PublicMesa, PublicUser } from "../../api/types";
+import type { EventoTirada, MensajeChat, PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
+import { reproducirSonidoTirada } from "../../preview/sonidoDados";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
   CLAVE_DOCS_PIZARRA,
@@ -32,7 +40,10 @@ import type {
   DocumentoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
+  MensajeSala,
   PositPreview,
+  TipoEspecialTirada,
+  TiradaAsiento,
   TrazoPizarra
 } from "../../preview/tipos";
 import "../../preview/preview.css";
@@ -60,6 +71,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   const lista: JugadorPreview[] = [
     {
       id: "master",
+      userId: mesa.hostId,
       nombre: mesa.hostName,
       color: mesa.colores?.[mesa.hostId] ?? "#e8c56a",
       esMaster: true,
@@ -70,6 +82,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   mesa.players.forEach((jugador, indice) => {
     lista.push({
       id: `p${indice + 1}`,
+      userId: jugador.id,
       nombre: jugador.name,
       color:
         mesa.colores?.[jugador.id] ??
@@ -82,6 +95,8 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
 
   return lista;
 }
+
+const DURACION_D20_ASIENTO = 3500;
 
 function SalaRealContent({
   mesa,
@@ -111,8 +126,12 @@ function SalaRealContent({
     string | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
+  const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
 
+  const timersAsiento = useRef<Record<string, number>>({});
   const esMaster = mesa.hostId === user.id;
+  const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
   const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
   const jugadorActual =
     indiceJugador >= 0 ? mesa.players[indiceJugador] : undefined;
@@ -151,6 +170,35 @@ function SalaRealContent({
   }, [posits]);
 
   useEffect(() => {
+    let cancelado = false;
+    mesasApi
+      .listarChat(mesa.id)
+      .then(lista => {
+        if (!cancelado) {
+          setMensajesChat(lista);
+        }
+      })
+      .catch(chatError => {
+        if (!cancelado) {
+          setError(describeError(chatError));
+        }
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [mesa.id]);
+
+  useEffect(() => {
+    const timersMap = timersAsiento.current;
+    return () => {
+      for (const timerId of Object.values(timersMap)) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     guardarTrazosPizarra(trazosPizarra);
   }, [trazosPizarra]);
 
@@ -186,7 +234,6 @@ function SalaRealContent({
   useEffect(() => {
     guardarDocumentosMesa(documentosMesa, user.id);
   }, [documentosMesa, user.id]);
-
   const refrescar = useCallback(async () => {
     try {
       const actualizada = await mesasApi.obtener(mesa.id);
@@ -196,7 +243,102 @@ function SalaRealContent({
     }
   }, [mesa.id, onActualizarMesa]);
 
-  useMesasLive(refrescar, onSessionExpired);
+  const alRecibirMensajeChat = useCallback(
+    (mensaje: MensajeChat) => {
+      if (mensaje.mesaId !== mesa.id) return;
+      setMensajesChat(prev =>
+        prev.some(item => item.id === mensaje.id) ? prev : [...prev, mensaje]
+      );
+    },
+    [mesa.id]
+  );
+
+  const alRecibirTirada = useCallback(
+    (roll: EventoTirada) => {
+      if (roll.mesaId !== mesa.id) return;
+
+      const jugador = jugadores.find(j => (j.userId ?? j.id) === roll.jugadorId);
+      if (jugador) {
+        const asientoId = jugador.id;
+        const prevTimer = timersAsiento.current[asientoId];
+        if (prevTimer !== undefined) {
+          window.clearTimeout(prevTimer);
+        }
+
+        setTiradasAsiento(prev => ({
+          ...prev,
+          [asientoId]: {
+            id: roll.id,
+            total: roll.total,
+            especial: roll.especial ?? null
+          }
+        }));
+
+        timersAsiento.current[asientoId] = window.setTimeout(() => {
+          setTiradasAsiento(prev => {
+            if (prev[asientoId]?.id !== roll.id) return prev;
+            const copia = { ...prev };
+            delete copia[asientoId];
+            return copia;
+          });
+          delete timersAsiento.current[asientoId];
+        }, DURACION_D20_ASIENTO);
+      }
+
+      reproducirSonidoTirada(roll.especial ?? null);
+
+      setMensajesChat(prev => {
+        const idSistema = `roll-${roll.id}`;
+        if (prev.some(item => item.id === idSistema)) return prev;
+        return [
+          ...prev,
+          {
+            id: idSistema,
+            autorId: roll.jugadorId,
+            autorNombre: roll.jugadorNombre,
+            texto: `Tiró ${roll.formula} → ${roll.total}`,
+            destinatarioId: null,
+            destinatarioNombre: null,
+            createdAt: roll.createdAt,
+            esSistema: true
+          }
+        ];
+      });
+    },
+    [jugadores, mesa.id]
+  );
+
+  useMesasLive(refrescar, onSessionExpired, {
+    onChatMessage: alRecibirMensajeChat,
+    onDiceRoll: alRecibirTirada
+  });
+
+  async function enviarChat(texto: string, destinatarioId: string | null): Promise<void> {
+    setError(null);
+    try {
+      const creado = await mesasApi.enviarChat(mesa.id, texto, destinatarioId);
+      setMensajesChat(prev =>
+        prev.some(item => item.id === creado.id) ? prev : [...prev, creado]
+      );
+    } catch (chatError) {
+      setError(describeError(chatError));
+    }
+  }
+
+  async function enviarTiradaPublica(tirada: {
+    total: number;
+    formula: string;
+    dados: number[];
+    bonificador: number;
+    caras: number;
+    especial: TipoEspecialTirada;
+  }): Promise<void> {
+    try {
+      await mesasApi.enviarTirada(mesa.id, { ...tirada, secreta: false });
+    } catch (tiradaError) {
+      setError(describeError(tiradaError));
+    }
+  }
 
   async function volverAEspera() {
     if (!esMaster) {
@@ -214,40 +356,38 @@ function SalaRealContent({
     }
   }
 
-    async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
-      if (!esMaster) return;
-      setError(null);
-      try {
-        const actualizada = await mesasApi.ponerEscena(
-          mesa.id,
-          imagen ? imagen.id : null,
-          imagen ? imagen.titulo : null
-        );
-        onActualizarMesa(actualizada);
-      } catch (escenaError) {
-        setError(describeError(escenaError));
-      }
+  async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
+    if (!esMaster) return;
+    setError(null);
+    try {
+      const actualizada = await mesasApi.ponerEscena(
+        mesa.id,
+        imagen ? imagen.id : null,
+        imagen ? imagen.titulo : null
+      );
+      onActualizarMesa(actualizada);
+    } catch (escenaError) {
+      setError(describeError(escenaError));
     }
+  }
 
-      async function proyectarImagen(imagen: ImagenEscenaPreview | null) {
-        if (!esMaster) return;
-        setError(null);
-        setProyeccionOcultadaId(null);
-        try {
-          const actualizada = await mesasApi.proyectar(
-            mesa.id,
-            imagen ? imagen.id : null,
-            imagen ? imagen.titulo : null
-          );
-          onActualizarMesa(actualizada);
-        } catch (proyeccionError) {
-          setError(describeError(proyeccionError));
-        }
-      }
+  async function proyectarImagen(imagen: ImagenEscenaPreview | null) {
+    if (!esMaster) return;
+    setError(null);
+    setProyeccionOcultadaId(null);
+    try {
+      const actualizada = await mesasApi.proyectar(
+        mesa.id,
+        imagen ? imagen.id : null,
+        imagen ? imagen.titulo : null
+      );
+      onActualizarMesa(actualizada);
+    } catch (proyeccionError) {
+      setError(describeError(proyeccionError));
+    }
+  }
 
-  const jugadores = construirJugadores(mesa);
-
-          let contenido: ReactNode;
+  let contenido: ReactNode;
   if (fase === "pizarra") {
     contenido = (
       <Pizarra
@@ -302,6 +442,11 @@ function SalaRealContent({
         onVolver={volverAEspera}
         hostName={mesa.hostName}
         esMaster={esMaster}
+        miUsuarioId={user.id}
+        mensajesChat={mensajesChat}
+        onEnviarChat={enviarChat}
+        tiradasAsiento={tiradasAsiento}
+        onTiradaPublica={enviarTiradaPublica}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
         imagenEscena={imagenEscena}

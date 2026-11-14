@@ -5,6 +5,8 @@
 
 export interface JugadorPreview {
   id: string;
+  /** ID real del usuario en el backend (en modo preview coincide con `id`). */
+  userId?: string;
   nombre: string;
   color: string;
   esMaster: boolean;
@@ -39,9 +41,30 @@ export interface QuadMapa {
 export interface Calibracion {
   asientos: Record<string, Asiento>;
   pizarra: RectPizarra;
+  chat: RectPizarra;
   mapa: QuadMapa;
   /** Centro de la bandeja de dados, en % del viewport. */
   dock: Asiento;
+}
+
+export interface MensajeSala {
+  id: string;
+  autorId: string;
+  autorNombre: string;
+  texto: string;
+  destinatarioId: string | null;
+  destinatarioNombre: string | null;
+  createdAt: string;
+  /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
+  esSistema?: boolean;
+}
+
+export type TipoEspecialTirada = "critico" | "pifia" | null;
+
+export interface TiradaAsiento {
+  id: string;
+  total: number;
+  especial?: TipoEspecialTirada;
 }
 
 export interface PositPreview {

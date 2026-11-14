@@ -7,18 +7,23 @@ import type {
 } from "react";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
 import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
+import { ChatSala } from "./ChatSala";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
 import { Posit } from "./Pizarra";
+import { reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
   DocumentoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
+  MensajeSala,
   PositPreview,
   Punto,
   QuadMapa,
-  RectPizarra
+  RectPizarra,
+  TipoEspecialTirada,
+  TiradaAsiento
 } from "./tipos";
 
 interface SalaProps {
@@ -35,6 +40,18 @@ interface SalaProps {
   onVolver: () => void;
   hostName?: string;
   esMaster?: boolean;
+  miUsuarioId?: string;
+  mensajesChat?: MensajeSala[];
+  onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  tiradasAsiento?: Record<string, TiradaAsiento>;
+  onTiradaPublica?: (tirada: {
+    total: number;
+    formula: string;
+    dados: number[];
+    bonificador: number;
+    caras: number;
+    especial: TipoEspecialTirada;
+  }) => void | Promise<void>;
   colorJugador?: string;
   nombreJugador?: string;
   imagenEscena?: ImagenEscenaPreview | null;
@@ -68,7 +85,7 @@ type Arrastre =
     medidas: Medidas;
   }
   | {
-    tipo: "pizarra" | "pizarra-tam";
+    tipo: "pizarra" | "pizarra-tam" | "chat" | "chat-tam";
     inicioX: number;
     inicioY: number;
     base: RectPizarra;
@@ -102,6 +119,8 @@ type Arrastre =
 
 /** Segundos que el resultado del dado sigue en pantalla antes de irse. */
 const DURACION_RESULTADO = 4500;
+/** Duración del D20 animado encima del círculo de cada jugador. */
+const DURACION_D20_ASIENTO = 3500;
 
 /** Tipos de dado habituales en juegos de rol. */
 const TIPOS_DADO = [4, 6, 8, 10, 12, 20, 100] as const;
@@ -110,7 +129,17 @@ interface ResultadoTirada {
   total: number;
   dados: number[];
   bonificador: number;
+  caras: number;
+  especial: TipoEspecialTirada;
   formula: string;
+  secreta?: boolean;
+}
+
+function detectarEspecialTirada(caras: number, dados: number[]): TipoEspecialTirada {
+  if (caras !== 20 || dados.length === 0) return null;
+  if (dados.includes(20)) return "critico";
+  if (dados.includes(1)) return "pifia";
+  return null;
 }
 
 function formatearFormula(
@@ -138,6 +167,8 @@ function lanzarDados(
     total: suma + bonificador,
     dados,
     bonificador,
+    caras,
+    especial: detectarEspecialTirada(caras, dados),
     formula: formatearFormula(cantidad, caras, bonificador)
   };
 }
@@ -164,10 +195,12 @@ function moverRect(base: RectPizarra, dx: number, dy: number): RectPizarra {
 function redimensionarRect(
   base: RectPizarra,
   dx: number,
-  dy: number
+  dy: number,
+  minW = 6,
+  minH = 6
 ): RectPizarra {
-  const w = limitar(base.w + dx, 6, 100 - base.x);
-  const h = limitar(base.h + dy, 6, 100 - base.y);
+  const w = limitar(base.w + dx, minW, 100 - base.x);
+  const h = limitar(base.h + dy, minH, 100 - base.y);
   return { ...base, w, h };
 }
 
@@ -188,7 +221,7 @@ function centroide(quad: QuadMapa): Punto {
   return { x: suma.x / 4, y: suma.y / 4 };
 }
 
-function IconoD20() {
+function IconoD20({ valor = 20 }: { valor?: number | string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -207,7 +240,7 @@ function IconoD20() {
         stroke="none"
         fontFamily="Cinzel Decorative, serif"
       >
-        20
+        {valor}
       </text>
     </svg>
   );
@@ -294,7 +327,12 @@ export function Sala({
   onAbrirArchivador,
   onVolver,
   hostName,
-  esMaster,
+  esMaster = false,
+  miUsuarioId = "master",
+  mensajesChat,
+  onEnviarChat,
+  tiradasAsiento,
+  onTiradaPublica,
   colorJugador,
   nombreJugador,
   imagenEscena,
@@ -308,6 +346,7 @@ export function Sala({
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
   );
   const [selectorAbierto, setSelectorAbierto] = useState(false);
+  const [tiradaSecreta, setTiradaSecreta] = useState(false);
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
@@ -315,6 +354,10 @@ export function Sala({
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sobreMapa, setSobreMapa] = useState(false);
+  const [mensajesLocales, setMensajesLocales] = useState<MensajeSala[]>([]);
+  const [tiradasAsientoLocales, setTiradasAsientoLocales] = useState<
+    Record<string, TiradaAsiento>
+  >({});
   const [positActivo, setPositActivo] = useState<string | null>(null);
   const [visorDoc, setVisorDoc] = useState<DocumentoMesa | null>(null);
   const [visorEscena, setVisorEscena] = useState(false);
@@ -327,6 +370,7 @@ export function Sala({
   const temporizador = useRef<number | null>(null);
   const ocultarResultado = useRef<number | null>(null);
   const avisoTimer = useRef<number | null>(null);
+  const timersAsiento = useRef<Record<string, number>>({});
 
   useEffect(() => {
     function mover(evento: PointerEvent) {
@@ -410,9 +454,25 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "pizarra-tam") {
+        onCalibracion(prev => ({
+          ...prev,
+          pizarra: redimensionarRect(actual.base, dx, dy)
+        }));
+        return;
+      }
+
+      if (actual.tipo === "chat") {
+        onCalibracion(prev => ({
+          ...prev,
+          chat: moverRect(actual.base, dx, dy)
+        }));
+        return;
+      }
+
       onCalibracion(prev => ({
         ...prev,
-        pizarra: redimensionarRect(actual.base, dx, dy)
+        chat: redimensionarRect(actual.base, dx, dy, 14, 14)
       }));
     }
 
@@ -436,16 +496,19 @@ export function Sala({
     };
   }, [onCalibracion, onPositsMesa, onDocumentosMesa]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const timersMap = timersAsiento.current;
+    return () => {
       if (temporizador.current !== null) window.clearTimeout(temporizador.current);
       if (ocultarResultado.current !== null) {
         window.clearTimeout(ocultarResultado.current);
       }
       if (avisoTimer.current !== null) window.clearTimeout(avisoTimer.current);
-    },
-    []
-  );
+      for (const timerId of Object.values(timersMap)) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, []);
 
   function mostrarAviso(texto: string): void {
     setAviso(texto);
@@ -512,6 +575,28 @@ export function Sala({
     };
   }
 
+  function iniciarChat(evento: ReactPointerEvent): void {
+    evento.stopPropagation();
+    arrastre.current = {
+      tipo: "chat",
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      base: calibracion.chat,
+      medidas: { width: window.innerWidth, height: window.innerHeight }
+    };
+  }
+
+  function iniciarChatTam(evento: ReactPointerEvent): void {
+    evento.stopPropagation();
+    arrastre.current = {
+      tipo: "chat-tam",
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      base: calibracion.chat,
+      medidas: { width: window.innerWidth, height: window.innerHeight }
+    };
+  }
+
   function iniciarVertice(indice: number, evento: ReactPointerEvent): void {
     const medidas = medidasPlano();
     if (!medidas) return;
@@ -527,6 +612,51 @@ export function Sala({
     };
   }
 
+  function mostrarD20Local(
+    asientoId: string,
+    total: number,
+    especial: TipoEspecialTirada = null
+  ): void {
+    const prevTimer = timersAsiento.current[asientoId];
+    if (prevTimer !== undefined) {
+      window.clearTimeout(prevTimer);
+    }
+    const tiradaId = `${Date.now()}-${Math.random()}`;
+    setTiradasAsientoLocales(prev => ({
+      ...prev,
+      [asientoId]: { id: tiradaId, total, especial }
+    }));
+    timersAsiento.current[asientoId] = window.setTimeout(() => {
+      setTiradasAsientoLocales(prev => {
+        if (prev[asientoId]?.id !== tiradaId) return prev;
+        const copia = { ...prev };
+        delete copia[asientoId];
+        return copia;
+      });
+      delete timersAsiento.current[asientoId];
+    }, DURACION_D20_ASIENTO);
+  }
+
+  function enviarChatLocal(texto: string, destinatarioId: string | null): void {
+    const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
+    const receptor = destinatarioId
+      ? jugadores.find(j => (j.userId ?? j.id) === destinatarioId)
+      : undefined;
+
+    setMensajesLocales(prev => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        autorId: miUsuarioId,
+        autorNombre: autor?.nombre ?? "Tú",
+        texto,
+        destinatarioId,
+        destinatarioNombre: receptor?.nombre ?? null,
+        createdAt: new Date().toISOString()
+      }
+    ]);
+  }
+
   function tirarDado(): void {
     if (tirando) return;
 
@@ -538,20 +668,49 @@ export function Sala({
     const cantidad = Math.round(limitar(cantidadDados, 1, 20));
     const caras = tipoDado;
     const mod = Math.round(limitar(bonificador, -99, 99));
+    const esSecreta = esMaster && tiradaSecreta;
 
     setSelectorAbierto(false);
     setTirando(true);
     let pasos = 0;
 
     const tick = () => {
-      setTirada(lanzarDados(cantidad, caras, mod));
+      setTirada({ ...lanzarDados(cantidad, caras, mod), secreta: esSecreta });
       pasos += 1;
 
       if (pasos < 12) {
         temporizador.current = window.setTimeout(tick, 70);
       } else {
-        setTirada(lanzarDados(cantidad, caras, mod));
+        const resultadoFinal = lanzarDados(cantidad, caras, mod);
+        setTirada({ ...resultadoFinal, secreta: esSecreta });
         setTirando(false);
+
+        if (!esSecreta) {
+          if (onTiradaPublica) {
+            void onTiradaPublica(resultadoFinal);
+          } else {
+            const miAsiento =
+              jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ??
+              "master";
+            mostrarD20Local(miAsiento, resultadoFinal.total, resultadoFinal.especial);
+            reproducirSonidoTirada(resultadoFinal.especial);
+            const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
+            setMensajesLocales(prev => [
+              ...prev,
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                autorId: miUsuarioId,
+                autorNombre: autor?.nombre ?? "Máster",
+                texto: `Tiró ${resultadoFinal.formula} → ${resultadoFinal.total}`,
+                destinatarioId: null,
+                destinatarioNombre: null,
+                createdAt: new Date().toISOString(),
+                esSistema: true
+              }
+            ]);
+          }
+        }
+
         ocultarResultado.current = window.setTimeout(() => {
           setTirada(null);
           ocultarResultado.current = null;
@@ -669,6 +828,8 @@ export function Sala({
   }
 
   const centro = centroide(calibracion.mapa);
+  const mensajesVisibles = mensajesChat ?? mensajesLocales;
+  const tiradasVisibles = tiradasAsiento ?? tiradasAsientoLocales;
   const positsVisibles = (positsMesa ?? []).filter(posit => !posit.archivado);
   const positsArchivadosCount = (positsMesa ?? []).filter(
     posit => posit.archivado
@@ -828,6 +989,7 @@ export function Sala({
             .filter(jugador => jugador.activo)
             .map(jugador => {
               const asiento = calibracion.asientos[jugador.id] ?? { x: 50, y: 50 };
+              const tiradaSobreAsiento = tiradasVisibles[jugador.id];
               const estilo = {
                 left: `${asiento.x}%`,
                 top: `${asiento.y}%`,
@@ -849,6 +1011,15 @@ export function Sala({
                     ajuste ? evento => iniciarAsiento(jugador.id, evento) : undefined
                   }
                 >
+                  {tiradaSobreAsiento && !ajuste && (
+                    <div
+                      key={tiradaSobreAsiento.id}
+                      className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
+                      aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
+                    >
+                      <IconoD20 valor={tiradaSobreAsiento.total} />
+                    </div>
+                  )}
                   <span className="esfera" />
                   <span className="asiento-nombre">{jugador.nombre}</span>
                 </div>
@@ -858,6 +1029,27 @@ export function Sala({
       </div>
 
       <div className="sala-vineta" aria-hidden="true" />
+
+      {ajuste ? (
+        <div
+          className="rect-calibrado rect-chat rect-chat-pantalla"
+          style={estiloRect(calibracion.chat)}
+          onPointerDown={iniciarChat}
+        >
+          <span className="rect-calibrado-etiqueta">chat</span>
+          <span className="rect-tirador" onPointerDown={iniciarChatTam} />
+        </div>
+      ) : (
+        <ChatSala
+          rect={calibracion.chat}
+          jugadores={jugadores}
+          miUsuarioId={miUsuarioId}
+          mensajes={mensajesVisibles}
+          onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
+          onIniciarArrastre={iniciarChat}
+          onIniciarRedimension={iniciarChatTam}
+        />
+      )}
 
           <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
             <div className="sala-barra-grupo">
@@ -1037,15 +1229,32 @@ export function Sala({
                 </div>
               </div>
 
-              <button type="submit" className="dados-lanzar" disabled={tirando}>
-                Tirar {formatearFormula(cantidadDados, tipoDado, bonificador)}
+              {esMaster && (
+                <button
+                  type="button"
+                  className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => setTiradaSecreta(s => !s)}
+                  aria-pressed={tiradaSecreta}
+                >
+                  <span className="dados-secreto-punto" aria-hidden="true" />
+                  <span>Dados negros (solo Máster)</span>
+                </button>
+              )}
+
+              <button
+                type="submit"
+                className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                disabled={tirando}
+              >
+                {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                {formatearFormula(cantidadDados, tipoDado, bonificador)}
               </button>
             </form>
           )}
 
           {tirada !== null && !selectorAbierto && (
             <div
-              className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}`}
+              className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
             >
               <span className="tirada-icono">
@@ -1056,6 +1265,7 @@ export function Sala({
               </span>
               <div className="tirada-detalle">
                 <span className="tirada-etiqueta">
+                  {tirada.secreta ? "SECRETO · " : ""}
                   {tirando ? "tirando…" : tirada.formula}
                 </span>
                 {!tirando && (tirada.dados.length > 1 || tirada.bonificador !== 0) && (
@@ -1214,9 +1424,16 @@ export function Sala({
             <div className="dock-item">
               <button
                 type="button"
-                className={`dock-btn${selectorAbierto ? " activo" : ""}`}
-                onClick={() => setSelectorAbierto(abierto => !abierto)}
-                aria-expanded={selectorAbierto}
+                className={`dock-btn${selectorAbierto && !tiradaSecreta ? " activo" : ""}`}
+                onClick={() => {
+                  if (selectorAbierto && !tiradaSecreta) {
+                    setSelectorAbierto(false);
+                  } else {
+                    setTiradaSecreta(false);
+                    setSelectorAbierto(true);
+                  }
+                }}
+                aria-expanded={selectorAbierto && !tiradaSecreta}
                 title="Seleccionar tirada de dados"
                 aria-label="Dados"
               >
@@ -1224,6 +1441,29 @@ export function Sala({
               </button>
               <span className="dock-etiqueta">Dados</span>
             </div>
+
+            {esMaster && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => {
+                    if (selectorAbierto && tiradaSecreta) {
+                      setSelectorAbierto(false);
+                    } else {
+                      setTiradaSecreta(true);
+                      setSelectorAbierto(true);
+                    }
+                  }}
+                  aria-expanded={selectorAbierto && tiradaSecreta}
+                  title="Dados negros (tirada secreta del Máster)"
+                  aria-label="Dados negros"
+                >
+                  <IconoD20 />
+                </button>
+                <span className="dock-etiqueta">Secreto</span>
+              </div>
+            )}
 
             <div className="dock-item">
               <button
@@ -1320,6 +1560,6 @@ export function Sala({
               onCerrar={() => setPanelMasterAbierto(false)}
             />
           )}
-        </div>
-        );
+    </div>
+  );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ApiError } from "../../api/client";
 import { authApi } from "../../api/auth.api";
+import type { EventoTirada, MensajeChat } from "../../api/types";
 
 /** Ventana para agrupar ráfagas de avisos sin perder el último estado. */
 const VENTANA_MS = 200;
@@ -9,6 +10,14 @@ const ESPERA_MAX_MS = 15000;
 
 interface MensajeMesas {
   type?: unknown;
+  mesaId?: unknown;
+  message?: unknown;
+  roll?: unknown;
+}
+
+export interface EventosSalaLive {
+  onChatMessage?: (message: MensajeChat) => void;
+  onDiceRoll?: (roll: EventoTirada) => void;
 }
 
 /**
@@ -24,10 +33,12 @@ interface MensajeMesas {
  */
 export function useMesasLive(
   onChange: () => void,
-  onSessionExpired?: () => void
+  onSessionExpired?: () => void,
+  eventosSala?: EventosSalaLive
 ): void {
   const onChangeRef = useRef(onChange);
   const onSessionExpiredRef = useRef(onSessionExpired);
+  const eventosSalaRef = useRef(eventosSala);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -36,6 +47,10 @@ export function useMesasLive(
   useEffect(() => {
     onSessionExpiredRef.current = onSessionExpired;
   }, [onSessionExpired]);
+
+  useEffect(() => {
+    eventosSalaRef.current = eventosSala;
+  }, [eventosSala]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -115,8 +130,14 @@ export function useMesasLive(
           return;
         }
 
-        if (dato !== null && typeof dato === "object" && dato.type === "mesas:changed") {
-          avisarCambio();
+        if (dato !== null && typeof dato === "object") {
+          if (dato.type === "mesas:changed") {
+            avisarCambio();
+          } else if (dato.type === "chat:message" && dato.message) {
+            eventosSalaRef.current?.onChatMessage?.(dato.message as MensajeChat);
+          } else if (dato.type === "dice:roll" && dato.roll) {
+            eventosSalaRef.current?.onDiceRoll?.(dato.roll as EventoTirada);
+          }
         }
       };
 

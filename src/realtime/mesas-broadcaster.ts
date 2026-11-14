@@ -45,6 +45,7 @@ export class MesasBroadcaster implements MesasNotifier {
   private readonly wss = new WebSocketServer({ noServer: true });
   private readonly parser: ParserSesion;
   private readonly vivos = new Set<WebSocket>();
+  private readonly usuariosPorSocket = new Map<WebSocket, string>();
   private readonly temporizador: NodeJS.Timeout;
 
   constructor(private readonly deps: Dependencias) {
@@ -57,7 +58,10 @@ export class MesasBroadcaster implements MesasNotifier {
     this.wss.on("connection", socket => {
       this.vivos.add(socket);
       socket.on("pong", () => this.vivos.add(socket));
-      socket.on("close", () => this.vivos.delete(socket));
+      socket.on("close", () => {
+        this.vivos.delete(socket);
+        this.usuariosPorSocket.delete(socket);
+      });
       socket.on("error", error =>
         deps.logger.warn("Error en el canal en vivo", { message: error.message })
       );
@@ -80,6 +84,22 @@ export class MesasBroadcaster implements MesasNotifier {
 
     for (const cliente of this.wss.clients) {
       if (cliente.readyState === WebSocket.OPEN) {
+        cliente.send(mensaje);
+      }
+    }
+  }
+
+  /** Envía un evento en tiempo real solo a los usuarios indicados. */
+  enviarAUsuarios(userIds: readonly string[], payload: unknown): void {
+    const objetivos = new Set(userIds);
+    if (objetivos.size === 0) return;
+
+    const mensaje = JSON.stringify(payload);
+
+    for (const cliente of this.wss.clients) {
+      if (cliente.readyState !== WebSocket.OPEN) continue;
+      const userId = this.usuariosPorSocket.get(cliente);
+      if (userId && objetivos.has(userId)) {
         cliente.send(mensaje);
       }
     }
@@ -124,6 +144,7 @@ export class MesasBroadcaster implements MesasNotifier {
     }
 
     this.wss.handleUpgrade(req, socket, head, ws => {
+      this.usuariosPorSocket.set(ws, usuario.id);
       this.wss.emit("connection", ws, req);
     });
   }

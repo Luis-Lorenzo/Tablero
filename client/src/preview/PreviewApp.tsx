@@ -192,6 +192,7 @@ export default function PreviewApp() {
         onAbrirArchivador={() => setFase("archivador")}
         onVolver={() => setFase("lobby")}
         esMaster
+        miUsuarioId="master"
         colorJugador="#e8c56a"
         nombreJugador="Máster"
         imagenEscena={imagenEscena}

@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { PublicMesa } from "./types";
+import type { EventoTirada, MensajeChat, PublicMesa } from "./types";
 
 /**
  * Máximo de jugadores por mesa (el anfitrión no ocupa plaza). Debe coincidir
@@ -51,6 +51,30 @@ export const mesasApi = {
   /** Cambia el color del jugador dentro de la mesa. */
   ponerColor: (id: string, color: string | null) =>
     http.post<PublicMesa>(`/api/mesas/${id}/color`, { color }),
+
+  /** Historial reciente del chat de la mesa. */
+  listarChat: (id: string) => http.get<MensajeChat[]>(`/api/mesas/${id}/chat`),
+
+  /** Envía un mensaje público o privado (@mención) al chat de la mesa. */
+  enviarChat: (id: string, texto: string, destinatarioId?: string | null) =>
+    http.post<MensajeChat>(`/api/mesas/${id}/chat`, {
+      texto,
+      destinatarioId: destinatarioId ?? null
+    }),
+
+  /** Difunde una tirada de dados pública (o valida una secreta del Máster). */
+  enviarTirada: (
+    id: string,
+    datos: {
+      total: number;
+      formula: string;
+      dados: number[];
+      bonificador: number;
+      caras?: number;
+      especial?: "critico" | "pifia" | null;
+      secreta?: boolean;
+    }
+  ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos),
 
   /** Fija o retira la imagen de escena del máster en la pizarra de la sala. */
   ponerEscena: (

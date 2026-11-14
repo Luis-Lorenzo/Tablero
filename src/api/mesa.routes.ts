@@ -232,5 +232,80 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.get("/:id/chat", requireAuth, async (req, res, next) => {
+    try {
+      const mensajes = await context.chatService.listar(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mensajes);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/chat", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const body = (req.body ?? {}) as { texto?: unknown; destinatarioId?: unknown };
+      const { mensaje, destinatarios } = await context.chatService.enviar(
+        req.currentUser!,
+        mesaId,
+        body.texto,
+        body.destinatarioId
+      );
+      context.mesasNotifier.enviarAUsuarios(destinatarios, {
+        type: "chat:message",
+        mesaId,
+        message: mensaje
+      });
+      res.status(201).json(mensaje);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/tiradas", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const body = (req.body ?? {}) as {
+        total?: number;
+        formula?: string;
+        dados?: number[];
+        bonificador?: number;
+        caras?: number;
+        especial?: "critico" | "pifia" | null;
+        secreta?: boolean;
+      };
+      const resultado = await context.chatService.registrarTirada(
+        req.currentUser!,
+        mesaId,
+        {
+          total: body.total as number,
+          formula: body.formula as string,
+          dados: body.dados as number[],
+          bonificador: body.bonificador as number,
+          caras: body.caras,
+          especial: body.especial,
+          secreta: Boolean(body.secreta)
+        }
+      );
+
+      if (!resultado) {
+        res.status(204).end();
+        return;
+      }
+
+      context.mesasNotifier.enviarAUsuarios(resultado.destinatarios, {
+        type: "dice:roll",
+        mesaId,
+        roll: resultado.tirada
+      });
+      res.status(201).json(resultado.tirada);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }
