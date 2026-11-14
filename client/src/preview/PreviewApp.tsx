@@ -7,18 +7,24 @@ import { Sala } from "./Sala";
 import {
   cargarCalibracion,
   cargarDocumentosMesa,
+  cargarDocumentosPizarra,
   cargarEscenaPreview,
   cargarJugadores,
+  cargarPizarraCongelada,
   cargarPosits,
   cargarPositsMesa,
   cargarProyeccionPreview,
+  cargarTrazosPizarra,
   guardarCalibracion,
   guardarDocumentosMesa,
+  guardarDocumentosPizarra,
   guardarEscenaPreview,
   guardarJugadores,
+  guardarPizarraCongelada,
   guardarPosits,
   guardarPositsMesa,
-  guardarProyeccionPreview
+  guardarProyeccionPreview,
+  guardarTrazosPizarra
 } from "./calibracion";
 import type {
   Calibracion,
@@ -26,7 +32,8 @@ import type {
   FasePreview,
   ImagenEscenaPreview,
   JugadorPreview,
-  PositPreview
+  PositPreview,
+  TrazoPizarra
 } from "./tipos";
 import "./preview.css";
 
@@ -50,6 +57,14 @@ export default function PreviewApp() {
   const [jugadores, setJugadores] = useState<JugadorPreview[]>(cargarJugadores);
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [trazosPizarra, setTrazosPizarra] =
+    useState<TrazoPizarra[]>(cargarTrazosPizarra);
+  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
+    cargarDocumentosPizarra
+  );
+  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
+    cargarPizarraCongelada
+  );
   const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
     cargarPositsMesa("preview")
   );
@@ -76,6 +91,18 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarPosits(posits);
   }, [posits]);
+
+  useEffect(() => {
+    guardarTrazosPizarra(trazosPizarra);
+  }, [trazosPizarra]);
+
+  useEffect(() => {
+    guardarDocumentosPizarra(documentosPizarra);
+  }, [documentosPizarra]);
+
+  useEffect(() => {
+    guardarPizarraCongelada(pizarraCongelada);
+  }, [pizarraCongelada]);
 
   useEffect(() => {
     guardarPositsMesa(positsMesa, "preview");
@@ -117,8 +144,16 @@ export default function PreviewApp() {
       <Pizarra
         posits={posits}
         onPosits={setPosits}
+        trazos={trazosPizarra}
+        onTrazos={setTrazosPizarra}
+        documentosPizarra={documentosPizarra}
+        onDocumentosPizarra={setDocumentosPizarra}
+        congelada={pizarraCongelada}
+        onCongelada={setPizarraCongelada}
         onVolver={volverASala}
         esMaster
+        colorJugador="#e8c56a"
+        nombreJugador="Máster"
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
         onCambiarEscena={setImagenEscena}
@@ -157,6 +192,8 @@ export default function PreviewApp() {
         onAbrirArchivador={() => setFase("archivador")}
         onVolver={() => setFase("lobby")}
         esMaster
+        colorJugador="#e8c56a"
+        nombreJugador="Máster"
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
         onCambiarEscena={setImagenEscena}

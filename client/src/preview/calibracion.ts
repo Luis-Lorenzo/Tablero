@@ -11,7 +11,8 @@ import type {
   PositPreview,
   Punto,
   QuadMapa,
-  RectPizarra
+  RectPizarra,
+  TrazoPizarra
 } from "./tipos";
 
 /**
@@ -24,9 +25,12 @@ const CLAVE_CALIBRACION = "pocketrol.preview.calibracion.v1";
 // v2: los jugadores pasan a ir en orden de llegada (Aria, Celeste, Elena,
 // Borin, Dorian, Fenrir). La lista guardada por la v1 traía otro orden.
 const CLAVE_JUGADORES = "pocketrol.preview.jugadores.v2";
-const CLAVE_POSITS = "pocketrol.preview.posits.v1";
+export const CLAVE_POSITS = "pocketrol.preview.posits.v1";
 const CLAVE_POSITS_MESA = "pocketrol.mesa.posits.v1";
 const CLAVE_DOCS_MESA = "pocketrol.mesa.docs.v1";
+export const CLAVE_TRAZOS_PIZARRA = "pocketrol.pizarra.trazos.v1";
+export const CLAVE_DOCS_PIZARRA = "pocketrol.pizarra.docs.v1";
+export const CLAVE_PIZARRA_CONGELADA = "pocketrol.pizarra.congelada.v1";
 const CLAVE_ESCENA_PREVIEW = "pocketrol.preview.escena.v1";
 const CLAVE_PROYECCION_PREVIEW = "pocketrol.preview.proyeccion.v1";
 
@@ -254,4 +258,61 @@ export function guardarProyeccionPreview(
   imagen: ImagenEscenaPreview | null
 ): void {
   escribir(CLAVE_PROYECCION_PREVIEW, imagen);
+}
+
+export function cargarTrazosPizarra(): TrazoPizarra[] {
+  const guardados = leer<TrazoPizarra[] | null>(CLAVE_TRAZOS_PIZARRA, null);
+  return Array.isArray(guardados) ? guardados : [];
+}
+
+export function guardarTrazosPizarra(trazos: TrazoPizarra[]): void {
+  escribir(CLAVE_TRAZOS_PIZARRA, trazos);
+}
+
+export function cargarDocumentosPizarra(): DocumentoMesa[] {
+  const guardados = leer<DocumentoMesa[] | null>(CLAVE_DOCS_PIZARRA, null);
+  return Array.isArray(guardados) ? guardados : [];
+}
+
+export function guardarDocumentosPizarra(docs: DocumentoMesa[]): void {
+  escribir(CLAVE_DOCS_PIZARRA, docs);
+}
+
+export function cargarPizarraCongelada(): boolean {
+  return Boolean(leer<boolean>(CLAVE_PIZARRA_CONGELADA, false));
+}
+
+export function guardarPizarraCongelada(congelada: boolean): void {
+  escribir(CLAVE_PIZARRA_CONGELADA, congelada);
+}
+
+/** Comprueba si el borrador en `punto` toca algún segmento de un trazo. */
+export function trazoTocaPunto(
+  trazo: TrazoPizarra,
+  punto: Punto,
+  umbral = 2.6
+): boolean {
+  const pts = trazo.puntos;
+  if (pts.length === 0) return false;
+  if (pts.length === 1) {
+    return Math.hypot(pts[0].x - punto.x, pts[0].y - punto.y) <= umbral;
+  }
+
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const lenSq = abx * abx + aby * aby;
+    const t =
+      lenSq === 0
+        ? 0
+        : limitar(((punto.x - a.x) * abx + (punto.y - a.y) * aby) / lenSq, 0, 1);
+    const px = a.x + t * abx;
+    const py = a.y + t * aby;
+    if (Math.hypot(punto.x - px, punto.y - py) <= umbral) {
+      return true;
+    }
+  }
+  return false;
 }

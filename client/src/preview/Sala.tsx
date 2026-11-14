@@ -35,6 +35,8 @@ interface SalaProps {
   onVolver: () => void;
   hostName?: string;
   esMaster?: boolean;
+  colorJugador?: string;
+  nombreJugador?: string;
   imagenEscena?: ImagenEscenaPreview | null;
   imagenProyectada?: ImagenEscenaPreview | null;
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
@@ -293,6 +295,8 @@ export function Sala({
   onVolver,
   hostName,
   esMaster,
+  colorJugador,
+  nombreJugador,
   imagenEscena,
   imagenProyectada,
   onCambiarEscena,
@@ -581,7 +585,10 @@ export function Sala({
       x: limitar(24 + desplazamiento, 8, 92),
       y: limitar(34 + desplazamiento, 12, 88),
       giro: (Math.random() - 0.5) * 4,
-      archivado: false
+      archivado: false,
+      autorNombre: esMaster ? "Máster" : nombreJugador,
+      autorColor: esMaster ? "#e8c56a" : colorJugador,
+      esMaster: Boolean(esMaster)
     };
     onPositsMesa(prev => [...prev, posit]);
     setPositActivo(posit.id);

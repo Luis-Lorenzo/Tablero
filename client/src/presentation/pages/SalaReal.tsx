@@ -8,21 +8,32 @@ import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
+  CLAVE_DOCS_PIZARRA,
+  CLAVE_PIZARRA_CONGELADA,
+  CLAVE_POSITS,
+  CLAVE_TRAZOS_PIZARRA,
   cargarCalibracion,
   cargarDocumentosMesa,
+  cargarDocumentosPizarra,
+  cargarPizarraCongelada,
   cargarPosits,
   cargarPositsMesa,
+  cargarTrazosPizarra,
   guardarCalibracion,
   guardarDocumentosMesa,
+  guardarDocumentosPizarra,
+  guardarPizarraCongelada,
   guardarPosits,
-  guardarPositsMesa
+  guardarPositsMesa,
+  guardarTrazosPizarra
 } from "../../preview/calibracion";
 import type {
   Calibracion,
   DocumentoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
-  PositPreview
+  PositPreview,
+  TrazoPizarra
 } from "../../preview/tipos";
 import "../../preview/preview.css";
 
@@ -82,6 +93,14 @@ function SalaRealContent({
   const [fase, setFase] = useState<Fase>("sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [trazosPizarra, setTrazosPizarra] =
+    useState<TrazoPizarra[]>(cargarTrazosPizarra);
+  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
+    cargarDocumentosPizarra
+  );
+  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
+    cargarPizarraCongelada
+  );
   const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
     cargarPositsMesa(user.id)
   );
@@ -94,6 +113,19 @@ function SalaRealContent({
   const [error, setError] = useState<string | null>(null);
 
   const esMaster = mesa.hostId === user.id;
+  const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
+  const jugadorActual =
+    indiceJugador >= 0 ? mesa.players[indiceJugador] : undefined;
+  const nombreJugadorActual = esMaster
+    ? mesa.hostName
+    : (jugadorActual?.name ?? user.nickname ?? user.email.split("@")[0]);
+  const colorJugadorActual = esMaster
+    ? "#e8c56a"
+    : (mesa.colores?.[user.id] ??
+      jugadorActual?.color ??
+      PALETA_COLORES[
+        (indiceJugador >= 0 ? indiceJugador : 0) % PALETA_COLORES.length
+      ]);
   const imagenEscena = mesa.imagenEscena ?? null;
   const imagenProyectada = mesa.imagenProyectada ?? null;
   const proyeccionOculta = Boolean(
@@ -117,6 +149,35 @@ function SalaRealContent({
   useEffect(() => {
     guardarPosits(posits);
   }, [posits]);
+
+  useEffect(() => {
+    guardarTrazosPizarra(trazosPizarra);
+  }, [trazosPizarra]);
+
+  useEffect(() => {
+    guardarDocumentosPizarra(documentosPizarra);
+  }, [documentosPizarra]);
+
+  useEffect(() => {
+    guardarPizarraCongelada(pizarraCongelada);
+  }, [pizarraCongelada]);
+
+  useEffect(() => {
+    function alCambiarStorage(evento: StorageEvent) {
+      if (evento.key === CLAVE_POSITS) setPosits(cargarPosits());
+      if (evento.key === CLAVE_TRAZOS_PIZARRA) {
+        setTrazosPizarra(cargarTrazosPizarra());
+      }
+      if (evento.key === CLAVE_DOCS_PIZARRA) {
+        setDocumentosPizarra(cargarDocumentosPizarra());
+      }
+      if (evento.key === CLAVE_PIZARRA_CONGELADA) {
+        setPizarraCongelada(cargarPizarraCongelada());
+      }
+    }
+    window.addEventListener("storage", alCambiarStorage);
+    return () => window.removeEventListener("storage", alCambiarStorage);
+  }, []);
 
   useEffect(() => {
     guardarPositsMesa(positsMesa, user.id);
@@ -188,59 +249,69 @@ function SalaRealContent({
 
           let contenido: ReactNode;
   if (fase === "pizarra") {
-          contenido = (
-            <Pizarra
-              posits={posits}
-              onPosits={setPosits}
-              onVolver={() => setFase("sala")}
-              esMaster={esMaster}
-              imagenEscena={imagenEscena}
-              imagenProyectada={imagenProyectada}
-              onCambiarEscena={cambiarEscena}
-              onProyectarImagen={proyectarImagen}
-            />
-          );
-        } else if (fase === "mapa") {
-          contenido = <Mapa onVolver={() => setFase("sala")} />;
-        } else if (fase === "archivador") {
-          contenido = (
-            <Archivador
-              posits={positsMesa}
-              onPosits={setPositsMesa}
-              documentosMesa={documentosMesa}
-              onDocumentosMesa={setDocumentosMesa}
-              onVolver={() => setFase("sala")}
-              esMaster={esMaster}
-              imagenEscena={imagenEscena}
-              imagenProyectada={imagenProyectada}
-              onCambiarEscena={cambiarEscena}
-              onProyectarImagen={proyectarImagen}
-            />
-          );
+    contenido = (
+      <Pizarra
+        posits={posits}
+        onPosits={setPosits}
+        trazos={trazosPizarra}
+        onTrazos={setTrazosPizarra}
+        documentosPizarra={documentosPizarra}
+        onDocumentosPizarra={setDocumentosPizarra}
+        congelada={pizarraCongelada}
+        onCongelada={setPizarraCongelada}
+        onVolver={() => setFase("sala")}
+        esMaster={esMaster}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={cambiarEscena}
+        onProyectarImagen={proyectarImagen}
+      />
+    );
+  } else if (fase === "mapa") {
+    contenido = <Mapa onVolver={() => setFase("sala")} />;
+  } else if (fase === "archivador") {
+    contenido = (
+      <Archivador
+        posits={positsMesa}
+        onPosits={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
+        onVolver={() => setFase("sala")}
+        esMaster={esMaster}
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={cambiarEscena}
+        onProyectarImagen={proyectarImagen}
+      />
+    );
   } else {
-              contenido = (
-                <Sala
-                  jugadores={jugadores}
-                  calibracion={calibracion}
-                  onCalibracion={setCalibracion}
-                  positsMesa={positsMesa}
-                  onPositsMesa={setPositsMesa}
-                  documentosMesa={documentosMesa}
-                  onDocumentosMesa={setDocumentosMesa}
-                  onAbrirPizarra={() => setFase("pizarra")}
-                  onAbrirMapa={() => setFase("mapa")}
-                  onAbrirArchivador={() => setFase("archivador")}
-                  onVolver={volverAEspera}
-                  hostName={mesa.hostName}
-                  esMaster={esMaster}
-                  imagenEscena={imagenEscena}
-                  imagenProyectada={imagenProyectada}
-                  onCambiarEscena={cambiarEscena}
-                  onProyectarImagen={proyectarImagen}
-                  proyeccionOculta={proyeccionOculta}
-                  onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
-                />
-              );
+    contenido = (
+      <Sala
+        jugadores={jugadores}
+        calibracion={calibracion}
+        onCalibracion={setCalibracion}
+        positsMesa={positsMesa}
+        onPositsMesa={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
+        onAbrirPizarra={() => setFase("pizarra")}
+        onAbrirMapa={() => setFase("mapa")}
+        onAbrirArchivador={() => setFase("archivador")}
+        onVolver={volverAEspera}
+        hostName={mesa.hostName}
+        esMaster={esMaster}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={cambiarEscena}
+        onProyectarImagen={proyectarImagen}
+        proyeccionOculta={proyeccionOculta}
+        onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
+      />
+    );
   }
 
             return (

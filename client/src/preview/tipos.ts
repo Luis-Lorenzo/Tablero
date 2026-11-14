@@ -55,6 +55,10 @@ export interface PositPreview {
   giro: number;
   /** Si está guardado en el archivador personal del jugador. */
   archivado?: boolean;
+  /** Datos del creador para mostrar el aura de jugador o dorada del Máster. */
+  autorNombre?: string;
+  autorColor?: string;
+  esMaster?: boolean;
 }
 
 export interface DocumentoMesa {
@@ -65,6 +69,15 @@ export interface DocumentoMesa {
   tamano: number;
   x: number;
   y: number;
+  url?: string;
+}
+
+export interface TrazoPizarra {
+  id: string;
+  color: string;
+  grosor: number;
+  /** Puntos normalizados (0-100) dentro del lienzo de la pizarra. */
+  puntos: Punto[];
 }
 
 export interface ImagenEscenaPreview {
