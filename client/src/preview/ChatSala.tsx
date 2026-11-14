@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
+import type {
+  CSSProperties,
+  FormEvent,
+  KeyboardEvent,
+  PointerEvent as ReactPointerEvent
+} from "react";
 import type { JugadorPreview, MensajeSala, RectPizarra } from "./tipos";
 
 interface ChatSalaProps {
@@ -8,6 +13,8 @@ interface ChatSalaProps {
   miUsuarioId: string;
   mensajes: MensajeSala[];
   onEnviarMensaje: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  onIniciarArrastre?: (evento: ReactPointerEvent) => void;
+  onIniciarRedimension?: (evento: ReactPointerEvent) => void;
 }
 
 interface Destinatario {
@@ -31,7 +38,9 @@ export function ChatSala({
   jugadores,
   miUsuarioId,
   mensajes,
-  onEnviarMensaje
+  onEnviarMensaje,
+  onIniciarArrastre,
+  onIniciarRedimension
 }: ChatSalaProps) {
   const [plegado, setPlegado] = useState(false);
   const [texto, setTexto] = useState("");
@@ -135,11 +144,12 @@ export function ChatSala({
       style={estilo}
       aria-label="Chat de la sala"
     >
-      <header className="chat-cabecera">
+      <header className="chat-cabecera" onPointerDown={onIniciarArrastre}>
         <span className="chat-titulo">Chat</span>
         <button
           type="button"
           className="chat-plegar-btn"
+          onPointerDown={e => e.stopPropagation()}
           onClick={() => setPlegado(p => !p)}
           aria-expanded={!plegado}
           aria-label={plegado ? "Expandir chat" : "Plegar chat"}
@@ -258,6 +268,14 @@ export function ChatSala({
               </button>
             </form>
           </div>
+          {onIniciarRedimension && (
+            <span
+              className="chat-tirador"
+              onPointerDown={onIniciarRedimension}
+              title="Redimensionar chat"
+              aria-hidden="true"
+            />
+          )}
         </>
       )}
     </section>

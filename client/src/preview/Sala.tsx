@@ -159,10 +159,12 @@ function moverRect(base: RectPizarra, dx: number, dy: number): RectPizarra {
 function redimensionarRect(
   base: RectPizarra,
   dx: number,
-  dy: number
+  dy: number,
+  minW = 6,
+  minH = 6
 ): RectPizarra {
-  const w = limitar(base.w + dx, 6, 100 - base.x);
-  const h = limitar(base.h + dy, 6, 100 - base.y);
+  const w = limitar(base.w + dx, minW, 100 - base.x);
+  const h = limitar(base.h + dy, minH, 100 - base.y);
   return { ...base, w, h };
 }
 
@@ -336,7 +338,7 @@ export function Sala({
 
       onCalibracion(prev => ({
         ...prev,
-        chat: redimensionarRect(actual.base, dx, dy)
+        chat: redimensionarRect(actual.base, dx, dy, 14, 14)
       }));
     }
 
@@ -744,6 +746,8 @@ export function Sala({
           miUsuarioId={miUsuarioId}
           mensajes={mensajesVisibles}
           onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
+          onIniciarArrastre={iniciarChat}
+          onIniciarRedimension={iniciarChatTam}
         />
       )}
 
