@@ -30,7 +30,7 @@ import {
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
 import { Posit } from "./Pizarra";
 import { reproducirSonidoNotificacion } from "./sonido";
-import { reproducirSonidoTirada } from "./sonidoDados";
+import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
@@ -174,52 +174,125 @@ const DURACION_D20_ASIENTO = 3500;
 /** Tipos de dado habituales en juegos de rol. */
 const TIPOS_DADO = [4, 6, 8, 10, 12, 20, 100] as const;
 
+/** Dados rápidos en la esquina inferior izquierda (con su color distintivo). */
+const DADOS_RAPIDOS = [
+  { caras: 4, color: "#38d9a9", glow: "rgb(56 217 169 / 32%)" },
+  { caras: 6, color: "#4dabf7", glow: "rgb(77 171 247 / 32%)" },
+  { caras: 8, color: "#b197fc", glow: "rgb(177 151 252 / 34%)" },
+  { caras: 10, color: "#ffa94d", glow: "rgb(255 169 77 / 32%)" },
+  { caras: 20, color: "#e8c56a", glow: "rgb(232 197 106 / 34%)" }
+] as const;
+
+interface GrupoDado {
+  id: string;
+  cantidad: number;
+  caras: number;
+}
+
+interface DadoIndividual {
+  valor: number;
+  caras: number;
+  especial: TipoEspecialTirada;
+}
+
 interface ResultadoTirada {
   total: number;
   dados: number[];
+  desgloseDados: DadoIndividual[];
   bonificador: number;
   caras: number;
   especial: TipoEspecialTirada;
   formula: string;
   secreta?: boolean;
+  compuesta?: boolean;
 }
 
-function detectarEspecialTirada(caras: number, dados: number[]): TipoEspecialTirada {
-  if (caras !== 20 || dados.length === 0) return null;
-  if (dados.includes(20)) return "critico";
-  if (dados.includes(1)) return "pifia";
+function detectarEspecialDado(caras: number, valor: number): TipoEspecialTirada {
+  if (valor === caras) return "critico";
+  if (valor === 1) return "pifia";
   return null;
 }
 
-function formatearFormula(
-  cantidad: number,
-  caras: number,
+function detectarEspecialTirada(caras: number, dados: number[]): TipoEspecialTirada {
+  // Solo los lanzamientos de un único dado tienen estado/sonido global de crítico o pifia.
+  if (dados.length !== 1) return null;
+  return detectarEspecialDado(caras, dados[0]);
+}
+
+function formatearFormulaCompuesta(
+  grupos: GrupoDado[],
   bonificador: number
 ): string {
-  const base = `${cantidad}d${caras}`;
+  const base = grupos.map(g => `${g.cantidad}d${g.caras}`).join(" + ");
   if (bonificador > 0) return `${base} + ${bonificador}`;
   if (bonificador < 0) return `${base} - ${Math.abs(bonificador)}`;
   return base;
 }
 
-function lanzarDados(
-  cantidad: number,
-  caras: number,
+function lanzarGruposDados(
+  grupos: GrupoDado[],
   bonificador: number
 ): ResultadoTirada {
-  const dados = Array.from(
-    { length: cantidad },
-    () => 1 + Math.floor(Math.random() * caras)
-  );
+  const desgloseDados: DadoIndividual[] = [];
+  for (const grupo of grupos) {
+    const cantidad = Math.round(limitar(grupo.cantidad, 1, 20));
+    for (let i = 0; i < cantidad; i += 1) {
+      const valor = 1 + Math.floor(Math.random() * grupo.caras);
+      desgloseDados.push({
+        valor,
+        caras: grupo.caras,
+        especial: detectarEspecialDado(grupo.caras, valor)
+      });
+    }
+  }
+  const dados = desgloseDados.map(d => d.valor);
   const suma = dados.reduce((acc, valor) => acc + valor, 0);
+  const carasPrincipal = grupos[0]?.caras ?? 20;
   return {
     total: suma + bonificador,
     dados,
+    desgloseDados,
     bonificador,
-    caras,
-    especial: detectarEspecialTirada(caras, dados),
-    formula: formatearFormula(cantidad, caras, bonificador)
+    caras: carasPrincipal,
+    especial:
+      desgloseDados.length === 1
+        ? detectarEspecialTirada(carasPrincipal, dados)
+        : null,
+    formula: formatearFormulaCompuesta(grupos, bonificador),
+    compuesta: grupos.length > 1
   };
+}
+
+function IconoDadoPoligono({ caras }: { caras: number }) {
+  if (caras === 4) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polygon points="12,3 21,19 3,19" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (caras === 6) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.9" />
+      </svg>
+    );
+  }
+  if (caras === 8) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polygon points="12,2.5 21,12 12,21.5 3,12" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (caras === 10) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polygon points="12,2.5 20.5,10 17,20.5 7,20.5 3.5,10" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return <IconoD20 />;
 }
 
 function limitar(valor: number, min: number, max: number): number {
@@ -481,8 +554,9 @@ export function Sala({
   );
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
-  const [cantidadDados, setCantidadDados] = useState(1);
-  const [tipoDado, setTipoDado] = useState<number>(20);
+  const [gruposDados, setGruposDados] = useState<GrupoDado[]>([
+    { id: "g-0", cantidad: 1, caras: 20 }
+  ]);
   const [bonificador, setBonificador] = useState(0);
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
@@ -1028,7 +1102,28 @@ export function Sala({
     ]);
   }
 
-  function tirarDado(): void {
+  function agregarGrupoDado(): void {
+    setGruposDados(prev => {
+      if (prev.length >= 6) return prev;
+      return [...prev, { id: `g-${Date.now()}-${prev.length}`, cantidad: 1, caras: 6 }];
+    });
+  }
+
+  function actualizarGrupoDado(id: string, patch: Partial<Pick<GrupoDado, "cantidad" | "caras">>): void {
+    setGruposDados(prev =>
+      prev.map(g => (g.id === id ? { ...g, ...patch } : g))
+    );
+  }
+
+  function eliminarGrupoDado(id: string): void {
+    setGruposDados(prev => (prev.length > 1 ? prev.filter(g => g.id !== id) : prev));
+  }
+
+  function tirarDado(
+    gruposOverride?: GrupoDado[],
+    bonificadorOverride?: number,
+    opciones?: { rapido?: boolean; forzarPublica?: boolean }
+  ): void {
     if (tirando) return;
 
     if (ocultarResultado.current !== null) {
@@ -1036,23 +1131,31 @@ export function Sala({
       ocultarResultado.current = null;
     }
 
-    const cantidad = Math.round(limitar(cantidadDados, 1, 20));
-    const caras = tipoDado;
-    const mod = Math.round(limitar(bonificador, -99, 99));
-    const esSecreta = esMaster && tiradaSecreta;
+    const gruposActivos = (gruposOverride ?? gruposDados).map(g => ({
+      ...g,
+      cantidad: Math.round(limitar(g.cantidad, 1, 20))
+    }));
+    const mod = Math.round(limitar(bonificadorOverride ?? bonificador, -99, 99));
+    const esSecreta = opciones?.forzarPublica ? false : esMaster && tiradaSecreta;
+    const totalPasos = opciones?.rapido ? 8 : 12;
+    const intervaloMs = opciones?.rapido ? 55 : 70;
+
+    if (opciones?.rapido) {
+      reproducirSonidoRoll();
+    }
 
     setSelectorAbierto(false);
     setTirando(true);
     let pasos = 0;
 
     const tick = () => {
-      setTirada({ ...lanzarDados(cantidad, caras, mod), secreta: esSecreta });
+      setTirada({ ...lanzarGruposDados(gruposActivos, mod), secreta: esSecreta });
       pasos += 1;
 
-      if (pasos < 12) {
-        temporizador.current = window.setTimeout(tick, 70);
+      if (pasos < totalPasos) {
+        temporizador.current = window.setTimeout(tick, intervaloMs);
       } else {
-        const resultadoFinal = lanzarDados(cantidad, caras, mod);
+        const resultadoFinal = lanzarGruposDados(gruposActivos, mod);
         setTirada({ ...resultadoFinal, secreta: esSecreta });
         setTirando(false);
 
@@ -1901,7 +2004,7 @@ export function Sala({
 
           {selectorAbierto && !ajuste && (
             <form
-              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}`}
+              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}${gruposDados.length > 1 ? " compuesta" : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
               onSubmit={evento => {
                 evento.preventDefault();
@@ -1920,52 +2023,90 @@ export function Sala({
                 </button>
               </div>
 
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Dados</span>
-                <div className="dados-stepper">
-                  <button
-                    type="button"
-                    onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
-                    aria-label="Menos dados"
-                  >
-                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={cantidadDados}
-                    onChange={e => {
-                      const valor = parseInt(e.target.value, 10);
-                      setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
-                    }}
-                    aria-label="Número de dados"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
-                    aria-label="Más dados"
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
+              <div className="dados-grupos-lista">
+                {gruposDados.map((grupo, idx) => (
+                  <div key={grupo.id} className="dados-grupo-card">
+                    <div className="dados-grupo-top">
+                      <span className="dados-campo-etiqueta">
+                        {gruposDados.length > 1 ? `Dado ${idx + 1}` : "Dados"}
+                      </span>
+                      {gruposDados.length > 1 && (
+                        <button
+                          type="button"
+                          className="dados-grupo-quitar"
+                          onClick={() => eliminarGrupoDado(grupo.id)}
+                          aria-label={`Quitar grupo ${idx + 1}`}
+                          title="Quitar este dado"
+                        >
+                          <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="dados-stepper">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          actualizarGrupoDado(grupo.id, {
+                            cantidad: Math.max(1, grupo.cantidad - 1)
+                          })
+                        }
+                        aria-label="Menos dados"
+                      >
+                        <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={grupo.cantidad}
+                        onChange={e => {
+                          const valor = parseInt(e.target.value, 10);
+                          actualizarGrupoDado(grupo.id, {
+                            cantidad: Number.isNaN(valor) ? 1 : limitar(valor, 1, 20)
+                          });
+                        }}
+                        aria-label="Número de dados"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          actualizarGrupoDado(grupo.id, {
+                            cantidad: Math.min(20, grupo.cantidad + 1)
+                          })
+                        }
+                        aria-label="Más dados"
+                      >
+                        <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                      {TIPOS_DADO.map(caras => (
+                        <button
+                          key={caras}
+                          type="button"
+                          className={`dado-tipo-btn${grupo.caras === caras ? " activo" : ""}`}
+                          onClick={() => actualizarGrupoDado(grupo.id, { caras })}
+                        >
+                          d{caras}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Tipo</span>
-                <div className="dados-tipos" role="group" aria-label="Tipo de dado">
-                  {TIPOS_DADO.map(caras => (
-                    <button
-                      key={caras}
-                      type="button"
-                      className={`dado-tipo-btn${tipoDado === caras ? " activo" : ""}`}
-                      onClick={() => setTipoDado(caras)}
-                    >
-                      d{caras}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {gruposDados.length < 6 && (
+                <button
+                  type="button"
+                  className="dados-agregar-grupo"
+                  onClick={agregarGrupoDado}
+                >
+                  <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                  <span>Añadir dado (tirada compuesta)</span>
+                </button>
+              )}
 
               <div className="dados-fila">
                 <span className="dados-campo-etiqueta">Bonificador</span>
@@ -2016,7 +2157,7 @@ export function Sala({
                 disabled={tirando}
               >
                 {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
-                {formatearFormula(cantidadDados, tipoDado, bonificador)}
+                {formatearFormulaCompuesta(gruposDados, bonificador)}
               </button>
             </form>
           )}
@@ -2037,15 +2178,29 @@ export function Sala({
                   {tirada.secreta ? "SECRETO · " : ""}
                   {tirando ? "tirando…" : tirada.formula}
                 </span>
-                {!tirando && (tirada.dados.length > 1 || tirada.bonificador !== 0) && (
-                  <span className="tirada-desglose">
-                    [{tirada.dados.join(", ")}]
-                    {tirada.bonificador > 0
-                      ? ` + ${tirada.bonificador}`
-                      : tirada.bonificador < 0
-                        ? ` − ${Math.abs(tirada.bonificador)}`
-                        : ""}
-                  </span>
+                {!tirando && (tirada.desgloseDados.length > 1 || tirada.bonificador !== 0) && (
+                  <div className="tirada-desglose-chips">
+                    {tirada.desgloseDados.map((dado, i) => (
+                      <span
+                        key={`${dado.caras}-${i}`}
+                        className={`tirada-dado-chip${dado.especial ? ` ${dado.especial}` : ""}`}
+                        title={`d${dado.caras}: ${dado.valor}`}
+                      >
+                        {tirada.compuesta && (
+                          <span className="tirada-dado-tipo">d{dado.caras}</span>
+                        )}
+                        <span>{dado.valor}</span>
+                      </span>
+                    ))}
+                    {tirada.bonificador !== 0 && (
+                      <span className="tirada-desglose-mod">
+                        {tirada.bonificador > 0
+                          ? `+ ${tirada.bonificador}`
+                          : `− ${Math.abs(tirada.bonificador)}`}
+                      </span>
+                    )}
+                    <span className="tirada-desglose-total">= {tirada.total}</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -2300,6 +2455,38 @@ export function Sala({
               </>
             )}
           </div>
+
+          {!ajuste && (
+            <div className="dados-rapidos" role="group" aria-label="Dados rápidos">
+              {DADOS_RAPIDOS.map(dado => (
+                <button
+                  key={dado.caras}
+                  type="button"
+                  className="dado-rapido-btn"
+                  style={
+                    {
+                      "--dado-color": dado.color,
+                      "--dado-glow": dado.glow
+                    } as CSSProperties
+                  }
+                  onClick={() =>
+                    tirarDado([{ id: `rapido-${dado.caras}`, cantidad: 1, caras: dado.caras }], 0, {
+                      rapido: true,
+                      forzarPublica: true
+                    })
+                  }
+                  disabled={tirando}
+                  title={`Tirada rápida 1d${dado.caras}`}
+                  aria-label={`Tirar 1d${dado.caras}`}
+                >
+                  <span className="dado-rapido-icono">
+                    <IconoDadoPoligono caras={dado.caras} />
+                  </span>
+                  <span className="dado-rapido-etiqueta">d{dado.caras}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
       {compartirAbierto && !ajuste && (
         <div

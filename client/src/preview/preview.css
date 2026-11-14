@@ -4331,3 +4331,200 @@
   display: flex;
   gap: 6px;
 }
+
+/* ------------------------------------------- Tiradas compuestas y dados rápidos */
+
+.dados-selector.compuesta {
+  width: min(330px, calc(100vw - 24px));
+}
+
+.dados-grupos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.dados-grupo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgb(138 118 173 / 34%);
+  border-radius: 8px;
+  background: rgb(26 20 38 / 72%);
+}
+
+.dados-grupo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dados-grupo-quitar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #9c92a9;
+  cursor: pointer;
+}
+
+.dados-grupo-quitar:hover {
+  color: #ff5c77;
+  border-color: rgb(255 92 119 / 45%);
+  background: rgb(255 92 119 / 12%);
+}
+
+.dados-agregar-grupo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px dashed #6b5888;
+  border-radius: 7px;
+  background: rgb(32 25 46 / 60%);
+  color: #d6c5eb;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.dados-agregar-grupo:hover {
+  border-color: #e8c56a;
+  color: #e8c56a;
+  background: rgb(42 33 60 / 85%);
+}
+
+.tirada-desglose-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.tirada-dado-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid rgb(169 143 206 / 38%);
+  border-radius: 6px;
+  background: rgb(30 24 44 / 90%);
+  color: #e6ddf2;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.tirada-dado-chip.critico {
+  border-color: #3ddc84;
+  background: rgb(16 48 31 / 92%);
+  color: #6df0a6;
+  box-shadow: 0 0 8px rgb(61 220 132 / 25%);
+}
+
+.tirada-dado-chip.pifia {
+  border-color: #ff5c77;
+  background: rgb(52 15 24 / 92%);
+  color: #ff8ca0;
+  box-shadow: 0 0 8px rgb(255 92 119 / 25%);
+}
+
+.tirada-dado-tipo {
+  font-size: 0.65rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.tirada-desglose-mod {
+  color: #d6cde3;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.tirada-desglose-total {
+  color: #e8c56a;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.dados-rapidos {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgb(138 118 173 / 38%);
+  border-radius: 14px;
+  background: rgb(18 14 28 / 78%);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px rgb(7 5 14 / 52%);
+}
+
+.dado-rapido-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  height: 46px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--dado-color) 48%, transparent);
+  border-radius: 10px;
+  background: rgb(26 20 40 / 82%);
+  color: var(--dado-color);
+  cursor: pointer;
+  transition:
+    transform 130ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.dado-rapido-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--dado-color);
+  background: rgb(35 27 54 / 94%);
+  box-shadow: 0 0 14px var(--dado-glow);
+}
+
+.dado-rapido-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+.dado-rapido-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.dado-rapido-icono {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+}
+
+.dado-rapido-icono svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dado-rapido-etiqueta {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}

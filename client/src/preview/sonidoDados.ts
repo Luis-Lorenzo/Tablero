@@ -45,8 +45,35 @@ function tocarNota(
 }
 
 /**
- * Reproduce un efecto breve con Web Audio API cuando una tirada de d20 saca
- * 20 natural (crítico) o 1 natural (pifia).
+ * Reproduce un efecto breve de dados rodando sobre la mesa (Web Audio API)
+ * pensado para las tiradas rápidas.
+ */
+export function reproducirSonidoRoll(): void {
+  try {
+    const ctx = obtenerContexto();
+    if (!ctx) return;
+
+    const ahora = ctx.currentTime;
+    const golpes = [
+      { t: 0, freq: 290, dur: 0.045, vol: 0.07 },
+      { t: 0.055, freq: 380, dur: 0.04, vol: 0.065 },
+      { t: 0.11, freq: 250, dur: 0.045, vol: 0.06 },
+      { t: 0.165, freq: 440, dur: 0.038, vol: 0.055 },
+      { t: 0.225, freq: 320, dur: 0.045, vol: 0.045 },
+      { t: 0.29, freq: 265, dur: 0.055, vol: 0.035 }
+    ];
+
+    golpes.forEach(g => {
+      tocarNota(ctx, g.freq, ahora + g.t, g.dur, "triangle", g.vol);
+    });
+  } catch {
+    // Sin soporte de audio o bloqueado por política del navegador: se ignora.
+  }
+}
+
+/**
+ * Reproduce un efecto breve con Web Audio API cuando una tirada de un solo dado
+ * saca su máximo natural (crítico) o 1 natural (pifia).
  */
 export function reproducirSonidoTirada(especial: TipoEspecialTirada | undefined): void {
   if (!especial) return;
