@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { Check, Crown, Plus, Search, X } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { MesaCard } from "../components/MesaCard";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useMesasLive } from "../hooks/useMesasLive";
 
 interface RecepcionPageProps {
@@ -35,8 +37,10 @@ export function RecepcionPage({
   const [error, setError] = useState<string | null>(null);
   const [pendiente, setPendiente] = useState<PublicMesa | null>(null);
   const [cesionBusy, setCesionBusy] = useState(false);
+  const [mesaACerrar, setMesaACerrar] = useState<PublicMesa | null>(null);
 
   const esAdmin = user.role === "ADMIN";
+  const yaTengoMesa = huecos.some(mesa => mesa?.hostId === user.id);
 
   const refrescar = useCallback(async () => {
     try {
@@ -85,6 +89,7 @@ export function RecepcionPage({
       await refrescar();
     } catch (crearError) {
       setError(describeError(crearError));
+    } finally {
       setBusy(false);
     }
   }
@@ -117,16 +122,13 @@ export function RecepcionPage({
     }
   }
 
-  async function cerrar(mesa: PublicMesa) {
-    const confirmado = window.confirm(
-      `¿Cerrar "Mesa ${mesa.hostName}"? Los jugadores se quedarán sin mesa.`
-    );
-    if (!confirmado) return;
-
+  async function confirmarCerrar() {
+    if (!mesaACerrar) return;
     setBusy(true);
     setError(null);
     try {
-      await mesasApi.cerrar(mesa.id);
+      await mesasApi.cerrar(mesaACerrar.id);
+      setMesaACerrar(null);
       await refrescar();
       if (buscando) setResultados(await mesasApi.list(texto.trim()));
     } catch (cerrarError) {
@@ -175,11 +177,33 @@ export function RecepcionPage({
   return (
     <section className="card recepcion">
       <div className="recepcion-acciones">
-        <button type="button" className="primary morado" onClick={alternarBuscador}>
-          {buscando ? "Cerrar búsqueda" : "Buscar"}
+        <button
+          type="button"
+          className={buscando ? "ghost" : "primary morado"}
+          onClick={alternarBuscador}
+        >
+          {buscando ? (
+            <>
+              <X size={16} aria-hidden="true" />
+              <span>Cerrar búsqueda</span>
+            </>
+          ) : (
+            <>
+              <Search size={16} aria-hidden="true" />
+              <span>Buscar mesas</span>
+            </>
+          )}
         </button>
-        <button type="button" className="primary morado" onClick={crearSala} disabled={busy}>
-          {busy ? "Creando…" : "Crear sala"}
+
+        <button
+          type="button"
+          className="primary morado"
+          onClick={crearSala}
+          disabled={busy || yaTengoMesa}
+          title={yaTengoMesa ? "Ya eres anfitrión de una mesa activa" : "Crear una nueva sala"}
+        >
+          <Plus size={16} aria-hidden="true" />
+          <span>{busy ? "Creando…" : yaTengoMesa ? "Ya tienes mesa" : "Crear sala"}</span>
         </button>
       </div>
 
@@ -188,23 +212,36 @@ export function RecepcionPage({
       {buscando && (
         <div className="buscador">
           <label htmlFor="buscar-anfitrion">Buscar por nombre del anfitrión</label>
-          <input
-            id="buscar-anfitrion"
-            type="search"
-            value={texto}
-            placeholder="Ej.: javi"
-            onChange={event => setTexto(event.target.value)}
-            autoFocus
-          />
+          <div className="input-con-icono">
+            <Search size={16} className="input-icono" aria-hidden="true" />
+            <input
+              id="buscar-anfitrion"
+              type="search"
+              value={texto}
+              placeholder="Ej.: javi"
+              onChange={event => setTexto(event.target.value)}
+              autoFocus
+            />
+            {texto && (
+              <button
+                type="button"
+                className="input-limpiar"
+                onClick={() => setTexto("")}
+                aria-label="Limpiar búsqueda"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {loading ? (
-        <p className="muted">Cargando recepción…</p>
+        <p className="muted estado-vacio">Cargando recepción…</p>
       ) : (
         <>
           {buscando && resultados.length === 0 && (
-            <p className="muted">
+            <p className="muted estado-vacio">
               {texto.trim() ? "Ninguna mesa coincide con esa búsqueda." : "Todavía no hay mesas."}
             </p>
           )}
@@ -217,7 +254,7 @@ export function RecepcionPage({
                 currentUserId={user.id}
                 esAdmin={esAdmin}
                 onJoin={unirse}
-                onClose={cerrar}
+                onClose={setMesaACerrar}
                 onAbandon={abandonar}
                 onGestionar={onGestionar}
                 busy={busy}
@@ -229,30 +266,46 @@ export function RecepcionPage({
 
       {pendiente && pendiente.pendingHostId === user.id && (
         <div className="cesion-popup" role="alertdialog" aria-live="assertive">
+          <div className="cesion-popup-cabecera">
+            <Crown size={18} className="cesion-icono" aria-hidden="true" />
+            <strong>Oferta de anfitrión</strong>
+          </div>
           <p>
-            <strong>Te ofrecen el mando de “Mesa {pendiente.hostName}”.</strong> ¿Aceptas
+            Te ofrecen el mando de <strong>“Mesa {pendiente.hostName}”</strong>. ¿Aceptas
             ser el nuevo anfitrión?
           </p>
           <div className="cesion-popup-acciones">
             <button
               type="button"
-              className="primary amarillo"
+              className="primary amarillo small"
               disabled={cesionBusy}
               onClick={() => void aceptarCesion(pendiente)}
             >
-              Aceptar
+              <Check size={14} aria-hidden="true" />
+              <span>Aceptar</span>
             </button>
             <button
               type="button"
-              className="ghost"
+              className="ghost small"
               disabled={cesionBusy}
               onClick={() => void rechazarCesion(pendiente)}
             >
-              Rechazar
+              <X size={14} aria-hidden="true" />
+              <span>Rechazar</span>
             </button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={mesaACerrar !== null}
+        title={mesaACerrar ? `¿Cerrar "Mesa ${mesaACerrar.hostName}"?` : ""}
+        description="Los jugadores conectados se quedarán sin mesa y la sala desaparecerá."
+        confirmLabel="Cerrar mesa"
+        busy={busy}
+        onConfirm={() => void confirmarCerrar()}
+        onCancel={() => setMesaACerrar(null)}
+      />
     </section>
   );
 }

@@ -21,6 +21,12 @@ export interface MesaJugador {
   color?: string | null;
 }
 
+export interface ImagenMaster {
+  id: string;
+  titulo: string | null;
+  url?: string;
+}
+
 export interface PublicMesa {
   id: string;
   hostId: string;
@@ -30,6 +36,8 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: "ESPERA" | "EN_CURSO";
   colores?: Record<string, string>;
+  imagenEscena?: ImagenMaster | null;
+  imagenProyectada?: ImagenMaster | null;
   createdAt: string;
 }
 

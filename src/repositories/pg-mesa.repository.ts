@@ -8,6 +8,10 @@ interface MesaRow {
   expulsados: string[] | null;
   pending_host_id: string | null;
   estado: string;
+  imagen_escena_id: string | null;
+  imagen_escena_titulo: string | null;
+  imagen_proyectada_id: string | null;
+  imagen_proyectada_titulo: string | null;
   created_at: Date;
 }
 
@@ -17,7 +21,7 @@ interface MesaColorRow {
 }
 
 const SELECT_COLUMNS =
-  "id, host_id, players, expulsados, pending_host_id, estado, created_at";
+"id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, created_at";
 
 function toMesa(row: MesaRow, colores: Record<string, string> = {}): Mesa {
   return {
@@ -28,12 +32,18 @@ function toMesa(row: MesaRow, colores: Record<string, string> = {}): Mesa {
     pendingHostId: row.pending_host_id,
     estado: (row.estado === "EN_CURSO" ? "EN_CURSO" : "ESPERA") as EstadoMesa,
     colores,
+    imagenEscena: row.imagen_escena_id
+      ? { id: row.imagen_escena_id, titulo: row.imagen_escena_titulo }
+      : null,
+    imagenProyectada: row.imagen_proyectada_id
+      ? { id: row.imagen_proyectada_id, titulo: row.imagen_proyectada_titulo }
+      : null,
     createdAt: new Date(row.created_at)
   };
 }
 
 export class PgMesaRepository implements MesaRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool) { }
 
   private async cargarColores(mesaIds: string[]): Promise<Map<string, Record<string, string>>> {
     const mapa = new Map<string, Record<string, string>>();
@@ -99,14 +109,18 @@ export class PgMesaRepository implements MesaRepository {
 
   async save(mesa: Mesa) {
     await this.pool.query(
-      `INSERT INTO mesas (id, host_id, players, expulsados, pending_host_id, estado, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (id) DO UPDATE SET
+      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, created_at)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT(id) DO UPDATE SET
          host_id = EXCLUDED.host_id,
-         players = EXCLUDED.players,
-         expulsados = EXCLUDED.expulsados,
-         pending_host_id = EXCLUDED.pending_host_id,
-         estado = EXCLUDED.estado`,
+      players = EXCLUDED.players,
+      expulsados = EXCLUDED.expulsados,
+      pending_host_id = EXCLUDED.pending_host_id,
+         estado = EXCLUDED.estado,
+         imagen_escena_id = EXCLUDED.imagen_escena_id,
+         imagen_escena_titulo = EXCLUDED.imagen_escena_titulo,
+         imagen_proyectada_id = EXCLUDED.imagen_proyectada_id,
+         imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo`,
       [
         mesa.id,
         mesa.hostId,
@@ -114,6 +128,10 @@ export class PgMesaRepository implements MesaRepository {
         mesa.expulsados,
         mesa.pendingHostId,
         mesa.estado,
+        mesa.imagenEscena?.id ?? null,
+        mesa.imagenEscena?.titulo ?? null,
+        mesa.imagenProyectada?.id ?? null,
+        mesa.imagenProyectada?.titulo ?? null,
         mesa.createdAt
       ]
     );

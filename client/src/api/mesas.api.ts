@@ -74,5 +74,23 @@ export const mesasApi = {
       especial?: "critico" | "pifia" | null;
       secreta?: boolean;
     }
-  ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos)
+  ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos),
+
+  /** Fija o retira la imagen de escena del máster en la pizarra de la sala. */
+  ponerEscena: (
+    id: string,
+    archivoId: string | null,
+    titulo?: string | null
+  ) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/escena`, {
+      archivoId,
+      titulo: titulo ?? null
+    }),
+
+  /** Proyecta o retira una imagen dramática a pantalla completa para todos. */
+  proyectar: (id: string, archivoId: string | null, titulo?: string | null) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/proyeccion`, {
+      archivoId,
+      titulo: titulo ?? null
+    })
 };

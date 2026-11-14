@@ -87,7 +87,8 @@ export async function createContainer(): Promise<Container> {
     archivoRepository,
     almacen,
     logger,
-    config.archivos.maxBytes
+    config.archivos.maxBytes,
+    mesaRepository
   );
 
   // Un único almacén de sesiones para Express y para el canal en vivo.

@@ -5,14 +5,20 @@ import type {
   PointerEvent as ReactPointerEvent,
   SetStateAction
 } from "react";
-import { CALIBRACION_INICIAL, FONDO_SALA } from "./datos";
+import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
+import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
 import { ChatSala } from "./ChatSala";
+import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
+import { Posit } from "./Pizarra";
 import { reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
+  DocumentoMesa,
+  ImagenEscenaPreview,
   JugadorPreview,
   MensajeSala,
+  PositPreview,
   Punto,
   QuadMapa,
   RectPizarra,
@@ -24,8 +30,13 @@ interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
   onCalibracion: Dispatch<SetStateAction<Calibracion>>;
+  positsMesa?: PositPreview[];
+  onPositsMesa?: Dispatch<SetStateAction<PositPreview[]>>;
+  documentosMesa?: DocumentoMesa[];
+  onDocumentosMesa?: Dispatch<SetStateAction<DocumentoMesa[]>>;
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
+  onAbrirArchivador?: () => void;
   onVolver: () => void;
   hostName?: string;
   esMaster?: boolean;
@@ -41,6 +52,14 @@ interface SalaProps {
     caras: number;
     especial: TipoEspecialTirada;
   }) => void | Promise<void>;
+  colorJugador?: string;
+  nombreJugador?: string;
+  imagenEscena?: ImagenEscenaPreview | null;
+  imagenProyectada?: ImagenEscenaPreview | null;
+  onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
+  onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
+  proyeccionOculta?: boolean;
+  onReabrirProyeccion?: () => void;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -51,35 +70,52 @@ interface Medidas {
 
 type Arrastre =
   | {
-      tipo: "asiento";
-      id: string;
-      inicioX: number;
-      inicioY: number;
-      base: Asiento;
-      medidas: Medidas;
-    }
+    tipo: "asiento";
+    id: string;
+    inicioX: number;
+    inicioY: number;
+    base: Asiento;
+    medidas: Medidas;
+  }
   | {
-      tipo: "dock";
-      inicioX: number;
-      inicioY: number;
-      base: Asiento;
-      medidas: Medidas;
-    }
+    tipo: "dock";
+    inicioX: number;
+    inicioY: number;
+    base: Asiento;
+    medidas: Medidas;
+  }
   | {
-      tipo: "pizarra" | "pizarra-tam" | "chat" | "chat-tam";
-      inicioX: number;
-      inicioY: number;
-      base: RectPizarra;
-      medidas: Medidas;
-    }
+    tipo: "pizarra" | "pizarra-tam" | "chat" | "chat-tam";
+    inicioX: number;
+    inicioY: number;
+    base: RectPizarra;
+    medidas: Medidas;
+  }
   | {
-      tipo: "mapa-vertice";
-      indice: number;
-      inicioX: number;
-      inicioY: number;
-      base: Punto;
-      medidas: Medidas;
-    };
+    tipo: "mapa-vertice";
+    indice: number;
+    inicioX: number;
+    inicioY: number;
+    base: Punto;
+    medidas: Medidas;
+  }
+  | {
+    tipo: "posit-mesa";
+    id: string;
+    inicioX: number;
+    inicioY: number;
+    base: Punto;
+    medidas: Medidas;
+  }
+  | {
+    tipo: "doc-mesa";
+    id: string;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
+    base: Punto;
+    medidas: Medidas;
+  };
 
 /** Segundos que el resultado del dado sigue en pantalla antes de irse. */
 const DURACION_RESULTADO = 4500;
@@ -231,12 +267,64 @@ function IconoPosit() {
   );
 }
 
+function IconoArchivador() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h4.5l2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 11h18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconoMasterEscena() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="2.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle cx="8.5" cy="9.5" r="1.5" fill="currentColor" />
+      <path
+        d="M4.5 17.5l4.8-4.5 3.6 3.2 2.9-2.8 3.7 4.1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function Sala({
   jugadores,
   calibracion,
   onCalibracion,
+  positsMesa,
+  onPositsMesa,
+  documentosMesa,
+  onDocumentosMesa,
   onAbrirPizarra,
   onAbrirMapa,
+  onAbrirArchivador,
   onVolver,
   hostName,
   esMaster = false,
@@ -244,7 +332,15 @@ export function Sala({
   mensajesChat,
   onEnviarChat,
   tiradasAsiento,
-  onTiradaPublica
+  onTiradaPublica,
+  colorJugador,
+  nombreJugador,
+  imagenEscena,
+  imagenProyectada,
+  onCambiarEscena,
+  onProyectarImagen,
+  proyeccionOculta,
+  onReabrirProyeccion
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -262,9 +358,15 @@ export function Sala({
   const [tiradasAsientoLocales, setTiradasAsientoLocales] = useState<
     Record<string, TiradaAsiento>
   >({});
+  const [positActivo, setPositActivo] = useState<string | null>(null);
+  const [visorDoc, setVisorDoc] = useState<DocumentoMesa | null>(null);
+  const [visorEscena, setVisorEscena] = useState(false);
+  const [panelMasterAbierto, setPanelMasterAbierto] = useState(false);
 
   const plano = useRef<HTMLDivElement>(null);
+  const capaPosits = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
+  const arrastreDocMovido = useRef(false);
   const temporizador = useRef<number | null>(null);
   const ocultarResultado = useRef<number | null>(null);
   const avisoTimer = useRef<number | null>(null);
@@ -312,6 +414,38 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "posit-mesa") {
+        const x = limitar(actual.base.x + dx, 8, 92);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onPositsMesa?.(prev =>
+          prev.map(posit =>
+            posit.id === actual.id ? { ...posit, x, y } : posit
+          )
+        );
+        return;
+      }
+
+      if (actual.tipo === "doc-mesa") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 5
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+        }
+        if (!actual.movido) return;
+
+        const x = limitar(actual.base.x + dx, 6, 94);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onDocumentosMesa?.(prev =>
+          prev.map(doc => (doc.id === actual.id ? { ...doc, x, y } : doc))
+        );
+        return;
+      }
+
       if (actual.tipo === "pizarra") {
         onCalibracion(prev => ({
           ...prev,
@@ -344,6 +478,11 @@ export function Sala({
 
     function soltar() {
       arrastre.current = null;
+      if (arrastreDocMovido.current) {
+        window.setTimeout(() => {
+          arrastreDocMovido.current = false;
+        }, 0);
+      }
     }
 
     window.addEventListener("pointermove", mover);
@@ -355,7 +494,7 @@ export function Sala({
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
-  }, [onCalibracion]);
+  }, [onCalibracion, onPositsMesa, onDocumentosMesa]);
 
   useEffect(() => {
     const timersMap = timersAsiento.current;
@@ -594,12 +733,118 @@ export function Sala({
     }
   }
 
+  function crearPositMesa(): void {
+    if (!onPositsMesa) return;
+    setSelectorAbierto(false);
+    const desplazamiento = (positsVisibles.length % 5) * 3;
+    const posit: PositPreview = {
+      id: nuevoId(),
+      texto: "",
+      color: COLORES_POSIT[3].valor,
+      x: limitar(24 + desplazamiento, 8, 92),
+      y: limitar(34 + desplazamiento, 12, 88),
+      giro: (Math.random() - 0.5) * 4,
+      archivado: false,
+      autorNombre: esMaster ? "Máster" : nombreJugador,
+      autorColor: esMaster ? "#e8c56a" : colorJugador,
+      esMaster: Boolean(esMaster)
+    };
+    onPositsMesa(prev => [...prev, posit]);
+    setPositActivo(posit.id);
+  }
+
+  function iniciarPositMesa(
+    evento: ReactPointerEvent,
+    posit: PositPreview
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    evento.preventDefault();
+    evento.stopPropagation();
+    arrastre.current = {
+      tipo: "posit-mesa",
+      id: posit.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      base: { x: posit.x, y: posit.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+    setPositActivo(posit.id);
+  }
+
+  function cambiarTextoPositMesa(id: string, texto: string): void {
+    onPositsMesa?.(prev =>
+      prev.map(posit => (posit.id === id ? { ...posit, texto } : posit))
+    );
+  }
+
+  function cambiarColorPositMesa(id: string, color: string): void {
+    onPositsMesa?.(prev =>
+      prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
+    );
+  }
+
+  function archivarPositMesa(id: string): void {
+    onPositsMesa?.(prev =>
+      prev.map(posit =>
+        posit.id === id ? { ...posit, archivado: true } : posit
+      )
+    );
+    setPositActivo(actual => (actual === id ? null : actual));
+    mostrarAviso("Posit archivado.");
+  }
+
+  function borrarPositMesa(id: string): void {
+    onPositsMesa?.(prev => prev.filter(posit => posit.id !== id));
+    setPositActivo(actual => (actual === id ? null : actual));
+  }
+
+  function iniciarDocMesa(
+    evento: ReactPointerEvent,
+    doc: DocumentoMesa
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    evento.stopPropagation();
+    setPositActivo(null);
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "doc-mesa",
+      id: doc.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false,
+      base: { x: doc.x, y: doc.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+  }
+
+  function archivarDocMesa(id: string): void {
+    onDocumentosMesa?.(prev => prev.filter(doc => doc.id !== id));
+    setVisorDoc(actual => (actual?.id === id ? null : actual));
+    mostrarAviso("Documento archivado.");
+  }
+
   const centro = centroide(calibracion.mapa);
   const mensajesVisibles = mensajesChat ?? mensajesLocales;
   const tiradasVisibles = tiradasAsiento ?? tiradasAsientoLocales;
+  const positsVisibles = (positsMesa ?? []).filter(posit => !posit.archivado);
+  const positsArchivadosCount = (positsMesa ?? []).filter(
+    posit => posit.archivado
+  ).length;
+  const docsVisibles = documentosMesa ?? [];
 
   return (
-    <div className="sala">
+    <div
+      className="sala"
+      onPointerDown={evento => {
+        if (!(evento.target as HTMLElement).closest(".posit")) {
+          setPositActivo(null);
+        }
+      }}
+    >
       <div className="sala-escena">
         <div
           ref={plano}
@@ -614,6 +859,61 @@ export function Sala({
             >
               <span className="rect-calibrado-etiqueta">pizarra</span>
               <span className="rect-tirador" onPointerDown={iniciarPizarraTam} />
+            </div>
+          ) : imagenEscena ? (
+            <div
+              className="sala-hotspot hotspot-pizarra con-escena"
+              style={estiloRect(calibracion.pizarra)}
+            >
+              <button
+                type="button"
+                className="sala-pizarra-escena-btn"
+                onClick={() => setVisorEscena(true)}
+                title={
+                  imagenEscena.titulo
+                    ? `Ver en grande: ${imagenEscena.titulo}`
+                    : "Ver imagen de escena en grande"
+                }
+              >
+                <img
+                  className="sala-pizarra-escena-img"
+                  src={urlImagenEscena(imagenEscena)}
+                  alt={imagenEscena.titulo ?? "Escena de campaña"}
+                />
+                {imagenEscena.titulo && (
+                  <span className="sala-pizarra-escena-titulo">
+                    {imagenEscena.titulo}
+                  </span>
+                )}
+              </button>
+
+              <div className="sala-pizarra-acciones">
+                <button
+                  type="button"
+                  className="sala-pizarra-chip"
+                  onClick={() => setVisorEscena(true)}
+                >
+                  Ampliar
+                </button>
+                <button
+                  type="button"
+                  className="sala-pizarra-chip"
+                  onClick={onAbrirPizarra}
+                >
+                  Pizarra
+                </button>
+                {esMaster && onCambiarEscena && (
+                  <button
+                    type="button"
+                    className="sala-pizarra-chip quitar"
+                    title="Quitar escena de la pizarra"
+                    aria-label="Quitar escena de la pizarra"
+                    onClick={() => onCambiarEscena(null)}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <button
@@ -644,11 +944,11 @@ export function Sala({
                 ajuste
                   ? undefined
                   : evento => {
-                      if (evento.key === "Enter" || evento.key === " ") {
-                        evento.preventDefault();
-                        onAbrirMapa();
-                      }
+                    if (evento.key === "Enter" || evento.key === " ") {
+                      evento.preventDefault();
+                      onAbrirMapa();
                     }
+                  }
               }
               onPointerEnter={ajuste ? undefined : () => setSobreMapa(true)}
               onPointerLeave={ajuste ? undefined : () => setSobreMapa(false)}
@@ -751,252 +1051,515 @@ export function Sala({
         />
       )}
 
-      <div className="sala-barra">
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <button type="button" className="sala-btn" onClick={onVolver}>
-            ← Sala de espera
-          </button>
-          <span className="sala-titulo-visible">
-            SALA DE {hostName ? hostName.toUpperCase() : "MESA"}
-          </span>
-          <button
-            type="button"
-            className={`sala-btn${ajuste ? " activo" : ""}`}
-            onClick={() => setAjuste(valor => !valor)}
-          >
-            {ajuste ? "Terminar ajuste" : "Ajustar"}
-          </button>
-        </div>
-      </div>
-
-      {ajuste && (
-        <div className="ajuste-panel">
-          <p>
-            Arrastra las esferas a su silla, mueve y redimensiona la pizarra y
-            el chat, ajusta las cuatro esquinas del mapa y coloca la bandeja de
-            dados. Se guarda solo en este navegador.
-          </p>
-          <div className="ajuste-botones">
-            <button type="button" className="ajuste-btn" onClick={copiarConfiguracion}>
-              Copiar configuración
-            </button>
-            <button
-              type="button"
-              className="ajuste-btn"
-              onClick={() => onCalibracion(CALIBRACION_INICIAL)}
-            >
-              Restablecer
-            </button>
-          </div>
-        </div>
-      )}
-
-      {selectorAbierto && !ajuste && (
-        <form
-          className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}${esMaster && tiradaSecreta ? " secreta" : ""}`}
-          style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
-          onSubmit={evento => {
-            evento.preventDefault();
-            tirarDado();
-          }}
-        >
-          <div className="dados-selector-cabecera">
-            <span>
-              {esMaster && tiradaSecreta
-                ? "Dados negros (secreto)"
-                : "Tirada de dados"}
-            </span>
-            <button
-              type="button"
-              className="dados-cerrar"
-              onClick={() => setSelectorAbierto(false)}
-              aria-label="Cerrar selector de dados"
-            >
-              ×
-            </button>
-          </div>
-
-          <div className="dados-fila">
-            <span className="dados-campo-etiqueta">Dados</span>
-            <div className="dados-stepper">
+          <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
+            <div className="sala-barra-grupo">
+              <button type="button" className="sala-btn" onClick={onVolver}>
+                ← Sala de espera
+              </button>
+              <span className="sala-titulo-visible">
+                SALA DE {hostName ? hostName.toUpperCase() : "MESA"}
+              </span>
+              {esMaster && (
+                <span className="master-pill-badge">👑 MODO MÁSTER</span>
+              )}
               <button
                 type="button"
-                onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
-                aria-label="Menos dados"
+                className={`sala-btn${ajuste ? " activo" : ""}`}
+                onClick={() => setAjuste(valor => !valor)}
               >
-                −
+                {ajuste ? "Terminar ajuste" : "Ajustar"}
               </button>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={cantidadDados}
-                onChange={e => {
-                  const valor = parseInt(e.target.value, 10);
-                  setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
-                }}
-                aria-label="Número de dados"
-              />
-              <button
-                type="button"
-                onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
-                aria-label="Más dados"
-              >
-                +
-              </button>
-            </div>
-          </div>
 
-          <div className="dados-fila">
-            <span className="dados-campo-etiqueta">Tipo</span>
-            <div className="dados-tipos" role="group" aria-label="Tipo de dado">
-              {TIPOS_DADO.map(caras => (
+              {esMaster && imagenProyectada && (
+                <div className="master-proyeccion-pill">
+                  <span className="master-proyeccion-texto">
+                    ✦ Proyectando: {imagenProyectada.titulo ?? "Imagen"}
+                  </span>
+                  {proyeccionOculta && onReabrirProyeccion && (
+                    <button
+                      type="button"
+                      className="master-pill-mini-btn"
+                      onClick={onReabrirProyeccion}
+                    >
+                      Ver
+                    </button>
+                  )}
+                  {onProyectarImagen && (
+                    <button
+                      type="button"
+                      className="master-pill-mini-btn quitar"
+                      onClick={() => onProyectarImagen(null)}
+                    >
+                      Retirar
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!esMaster && imagenProyectada && proyeccionOculta && onReabrirProyeccion && (
                 <button
-                  key={caras}
                   type="button"
-                  className={`dado-tipo-btn${tipoDado === caras ? " activo" : ""}`}
-                  onClick={() => setTipoDado(caras)}
+                  className="sala-btn sala-btn-revelacion"
+                  onClick={onReabrirProyeccion}
                 >
-                  d{caras}
+                  👁 Ver imagen del Máster
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
-          <div className="dados-fila">
-            <span className="dados-campo-etiqueta">Bonificador</span>
-            <div className="dados-stepper">
-              <button
-                type="button"
-                onClick={() => setBonificador(b => Math.max(-99, b - 1))}
-                aria-label="Reducir bonificador"
-              >
-                −
-              </button>
-              <input
-                type="number"
-                min={-99}
-                max={99}
-                value={bonificador}
-                onChange={e => {
-                  const valor = parseInt(e.target.value, 10);
-                  setBonificador(Number.isNaN(valor) ? 0 : limitar(valor, -99, 99));
-                }}
-                aria-label="Bonificador"
-              />
-              <button
-                type="button"
-                onClick={() => setBonificador(b => Math.min(99, b + 1))}
-                aria-label="Aumentar bonificador"
-              >
-                +
-              </button>
+          {ajuste && (
+            <div className="ajuste-panel">
+              <p>
+                Arrastra las esferas a su silla, mueve el recuadro de la pizarra y
+                cada una de las cuatro esquinas del mapa, y coloca la bandeja de
+                dados. Se guarda solo en este navegador.
+              </p>
+              <div className="ajuste-botones">
+                <button type="button" className="ajuste-btn" onClick={copiarConfiguracion}>
+                  Copiar configuración
+                </button>
+                <button
+                  type="button"
+                  className="ajuste-btn"
+                  onClick={() => onCalibracion(CALIBRACION_INICIAL)}
+                >
+                  Restablecer
+                </button>
+              </div>
             </div>
-          </div>
-
-          {esMaster && (
-            <button
-              type="button"
-              className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
-              onClick={() => setTiradaSecreta(s => !s)}
-              aria-pressed={tiradaSecreta}
-            >
-              <span className="dados-secreto-punto" aria-hidden="true" />
-              <span>Dados negros (solo Máster)</span>
-            </button>
           )}
 
-          <button
-            type="submit"
-            className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
-            disabled={tirando}
-          >
-            {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
-            {formatearFormula(cantidadDados, tipoDado, bonificador)}
-          </button>
-        </form>
-      )}
+          {selectorAbierto && !ajuste && (
+            <form
+              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}`}
+              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+              onSubmit={evento => {
+                evento.preventDefault();
+                tirarDado();
+              }}
+            >
+              <div className="dados-selector-cabecera">
+                <span>Tirada de dados</span>
+                <button
+                  type="button"
+                  className="dados-cerrar"
+                  onClick={() => setSelectorAbierto(false)}
+                  aria-label="Cerrar selector de dados"
+                >
+                  ×
+                </button>
+              </div>
 
-      {tirada !== null && !selectorAbierto && (
-        <div
-          className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
-          style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
-        >
-          <span className="tirada-icono">
-            <IconoD20 />
-          </span>
-          <span className={`tirada-num${tirando ? " girando" : ""}`}>
-            {tirada.total}
-          </span>
-          <div className="tirada-detalle">
-            <span className="tirada-etiqueta">
-              {tirada.secreta ? "SECRETO · " : ""}
-              {tirando ? "tirando…" : tirada.formula}
-            </span>
-            {!tirando && (tirada.dados.length > 1 || tirada.bonificador !== 0) && (
-              <span className="tirada-desglose">
-                [{tirada.dados.join(", ")}]
-                {tirada.bonificador > 0
-                  ? ` + ${tirada.bonificador}`
-                  : tirada.bonificador < 0
-                    ? ` − ${Math.abs(tirada.bonificador)}`
-                    : ""}
+              <div className="dados-fila">
+                <span className="dados-campo-etiqueta">Dados</span>
+                <div className="dados-stepper">
+                  <button
+                    type="button"
+                    onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
+                    aria-label="Menos dados"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={cantidadDados}
+                    onChange={e => {
+                      const valor = parseInt(e.target.value, 10);
+                      setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
+                    }}
+                    aria-label="Número de dados"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
+                    aria-label="Más dados"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="dados-fila">
+                <span className="dados-campo-etiqueta">Tipo</span>
+                <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                  {TIPOS_DADO.map(caras => (
+                    <button
+                      key={caras}
+                      type="button"
+                      className={`dado-tipo-btn${tipoDado === caras ? " activo" : ""}`}
+                      onClick={() => setTipoDado(caras)}
+                    >
+                      d{caras}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="dados-fila">
+                <span className="dados-campo-etiqueta">Bonificador</span>
+                <div className="dados-stepper">
+                  <button
+                    type="button"
+                    onClick={() => setBonificador(b => Math.max(-99, b - 1))}
+                    aria-label="Reducir bonificador"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={-99}
+                    max={99}
+                    value={bonificador}
+                    onChange={e => {
+                      const valor = parseInt(e.target.value, 10);
+                      setBonificador(Number.isNaN(valor) ? 0 : limitar(valor, -99, 99));
+                    }}
+                    aria-label="Bonificador"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setBonificador(b => Math.min(99, b + 1))}
+                    aria-label="Aumentar bonificador"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {esMaster && (
+                <button
+                  type="button"
+                  className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => setTiradaSecreta(s => !s)}
+                  aria-pressed={tiradaSecreta}
+                >
+                  <span className="dados-secreto-punto" aria-hidden="true" />
+                  <span>Dados negros (solo Máster)</span>
+                </button>
+              )}
+
+              <button
+                type="submit"
+                className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                disabled={tirando}
+              >
+                {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                {formatearFormula(cantidadDados, tipoDado, bonificador)}
+              </button>
+            </form>
+          )}
+
+          {tirada !== null && !selectorAbierto && (
+            <div
+              className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
+              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+            >
+              <span className="tirada-icono">
+                <IconoD20 />
               </span>
+              <span className={`tirada-num${tirando ? " girando" : ""}`}>
+                {tirada.total}
+              </span>
+              <div className="tirada-detalle">
+                <span className="tirada-etiqueta">
+                  {tirada.secreta ? "SECRETO · " : ""}
+                  {tirando ? "tirando…" : tirada.formula}
+                </span>
+                {!tirando && (tirada.dados.length > 1 || tirada.bonificador !== 0) && (
+                  <span className="tirada-desglose">
+                    [{tirada.dados.join(", ")}]
+                    {tirada.bonificador > 0
+                      ? ` + ${tirada.bonificador}`
+                      : tirada.bonificador < 0
+                        ? ` − ${Math.abs(tirada.bonificador)}`
+                        : ""}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!ajuste && (
+            <div className="sala-posits-capa" ref={capaPosits}>
+              {positsVisibles.map(posit => (
+                <Posit
+                  key={posit.id}
+                  posit={posit}
+                  activo={positActivo === posit.id}
+                  onActivar={setPositActivo}
+                  onTexto={cambiarTextoPositMesa}
+                  onColor={cambiarColorPositMesa}
+                  onArchivar={archivarPositMesa}
+                  onBorrar={borrarPositMesa}
+                  onArrastrar={iniciarPositMesa}
+                />
+              ))}
+
+              {docsVisibles.map(doc => {
+                const formato = infoFormatoArchivo(doc.vista);
+                return (
+                  <div
+                    key={doc.id}
+                    className="ficha-doc"
+                    style={
+                      {
+                        left: `${doc.x}%`,
+                        top: `${doc.y}%`,
+                        "--doc-color": formato.color
+                      } as CSSProperties
+                    }
+                    onPointerDown={evento => iniciarDocMesa(evento, doc)}
+                  >
+                    <div
+                      className="ficha-doc-barra"
+                      onPointerDown={evento => evento.stopPropagation()}
+                    >
+                      {esMaster && doc.vista === "imagen" && onProyectarImagen && (
+                        <button
+                          type="button"
+                          className={`doc-master-icono${imagenProyectada?.id === doc.id ? " activo" : ""
+                            }`}
+                          title={
+                            imagenProyectada?.id === doc.id
+                              ? "Retirar proyección para todos"
+                              : "Mostrar a todos (Opción A)"
+                          }
+                          aria-label={
+                            imagenProyectada?.id === doc.id
+                              ? "Retirar proyección"
+                              : "Mostrar a todos"
+                          }
+                          onClick={evento => {
+                            evento.stopPropagation();
+                            onProyectarImagen(
+                              imagenProyectada?.id === doc.id
+                                ? null
+                                : { id: doc.id, titulo: doc.nombre }
+                            );
+                          }}
+                        >
+                          ✦
+                        </button>
+                      )}
+                      {esMaster && doc.vista === "imagen" && onCambiarEscena && (
+                        <button
+                          type="button"
+                          className={`doc-master-icono${imagenEscena?.id === doc.id ? " activo" : ""
+                            }`}
+                          title={
+                            imagenEscena?.id === doc.id
+                              ? "Quitar de la pizarra de la sala"
+                              : "Fijar en la pizarra de la sala (Opción B)"
+                          }
+                          aria-label={
+                            imagenEscena?.id === doc.id
+                              ? "Quitar de pizarra"
+                              : "Fijar en pizarra"
+                          }
+                          onClick={evento => {
+                            evento.stopPropagation();
+                            onCambiarEscena(
+                              imagenEscena?.id === doc.id
+                                ? null
+                                : { id: doc.id, titulo: doc.nombre }
+                            );
+                          }}
+                        >
+                          🖼
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="posit-archivar"
+                        title="Archivar documento"
+                        aria-label="Archivar documento"
+                        onClick={evento => {
+                          evento.stopPropagation();
+                          archivarDocMesa(doc.id);
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path
+                            d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`ficha-doc-hoja ${formato.clase}`}
+                      title={`Abrir ${doc.nombre}`}
+                      aria-label={`Abrir ${doc.nombre}`}
+                      onClick={() => {
+                        if (arrastreDocMovido.current) return;
+                        setVisorDoc(doc);
+                      }}
+                    >
+                      <span className="ficha-doc-codigo">{formato.codigo}</span>
+                    </button>
+
+                    <span className="ficha-doc-nombre" title={doc.nombre}>
+                      {doc.nombre}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div
+            className={`sala-dock${ajuste ? " ajustable" : ""}`}
+            style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+            onPointerDown={ajuste ? iniciarDock : undefined}
+          >
+            <div className="dock-item">
+              <button
+                type="button"
+                className={`dock-btn${selectorAbierto && !tiradaSecreta ? " activo" : ""}`}
+                onClick={() => {
+                  if (selectorAbierto && !tiradaSecreta) {
+                    setSelectorAbierto(false);
+                  } else {
+                    setTiradaSecreta(false);
+                    setSelectorAbierto(true);
+                  }
+                }}
+                aria-expanded={selectorAbierto && !tiradaSecreta}
+                title="Seleccionar tirada de dados"
+                aria-label="Dados"
+              >
+                <IconoD20 />
+              </button>
+              <span className="dock-etiqueta">Dados</span>
+            </div>
+
+            {esMaster && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => {
+                    if (selectorAbierto && tiradaSecreta) {
+                      setSelectorAbierto(false);
+                    } else {
+                      setTiradaSecreta(true);
+                      setSelectorAbierto(true);
+                    }
+                  }}
+                  aria-expanded={selectorAbierto && tiradaSecreta}
+                  title="Dados negros (tirada secreta del Máster)"
+                  aria-label="Dados negros"
+                >
+                  <IconoD20 />
+                </button>
+                <span className="dock-etiqueta">Secreto</span>
+              </div>
+            )}
+
+            <div className="dock-item">
+              <button
+                type="button"
+                className="dock-btn"
+                onClick={crearPositMesa}
+                title="Crear posit personal"
+                aria-label="Crear posit"
+              >
+                <IconoPosit />
+              </button>
+              <span className="dock-etiqueta">Posits</span>
+            </div>
+
+            {onAbrirArchivador && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className="dock-btn"
+                  onClick={onAbrirArchivador}
+                  title="Abrir archivador"
+                  aria-label="Archivador"
+                >
+                  <IconoArchivador />
+                  {positsArchivadosCount > 0 && (
+                    <span className="dock-badge">{positsArchivadosCount}</span>
+                  )}
+                </button>
+                <span className="dock-etiqueta">Archivador</span>
+              </div>
+            )}
+
+            {esMaster && (onCambiarEscena || onProyectarImagen) && (
+              <>
+                <span className="dock-separador-master" aria-hidden="true" />
+                <div className="dock-item">
+                  <button
+                    type="button"
+                    className={`dock-btn dock-btn-master${panelMasterAbierto ? " activo" : ""}`}
+                    onClick={() => setPanelMasterAbierto(true)}
+                    title="Dirección del Máster: proyectar o fijar imágenes en la sala"
+                    aria-label="Escena del Máster"
+                  >
+                    <IconoMasterEscena />
+                    {(imagenEscena || imagenProyectada) && (
+                      <span className="dock-badge master">
+                        {(imagenEscena ? 1 : 0) + (imagenProyectada ? 1 : 0)}
+                      </span>
+                    )}
+                  </button>
+                  <span className="dock-etiqueta master">Escena 👑</span>
+                </div>
+              </>
             )}
           </div>
-        </div>
-      )}
 
-      <div
-        className={`sala-dock${ajuste ? " ajustable" : ""}`}
-        style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
-        onPointerDown={ajuste ? iniciarDock : undefined}
-      >
-        <button
-          type="button"
-          className={`dock-btn${selectorAbierto && !tiradaSecreta ? " activo" : ""}`}
-          onClick={() => {
-            if (selectorAbierto && !tiradaSecreta) {
-              setSelectorAbierto(false);
-            } else {
-              setTiradaSecreta(false);
-              setSelectorAbierto(true);
-            }
-          }}
-          aria-expanded={selectorAbierto && !tiradaSecreta}
-          title="Seleccionar tirada de dados"
-        >
-          <IconoD20 />
-        </button>
-        {esMaster && (
-          <button
-            type="button"
-            className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
-            onClick={() => {
-              if (selectorAbierto && tiradaSecreta) {
-                setSelectorAbierto(false);
-              } else {
-                setTiradaSecreta(true);
-                setSelectorAbierto(true);
-              }
-            }}
-            aria-expanded={selectorAbierto && tiradaSecreta}
-            title="Dados negros (tirada secreta del Máster)"
-          >
-            <IconoD20 />
-          </button>
-        )}
-        <button
-          type="button"
-          className="dock-btn"
-          onClick={onAbrirPizarra}
-          title="Abrir la pizarra"
-        >
-          <IconoPosit />
-        </button>
-      </div>
+          {aviso && <div className="sala-aviso">{aviso}</div>}
 
-      {aviso && <div className="sala-aviso">{aviso}</div>}
+          {visorDoc && (
+            <DocumentoVisorModal
+              archivo={visorDoc}
+              esMaster={esMaster}
+              imagenEscena={imagenEscena}
+              imagenProyectada={imagenProyectada}
+              onCambiarEscena={onCambiarEscena}
+              onProyectarImagen={onProyectarImagen}
+              onCerrar={() => setVisorDoc(null)}
+            />
+          )}
+
+          {visorEscena && imagenEscena && (
+            <DocumentoVisorModal
+              archivo={{
+                id: imagenEscena.id,
+                nombre: imagenEscena.titulo ?? "Escena de campaña",
+                vista: "imagen",
+                url: urlImagenEscena(imagenEscena)
+              }}
+              esMaster={esMaster}
+              imagenEscena={imagenEscena}
+              imagenProyectada={imagenProyectada}
+              onCambiarEscena={onCambiarEscena}
+              onProyectarImagen={onProyectarImagen}
+              onCerrar={() => setVisorEscena(false)}
+            />
+          )}
+
+          {panelMasterAbierto && esMaster && (
+            <PanelImagenesMasterModal
+              imagenEscena={imagenEscena}
+              imagenProyectada={imagenProyectada}
+              onCambiarEscena={onCambiarEscena}
+              onProyectarImagen={onProyectarImagen}
+              onCerrar={() => setPanelMasterAbierto(false)}
+            />
+          )}
     </div>
   );
 }
