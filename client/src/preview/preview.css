@@ -901,17 +901,10 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 20% 22%, rgb(255 245 218 / 55%), transparent 56%),
-    radial-gradient(ellipse at 80% 78%, rgb(138 98 52 / 22%), transparent 58%),
-    radial-gradient(ellipse at 50% 50%, transparent 56%, rgb(92 60 28 / 30%) 100%),
-    linear-gradient(135deg, #efe0be 0%, #e4cfa2 44%, #ecdbb5 72%, #d8be8a 100%);
-}
-
-.pergamino-fondo svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+    radial-gradient(ellipse at 20% 22%, rgb(255 252 242 / 70%), transparent 58%),
+    radial-gradient(ellipse at 80% 78%, rgb(214 184 136 / 18%), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, transparent 64%, rgb(138 104 58 / 14%) 100%),
+    linear-gradient(135deg, #fbf5e8 0%, #f4e9d2 46%, #f8efe0 74%, #ecdec0 100%);
 }
 
 .pergamino-fondo::before {
@@ -952,15 +945,15 @@
   gap: 10px 14px;
   min-height: 64px;
   padding: 8px 18px;
-  border-bottom: 1px solid rgb(104 72 34 / 28%);
-  background: rgb(42 30 18 / 88%);
-  color: #f4ead6;
+  border-bottom: 1px solid rgb(186 158 224 / 38%);
+  background: linear-gradient(180deg, rgb(88 72 112 / 94%) 0%, rgb(72 58 94 / 94%) 100%);
+  color: #f5effb;
   backdrop-filter: blur(10px);
   box-sizing: border-box;
 }
 
 .pizarra-barra.pizarra-barra-master {
-  border-bottom-color: rgb(232 197 106 / 45%);
+  border-bottom-color: rgb(232 197 106 / 55%);
 }
 
 .pizarra-barra-izq,
@@ -978,10 +971,10 @@
 
 .pizarra-btn {
   padding: 7px 14px;
-  border: 1px solid rgb(232 208 164 / 32%);
+  border: 1px solid rgb(198 172 232 / 38%);
   border-radius: 999px;
-  background: rgb(255 248 232 / 10%);
-  color: #f3e6cc;
+  background: rgb(255 255 255 / 10%);
+  color: #f3ecfc;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
@@ -991,8 +984,8 @@
 }
 
 .pizarra-btn:hover:not(:disabled) {
-  border-color: #e8c56a;
-  background: rgb(255 248 232 / 18%);
+  border-color: #c8a8e5;
+  background: rgb(255 255 255 / 18%);
   color: #fff;
 }
 
@@ -1002,13 +995,13 @@
 }
 
 .pizarra-btn-nuevo {
-  border-color: #8b68b8;
-  background: #74569b;
+  border-color: #c8a8e5;
+  background: #7e5ea8;
   color: #fff;
 }
 
 .pizarra-btn-nuevo:hover:not(:disabled) {
-  background: #624786;
+  background: #6c4e94;
 }
 
 .pizarra-btn-congelar.activo {
@@ -1039,9 +1032,9 @@
   align-items: center;
   gap: 4px;
   padding: 3px;
-  border: 1px solid rgb(232 208 164 / 24%);
+  border: 1px solid rgb(198 172 232 / 32%);
   border-radius: 999px;
-  background: rgb(20 14 8 / 55%);
+  background: rgb(42 32 58 / 58%);
 }
 
 .pizarra-tool-btn {
@@ -1049,7 +1042,7 @@
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #dcd0ba;
+  color: #e2d7f0;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 600;
@@ -1060,12 +1053,12 @@
 
 .pizarra-tool-btn:hover:not(:disabled) {
   color: #fff;
-  background: rgb(255 255 255 / 10%);
+  background: rgb(255 255 255 / 12%);
 }
 
 .pizarra-tool-btn.activo {
-  background: #e8c56a;
-  color: #241908;
+  background: #c8a8e5;
+  color: #241934;
 }
 
 .pizarra-tool-btn:disabled {
@@ -1078,9 +1071,9 @@
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  border: 1px solid rgb(232 208 164 / 24%);
+  border: 1px solid rgb(198 172 232 / 32%);
   border-radius: 999px;
-  background: rgb(20 14 8 / 60%);
+  background: rgb(42 32 58 / 58%);
 }
 
 .pizarra-tinta-colores {
@@ -1122,7 +1115,7 @@
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
-  color: #d8ccb6;
+  color: #e2d7f0;
   font: inherit;
   font-size: 0.72rem;
   font-weight: 600;
@@ -1130,9 +1123,9 @@
 }
 
 .pizarra-grosor-btn.activo {
-  border-color: #e8c56a;
-  background: rgb(232 197 106 / 22%);
-  color: #f6e3b0;
+  border-color: #c8a8e5;
+  background: rgb(200 168 229 / 24%);
+  color: #f6efff;
 }
 
 .pizarra-area-trabajo {
@@ -1150,11 +1143,11 @@
   width: 278px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgb(104 72 34 / 32%);
-  background: rgb(42 30 18 / 86%);
-  color: #f3e6cc;
+  border-right: 1px solid rgb(186 158 224 / 38%);
+  background: linear-gradient(180deg, rgb(86 70 110 / 92%) 0%, rgb(68 54 90 / 92%) 100%);
+  color: #f5effb;
   backdrop-filter: blur(8px);
-  box-shadow: 8px 0 24px rgb(34 22 10 / 24%);
+  box-shadow: 8px 0 24px rgb(28 20 42 / 24%);
   transition: width 0.2s ease, flex-basis 0.2s ease;
 }
 
@@ -1171,17 +1164,17 @@
   width: 26px;
   height: 36px;
   padding: 0;
-  border: 1px solid rgb(232 197 106 / 55%);
+  border: 1px solid rgb(198 172 232 / 60%);
   border-radius: 8px;
-  background: #2f2214;
-  color: #f6e3b0;
+  background: #4e3f63;
+  color: #f5effb;
   font-size: 0.75rem;
   cursor: pointer;
   box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
 }
 
 .pizarra-sidebar-toggle:hover {
-  background: #44311c;
+  background: #614f7a;
 }
 
 .pizarra-sidebar-cuerpo {
@@ -1210,7 +1203,7 @@
 
 .pizarra-sidebar-titulo-wrap h2 {
   margin: 0;
-  color: #f6e3b0;
+  color: #f3ecfc;
   font-family: "Cinzel Decorative", "Times New Roman", serif;
   font-size: 0.8rem;
   letter-spacing: 0.05em;
@@ -1219,18 +1212,18 @@
 .pizarra-sidebar-count {
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgb(232 197 106 / 20%);
-  color: #f6e3b0;
+  background: rgb(200 168 229 / 22%);
+  color: #f3ecfc;
   font-size: 0.72rem;
   font-weight: 700;
 }
 
 .pizarra-sidebar-subir {
   padding: 5px 10px;
-  border: 1px solid #e8c56a;
+  border: 1px solid #c8a8e5;
   border-radius: 999px;
-  background: rgb(232 197 106 / 18%);
-  color: #f8e7bc;
+  background: rgb(200 168 229 / 20%);
+  color: #f5effb;
   font: inherit;
   font-size: 0.75rem;
   font-weight: 700;
@@ -1239,15 +1232,15 @@
 }
 
 .pizarra-sidebar-subir:hover:not(:disabled) {
-  background: #e8c56a;
-  color: #241908;
+  background: #c8a8e5;
+  color: #241934;
 }
 
 .pizarra-sidebar-error {
   margin: 0;
   padding: 7px 10px;
   border-radius: 8px;
-  background: rgb(180 45 60 / 30%);
+  background: rgb(180 45 60 / 35%);
   color: #ffd5dc;
   font-size: 0.76rem;
 }
@@ -1265,9 +1258,9 @@
 .pizarra-sidebar-vacio {
   margin: 0;
   padding: 14px;
-  border: 1px dashed rgb(232 197 106 / 28%);
+  border: 1px dashed rgb(200 168 229 / 36%);
   border-radius: 10px;
-  color: #cbbfa9;
+  color: #d8cde6;
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -1277,9 +1270,9 @@
   align-items: center;
   gap: 6px;
   padding: 7px 8px;
-  border: 1px solid rgb(255 255 255 / 12%);
+  border: 1px solid rgb(200 168 229 / 18%);
   border-radius: 10px;
-  background: rgb(255 255 255 / 6%);
+  background: rgb(255 255 255 / 8%);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -1292,8 +1285,8 @@
 }
 
 .pizarra-sidebar-item:hover {
-  border-color: rgb(232 197 106 / 45%);
-  background: rgb(255 255 255 / 10%);
+  border-color: rgb(200 168 229 / 52%);
+  background: rgb(255 255 255 / 14%);
 }
 
 .pizarra-sidebar-item-abrir {
@@ -1317,8 +1310,8 @@
   height: 36px;
   border-radius: 5px;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 26%);
-  background: #140f0a;
+  border: 1px solid rgb(255 255 255 / 30%);
+  background: #2b213a;
 }
 
 .pizarra-sidebar-thumb img {
@@ -1342,22 +1335,29 @@
   white-space: nowrap;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #f6efe0;
+  color: #f5effb;
 }
 
 .pizarra-sidebar-tipo {
   font-size: 0.68rem;
-  color: #c5b699;
+  color: #d8cde6;
   letter-spacing: 0.05em;
+}
+
+.pizarra-sidebar-acciones {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .pizarra-sidebar-sacar {
   flex: 0 0 auto;
   padding: 4px 8px;
-  border: 1px solid rgb(232 197 106 / 45%);
+  border: 1px solid rgb(200 168 229 / 55%);
   border-radius: 999px;
-  background: rgb(232 197 106 / 14%);
-  color: #f6e3b0;
+  background: rgb(200 168 229 / 18%);
+  color: #f3ecfc;
   font: inherit;
   font-size: 0.7rem;
   font-weight: 700;
@@ -1365,14 +1365,51 @@
 }
 
 .pizarra-sidebar-sacar:hover {
-  background: #e8c56a;
-  color: #241908;
+  background: #c8a8e5;
+  color: #241934;
 }
 
 .pizarra-sidebar-sacar.en-tablero {
-  border-color: rgb(150 251 199 / 45%);
-  background: rgb(47 158 111 / 25%);
+  border-color: rgb(150 251 199 / 50%);
+  background: rgb(47 158 111 / 28%);
   color: #b8f7d9;
+}
+
+.pizarra-sidebar-borrar {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgb(255 179 203 / 28%);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 8%);
+  color: #ffb3cb;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pizarra-sidebar-item:hover .pizarra-sidebar-borrar,
+.pizarra-sidebar-item:focus-within .pizarra-sidebar-borrar {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .pizarra-sidebar-borrar {
+    opacity: 1;
+  }
+}
+
+.pizarra-sidebar-borrar svg {
+  width: 13px;
+  height: 13px;
+}
+
+.pizarra-sidebar-borrar:hover {
+  border-color: #ff99af;
+  background: rgb(166 42 68 / 65%);
+  color: #fff;
 }
 
 .pizarra-lienzo {
@@ -1620,7 +1657,7 @@
 
 .posit-barra {
   position: absolute;
-  bottom: calc(100% + 12px);
+  bottom: calc(100% + 6px);
   left: 50%;
   z-index: 6;
   display: flex;
@@ -1635,6 +1672,16 @@
   transform: translateX(-50%);
   transition: opacity 0.15s ease;
   white-space: nowrap;
+}
+
+/* Puente invisible para no perder el :hover al subir el ratón hacia la barra. */
+.posit-barra::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 14px;
 }
 
 .posit:hover .posit-barra,
@@ -1688,6 +1735,8 @@
 }
 
 .posit-borrar {
+  display: grid;
+  place-items: center;
   width: 22px;
   height: 22px;
   margin-left: 2px;
@@ -1696,9 +1745,12 @@
   border-radius: 6px;
   background: rgb(255 255 255 / 12%);
   color: #ffb3cb;
-  font-size: 15px;
-  line-height: 1;
   cursor: pointer;
+}
+
+.posit-borrar svg {
+  width: 14px;
+  height: 14px;
 }
 
 .posit-borrar:hover {
@@ -2279,7 +2331,7 @@
   left: 0;
   right: 0;
   top: 100%;
-  height: 8px;
+  height: 12px;
 }
 
 .ficha-doc:hover .ficha-doc-barra,
@@ -2288,7 +2340,8 @@
   pointer-events: auto;
 }
 
-.ficha-doc-barra .posit-archivar {
+.ficha-doc-barra .posit-archivar,
+.ficha-doc-barra .posit-borrar {
   margin-left: 0;
 }
 
@@ -2764,10 +2817,11 @@
 
 .pizarra-escena-cabecera-btns {
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
-.pizarra-escena-cabecera-btns button {
+.pizarra-escena-cabecera-btns button:not(.posit-borrar) {
   padding: 3px 8px;
   border: 1px solid rgb(232 197 106 / 40%);
   border-radius: 6px;
@@ -2776,6 +2830,10 @@
   font: inherit;
   font-size: 0.72rem;
   cursor: pointer;
+}
+
+.pizarra-escena-cabecera-btns .posit-borrar {
+  margin-left: 0;
 }
 
 .pizarra-escena-img-btn {

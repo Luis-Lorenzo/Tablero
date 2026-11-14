@@ -148,32 +148,23 @@ function archivoAItem(archivo: PublicArchivo): ArchivoPizarraItem {
   };
 }
 
-/** Fondo de pergamino antiguo cálido con fibras y vetas SVG. */
+/** Fondo de pergamino claro y limpio. */
 function PergaminoPizarra() {
+  return <div className="pergamino-fondo" aria-hidden="true" />;
+}
+
+function IconoPapelera() {
   return (
-    <div className="pergamino-fondo" aria-hidden="true">
-      <svg viewBox="0 0 1600 1000" preserveAspectRatio="none">
-        <g
-          fill="none"
-          stroke="rgba(120, 82, 40, 0.08)"
-          strokeWidth="4"
-          strokeLinecap="round"
-        >
-          <path d="M-30 180 C 260 120 480 230 790 160 S 1260 240 1650 175" />
-          <path d="M-40 690 C 310 610 510 760 820 675 S 1310 770 1650 680" />
-          <path d="M290 -30 C 340 210 230 430 350 650 S 280 880 390 1040" />
-        </g>
-        <g
-          fill="none"
-          stroke="rgba(98, 66, 28, 0.13)"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        >
-          <path d="M-30 180 C 260 120 480 230 790 160 S 1260 240 1650 175" />
-          <path d="M1080 -20 C 1010 210 1140 420 1020 640 S 1100 880 990 1040" />
-        </g>
-      </svg>
-    </div>
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -293,7 +284,7 @@ export function Posit({
               onBorrar(posit.id);
             }}
           >
-            ×
+            <IconoPapelera />
           </button>
         </div>
       )}
@@ -775,6 +766,24 @@ export function Pizarra({
     }
   }
 
+  async function borrarArchivoPizarra(item: ArchivoPizarraItem): Promise<void> {
+    if (bloqueado) return;
+    const esPreview =
+      new URLSearchParams(window.location.search).get("preview") === "1";
+
+    setErrorArchivos(null);
+    try {
+      if (!esPreview) {
+        await archivosApi.borrar(item.id);
+      }
+      setArchivos(prev => prev.filter(archivo => archivo.id !== item.id));
+      setListaDocs(prev => prev.filter(doc => doc.id !== item.id));
+      setVisorArchivo(actual => (actual?.id === item.id ? null : actual));
+    } catch (fallo) {
+      setErrorArchivos(describeError(fallo));
+    }
+  }
+
   function borrarTodoPizarra(): void {
     setListaTrazos([]);
     onPosits([]);
@@ -1074,20 +1083,33 @@ export function Pizarra({
                         </button>
 
                         {!bloqueado && (
-                          <button
-                            type="button"
-                            className={`pizarra-sidebar-sacar${
-                              yaEnPizarra ? " en-tablero" : ""
-                            }`}
-                            onClick={() => colocarDocumentoEnLienzo(item)}
-                            title={
-                              yaEnPizarra
-                                ? "Ya está en la pizarra (clic para recolocar)"
-                                : "Sacar a la pizarra o arrastrar al tablero"
-                            }
-                          >
-                            {yaEnPizarra ? "✓" : "Sacar"}
-                          </button>
+                          <div className="pizarra-sidebar-acciones">
+                            <button
+                              type="button"
+                              className={`pizarra-sidebar-sacar${
+                                yaEnPizarra ? " en-tablero" : ""
+                              }`}
+                              onClick={() => colocarDocumentoEnLienzo(item)}
+                              title={
+                                yaEnPizarra
+                                  ? "Ya está en la pizarra (clic para recolocar)"
+                                  : "Sacar a la pizarra o arrastrar al tablero"
+                              }
+                            >
+                              {yaEnPizarra ? "✓" : "Sacar"}
+                            </button>
+                            <button
+                              type="button"
+                              className="pizarra-sidebar-borrar"
+                              onClick={() => {
+                                void borrarArchivoPizarra(item);
+                              }}
+                              title={`Eliminar ${item.nombre}`}
+                              aria-label={`Eliminar ${item.nombre}`}
+                            >
+                              <IconoPapelera />
+                            </button>
+                          </div>
                         )}
                       </div>
                     );
@@ -1195,6 +1217,17 @@ export function Pizarra({
                       >
                         —
                       </button>
+                      {esMaster && onCambiarEscena && (
+                        <button
+                          type="button"
+                          className="posit-borrar"
+                          onClick={() => onCambiarEscena(null)}
+                          title="Quitar escena de la pizarra"
+                          aria-label="Quitar escena de la pizarra"
+                        >
+                          <IconoPapelera />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1352,7 +1385,7 @@ export function Pizarra({
                         quitarDocumentoDeLienzo(doc.id);
                       }}
                     >
-                      ×
+                      <IconoPapelera />
                     </button>
                   </div>
                 )}
