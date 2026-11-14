@@ -4550,29 +4550,57 @@
   padding: 0 12px;
   border: 0;
   border-right: 1px solid #2c2a3a;
-  background: #07070b;
-  color: rgb(255 255 255 / 62%);
+  color: rgb(255 255 255 / 72%);
   font-family: "Press Start 2P", monospace;
   font-size: 0.66rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.pizarra-vista-tab-pizarra {
+  background: #142b1f;
+}
+
+.pizarra-vista-tab-pizarra:hover {
+  background: #1b3a29;
+  color: #ffffff;
+}
+
+.pizarra-vista-tab-pizarra.activo {
+  background: #214a34;
+  color: #ffffff;
+  box-shadow: inset 0 -3px 0 #8ce99a;
+}
+
+.pizarra-vista-tab-escena {
+  background: #07070b;
+}
+
+.pizarra-vista-tab-escena:hover {
+  background: #10121d;
+  color: #ffffff;
+}
+
+.pizarra-vista-tab-escena.activo {
+  background: #0b0d14;
+  color: #ffffff;
+  box-shadow: inset 0 -3px 0 #ffffff;
 }
 
 .pizarra-vista-tab:last-child {
   border-right: 0;
 }
 
-.pizarra-vista-tab:hover {
-  background: #10121d;
-  color: #ffffff;
+.pizarra-page .pizarra-barra {
+  background: linear-gradient(180deg, #1b3b2a 0%, #142c20 100%);
+  border-bottom-color: #2f5e45;
 }
 
-.pizarra-vista-tab.activo {
-  background: #111526;
-  color: #ffffff;
-  box-shadow: inset 0 -3px 0 #ffffff;
+.pizarra-page.vista-escena .pizarra-barra {
+  background: linear-gradient(180deg, #0b0d14 0%, #06070c 100%);
+  border-bottom-color: #252a3d;
 }
 
 .pizarra-lienzo.vista-escena {

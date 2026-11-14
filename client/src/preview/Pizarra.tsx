@@ -382,6 +382,7 @@ export function Pizarra({
   const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsInternos, setDocsInternos] = useState<DocumentoMesa[]>([]);
+  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
   const [congeladaInterna, setCongeladaInterna] = useState(false);
 
   const esVistaEscena = vistaPizarra === "escena";
@@ -391,8 +392,12 @@ export function Pizarra({
     : (onTrazos ?? setTrazosInternos);
   const listaPositsActiva = esVistaEscena ? positsEscena : posits;
   const setListaPositsActiva = esVistaEscena ? setPositsEscena : onPosits;
-  const listaDocs = documentosPizarra ?? docsInternos;
-  const setListaDocs = onDocumentosPizarra ?? setDocsInternos;
+  const listaDocs = esVistaEscena
+    ? docsEscena
+    : (documentosPizarra ?? docsInternos);
+  const setListaDocs = esVistaEscena
+    ? setDocsEscena
+    : (onDocumentosPizarra ?? setDocsInternos);
   const pizarraCongelada = congelada ?? congeladaInterna;
   const setPizarraCongelada = onCongelada ?? setCongeladaInterna;
 
@@ -753,39 +758,16 @@ export function Pizarra({
     setListaDocs(prev => prev.filter(doc => doc.id !== id));
   }
 
-  function alSoltarEnLienzo(evento: ReactDragEvent<HTMLDivElement>): void {
-    if (bloqueado) return;
-    evento.preventDefault();
-    const rect = lienzo.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    let item: ArchivoPizarraItem | null = archivoDragRef.current;
-    const bruto = evento.dataTransfer.getData("application/x-pocketrol-doc");
-    if (bruto) {
-      try {
-        item = JSON.parse(bruto) as ArchivoPizarraItem;
-      } catch {
-        // Mantiene el fallback en memoria si el parse falla.
-      }
-    }
-    archivoDragRef.current = null;
-    if (!item) return;
-
-    const x = ((evento.clientX - rect.left) / rect.width) * 100;
-    const y = ((evento.clientY - rect.top) / rect.height) * 100;
-    colocarDocumentoEnLienzo(item, x, y);
-  }
-
-  async function alSubirArchivo(evento: ChangeEvent<HTMLInputElement>) {
-    const elegidos = Array.from(evento.target.files ?? []);
-    evento.target.value = "";
-    if (elegidos.length === 0) return;
+  async function subirArchivosLista(elegidos: File[]): Promise<ArchivoPizarraItem[]> {
+    if (elegidos.length === 0) return [];
 
     const esPreview =
       new URLSearchParams(window.location.search).get("preview") === "1";
 
     setSubiendoArchivo(true);
     setErrorArchivos(null);
+    const subidos: ArchivoPizarraItem[] = [];
+
     try {
       for (const archivo of elegidos) {
         if (esPreview) {
@@ -799,20 +781,21 @@ export function Pizarra({
                   lector.readAsDataURL(archivo);
                 })
               : undefined;
-          setArchivos(prev => [
-            {
-              id: nuevoId(),
-              nombre: archivo.name,
-              tipo: archivo.type || "application/octet-stream",
-              vista,
-              tamano: archivo.size,
-              url
-            },
-            ...prev
-          ]);
+          const nuevo: ArchivoPizarraItem = {
+            id: nuevoId(),
+            nombre: archivo.name,
+            tipo: archivo.type || "application/octet-stream",
+            vista,
+            tamano: archivo.size,
+            url
+          };
+          setArchivos(prev => [nuevo, ...prev]);
+          subidos.push(nuevo);
         } else {
           const creado = await archivosApi.subir(archivo);
-          setArchivos(prev => [archivoAItem(creado), ...prev]);
+          const nuevo = archivoAItem(creado);
+          setArchivos(prev => [nuevo, ...prev]);
+          subidos.push(nuevo);
         }
       }
     } catch (fallo) {
@@ -820,6 +803,47 @@ export function Pizarra({
     } finally {
       setSubiendoArchivo(false);
     }
+    return subidos;
+  }
+
+  function alSoltarEnLienzo(evento: ReactDragEvent<HTMLDivElement>): void {
+    if (bloqueado) return;
+    evento.preventDefault();
+    const rect = lienzo.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = ((evento.clientX - rect.left) / rect.width) * 100;
+    const y = ((evento.clientY - rect.top) / rect.height) * 100;
+
+    let item: ArchivoPizarraItem | null = archivoDragRef.current;
+    const bruto = evento.dataTransfer.getData("application/x-pocketrol-doc");
+    if (bruto) {
+      try {
+        item = JSON.parse(bruto) as ArchivoPizarraItem;
+      } catch {
+        // Mantiene el fallback en memoria si el parse falla.
+      }
+    }
+    archivoDragRef.current = null;
+    if (item) {
+      colocarDocumentoEnLienzo(item, x, y);
+      return;
+    }
+
+    const files = Array.from(evento.dataTransfer.files ?? []);
+    if (files.length > 0) {
+      void subirArchivosLista(files).then(subidos => {
+        subidos.forEach((subido, idx) => {
+          colocarDocumentoEnLienzo(subido, x + idx * 3, y + idx * 3);
+        });
+      });
+    }
+  }
+
+  async function alSubirArchivo(evento: ChangeEvent<HTMLInputElement>) {
+    const elegidos = Array.from(evento.target.files ?? []);
+    evento.target.value = "";
+    await subirArchivosLista(elegidos);
   }
 
   async function borrarArchivoPizarra(item: ArchivoPizarraItem): Promise<void> {
@@ -843,9 +867,7 @@ export function Pizarra({
   function borrarTodoPizarra(): void {
     setListaTrazos([]);
     setListaPositsActiva([]);
-    if (!esVistaEscena) {
-      setListaDocs([]);
-    }
+    setListaDocs([]);
     setActivo(null);
     setConfirmarBorrarTodo(false);
   }
@@ -880,7 +902,7 @@ export function Pizarra({
       <nav className="pizarra-vista-tabs" aria-label="Vistas de la pizarra">
         <button
           type="button"
-          className={`pizarra-vista-tab${!esVistaEscena ? " activo" : ""}`}
+          className={`pizarra-vista-tab pizarra-vista-tab-pizarra${!esVistaEscena ? " activo" : ""}`}
           onClick={() => cambiarVistaPizarra("pizarra")}
           aria-pressed={!esVistaEscena}
         >
@@ -888,7 +910,7 @@ export function Pizarra({
         </button>
         <button
           type="button"
-          className={`pizarra-vista-tab${esVistaEscena ? " activo" : ""}`}
+          className={`pizarra-vista-tab pizarra-vista-tab-escena${esVistaEscena ? " activo" : ""}`}
           onClick={() => cambiarVistaPizarra("escena")}
           aria-pressed={esVistaEscena}
         >
@@ -1242,12 +1264,12 @@ export function Pizarra({
           onPointerDown={alPulsarLienzo}
           onDoubleClick={dobleClic}
           onDragOver={evento => {
-            if (!bloqueado && !esVistaEscena) {
+            if (!bloqueado) {
               evento.preventDefault();
               evento.dataTransfer.dropEffect = "copy";
             }
           }}
-          onDrop={esVistaEscena ? undefined : alSoltarEnLienzo}
+          onDrop={alSoltarEnLienzo}
         >
           {esVistaEscena && (
             <div className="pizarra-escena-cielo" aria-hidden="true">
@@ -1557,7 +1579,7 @@ export function Pizarra({
             </aside>
           )}
 
-          {!esVistaEscena && listaDocs.map(doc => {
+          {listaDocs.map(doc => {
             const formato = infoFormatoArchivo(doc.vista);
             const esImg = doc.vista === "imagen";
             const imgSrc = esImg ? (doc.url ?? archivosApi.url(doc.id)) : null;
