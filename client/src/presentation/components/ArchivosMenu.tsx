@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  BookPlus,
+  Download,
+  File,
+  FileText,
+  FolderOpen,
+  Image as ImageIcon,
+  Loader2,
+  Trash2,
+  X
+} from "lucide-react";
 import { archivosApi } from "../../api/archivos.api";
 import type { PublicArchivo } from "../../api/types";
 import { describeError } from "../errorMessages";
 
 /** Formatos que acepta el servidor (deben coincidir con `TIPOS_PERMITIDOS`). */
-const ACEPTADOS = ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+const ACEPTADOS =
+  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
 
 function formatearTamano(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -12,12 +24,18 @@ function formatearTamano(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function iconoDeArchivo(vista: PublicArchivo["vista"]) {
+  if (vista === "imagen") return <ImageIcon size={15} aria-hidden="true" />;
+  if (vista === "pdf" || vista === "docx" || vista === "texto") {
+    return <FileText size={15} aria-hidden="true" />;
+  }
+  return <File size={15} aria-hidden="true" />;
+}
+
 /**
- * Herramientas de archivos ancladas a la esquina superior izquierda:
- *  - Un libro ("Añadir archivos") que abre el selector del sistema y sube los
- *    archivos elegidos a la nube.
- *  - Unas gafas ("Consultar archivos") que listan lo subido y lo abren dentro
- *    de la página.
+ * Herramientas de archivos personales en la barra superior:
+ *  - Añadir archivos (abre selector del sistema y sube a la nube).
+ *  - Mis archivos (lista lo subido y permite previsualizarlo o borrarlo).
  */
 export function ArchivosMenu() {
   const [panelAbierto, setPanelAbierto] = useState(false);
@@ -44,9 +62,9 @@ export function ArchivosMenu() {
       try {
         const modulo = await import("docx-preview");
         if (desmontado) return;
-        const contenedor = document.getElementById("docx-contenedor");
-        if (!contenedor) return;
-        contenedor.innerHTML = "";
+        const docxContenedor = document.getElementById("docx-contenedor");
+        if (!docxContenedor) return;
+        docxContenedor.innerHTML = "";
 
         const respuesta = await fetch(archivosApi.url(visor.id), {
           credentials: "include"
@@ -55,9 +73,12 @@ export function ArchivosMenu() {
         const blob = await respuesta.blob();
 
         if (cancelado || desmontado) return;
-        await (modulo as any).renderAsync(blob, contenedor, undefined, {
-          className: "docx-canvas"
-        });
+        await (modulo as { renderAsync: Function }).renderAsync(
+          blob,
+          docxContenedor,
+          undefined,
+          { className: "docx-canvas" }
+        );
       } catch (e) {
         console.error("No se pudo previsualizar .docx", e);
       }
@@ -88,10 +109,10 @@ export function ArchivosMenu() {
   }, [panelAbierto, cargar]);
 
   useEffect(() => {
-    if (!panelAbierto) return undefined;
+    if (!panelAbierto && !visor) return undefined;
 
     function alPulsarFuera(event: MouseEvent) {
-      if (contenedor.current && !contenedor.current.contains(event.target as Node)) {
+      if (panelAbierto && contenedor.current && !contenedor.current.contains(event.target as Node)) {
         setPanelAbierto(false);
       }
     }
@@ -109,7 +130,7 @@ export function ArchivosMenu() {
       document.removeEventListener("mousedown", alPulsarFuera);
       document.removeEventListener("keydown", alPulsarTecla);
     };
-  }, [panelAbierto]);
+  }, [panelAbierto, visor]);
 
   useEffect(() => {
     if (!aviso) return undefined;
@@ -155,41 +176,33 @@ export function ArchivosMenu() {
   return (
     <div className="archivos" ref={contenedor}>
       <div className="archivos-fila">
-        <div className="archivos-libro">
-          <span className="archivos-etiqueta">Añadir archivos</span>
-          <button
-            type="button"
-            className="archivo-circulo libro"
-            onClick={() => selector.current?.click()}
-            disabled={subiendo}
-            title="Añadir archivos"
-            aria-label="Añadir archivos"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 6.5C10.2 5 7.8 4.2 5.2 4.2H3.4v14.2h1.8c2.6 0 5 .8 6.8 2.3" />
-              <path d="M12 6.5c1.8-1.5 4.2-2.3 6.8-2.3h1.8v14.2h-1.8c-2.6 0-5 .8-6.8 2.3" />
-              <path d="M12 6.5v16.3" />
-            </svg>
-            {subiendo && <span className="archivo-girando" aria-hidden="true" />}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="archivo-pill libro"
+          onClick={() => selector.current?.click()}
+          disabled={subiendo}
+          title="Subir archivos (PDF, imágenes, Word o texto)"
+          aria-label="Añadir archivos"
+        >
+          {subiendo ? (
+            <Loader2 size={16} className="icono-girando" aria-hidden="true" />
+          ) : (
+            <BookPlus size={16} aria-hidden="true" />
+          )}
+          <span className="archivo-pill-texto">{subiendo ? "Subiendo…" : "Subir"}</span>
+        </button>
 
         <button
           type="button"
-          className={panelAbierto ? "archivo-circulo gafas abierto" : "archivo-circulo gafas"}
+          className={panelAbierto ? "archivo-pill gafas abierto" : "archivo-pill gafas"}
           onClick={() => setPanelAbierto(actual => !actual)}
           aria-haspopup="dialog"
           aria-expanded={panelAbierto}
-          title="Consultar archivos"
+          title="Consultar mis archivos"
           aria-label="Consultar archivos"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <circle cx="6.8" cy="14.4" r="3.5" />
-            <circle cx="17.2" cy="14.4" r="3.5" />
-            <path d="M10.3 13.6c.9-1 2.5-1 3.4 0" />
-            <path d="M3.3 14.4 5 8.2" />
-            <path d="M20.7 14.4 19 8.2" />
-          </svg>
+          <FolderOpen size={16} aria-hidden="true" />
+          <span className="archivo-pill-texto">Archivos</span>
         </button>
       </div>
 
@@ -207,14 +220,19 @@ export function ArchivosMenu() {
 
       {panelAbierto && (
         <div className="archivos-panel" role="dialog" aria-label="Mis archivos">
-          <p className="archivos-panel-titulo">Mis archivos</p>
+          <div className="archivos-panel-cabecera">
+            <p className="archivos-panel-titulo">Mis archivos</p>
+            {archivos.length > 0 && (
+              <span className="archivos-contador">{archivos.length}</span>
+            )}
+          </div>
 
           {cargando && archivos.length === 0 ? (
-            <p className="muted">Cargando…</p>
+            <p className="muted archivos-vacio">Cargando…</p>
           ) : archivos.length === 0 ? (
-            <p className="muted">
-              Todavía no has subido nada. Pulsa el libro para añadir un PDF o una
-              imagen.
+            <p className="muted archivos-vacio">
+              Todavía no has subido nada. Pulsa «Subir» para guardar un PDF, imagen,
+              documento Word o texto.
             </p>
           ) : (
             <ul className="archivos-lista">
@@ -226,9 +244,12 @@ export function ArchivosMenu() {
                     onClick={() => setVisor(archivo)}
                     title={archivo.nombre}
                   >
-                    <span className="archivos-item-nombre">{archivo.nombre}</span>
-                    <span className="archivos-item-peso">
-                      {formatearTamano(archivo.tamano)}
+                    <span className="archivos-item-icono">{iconoDeArchivo(archivo.vista)}</span>
+                    <span className="archivos-item-datos">
+                      <span className="archivos-item-nombre">{archivo.nombre}</span>
+                      <span className="archivos-item-peso">
+                        {formatearTamano(archivo.tamano)}
+                      </span>
                     </span>
                   </button>
                   <button
@@ -238,7 +259,7 @@ export function ArchivosMenu() {
                     title="Borrar archivo"
                     aria-label={`Borrar ${archivo.nombre}`}
                   >
-                    ×
+                    <Trash2 size={14} aria-hidden="true" />
                   </button>
                 </li>
               ))}
@@ -260,7 +281,8 @@ export function ArchivosMenu() {
                   href={archivosApi.url(visor.id, true)}
                   download={visor.nombre}
                 >
-                  Descargar
+                  <Download size={14} aria-hidden="true" />
+                  <span>Descargar</span>
                 </a>
                 <button
                   type="button"
@@ -268,7 +290,8 @@ export function ArchivosMenu() {
                   onClick={() => setVisor(null)}
                   aria-label="Cerrar"
                 >
-                  Cerrar
+                  <X size={15} aria-hidden="true" />
+                  <span>Cerrar</span>
                 </button>
               </div>
             </header>
