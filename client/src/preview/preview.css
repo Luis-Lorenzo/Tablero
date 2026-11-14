@@ -165,7 +165,7 @@
   inset: 0;
   overflow: hidden;
   background:
-    url("/medios/tablero/fondos/sala-extendida.jpg") center / cover no-repeat,
+    radial-gradient(ellipse at 50% 50%, #1e1828 0%, #0d0b11 70%),
     #0d0b11;
   color: #f5f0e8;
 }
@@ -181,31 +181,22 @@
 
 .sala-plano {
   position: relative;
-  width: min(96vw, 1700px, calc(88vh * 1.7787));
+  width: min(100vw, 1840px, calc(96vh * 1.7787));
   aspect-ratio: 1672 / 940;
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 24px;
-  transform: rotateX(22deg) scale(1.03);
+  border-radius: 18px;
+  transform: rotateX(20deg) scale(1.06);
   transform-origin: 50% 52%;
-  -webkit-mask-image:
-    linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 96.5%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 96.5%, transparent 100%);
-  mask-composite: intersect;
-  transition: transform 0.6s ease;
+  box-shadow: 0 40px 110px rgb(0 0 0 / 65%);
+  transition: transform 0.6s ease, box-shadow 0.6s ease;
   will-change: transform;
 }
 
 .sala-plano.ajuste {
   transform: none;
   border-radius: 10px;
-  -webkit-mask-image: none;
-  mask-image: none;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 12%);
   cursor: default;
 }
