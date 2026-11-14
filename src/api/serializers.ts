@@ -5,6 +5,11 @@ import {
   type User
 } from "../repositories/user.repository.js";
 import type { MesaVista } from "../services/mesa.service.js";
+import type {
+  ArchivoTransferidoMeta,
+  PositTransferido,
+  Transferencia
+} from "../services/transferencia.service.js";
 import { vistaDe } from "../lib/archivos.js";
 
 export interface PublicUser {
@@ -87,4 +92,45 @@ export function toPublicArchivo(archivo: Archivo): PublicArchivo {
     tamano: archivo.tamano,
     createdAt: archivo.createdAt.toISOString()
   };
+}
+
+export type PublicTransferencia =
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "posit";
+      posit: PositTransferido;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "archivo";
+      archivo: ArchivoTransferidoMeta;
+      createdAt: string;
+    };
+
+export function toPublicTransferencia(
+  transferencia: Transferencia
+): PublicTransferencia {
+  const base = {
+    id: transferencia.id,
+    mesaId: transferencia.mesaId,
+    emisorId: transferencia.emisorId,
+    emisorNombre: transferencia.emisorNombre,
+    receptorId: transferencia.receptorId,
+    createdAt: transferencia.createdAt.toISOString()
+  };
+
+  if (transferencia.tipo === "posit") {
+    return { ...base, tipo: "posit", posit: transferencia.posit };
+  }
+
+  return { ...base, tipo: "archivo", archivo: transferencia.archivo };
 }

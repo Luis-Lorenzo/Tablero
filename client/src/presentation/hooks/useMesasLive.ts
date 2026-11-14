@@ -24,10 +24,12 @@ interface MensajeMesas {
  */
 export function useMesasLive(
   onChange: () => void,
-  onSessionExpired?: () => void
+  onSessionExpired?: () => void,
+  onMessage?: (evento: Record<string, unknown>) => void
 ): void {
   const onChangeRef = useRef(onChange);
   const onSessionExpiredRef = useRef(onSessionExpired);
+  const onMessageRef = useRef(onMessage);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -36,6 +38,10 @@ export function useMesasLive(
   useEffect(() => {
     onSessionExpiredRef.current = onSessionExpired;
   }, [onSessionExpired]);
+
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -115,8 +121,11 @@ export function useMesasLive(
           return;
         }
 
-        if (dato !== null && typeof dato === "object" && dato.type === "mesas:changed") {
-          avisarCambio();
+        if (dato !== null && typeof dato === "object") {
+          if (dato.type === "mesas:changed") {
+            avisarCambio();
+          }
+          onMessageRef.current?.(dato as Record<string, unknown>);
         }
       };
 

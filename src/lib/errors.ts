@@ -33,6 +33,7 @@ export const errors = {
   archivoDemasiadoGrande: () =>
     new AppError("ARCHIVO_DEMASIADO_GRANDE", 413),
   archivoVacio: () => new AppError("ARCHIVO_VACIO", 400),
+  transferenciaNotFound: () => new AppError("TRANSFERENCIA_NOT_FOUND", 404),
   internal: () => new AppError("INTERNAL_ERROR", 500)
 };
 

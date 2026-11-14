@@ -43,3 +43,49 @@ export interface PublicArchivo {
   tamano: number;
   createdAt: string;
 }
+
+export interface PositTransferido {
+  texto: string;
+  color: string;
+  giro: number;
+}
+
+export interface ArchivoTransferidoMeta {
+  id: string;
+  nombre: string;
+  tipo: string;
+  vista: string;
+  tamano: number;
+}
+
+export type PublicTransferencia =
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "posit";
+      posit: PositTransferido;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "archivo";
+      archivo: ArchivoTransferidoMeta;
+      createdAt: string;
+    };
+
+export type ResultadoAceptarTransferencia =
+  | {
+      tipo: "posit";
+      posit: PositTransferido;
+    }
+  | {
+      tipo: "archivo";
+      archivo: PublicArchivo;
+    };

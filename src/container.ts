@@ -26,6 +26,7 @@ import { AuthService } from "./services/auth.service.js";
 import { BloqueoService } from "./services/bloqueo.service.js";
 import { MesaService } from "./services/mesa.service.js";
 import { ensureAdmin } from "./services/seed.service.js";
+import { TransferenciaService } from "./services/transferencia.service.js";
 import { UserService } from "./services/user.service.js";
 
 export interface Container {
@@ -87,6 +88,11 @@ export async function createContainer(): Promise<Container> {
     logger,
     config.archivos.maxBytes
   );
+  const transferenciaService = new TransferenciaService(
+    mesaRepository,
+    archivoService,
+    logger
+  );
 
   // Un único almacén de sesiones para Express y para el canal en vivo.
   const sessionStore = createSessionStore(pool);
@@ -109,6 +115,7 @@ export async function createContainer(): Promise<Container> {
     bloqueoService,
     mesaService,
     archivoService,
+    transferenciaService,
     mesasNotifier
   };
 

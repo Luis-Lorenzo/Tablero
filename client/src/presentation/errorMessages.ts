@@ -22,6 +22,7 @@ const MESSAGES: Record<string, string> = {
     "Tipo de archivo no permitido. Solo se aceptan PDF, imágenes, .docx y texto plano.",
   ARCHIVO_DEMASIADO_GRANDE: "El archivo es demasiado grande (máximo 15 MB).",
   ARCHIVO_VACIO: "El archivo está vacío.",
+  TRANSFERENCIA_NOT_FOUND: "Esa solicitud ya no está pendiente.",
   NETWORK_ERROR: "No se pudo conectar con el servidor.",
   INTERNAL_ERROR: "Ha ocurrido un error en el servidor."
 };

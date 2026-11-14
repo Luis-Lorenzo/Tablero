@@ -1,10 +1,23 @@
 import { Router, type RequestHandler } from "express";
 import type { AppContext } from "./context.js";
-import { toPublicMesa } from "./serializers.js";
+import {
+  toPublicArchivo,
+  toPublicMesa,
+  toPublicTransferencia
+} from "./serializers.js";
 import { errors } from "../lib/errors.js";
+import { nombreDeUsuario } from "../repositories/user.repository.js";
+import { TransferenciaService } from "../services/transferencia.service.js";
 
 export function createMesaRouter(context: AppContext, requireAuth: RequestHandler): Router {
   const router = Router();
+  const transferencias =
+    context.transferenciaService ??
+    new TransferenciaService(
+      context.mesaRepository,
+      context.archivoService,
+      context.logger
+    );
 
   router.get("/inicio", requireAuth, async (req, res, next) => {
     try {
@@ -180,6 +193,129 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       next(error);
     }
   });
+
+  router.get("/:id/compartir/pendientes", requireAuth, async (req, res, next) => {
+    try {
+      const lista = await transferencias.listarPendientes(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(lista.map(toPublicTransferencia));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/compartir", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const receptorId = typeof body.receptorId === "string" ? body.receptorId : "";
+      const tipo = body.tipo;
+
+      if (!receptorId || (tipo !== "posit" && tipo !== "archivo")) {
+        throw errors.invalidRequest();
+      }
+
+      const transferencia =
+        tipo === "posit"
+          ? await transferencias.crear(req.currentUser!, String(req.params.id), {
+              receptorId,
+              tipo: "posit",
+              posit: {
+                texto:
+                  typeof (body.posit as { texto?: unknown } | undefined)?.texto === "string"
+                    ? (body.posit as { texto: string }).texto
+                    : "",
+                color:
+                  typeof (body.posit as { color?: unknown } | undefined)?.color === "string"
+                    ? (body.posit as { color: string }).color
+                    : "#f7ffae",
+                giro:
+                  typeof (body.posit as { giro?: unknown } | undefined)?.giro === "number"
+                    ? (body.posit as { giro: number }).giro
+                    : 0
+              }
+            })
+          : await transferencias.crear(req.currentUser!, String(req.params.id), {
+              receptorId,
+              tipo: "archivo",
+              archivoId: typeof body.archivoId === "string" ? body.archivoId : ""
+            });
+
+      const publica = toPublicTransferencia(transferencia);
+      context.mesasNotifier.notificarUsuario(receptorId, {
+        type: "transferencia:recibida",
+        transferencia: publica
+      });
+
+      res.status(201).json(publica);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post(
+    "/:id/compartir/:transferenciaId/aceptar",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const resultado = await transferencias.aceptar(
+          req.currentUser!,
+          String(req.params.id),
+          String(req.params.transferenciaId)
+        );
+
+        context.mesasNotifier.notificarUsuario(resultado.transferencia.emisorId, {
+          type: "transferencia:resuelta",
+          id: resultado.transferencia.id,
+          estado: "ACEPTADA",
+          receptorId: req.currentUser!.id,
+          receptorNombre: nombreDeUsuario(req.currentUser!)
+        });
+
+        if (resultado.tipo === "archivo") {
+          res.json({
+            tipo: "archivo",
+            archivo: toPublicArchivo(resultado.archivo)
+          });
+          return;
+        }
+
+        res.json({
+          tipo: "posit",
+          posit: resultado.posit
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/compartir/:transferenciaId/rechazar",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const transferencia = await transferencias.rechazar(
+          req.currentUser!,
+          String(req.params.id),
+          String(req.params.transferenciaId)
+        );
+
+        context.mesasNotifier.notificarUsuario(transferencia.emisorId, {
+          type: "transferencia:resuelta",
+          id: transferencia.id,
+          estado: "RECHAZADA",
+          receptorId: req.currentUser!.id,
+          receptorNombre: nombreDeUsuario(req.currentUser!)
+        });
+
+        res.status(204).end();
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.delete("/:id", requireAuth, async (req, res, next) => {
     try {

@@ -144,4 +144,50 @@ describe("canal en vivo /ws", () => {
 
     ws.close();
   });
+
+  it("envía eventos dirigidos únicamente al usuario destinatario", async () => {
+    const userC = await aprobar("c@pocket.test");
+    const userD = await aprobar("d@pocket.test");
+
+    const cookieC = await sesionDe("c@pocket.test");
+    const cookieD = await sesionDe("d@pocket.test");
+
+    const wsC = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+      headers: { Cookie: cookieC }
+    });
+    const wsD = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+      headers: { Cookie: cookieD }
+    });
+
+    await Promise.all([
+      new Promise<void>((resolve, reject) => {
+        wsC.on("open", () => resolve());
+        wsC.on("error", reject);
+      }),
+      new Promise<void>((resolve, reject) => {
+        wsD.on("open", () => resolve());
+        wsD.on("error", reject);
+      })
+    ]);
+
+    const mensajesC: unknown[] = [];
+    const mensajesD: unknown[] = [];
+    wsC.on("message", data => mensajesC.push(JSON.parse(String(data))));
+    wsD.on("message", data => mensajesD.push(JSON.parse(String(data))));
+
+    broadcaster.notificarUsuario(userD.id, {
+      type: "transferencia:recibida",
+      emisorId: userC.id
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 60));
+
+    expect(mensajesD).toEqual([
+      { type: "transferencia:recibida", emisorId: userC.id }
+    ]);
+    expect(mensajesC).toEqual([]);
+
+    wsC.close();
+    wsD.close();
+  });
 });

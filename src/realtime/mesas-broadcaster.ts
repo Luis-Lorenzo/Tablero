@@ -45,6 +45,7 @@ export class MesasBroadcaster implements MesasNotifier {
   private readonly wss = new WebSocketServer({ noServer: true });
   private readonly parser: ParserSesion;
   private readonly vivos = new Set<WebSocket>();
+  private readonly socketsPorUsuario = new Map<string, Set<WebSocket>>();
   private readonly temporizador: NodeJS.Timeout;
 
   constructor(private readonly deps: Dependencias) {
@@ -54,10 +55,31 @@ export class MesasBroadcaster implements MesasNotifier {
       deps.sessionStore
     ) as unknown as ParserSesion;
 
-    this.wss.on("connection", socket => {
+    this.wss.on("connection", (socket, req) => {
       this.vivos.add(socket);
+      const userId = (req as PeticionConSesion).session?.userId;
+      if (userId) {
+        let conjunto = this.socketsPorUsuario.get(userId);
+        if (!conjunto) {
+          conjunto = new Set();
+          this.socketsPorUsuario.set(userId, conjunto);
+        }
+        conjunto.add(socket);
+      }
+
       socket.on("pong", () => this.vivos.add(socket));
-      socket.on("close", () => this.vivos.delete(socket));
+      socket.on("close", () => {
+        this.vivos.delete(socket);
+        if (userId) {
+          const conjunto = this.socketsPorUsuario.get(userId);
+          if (conjunto) {
+            conjunto.delete(socket);
+            if (conjunto.size === 0) {
+              this.socketsPorUsuario.delete(userId);
+            }
+          }
+        }
+      });
       socket.on("error", error =>
         deps.logger.warn("Error en el canal en vivo", { message: error.message })
       );
@@ -79,6 +101,19 @@ export class MesasBroadcaster implements MesasNotifier {
     const mensaje = JSON.stringify({ type: "mesas:changed" });
 
     for (const cliente of this.wss.clients) {
+      if (cliente.readyState === WebSocket.OPEN) {
+        cliente.send(mensaje);
+      }
+    }
+  }
+
+  /** Envía un evento dirigido únicamente a las sesiones abiertas de un usuario. */
+  notificarUsuario(userId: string, evento: unknown): void {
+    const conjunto = this.socketsPorUsuario.get(userId);
+    if (!conjunto || conjunto.size === 0) return;
+
+    const mensaje = JSON.stringify(evento);
+    for (const cliente of conjunto) {
       if (cliente.readyState === WebSocket.OPEN) {
         cliente.send(mensaje);
       }
