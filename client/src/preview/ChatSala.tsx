@@ -17,7 +17,7 @@ interface ChatSalaProps {
   onIniciarArrastre?: (evento: ReactPointerEvent) => void;
   onIniciarRedimension?: (evento: ReactPointerEvent) => void;
   compartirAbierto?: boolean;
-  onToggleCompartir?: () => void;
+  onToggleCompartir?: (ancla?: { left: number; bottom: number }) => void;
 }
 
 interface Destinatario {
@@ -160,7 +160,10 @@ export function ChatSala({
               type="button"
               className={`chat-compartir-btn${compartirAbierto ? " activo" : ""}`}
               onPointerDown={e => e.stopPropagation()}
-              onClick={onToggleCompartir}
+              onClick={evento => {
+                const caja = evento.currentTarget.closest(".sala-chat")?.getBoundingClientRect();
+                onToggleCompartir(caja ? { left: caja.left, bottom: caja.bottom } : undefined);
+              }}
               aria-expanded={compartirAbierto}
               aria-label="Pasar notas y archivos"
               title="Pasar notas y archivos"

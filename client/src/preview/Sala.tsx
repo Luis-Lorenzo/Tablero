@@ -7,6 +7,7 @@ import {
   Minus,
   Plus,
   Sparkles,
+  Upload,
   X
 } from "lucide-react";
 import type {
@@ -431,7 +432,6 @@ export function Sala({
   onVolver,
   hostName,
   yoAsientoId = "master",
-  posits = [],
   elementosMesa = [],
   onElementosMesa,
   archivosDisponibles = [],
@@ -461,7 +461,14 @@ export function Sala({
   );
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
-  const [anclaCompartir, setAnclaCompartir] = useState<{ x: number; y: number } | null>(null);
+  const [anclaCompartir, setAnclaCompartir] = useState<{
+    x: number;
+    y: number;
+    origen: "pelota" | "chat";
+  } | null>(null);
+  const [dragSobreDropzone, setDragSobreDropzone] = useState(false);
+  const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
+  const [subiendoDrop, setSubiendoDrop] = useState(false);
   const [nuevoPositTexto, setNuevoPositTexto] = useState("");
   const [nuevoPositColor, setNuevoPositColor] = useState<string>(COLORES_POSIT[3].valor);
   const [jugadorSeleccionadoId, setJugadorSeleccionadoId] = useState<string | null>(null);
@@ -490,6 +497,8 @@ export function Sala({
 
   const plano = useRef<HTMLDivElement>(null);
   const asientoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dropzoneRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const capaPosits = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
   const arrastreDocMovido = useRef(false);
@@ -502,13 +511,25 @@ export function Sala({
   const yoAsientoIdRef = useRef(yoAsientoId);
   const onElementosMesaRef = useRef(onElementosMesa);
   const onEnviarElementoRef = useRef(onEnviarElemento);
+  const positsMesaRef = useRef(positsMesa);
+  const documentosMesaRef = useRef(documentosMesa);
+  const jugadorSeleccionadoRef = useRef<JugadorPreview | null>(null);
 
   useEffect(() => {
     jugadoresRef.current = jugadores;
     yoAsientoIdRef.current = yoAsientoId;
     onElementosMesaRef.current = onElementosMesa;
     onEnviarElementoRef.current = onEnviarElemento;
-  }, [jugadores, yoAsientoId, onElementosMesa, onEnviarElemento]);
+    positsMesaRef.current = positsMesa;
+    documentosMesaRef.current = documentosMesa;
+  }, [
+    jugadores,
+    yoAsientoId,
+    onElementosMesa,
+    onEnviarElemento,
+    positsMesa,
+    documentosMesa
+  ]);
 
   useEffect(() => {
     if (!itemAbierto || itemAbierto.tipo !== "archivo" || itemAbierto.vista !== "docx") {
@@ -562,6 +583,17 @@ export function Sala({
       return null;
     }
 
+    function estaSobreDropzone(clientX: number, clientY: number): boolean {
+      const rect = dropzoneRef.current?.getBoundingClientRect();
+      if (!rect) return false;
+      return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      );
+    }
+
     function mover(evento: PointerEvent) {
       const actual = arrastre.current;
       if (!actual) return;
@@ -579,6 +611,7 @@ export function Sala({
                 : actual.elemento.nombre
           });
           setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+          setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         }
         return;
       }
@@ -597,6 +630,7 @@ export function Sala({
             prev.map(item => (item.id === actual.id ? { ...item, x, y } : item))
           );
           setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+          setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         }
         return;
       }
@@ -643,6 +677,7 @@ export function Sala({
             posit.id === actual.id ? { ...posit, x, y } : posit
           )
         );
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
 
@@ -664,6 +699,7 @@ export function Sala({
         onDocumentosMesa?.(prev =>
           prev.map(doc => (doc.id === actual.id ? { ...doc, x, y } : doc))
         );
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
 
@@ -703,12 +739,16 @@ export function Sala({
       setArrastrandoItemId(null);
       setAsientoSobreId(null);
       setFantasma(null);
+      setPunteroSobreDropzone(false);
 
       if (!actual) return;
 
+      const enDropzone = estaSobreDropzone(evento.clientX, evento.clientY);
+
       if (actual.tipo === "mesa-elemento") {
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
-        if (actual.movido && destinoId) {
+        const destinoDrop = enDropzone ? jugadorSeleccionadoRef.current : null;
+        if (actual.movido && (destinoId || enDropzone)) {
           // Restauramos la posición original en nuestra mesa y disparamos la transferencia.
           onElementosMesaRef.current?.(prev =>
             prev.map(item =>
@@ -717,9 +757,13 @@ export function Sala({
                 : item
             )
           );
-          const destino = jugadoresRef.current.find(j => j.id === destinoId);
+          const destino =
+            destinoDrop ??
+            jugadoresRef.current.find(j => j.id === destinoId);
           if (destino) {
             void onEnviarElementoRef.current?.(destino, actual.elemento);
+          } else if (enDropzone) {
+            mostrarAviso("Elige primero un jugador para enviarle el elemento.");
           }
           return;
         }
@@ -732,12 +776,66 @@ export function Sala({
 
       if (actual.tipo === "bandeja-elemento") {
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
-        if (destinoId) {
-          const destino = jugadoresRef.current.find(j => j.id === destinoId);
-          if (destino) {
-            void onEnviarElementoRef.current?.(destino, actual.elemento);
-          }
+        const destino =
+          (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+          (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
+        if (destino) {
+          void onEnviarElementoRef.current?.(destino, actual.elemento);
+        } else if (enDropzone) {
+          mostrarAviso("Elige primero un jugador para enviarle el elemento.");
         }
+        return;
+      }
+
+      if (actual.tipo === "posit-mesa" && enDropzone) {
+        onPositsMesa?.(prev =>
+          prev.map(p =>
+            p.id === actual.id ? { ...p, x: actual.base.x, y: actual.base.y } : p
+          )
+        );
+        const posit = positsMesaRef.current?.find(p => p.id === actual.id);
+        const destino = jugadorSeleccionadoRef.current;
+        if (posit && destino && onEnviarElementoRef.current) {
+          void onEnviarElementoRef.current(destino, {
+            id: posit.id,
+            tipo: "posit",
+            texto: posit.texto,
+            color: posit.color,
+            giro: posit.giro,
+            x: actual.base.x,
+            y: actual.base.y
+          });
+        } else if (!destino) {
+          mostrarAviso("Elige primero un jugador para enviarle la nota.");
+        }
+        return;
+      }
+
+      if (actual.tipo === "doc-mesa" && actual.movido && enDropzone) {
+        onDocumentosMesa?.(prev =>
+          prev.map(d =>
+            d.id === actual.id ? { ...d, x: actual.base.x, y: actual.base.y } : d
+          )
+        );
+        const doc = documentosMesaRef.current?.find(d => d.id === actual.id);
+        const destino = jugadorSeleccionadoRef.current;
+        if (doc && destino && onEnviarElementoRef.current) {
+          void onEnviarElementoRef.current(destino, {
+            id: nuevoIdElemento(),
+            tipo: "archivo",
+            archivoId: doc.id,
+            nombre: doc.nombre,
+            mime: doc.tipo,
+            vista: doc.vista,
+            tamano: doc.tamano,
+            x: actual.base.x,
+            y: actual.base.y,
+            contenidoLocal: doc.url
+          });
+        } else if (!destino) {
+          mostrarAviso("Elige primero un jugador para enviarle el documento.");
+        }
+        arrastreDocMovido.current = false;
         return;
       }
 
@@ -1094,6 +1192,7 @@ export function Sala({
   const jugadorSeleccionado =
     jugadores.find(j => j.activo && j.id === jugadorSeleccionadoId && j.id !== yoAsientoId) ??
     null;
+  jugadorSeleccionadoRef.current = jugadorSeleccionado;
 
   function abrirCompartirDesdePelota(jugadorId: string): void {
     if (compartirAbierto && jugadorSeleccionadoId === jugadorId) {
@@ -1108,7 +1207,8 @@ export function Sala({
       const rect = nodo.getBoundingClientRect();
       setAnclaCompartir({
         x: rect.left + rect.width / 2,
-        y: rect.bottom + 10
+        y: rect.bottom + 10,
+        origen: "pelota"
       });
     } else {
       setAnclaCompartir(null);
@@ -1120,16 +1220,68 @@ export function Sala({
     onSolicitarArchivos?.();
   }
 
-  function alternarCompartirDesdeChat(): void {
+  function alternarCompartirDesdeChat(ancla?: { left: number; bottom: number }): void {
     setCompartirAbierto(abierto => {
       const siguiente = !abierto;
       if (siguiente) {
-        setAnclaCompartir(null);
+        setAnclaCompartir(
+          ancla
+            ? { x: ancla.left, y: ancla.bottom + 8, origen: "chat" }
+            : null
+        );
         setSelectorAbierto(false);
         onSolicitarArchivos?.();
+      } else {
+        setAnclaCompartir(null);
       }
       return siguiente;
     });
+  }
+
+  async function enviarArchivosEnDrop(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0) return;
+    if (!jugadorSeleccionado) {
+      mostrarAviso("Elige primero un jugador para enviarle el archivo.");
+      return;
+    }
+    if (!onEnviarElemento) return;
+
+    setSubiendoDrop(true);
+    try {
+      for (const file of Array.from(files)) {
+        try {
+          const subido = await archivosApi.subir(file);
+          onSolicitarArchivos?.();
+          await onEnviarElemento(
+            jugadorSeleccionado,
+            crearElementoDesdeArchivo(subido, { x: 78, y: 78 })
+          );
+        } catch {
+          const tipo = file.type || "application/octet-stream";
+          const vista = tipo.startsWith("image/")
+            ? "imagen"
+            : tipo === "application/pdf"
+              ? "pdf"
+              : tipo.startsWith("text/")
+                ? "texto"
+                : "descarga";
+          await onEnviarElemento(jugadorSeleccionado, {
+            id: nuevoIdElemento(),
+            tipo: "archivo",
+            archivoId: nuevoIdElemento(),
+            nombre: file.name,
+            mime: tipo,
+            vista,
+            tamano: file.size,
+            x: 78,
+            y: 78,
+            contenidoLocal: URL.createObjectURL(file)
+          });
+        }
+      }
+    } finally {
+      setSubiendoDrop(false);
+    }
   }
 
   function iniciarMesaElemento(
@@ -2045,17 +2197,24 @@ export function Sala({
 
       {compartirAbierto && !ajuste && (
         <div
-          className={`compartir-panel${anclaCompartir ? " anclado-pelota" : " desde-chat"}`}
+          className={`compartir-panel${
+            anclaCompartir?.origen === "pelota" ? " anclado-pelota" : " desde-chat"
+          }`}
           style={
-            anclaCompartir
+            anclaCompartir?.origen === "pelota"
               ? {
                   left: `clamp(190px, ${anclaCompartir.x}px, calc(100vw - 190px))`,
                   top: `${Math.max(56, Math.min(anclaCompartir.y, window.innerHeight - 310))}px`
                 }
-              : {
-                  left: `${Math.min(calibracion.chat.x + calibracion.chat.w + 1.5, 68)}%`,
-                  top: `${Math.max(calibracion.chat.y, 10)}%`
-                }
+              : anclaCompartir?.origen === "chat"
+                ? {
+                    left: `${Math.max(12, Math.min(anclaCompartir.x, window.innerWidth - 386))}px`,
+                    top: `${Math.max(56, Math.min(anclaCompartir.y, window.innerHeight - 340))}px`
+                  }
+                : {
+                    left: `${calibracion.chat.x}%`,
+                    top: `${Math.min(calibracion.chat.y + calibracion.chat.h + 1.5, 62)}%`
+                  }
           }
           role="dialog"
           aria-label="Notas y archivos para pasar"
@@ -2159,59 +2318,50 @@ export function Sala({
             </form>
           )}
 
-          {posits.length > 0 && (
-            <div className="compartir-seccion">
-              <span className="compartir-subtitulo">Posits de pizarra</span>
-              <ul className="compartir-lista">
-                {posits.map(posit => {
-                  const elem: ElementoMesa = {
-                    id: `bandeja-posit-${posit.id}`,
-                    tipo: "posit",
-                    texto: posit.texto,
-                    color: posit.color,
-                    giro: posit.giro,
-                    x: 78,
-                    y: 78
-                  };
-                  return (
-                    <li key={posit.id} className="compartir-item">
-                      <div
-                        className="compartir-item-arrastre"
-                        onPointerDown={e => iniciarBandejaElemento(elem, e)}
-                        title="Arrastra hacia el círculo de un jugador"
-                      >
-                        <span
-                          className="compartir-color-dot"
-                          style={{ background: posit.color }}
-                        />
-                        <span className="compartir-item-nombre">
-                          {posit.texto || "Nota vacía"}
-                        </span>
-                      </div>
-                      {onElementosMesa && (
-                        <button
-                          type="button"
-                          className="compartir-btn-sec"
-                          onClick={() => colocarEnMesa(elem)}
-                        >
-                          En mesa
-                        </button>
-                      )}
-                      {jugadorSeleccionado && onEnviarElemento && (
-                        <button
-                          type="button"
-                          className="compartir-btn-sec"
-                          onClick={() => void onEnviarElemento(jugadorSeleccionado, elem)}
-                        >
-                          Enviar
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          <div
+            ref={dropzoneRef}
+            className={`compartir-dropzone${
+              dragSobreDropzone || punteroSobreDropzone ? " sobre" : ""
+            }${!jugadorSeleccionado ? " sin-destino" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragOver={e => {
+              e.preventDefault();
+              setDragSobreDropzone(true);
+            }}
+            onDragLeave={() => setDragSobreDropzone(false)}
+            onDrop={e => {
+              e.preventDefault();
+              setDragSobreDropzone(false);
+              void enviarArchivosEnDrop(e.dataTransfer.files);
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              onChange={e => {
+                void enviarArchivosEnDrop(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <Upload size={18} strokeWidth={2} aria-hidden="true" />
+            <span>
+              {subiendoDrop
+                ? "Enviando archivo…"
+                : jugadorSeleccionado
+                  ? `Arrastra aquí un posit, documento o archivo para ${jugadorSeleccionado.nombre}`
+                  : "Elige un jugador arriba y arrastra aquí un posit, documento o archivo"}
+            </span>
+          </div>
 
           <div className="compartir-seccion">
             <span className="compartir-subtitulo">Archivos</span>

@@ -2362,6 +2362,35 @@
   flex-shrink: 0;
 }
 
+.compartir-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 12px;
+  border: 2px dashed #6b5888;
+  border-radius: 10px;
+  background: rgb(28 22 42 / 75%);
+  color: #dcd3eb;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.compartir-dropzone:hover,
+.compartir-dropzone.sobre {
+  border-color: #e8c56a;
+  background: rgb(55 42 78 / 85%);
+  color: #fff6d6;
+}
+
+.compartir-dropzone.sin-destino {
+  opacity: 0.78;
+}
+
 .compartir-panel-cabecera {
   display: flex;
   align-items: center;
