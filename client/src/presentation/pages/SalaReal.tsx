@@ -462,12 +462,22 @@ function SalaRealContent({
           window.clearTimeout(prevTimer);
         }
 
+        const dados = Array.isArray(roll.dados) ? roll.dados : [];
+        const mod = roll.bonificador ?? 0;
+        const tieneDesglose = dados.length > 1 || mod !== 0;
+        const modTxt = mod > 0 ? ` + ${mod}` : mod < 0 ? ` - ${Math.abs(mod)}` : "";
+        const desglose = tieneDesglose
+          ? `${dados.join(" + ")}${modTxt} = ${roll.total}`
+          : undefined;
+
         setTiradasAsiento(prev => ({
           ...prev,
           [asientoId]: {
             id: roll.id,
             total: roll.total,
-            especial: roll.especial ?? null
+            especial: roll.especial ?? null,
+            caras: roll.caras ?? 20,
+            desglose
           }
         }));
 

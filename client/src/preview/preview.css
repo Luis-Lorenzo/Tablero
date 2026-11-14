@@ -4749,3 +4749,49 @@
   opacity: 1;
   transform: scale(1.1);
 }
+
+/* -------------------------- Suma sobre esfera y modal de tirada compuesta */
+
+.asiento-d20-suma {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 3px 8px;
+  border: 1px solid rgb(232 197 106 / 55%);
+  border-radius: 999px;
+  background: rgb(14 10 22 / 92%);
+  color: #f6e3b0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 55%);
+  pointer-events: none;
+}
+
+.dados-compuesta-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(8 6 14 / 68%);
+  backdrop-filter: blur(4px);
+}
+
+.dados-compuesta-modal {
+  width: min(410px, calc(100vw - 28px));
+  max-height: min(84vh, 660px);
+  overflow-y: auto;
+  padding: 16px 18px;
+  border: 2px solid #6b5888;
+  border-radius: 12px;
+  background: rgb(18 15 26 / 98%);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 68%);
+  color: #f0e7fb;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
