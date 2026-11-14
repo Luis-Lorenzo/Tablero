@@ -3,6 +3,19 @@ import type { AppContext } from "./context.js";
 import { toPublicMesa } from "./serializers.js";
 import { errors } from "../lib/errors.js";
 
+function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
+  const { archivoId, titulo } = (body ?? {}) as {
+    archivoId?: unknown;
+    titulo?: unknown;
+  };
+  if (typeof archivoId !== "string" || !archivoId.trim()) {
+    return null;
+  }
+  const tituloLimpio =
+    typeof titulo === "string" && titulo.trim() ? titulo.trim() : null;
+  return { id: archivoId.trim(), titulo: tituloLimpio };
+}
+
 export function createMesaRouter(context: AppContext, requireAuth: RequestHandler): Router {
   const router = Router();
 
@@ -114,6 +127,34 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     try {
       const color = typeof (req.body ?? {}).color === "string" ? (req.body ?? {}).color : null;
       const mesa = await context.mesaService.ponerColor(req.currentUser!, String(req.params.id), color);
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/escena", requireAuth, async (req, res, next) => {
+    try {
+      const mesa = await context.mesaService.ponerImagenEscena(
+        req.currentUser!,
+        String(req.params.id),
+        leerImagenBody(req.body)
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/proyeccion", requireAuth, async (req, res, next) => {
+    try {
+      const mesa = await context.mesaService.proyectarImagen(
+        req.currentUser!,
+        String(req.params.id),
+        leerImagenBody(req.body)
+      );
       context.mesasNotifier.notificarCambio();
       res.json(toPublicMesa(mesa));
     } catch (error) {

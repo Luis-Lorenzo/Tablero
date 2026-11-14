@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -6,13 +6,35 @@ import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
+import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
+  CLAVE_DOCS_PIZARRA,
+  CLAVE_PIZARRA_CONGELADA,
+  CLAVE_POSITS,
+  CLAVE_TRAZOS_PIZARRA,
   cargarCalibracion,
+  cargarDocumentosMesa,
+  cargarDocumentosPizarra,
+  cargarPizarraCongelada,
   cargarPosits,
+  cargarPositsMesa,
+  cargarTrazosPizarra,
   guardarCalibracion,
-  guardarPosits
+  guardarDocumentosMesa,
+  guardarDocumentosPizarra,
+  guardarPizarraCongelada,
+  guardarPosits,
+  guardarPositsMesa,
+  guardarTrazosPizarra
 } from "../../preview/calibracion";
-import type { Calibracion, JugadorPreview, PositPreview } from "../../preview/tipos";
+import type {
+  Calibracion,
+  DocumentoMesa,
+  ImagenEscenaPreview,
+  JugadorPreview,
+  PositPreview,
+  TrazoPizarra
+} from "../../preview/tipos";
 import "../../preview/preview.css";
 
 interface SalaRealProps {
@@ -23,7 +45,7 @@ interface SalaRealProps {
   onSessionExpired?: () => void;
 }
 
-type Fase = "sala" | "pizarra" | "mapa";
+type Fase = "sala" | "pizarra" | "mapa" | "archivador";
 
 const PALETA_COLORES = [
   "#74569b",
@@ -71,13 +93,48 @@ function SalaRealContent({
   const [fase, setFase] = useState<Fase>("sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [trazosPizarra, setTrazosPizarra] =
+    useState<TrazoPizarra[]>(cargarTrazosPizarra);
+  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
+    cargarDocumentosPizarra
+  );
+  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
+    cargarPizarraCongelada
+  );
+  const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
+    cargarPositsMesa(user.id)
+  );
+  const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
+    cargarDocumentosMesa(user.id)
+  );
+  const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
+    string | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   const esMaster = mesa.hostId === user.id;
+  const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
+  const jugadorActual =
+    indiceJugador >= 0 ? mesa.players[indiceJugador] : undefined;
+  const nombreJugadorActual = esMaster
+    ? mesa.hostName
+    : (jugadorActual?.name ?? user.nickname ?? user.email.split("@")[0]);
+  const colorJugadorActual = esMaster
+    ? "#e8c56a"
+    : (mesa.colores?.[user.id] ??
+      jugadorActual?.color ??
+      PALETA_COLORES[
+        (indiceJugador >= 0 ? indiceJugador : 0) % PALETA_COLORES.length
+      ]);
+  const imagenEscena = mesa.imagenEscena ?? null;
+  const imagenProyectada = mesa.imagenProyectada ?? null;
+  const proyeccionOculta = Boolean(
+    imagenProyectada && proyeccionOcultadaId === imagenProyectada.id
+  );
 
   useEffect(() => {
     const root = document.getElementById("root");
-    if (fase === "pizarra" || fase === "mapa") {
+    if (fase === "pizarra" || fase === "mapa" || fase === "archivador") {
       root?.classList.add("ocultar-menus");
     } else {
       root?.classList.remove("ocultar-menus");
@@ -92,6 +149,43 @@ function SalaRealContent({
   useEffect(() => {
     guardarPosits(posits);
   }, [posits]);
+
+  useEffect(() => {
+    guardarTrazosPizarra(trazosPizarra);
+  }, [trazosPizarra]);
+
+  useEffect(() => {
+    guardarDocumentosPizarra(documentosPizarra);
+  }, [documentosPizarra]);
+
+  useEffect(() => {
+    guardarPizarraCongelada(pizarraCongelada);
+  }, [pizarraCongelada]);
+
+  useEffect(() => {
+    function alCambiarStorage(evento: StorageEvent) {
+      if (evento.key === CLAVE_POSITS) setPosits(cargarPosits());
+      if (evento.key === CLAVE_TRAZOS_PIZARRA) {
+        setTrazosPizarra(cargarTrazosPizarra());
+      }
+      if (evento.key === CLAVE_DOCS_PIZARRA) {
+        setDocumentosPizarra(cargarDocumentosPizarra());
+      }
+      if (evento.key === CLAVE_PIZARRA_CONGELADA) {
+        setPizarraCongelada(cargarPizarraCongelada());
+      }
+    }
+    window.addEventListener("storage", alCambiarStorage);
+    return () => window.removeEventListener("storage", alCambiarStorage);
+  }, []);
+
+  useEffect(() => {
+    guardarPositsMesa(positsMesa, user.id);
+  }, [positsMesa, user.id]);
+
+  useEffect(() => {
+    guardarDocumentosMesa(documentosMesa, user.id);
+  }, [documentosMesa, user.id]);
 
   const refrescar = useCallback(async () => {
     try {
@@ -120,48 +214,140 @@ function SalaRealContent({
     }
   }
 
+    async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
+      if (!esMaster) return;
+      setError(null);
+      try {
+        const actualizada = await mesasApi.ponerEscena(
+          mesa.id,
+          imagen ? imagen.id : null,
+          imagen ? imagen.titulo : null
+        );
+        onActualizarMesa(actualizada);
+      } catch (escenaError) {
+        setError(describeError(escenaError));
+      }
+    }
+
+      async function proyectarImagen(imagen: ImagenEscenaPreview | null) {
+        if (!esMaster) return;
+        setError(null);
+        setProyeccionOcultadaId(null);
+        try {
+          const actualizada = await mesasApi.proyectar(
+            mesa.id,
+            imagen ? imagen.id : null,
+            imagen ? imagen.titulo : null
+          );
+          onActualizarMesa(actualizada);
+        } catch (proyeccionError) {
+          setError(describeError(proyeccionError));
+        }
+      }
+
   const jugadores = construirJugadores(mesa);
 
+          let contenido: ReactNode;
   if (fase === "pizarra") {
-    return <Pizarra posits={posits} onPosits={setPosits} onVolver={() => setFase("sala")} />;
-  }
-
-  if (fase === "mapa") {
-    return <Mapa onVolver={() => setFase("sala")} />;
-  }
-
-  return (
-    <div>
+    contenido = (
+      <Pizarra
+        posits={posits}
+        onPosits={setPosits}
+        trazos={trazosPizarra}
+        onTrazos={setTrazosPizarra}
+        documentosPizarra={documentosPizarra}
+        onDocumentosPizarra={setDocumentosPizarra}
+        congelada={pizarraCongelada}
+        onCongelada={setPizarraCongelada}
+        onVolver={() => setFase("sala")}
+        esMaster={esMaster}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={cambiarEscena}
+        onProyectarImagen={proyectarImagen}
+      />
+    );
+  } else if (fase === "mapa") {
+    contenido = <Mapa onVolver={() => setFase("sala")} />;
+  } else if (fase === "archivador") {
+    contenido = (
+      <Archivador
+        posits={positsMesa}
+        onPosits={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
+        onVolver={() => setFase("sala")}
+        esMaster={esMaster}
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={cambiarEscena}
+        onProyectarImagen={proyectarImagen}
+      />
+    );
+  } else {
+    contenido = (
       <Sala
         jugadores={jugadores}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
+        positsMesa={positsMesa}
+        onPositsMesa={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
+        onAbrirArchivador={() => setFase("archivador")}
         onVolver={volverAEspera}
         hostName={mesa.hostName}
+        esMaster={esMaster}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={cambiarEscena}
+        onProyectarImagen={proyectarImagen}
+        proyeccionOculta={proyeccionOculta}
+        onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
       />
-      {error && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 40,
-            padding: "10px 18px",
-            borderRadius: 999,
-            background: "rgba(180, 60, 60, 0.9)",
-            color: "#fff"
-          }}
-        >
-          {error}
-        </div>
-      )}
-    </div>
-  );
+    );
+  }
+
+            return (
+            <div>
+              {contenido}
+
+              {imagenProyectada && !proyeccionOculta && (
+                <ProyeccionMasterModal
+                  imagen={imagenProyectada}
+                  esMaster={esMaster}
+                  onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
+                  onRetirarTodos={esMaster ? () => void proyectarImagen(null) : undefined}
+                />
+              )}
+
+              {error && (
+                <div
+                  style={{
+                    position: "fixed",
+                    bottom: 20,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 80,
+                    padding: "10px 18px",
+                    borderRadius: 999,
+                    background: "rgba(180, 60, 60, 0.9)",
+                    color: "#fff"
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+            </div>
+            );
 }
 
-export function SalaReal(props: SalaRealProps) {
-  return <SalaRealContent {...props} />;
+            export function SalaReal(props: SalaRealProps) {
+  return <SalaRealContent key={props.user.id} {...props} />;
 }

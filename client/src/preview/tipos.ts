@@ -48,11 +48,42 @@ export interface PositPreview {
   id: string;
   texto: string;
   color: string;
-  /** Posición normalizada dentro del lienzo de la pizarra (0-100). */
+  /** Posición normalizada dentro del lienzo de la pizarra o mesa (0-100). */
   x: number;
   y: number;
   /** Inclinación en grados, para que no parezcan pegados con regla. */
   giro: number;
+  /** Si está guardado en el archivador personal del jugador. */
+  archivado?: boolean;
+  /** Datos del creador para mostrar el aura de jugador o dorada del Máster. */
+  autorNombre?: string;
+  autorColor?: string;
+  esMaster?: boolean;
 }
 
-export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa";
+export interface DocumentoMesa {
+  id: string;
+  nombre: string;
+  tipo: string;
+  vista: string;
+  tamano: number;
+  x: number;
+  y: number;
+  url?: string;
+}
+
+export interface TrazoPizarra {
+  id: string;
+  color: string;
+  grosor: number;
+  /** Puntos normalizados (0-100) dentro del lienzo de la pizarra. */
+  puntos: Punto[];
+}
+
+export interface ImagenEscenaPreview {
+  id: string;
+  titulo: string | null;
+  url?: string;
+}
+
+export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa" | "archivador";

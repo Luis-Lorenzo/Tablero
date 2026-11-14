@@ -68,7 +68,10 @@ export const POSITS_INICIALES: PositPreview[] = [
     color: "#f7ffae",
     x: 24,
     y: 32,
-    giro: -2.5
+    giro: -2.5,
+    autorNombre: "Máster",
+    autorColor: "#e8c56a",
+    esMaster: true
   },
   {
     id: "posit-inicial-2",
@@ -76,7 +79,10 @@ export const POSITS_INICIALES: PositPreview[] = [
     color: "#ffb3cb",
     x: 50,
     y: 22,
-    giro: 1.8
+    giro: 1.8,
+    autorNombre: "Aria",
+    autorColor: "#74569b",
+    esMaster: false
   },
   {
     id: "posit-inicial-3",
@@ -84,6 +90,9 @@ export const POSITS_INICIALES: PositPreview[] = [
     color: "#96fbc7",
     x: 74,
     y: 36,
-    giro: -1.2
+    giro: -1.2,
+    autorNombre: "Borin",
+    autorColor: "#96fbc7",
+    esMaster: false
   }
 ];

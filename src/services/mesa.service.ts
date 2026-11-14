@@ -1,11 +1,18 @@
 import { errors } from "../lib/errors.js";
+import { esUuid } from "../lib/archivos.js";
 import type { Logger } from "../lib/logger.js";
 import {
   nombreDeUsuario,
   type User,
   type UserRepository
 } from "../repositories/user.repository.js";
-import { createMesa, type EstadoMesa, type Mesa, type MesaRepository } from "../repositories/mesa.repository.js";
+import {
+  createMesa,
+  type EstadoMesa,
+  type ImagenMesa,
+  type Mesa,
+  type MesaRepository
+} from "../repositories/mesa.repository.js";
 
 /** Cuántos jugadores caben en una mesa (el anfitrión no ocupa plaza). */
 export const MESA_MAX_JUGADORES = 6;
@@ -35,6 +42,8 @@ export interface MesaVista {
   /** Si el máster ya ha empezado la partida. */
   estado: EstadoMesa;
   colores?: Record<string, string>;
+  imagenEscena: ImagenMesa | null;
+  imagenProyectada: ImagenMesa | null;
   createdAt: Date;
 }
 
@@ -60,7 +69,7 @@ export class MesaService {
     private readonly mesas: MesaRepository,
     private readonly users: UserRepository,
     private readonly logger: Logger
-  ) {}
+  ) { }
 
   async inicio(): Promise<Array<MesaVista | null>> {
     const mesas = await this.mesas.list(MESAS_EN_INICIO);
@@ -356,13 +365,60 @@ export class MesaService {
       players: mesa.players.map(id => ({
         id,
         name: nombres.get(id) ?? "desconocido",
-        color: (mesa as any).colores?.[id] ?? null
+        color: mesa.colores?.[id] ?? null
       })),
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
-      colores: (mesa as any).colores ?? {},
+      colores: mesa.colores ?? {},
+      imagenEscena: mesa.imagenEscena ?? null,
+      imagenProyectada: mesa.imagenProyectada ?? null,
       createdAt: mesa.createdAt
     }));
+  }
+
+  async ponerImagenEscena(
+    actor: User,
+    mesaId: string,
+    imagen: { id: string; titulo?: string | null } | null
+  ): Promise<MesaVista> {
+    return this.fijarImagenMesa(actor, mesaId, "imagenEscena", imagen);
+  }
+
+  async proyectarImagen(
+    actor: User,
+    mesaId: string,
+    imagen: { id: string; titulo?: string | null } | null
+  ): Promise<MesaVista> {
+    return this.fijarImagenMesa(actor, mesaId, "imagenProyectada", imagen);
+  }
+
+  private async fijarImagenMesa(
+    actor: User,
+    mesaId: string,
+    campo: "imagenEscena" | "imagenProyectada",
+    imagen: { id: string; titulo?: string | null } | null
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+    if (mesa.hostId !== actor.id) throw errors.forbidden();
+
+    let valor: ImagenMesa | null = null;
+    if (imagen !== null) {
+      if (!esUuid(imagen.id)) throw errors.invalidRequest();
+      const titulo = imagen.titulo?.trim() ?? "";
+      valor = { id: imagen.id, titulo: titulo || null };
+    }
+
+    mesa[campo] = valor;
+    await this.mesas.save(mesa);
+    this.logger.info("Imagen compartida de mesa actualizada", {
+      mesaId,
+      hostId: actor.id,
+      campo,
+      archivoId: valor?.id ?? null
+    });
+
+    return this.vista(mesa);
   }
 
   async ponerColor(actor: User, mesaId: string, color: string | null): Promise<MesaVista> {
@@ -375,14 +431,13 @@ export class MesaService {
       throw errors.mesaForbidden();
     }
 
-    if (!(mesa as any).colores) (mesa as any).colores = {};
+    if (!mesa.colores) mesa.colores = {};
     if (color) {
-      (mesa as any).colores[actor.id] = color;
+      mesa.colores[actor.id] = color;
     } else {
-      delete (mesa as any).colores[actor.id];
+      delete mesa.colores[actor.id];
     }
-    await this.mesas.save(mesa as any);
-    const vistas = await this.vistas([mesa as any]);
-    return vistas[0];
+    await this.mesas.save(mesa);
+    return this.vista(mesa);
   }
 }
