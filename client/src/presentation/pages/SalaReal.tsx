@@ -6,8 +6,16 @@ import {
   useState,
   type ReactNode
 } from "react";
+import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
-import type { EventoTirada, MensajeChat, PublicMesa, PublicUser } from "../../api/types";
+import type {
+  EventoTirada,
+  MensajeChat,
+  PublicArchivo,
+  PublicMesa,
+  PublicTransferencia,
+  PublicUser
+} from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
@@ -35,13 +43,21 @@ import {
   guardarPositsMesa,
   guardarTrazosPizarra
 } from "../../preview/calibracion";
+import {
+  calcularPosicionRecepcion,
+  crearElementoDesdeArchivo,
+  nuevoIdElemento
+} from "../../preview/compartir";
+import { reproducirSonidoNotificacion } from "../../preview/sonido";
 import type {
   Calibracion,
   DocumentoMesa,
+  ElementoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
   MensajeSala,
   PositPreview,
+  SolicitudTransferencia,
   TipoEspecialTirada,
   TiradaAsiento,
   TrazoPizarra
@@ -71,6 +87,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   const lista: JugadorPreview[] = [
     {
       id: "master",
+      usuarioId: mesa.hostId,
       userId: mesa.hostId,
       nombre: mesa.hostName,
       color: mesa.colores?.[mesa.hostId] ?? "#e8c56a",
@@ -82,6 +99,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   mesa.players.forEach((jugador, indice) => {
     lista.push({
       id: `p${indice + 1}`,
+      usuarioId: jugador.id,
       userId: jugador.id,
       nombre: jugador.name,
       color:
@@ -98,6 +116,28 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
 
 const DURACION_D20_ASIENTO = 3500;
 
+function aSolicitudCliente(t: PublicTransferencia): SolicitudTransferencia {
+  if (t.tipo === "posit") {
+    return {
+      id: t.id,
+      emisorNombre: t.emisorNombre,
+      tipo: "posit",
+      textoPosit: t.posit.texto,
+      colorPosit: t.posit.color,
+      giroPosit: t.posit.giro
+    };
+  }
+
+  return {
+    id: t.id,
+    emisorNombre: t.emisorNombre,
+    tipo: "archivo",
+    nombreArchivo: t.archivo.nombre,
+    mimeArchivo: t.archivo.tipo,
+    vistaArchivo: t.archivo.vista
+  };
+}
+
 function SalaRealContent({
   mesa,
   user,
@@ -108,6 +148,10 @@ function SalaRealContent({
   const [fase, setFase] = useState<Fase>("sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [elementosMesa, setElementosMesa] = useState<ElementoMesa[]>([]);
+  const [archivosDisponibles, setArchivosDisponibles] = useState<PublicArchivo[]>([]);
+  const [colaSolicitudes, setColaSolicitudes] = useState<SolicitudTransferencia[]>([]);
+  const [estadoAviso, setEstadoAviso] = useState<string | null>(null);
   const [trazosPizarra, setTrazosPizarra] =
     useState<TrazoPizarra[]>(cargarTrazosPizarra);
   const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
@@ -129,6 +173,8 @@ function SalaRealContent({
   const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
   const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
 
+  const recepcionesRef = useRef(0);
+  const avisoTimerRef = useRef<number | null>(null);
   const timersAsiento = useRef<Record<string, number>>({});
   const esMaster = mesa.hostId === user.id;
   const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
@@ -149,6 +195,23 @@ function SalaRealContent({
   const imagenProyectada = mesa.imagenProyectada ?? null;
   const proyeccionOculta = Boolean(
     imagenProyectada && proyeccionOcultadaId === imagenProyectada.id
+  );
+
+  const mostrarAvisoBreve = useCallback((texto: string) => {
+    setEstadoAviso(texto);
+    if (avisoTimerRef.current !== null) {
+      window.clearTimeout(avisoTimerRef.current);
+    }
+    avisoTimerRef.current = window.setTimeout(() => setEstadoAviso(null), 3200);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (avisoTimerRef.current !== null) {
+        window.clearTimeout(avisoTimerRef.current);
+      }
+    },
+    []
   );
 
   useEffect(() => {
@@ -243,6 +306,140 @@ function SalaRealContent({
     }
   }, [mesa.id, onActualizarMesa]);
 
+  const cargarArchivos = useCallback(() => {
+    void archivosApi
+      .listar()
+      .then(setArchivosDisponibles)
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
+    void mesasApi
+      .pendientesCompartir(mesa.id)
+      .then(lista => {
+        if (!activo || lista.length === 0) return;
+        setColaSolicitudes(prev => {
+          const existentes = new Set(prev.map(s => s.id));
+          const nuevas = lista
+            .filter(t => !existentes.has(t.id))
+            .map(aSolicitudCliente);
+          return nuevas.length > 0 ? [...prev, ...nuevas] : prev;
+        });
+      })
+      .catch(() => undefined);
+
+    void archivosApi
+      .listar()
+      .then(lista => {
+        if (activo) setArchivosDisponibles(lista);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id]);
+
+  const alMensajeEnVivo = useCallback(
+    (evento: Record<string, unknown>) => {
+      if (evento.type === "transferencia:recibida" && evento.transferencia) {
+        const transferencia = evento.transferencia as PublicTransferencia;
+        if (transferencia.mesaId !== mesa.id) return;
+
+        reproducirSonidoNotificacion();
+        const solicitud = aSolicitudCliente(transferencia);
+        setColaSolicitudes(prev =>
+          prev.some(item => item.id === solicitud.id) ? prev : [...prev, solicitud]
+        );
+        return;
+      }
+
+      if (evento.type === "transferencia:resuelta") {
+        const nombre = String(evento.receptorNombre ?? "El jugador");
+        if (evento.estado === "ACEPTADA") {
+          mostrarAvisoBreve(`${nombre} aceptó lo que le pasaste.`);
+        } else if (evento.estado === "RECHAZADA") {
+          mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
+        }
+      }
+    },
+    [mesa.id, mostrarAvisoBreve]
+  );
+
+  useMesasLive(refrescar, onSessionExpired, alMensajeEnVivo);
+
+  async function enviarElemento(destino: JugadorPreview, elemento: ElementoMesa) {
+    if (!destino.usuarioId) return;
+    setError(null);
+    try {
+      if (elemento.tipo === "posit") {
+        await mesasApi.compartir(mesa.id, {
+          receptorId: destino.usuarioId,
+          tipo: "posit",
+          posit: {
+            texto: elemento.texto,
+            color: elemento.color,
+            giro: elemento.giro
+          }
+        });
+      } else {
+        await mesasApi.compartir(mesa.id, {
+          receptorId: destino.usuarioId,
+          tipo: "archivo",
+          archivoId: elemento.archivoId
+        });
+      }
+      mostrarAvisoBreve(`Solicitud enviada a ${destino.nombre}.`);
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  async function aceptarSolicitud(solicitud: SolicitudTransferencia) {
+    setError(null);
+    try {
+      const res = await mesasApi.aceptarCompartir(mesa.id, solicitud.id);
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+
+      if (res.tipo === "posit") {
+        setElementosMesa(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "posit",
+            texto: res.posit.texto,
+            color: res.posit.color,
+            giro: res.posit.giro,
+            x: pos.x,
+            y: pos.y,
+            remitente: solicitud.emisorNombre
+          }
+        ]);
+      } else {
+        setElementosMesa(prev => [
+          ...prev,
+          crearElementoDesdeArchivo(res.archivo, pos, solicitud.emisorNombre)
+        ]);
+        cargarArchivos();
+      }
+      setColaSolicitudes(prev => prev.filter(s => s.id !== solicitud.id));
+    } catch (aceptarError) {
+      setError(describeError(aceptarError));
+      setColaSolicitudes(prev => prev.filter(s => s.id !== solicitud.id));
+    }
+  }
+
+  async function rechazarSolicitud(solicitud: SolicitudTransferencia) {
+    setColaSolicitudes(prev => prev.filter(s => s.id !== solicitud.id));
+    try {
+      await mesasApi.rechazarCompartir(mesa.id, solicitud.id);
+    } catch {
+      // Si ya no estaba pendiente, no interrumpimos al usuario.
+    }
+  }
+
   const alRecibirMensajeChat = useCallback(
     (mensaje: MensajeChat) => {
       if (mensaje.mesaId !== mesa.id) return;
@@ -308,10 +505,15 @@ function SalaRealContent({
     [jugadores, mesa.id]
   );
 
-  useMesasLive(refrescar, onSessionExpired, {
-    onChatMessage: alRecibirMensajeChat,
-    onDiceRoll: alRecibirTirada
-  });
+  useMesasLive(
+    refrescar,
+    onSessionExpired,
+    {
+      onChatMessage: alRecibirMensajeChat,
+      onDiceRoll: alRecibirTirada
+    },
+    alMensajeEnVivo
+  );
 
   async function enviarChat(texto: string, destinatarioId: string | null): Promise<void> {
     setError(null);
@@ -355,6 +557,9 @@ function SalaRealContent({
       setError(describeError(volverError));
     }
   }
+
+  const yoAsientoId =
+    jugadores.find(j => j.usuarioId === user.id)?.id ?? "master";
 
   async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
     if (!esMaster) return;
@@ -455,44 +660,73 @@ function SalaRealContent({
         onProyectarImagen={proyectarImagen}
         proyeccionOculta={proyeccionOculta}
         onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
+        yoAsientoId={yoAsientoId}
+        posits={posits}
+        elementosMesa={elementosMesa}
+        onElementosMesa={setElementosMesa}
+        archivosDisponibles={archivosDisponibles}
+        onSolicitarArchivos={cargarArchivos}
+        onEnviarElemento={enviarElemento}
+        solicitudPendiente={colaSolicitudes[0] ?? null}
+        onAceptarSolicitud={s => void aceptarSolicitud(s)}
+        onRechazarSolicitud={s => void rechazarSolicitud(s)}
       />
     );
   }
 
-            return (
-            <div>
-              {contenido}
+  return (
+    <div>
+      {contenido}
 
-              {imagenProyectada && !proyeccionOculta && (
-                <ProyeccionMasterModal
-                  imagen={imagenProyectada}
-                  esMaster={esMaster}
-                  onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
-                  onRetirarTodos={esMaster ? () => void proyectarImagen(null) : undefined}
-                />
-              )}
+      {imagenProyectada && !proyeccionOculta && (
+        <ProyeccionMasterModal
+          imagen={imagenProyectada}
+          esMaster={esMaster}
+          onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
+          onRetirarTodos={esMaster ? () => void proyectarImagen(null) : undefined}
+        />
+      )}
 
-              {error && (
-                <div
-                  style={{
-                    position: "fixed",
-                    bottom: 20,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    zIndex: 80,
-                    padding: "10px 18px",
-                    borderRadius: 999,
-                    background: "rgba(180, 60, 60, 0.9)",
-                    color: "#fff"
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-            </div>
-            );
+      {estadoAviso && !error && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            padding: "10px 18px",
+            borderRadius: "999px",
+            border: "1px solid #96fbc7",
+            background: "rgba(22, 18, 30, 0.94)",
+            color: "#96fbc7",
+            fontSize: "0.86rem"
+          }}
+        >
+          {estadoAviso}
+        </div>
+      )}
+      {error && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 40,
+            padding: "10px 18px",
+            borderRadius: 999,
+            background: "rgba(180, 60, 60, 0.9)",
+            color: "#fff"
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
 }
 
-            export function SalaReal(props: SalaRealProps) {
+export function SalaReal(props: SalaRealProps) {
   return <SalaRealContent key={props.user.id} {...props} />;
 }

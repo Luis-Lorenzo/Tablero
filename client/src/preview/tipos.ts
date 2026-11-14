@@ -5,6 +5,8 @@
 
 export interface JugadorPreview {
   id: string;
+  /** Identificador real del usuario en el servidor (en modo real). */
+  usuarioId?: string;
   /** ID real del usuario en el backend (en modo preview coincide con `id`). */
   userId?: string;
   nombre: string;
@@ -84,6 +86,45 @@ export interface PositPreview {
   esMaster?: boolean;
 }
 
+export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa" | "archivador";
+
+export type ElementoMesa =
+  | {
+      id: string;
+      tipo: "posit";
+      texto: string;
+      color: string;
+      giro: number;
+      x: number;
+      y: number;
+      remitente?: string;
+    }
+  | {
+      id: string;
+      tipo: "archivo";
+      archivoId: string;
+      nombre: string;
+      mime: string;
+      vista: string;
+      tamano: number;
+      x: number;
+      y: number;
+      remitente?: string;
+      contenidoLocal?: string;
+    };
+
+export interface SolicitudTransferencia {
+  id: string;
+  emisorNombre: string;
+  tipo: "posit" | "archivo";
+  nombreArchivo?: string;
+  mimeArchivo?: string;
+  vistaArchivo?: string;
+  textoPosit?: string;
+  colorPosit?: string;
+  giroPosit?: number;
+}
+
 export interface DocumentoMesa {
   id: string;
   nombre: string;
@@ -108,5 +149,3 @@ export interface ImagenEscenaPreview {
   titulo: string | null;
   url?: string;
 }
-
-export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa" | "archivador";

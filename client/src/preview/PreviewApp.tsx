@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Archivador, ProyeccionMasterModal } from "./Archivador";
 import { Lobby } from "./Lobby";
 import { Mapa } from "./Mapa";
@@ -26,13 +26,22 @@ import {
   guardarProyeccionPreview,
   guardarTrazosPizarra
 } from "./calibracion";
+import {
+  ARCHIVOS_PREVIEW_INICIALES,
+  calcularPosicionRecepcion,
+  crearElementoDesdeArchivo,
+  nuevoIdElemento
+} from "./compartir";
+import { reproducirSonidoNotificacion } from "./sonido";
 import type {
   Calibracion,
   DocumentoMesa,
+  ElementoMesa,
   FasePreview,
   ImagenEscenaPreview,
   JugadorPreview,
   PositPreview,
+  SolicitudTransferencia,
   TrazoPizarra
 } from "./tipos";
 import "./preview.css";
@@ -57,6 +66,107 @@ export default function PreviewApp() {
   const [jugadores, setJugadores] = useState<JugadorPreview[]>(cargarJugadores);
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [elementosMesa, setElementosMesa] = useState<ElementoMesa[]>(() => [
+    {
+      id: "preview-mesa-posit-1",
+      tipo: "posit",
+      texto: "Arrástrame hacia un jugador o ábreme.",
+      color: "#f7ffae",
+      giro: -1.8,
+      x: 72,
+      y: 78
+    }
+  ]);
+  const [solicitudPendiente, setSolicitudPendiente] =
+    useState<SolicitudTransferencia | null>(null);
+  const [avisoPreview, setAvisoPreview] = useState<string | null>(null);
+  const recepcionesRef = useRef(0);
+  const simTurnoRef = useRef(0);
+  const avisoTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (avisoTimerRef.current !== null) {
+        window.clearTimeout(avisoTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const mostrarAvisoPreview = useCallback((texto: string) => {
+    setAvisoPreview(texto);
+    if (avisoTimerRef.current !== null) {
+      window.clearTimeout(avisoTimerRef.current);
+    }
+    avisoTimerRef.current = window.setTimeout(() => setAvisoPreview(null), 3200);
+  }, []);
+
+  const simularRecepcion = useCallback(() => {
+    const remitente =
+      jugadores.find(j => j.activo && j.id !== "master")?.nombre ?? "Aria";
+    const turno = simTurnoRef.current;
+    simTurnoRef.current += 1;
+
+    reproducirSonidoNotificacion();
+
+    if (turno % 2 === 0) {
+      const archivo =
+        ARCHIVOS_PREVIEW_INICIALES[turno % ARCHIVOS_PREVIEW_INICIALES.length];
+      setSolicitudPendiente({
+        id: nuevoIdElemento(),
+        emisorNombre: remitente,
+        tipo: "archivo",
+        nombreArchivo: archivo.nombre,
+        mimeArchivo: archivo.tipo,
+        vistaArchivo: archivo.vista
+      });
+      return;
+    }
+
+    setSolicitudPendiente({
+      id: nuevoIdElemento(),
+      emisorNombre: remitente,
+      tipo: "posit",
+      textoPosit: "Clave del cofre: luna menguante.",
+      colorPosit: "#96fbc7",
+      giroPosit: -1.5
+    });
+  }, [jugadores]);
+
+  const aceptarSolicitudPreview = useCallback(
+    (solicitud: SolicitudTransferencia) => {
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+
+      if (solicitud.tipo === "posit") {
+        setElementosMesa(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "posit",
+            texto: solicitud.textoPosit ?? "",
+            color: solicitud.colorPosit ?? "#96fbc7",
+            giro: solicitud.giroPosit ?? -1.5,
+            x: pos.x,
+            y: pos.y,
+            remitente: solicitud.emisorNombre
+          }
+        ]);
+      } else {
+        const archivo =
+          ARCHIVOS_PREVIEW_INICIALES.find(
+            a => a.nombre === solicitud.nombreArchivo
+          ) ?? ARCHIVOS_PREVIEW_INICIALES[0];
+        setElementosMesa(prev => [
+          ...prev,
+          crearElementoDesdeArchivo(archivo, pos, solicitud.emisorNombre)
+        ]);
+      }
+
+      setSolicitudPendiente(null);
+    },
+    []
+  );
   const [trazosPizarra, setTrazosPizarra] =
     useState<TrazoPizarra[]>(cargarTrazosPizarra);
   const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
@@ -201,6 +311,20 @@ export default function PreviewApp() {
         onProyectarImagen={proyectar}
         proyeccionOculta={proyeccionOculta}
         onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
+        yoAsientoId="master"
+        posits={posits}
+        elementosMesa={elementosMesa}
+        onElementosMesa={setElementosMesa}
+        archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
+        onEnviarElemento={(destino, elemento) => {
+          const etiqueta =
+            elemento.tipo === "posit" ? "nota" : elemento.nombre;
+          mostrarAvisoPreview(`Enviado (${etiqueta}) a ${destino.nombre} (modo preview).`);
+        }}
+        solicitudPendiente={solicitudPendiente}
+        onAceptarSolicitud={aceptarSolicitudPreview}
+        onRechazarSolicitud={() => setSolicitudPendiente(null)}
+        onSimularRecepcion={simularRecepcion}
       />
     );
   }
@@ -215,6 +339,25 @@ export default function PreviewApp() {
           onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
           onRetirarTodos={() => proyectar(null)}
         />
+      )}
+      {avisoPreview && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            padding: "10px 18px",
+            borderRadius: "999px",
+            border: "1px solid #96fbc7",
+            background: "rgba(22, 18, 30, 0.94)",
+            color: "#96fbc7",
+            fontSize: "0.86rem"
+          }}
+        >
+          {avisoPreview}
+        </div>
       )}
     </>
   );

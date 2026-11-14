@@ -98,6 +98,37 @@ export class ArchivoService {
     return { archivo, datos };
   }
 
+  async obtenerMetadatos(actor: User, id: string): Promise<Archivo> {
+    return this.autorizado(actor, id);
+  }
+
+  /** Copia un archivo existente del emisor a la biblioteca personal del receptor. */
+  async clonarPara(
+    emisorId: string,
+    archivoId: string,
+    receptor: User
+  ): Promise<Archivo> {
+    if (!esUuid(archivoId)) {
+      throw errors.archivoNotFound();
+    }
+
+    const origen = await this.archivos.findById(archivoId);
+    if (!origen || origen.ownerId !== emisorId) {
+      throw errors.archivoNotFound();
+    }
+
+    const datos = await this.almacen.leer(origen.clave);
+    if (!datos) {
+      throw errors.archivoNotFound();
+    }
+
+    return this.subir(receptor, {
+      nombre: origen.nombre,
+      tipo: origen.tipo,
+      datos
+    });
+  }
+
   async borrar(actor: User, id: string): Promise<void> {
     const archivo = await this.autorizado(actor, id);
 

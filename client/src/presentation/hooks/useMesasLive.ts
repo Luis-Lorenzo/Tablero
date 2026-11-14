@@ -34,11 +34,24 @@ export interface EventosSalaLive {
 export function useMesasLive(
   onChange: () => void,
   onSessionExpired?: () => void,
-  eventosSala?: EventosSalaLive
+  eventosSalaOrOnMessage?:
+    | EventosSalaLive
+    | ((evento: Record<string, unknown>) => void),
+  onMessage?: (evento: Record<string, unknown>) => void
 ): void {
+  const eventosSala =
+    typeof eventosSalaOrOnMessage === "function"
+      ? undefined
+      : eventosSalaOrOnMessage;
+  const onMessageFinal =
+    typeof eventosSalaOrOnMessage === "function"
+      ? eventosSalaOrOnMessage
+      : onMessage;
+
   const onChangeRef = useRef(onChange);
   const onSessionExpiredRef = useRef(onSessionExpired);
   const eventosSalaRef = useRef(eventosSala);
+  const onMessageRef = useRef(onMessageFinal);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -50,7 +63,8 @@ export function useMesasLive(
 
   useEffect(() => {
     eventosSalaRef.current = eventosSala;
-  }, [eventosSala]);
+    onMessageRef.current = onMessageFinal;
+  }, [eventosSala, onMessageFinal]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -138,6 +152,7 @@ export function useMesasLive(
           } else if (dato.type === "dice:roll" && dato.roll) {
             eventosSalaRef.current?.onDiceRoll?.(dato.roll as EventoTirada);
           }
+          onMessageRef.current?.(dato as Record<string, unknown>);
         }
       };
 

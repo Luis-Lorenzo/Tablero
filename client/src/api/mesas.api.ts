@@ -1,5 +1,11 @@
 import { http } from "./client";
-import type { EventoTirada, MensajeChat, PublicMesa } from "./types";
+import type {
+  EventoTirada,
+  MensajeChat,
+  PublicMesa,
+  PublicTransferencia,
+  ResultadoAceptarTransferencia
+} from "./types";
 
 /**
  * Máximo de jugadores por mesa (el anfitrión no ocupa plaza). Debe coincidir
@@ -51,6 +57,34 @@ export const mesasApi = {
   /** Cambia el color del jugador dentro de la mesa. */
   ponerColor: (id: string, color: string | null) =>
     http.post<PublicMesa>(`/api/mesas/${id}/color`, { color }),
+
+  pendientesCompartir: (id: string) =>
+    http.get<PublicTransferencia[]>(`/api/mesas/${id}/compartir/pendientes`),
+
+  compartir: (
+    id: string,
+    payload:
+      | {
+          receptorId: string;
+          tipo: "posit";
+          posit: { texto: string; color: string; giro?: number };
+        }
+      | {
+          receptorId: string;
+          tipo: "archivo";
+          archivoId: string;
+        }
+  ) => http.post<PublicTransferencia>(`/api/mesas/${id}/compartir`, payload),
+
+  aceptarCompartir: (id: string, transferenciaId: string) =>
+    http.post<ResultadoAceptarTransferencia>(
+      `/api/mesas/${id}/compartir/${encodeURIComponent(transferenciaId)}/aceptar`
+    ),
+
+  rechazarCompartir: (id: string, transferenciaId: string) =>
+    http.post<void>(
+      `/api/mesas/${id}/compartir/${encodeURIComponent(transferenciaId)}/rechazar`
+    ),
 
   /** Historial reciente del chat de la mesa. */
   listarChat: (id: string) => http.get<MensajeChat[]>(`/api/mesas/${id}/chat`),
