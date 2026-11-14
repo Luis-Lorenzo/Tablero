@@ -64,7 +64,46 @@ type Arrastre =
     };
 
 /** Segundos que el resultado del dado sigue en pantalla antes de irse. */
-const DURACION_RESULTADO = 3500;
+const DURACION_RESULTADO = 4500;
+
+/** Tipos de dado habituales en juegos de rol. */
+const TIPOS_DADO = [4, 6, 8, 10, 12, 20, 100] as const;
+
+interface ResultadoTirada {
+  total: number;
+  dados: number[];
+  bonificador: number;
+  formula: string;
+}
+
+function formatearFormula(
+  cantidad: number,
+  caras: number,
+  bonificador: number
+): string {
+  const base = `${cantidad}d${caras}`;
+  if (bonificador > 0) return `${base} + ${bonificador}`;
+  if (bonificador < 0) return `${base} - ${Math.abs(bonificador)}`;
+  return base;
+}
+
+function lanzarDados(
+  cantidad: number,
+  caras: number,
+  bonificador: number
+): ResultadoTirada {
+  const dados = Array.from(
+    { length: cantidad },
+    () => 1 + Math.floor(Math.random() * caras)
+  );
+  const suma = dados.reduce((acc, valor) => acc + valor, 0);
+  return {
+    total: suma + bonificador,
+    dados,
+    bonificador,
+    formula: formatearFormula(cantidad, caras, bonificador)
+  };
+}
 
 function limitar(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
@@ -170,8 +209,12 @@ export function Sala({
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
   );
+  const [selectorAbierto, setSelectorAbierto] = useState(false);
+  const [cantidadDados, setCantidadDados] = useState(1);
+  const [tipoDado, setTipoDado] = useState<number>(20);
+  const [bonificador, setBonificador] = useState(0);
   const [tirando, setTirando] = useState(false);
-  const [tirada, setTirada] = useState<number | null>(null);
+  const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sobreMapa, setSobreMapa] = useState(false);
 
@@ -351,17 +394,22 @@ export function Sala({
       ocultarResultado.current = null;
     }
 
+    const cantidad = Math.round(limitar(cantidadDados, 1, 20));
+    const caras = tipoDado;
+    const mod = Math.round(limitar(bonificador, -99, 99));
+
+    setSelectorAbierto(false);
     setTirando(true);
     let pasos = 0;
 
     const tick = () => {
-      setTirada(1 + Math.floor(Math.random() * 20));
+      setTirada(lanzarDados(cantidad, caras, mod));
       pasos += 1;
 
       if (pasos < 12) {
         temporizador.current = window.setTimeout(tick, 70);
       } else {
-        setTirada(1 + Math.floor(Math.random() * 20));
+        setTirada(lanzarDados(cantidad, caras, mod));
         setTirando(false);
         ocultarResultado.current = window.setTimeout(() => {
           setTirada(null);
@@ -549,7 +597,112 @@ export function Sala({
         </div>
       )}
 
-      {tirada !== null && (
+      {selectorAbierto && !ajuste && (
+        <form
+          className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}`}
+          style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+          onSubmit={evento => {
+            evento.preventDefault();
+            tirarDado();
+          }}
+        >
+          <div className="dados-selector-cabecera">
+            <span>Tirada de dados</span>
+            <button
+              type="button"
+              className="dados-cerrar"
+              onClick={() => setSelectorAbierto(false)}
+              aria-label="Cerrar selector de dados"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="dados-fila">
+            <span className="dados-campo-etiqueta">Dados</span>
+            <div className="dados-stepper">
+              <button
+                type="button"
+                onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
+                aria-label="Menos dados"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={cantidadDados}
+                onChange={e => {
+                  const valor = parseInt(e.target.value, 10);
+                  setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
+                }}
+                aria-label="Número de dados"
+              />
+              <button
+                type="button"
+                onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
+                aria-label="Más dados"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="dados-fila">
+            <span className="dados-campo-etiqueta">Tipo</span>
+            <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+              {TIPOS_DADO.map(caras => (
+                <button
+                  key={caras}
+                  type="button"
+                  className={`dado-tipo-btn${tipoDado === caras ? " activo" : ""}`}
+                  onClick={() => setTipoDado(caras)}
+                >
+                  d{caras}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="dados-fila">
+            <span className="dados-campo-etiqueta">Bonificador</span>
+            <div className="dados-stepper">
+              <button
+                type="button"
+                onClick={() => setBonificador(b => Math.max(-99, b - 1))}
+                aria-label="Reducir bonificador"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={-99}
+                max={99}
+                value={bonificador}
+                onChange={e => {
+                  const valor = parseInt(e.target.value, 10);
+                  setBonificador(Number.isNaN(valor) ? 0 : limitar(valor, -99, 99));
+                }}
+                aria-label="Bonificador"
+              />
+              <button
+                type="button"
+                onClick={() => setBonificador(b => Math.min(99, b + 1))}
+                aria-label="Aumentar bonificador"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" className="dados-lanzar" disabled={tirando}>
+            Tirar {formatearFormula(cantidadDados, tipoDado, bonificador)}
+          </button>
+        </form>
+      )}
+
+      {tirada !== null && !selectorAbierto && (
         <div
           className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}`}
           style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
@@ -557,8 +710,24 @@ export function Sala({
           <span className="tirada-icono">
             <IconoD20 />
           </span>
-          <span className={`tirada-num${tirando ? " girando" : ""}`}>{tirada}</span>
-          <span className="tirada-etiqueta">{tirando ? "tirando…" : "d20"}</span>
+          <span className={`tirada-num${tirando ? " girando" : ""}`}>
+            {tirada.total}
+          </span>
+          <div className="tirada-detalle">
+            <span className="tirada-etiqueta">
+              {tirando ? "tirando…" : tirada.formula}
+            </span>
+            {!tirando && (tirada.dados.length > 1 || tirada.bonificador !== 0) && (
+              <span className="tirada-desglose">
+                [{tirada.dados.join(", ")}]
+                {tirada.bonificador > 0
+                  ? ` + ${tirada.bonificador}`
+                  : tirada.bonificador < 0
+                    ? ` − ${Math.abs(tirada.bonificador)}`
+                    : ""}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -569,9 +738,10 @@ export function Sala({
       >
         <button
           type="button"
-          className="dock-btn"
-          onClick={tirarDado}
-          title="Tirar un d20"
+          className={`dock-btn${selectorAbierto ? " activo" : ""}`}
+          onClick={() => setSelectorAbierto(abierto => !abierto)}
+          aria-expanded={selectorAbierto}
+          title="Seleccionar tirada de dados"
         >
           <IconoD20 />
         </button>
