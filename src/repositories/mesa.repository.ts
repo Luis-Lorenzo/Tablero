@@ -1,6 +1,11 @@
 /** ESPERA: la mesa está en la recepción; EN_CURSO: el máster ya la ha empezado. */
 export type EstadoMesa = "ESPERA" | "EN_CURSO";
 
+export interface ImagenMesa {
+  id: string;
+  titulo: string | null;
+}
+
 export interface Mesa {
   id: string;
   hostId: string;
@@ -16,6 +21,10 @@ export interface Mesa {
   /** Si el máster ya ha empezado la partida. */
   estado: EstadoMesa;
   colores: Record<string, string>;
+  /** Imagen fijada por el máster en la pizarra de la sala (Opción B). */
+  imagenEscena?: ImagenMesa | null;
+  /** Imagen proyectada por el máster a toda la pantalla (Opción A). */
+  imagenProyectada?: ImagenMesa | null;
   createdAt: Date;
 }
 
@@ -40,6 +49,8 @@ export function createMesa(hostId: string): Mesa {
     pendingHostId: null,
     estado: "ESPERA",
     colores: {},
+    imagenEscena: null,
+    imagenProyectada: null,
     createdAt: new Date()
   };
 }
@@ -68,7 +79,9 @@ export class MemoryMesaRepository implements MesaRepository {
       expulsados: [...(mesa.expulsados ?? [])],
       pendingHostId: mesa.pendingHostId ?? null,
       estado: mesa.estado ?? "ESPERA",
-      colores: mesa.colores ?? {}
+      colores: mesa.colores ?? {},
+      imagenEscena: mesa.imagenEscena ?? null,
+      imagenProyectada: mesa.imagenProyectada ?? null
     });
   }
 

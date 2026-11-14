@@ -6,6 +6,7 @@ import {
 import type {
   Calibracion,
   DocumentoMesa,
+  ImagenEscenaPreview,
   JugadorPreview,
   PositPreview,
   Punto,
@@ -26,6 +27,8 @@ const CLAVE_JUGADORES = "pocketrol.preview.jugadores.v2";
 const CLAVE_POSITS = "pocketrol.preview.posits.v1";
 const CLAVE_POSITS_MESA = "pocketrol.mesa.posits.v1";
 const CLAVE_DOCS_MESA = "pocketrol.mesa.docs.v1";
+const CLAVE_ESCENA_PREVIEW = "pocketrol.preview.escena.v1";
+const CLAVE_PROYECCION_PREVIEW = "pocketrol.preview.proyeccion.v1";
 
 function limitar(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
@@ -218,4 +221,37 @@ export function infoFormatoArchivo(vista: string): {
     default:
       return { codigo: "TXT", clase: "txt", color: "#64748b" };
   }
+}
+
+export function urlImagenEscena(imagen: ImagenEscenaPreview): string {
+  return imagen.url ?? `/api/archivos/${encodeURIComponent(imagen.id)}`;
+}
+
+function normalizarImagenPreview(valor: unknown): ImagenEscenaPreview | null {
+  if (!valor || typeof valor !== "object") return null;
+  const obj = valor as { id?: unknown; titulo?: unknown; url?: unknown };
+  if (typeof obj.id !== "string" || !obj.id) return null;
+  return {
+    id: obj.id,
+    titulo: typeof obj.titulo === "string" ? obj.titulo : null,
+    url: typeof obj.url === "string" ? obj.url : undefined
+  };
+}
+
+export function cargarEscenaPreview(): ImagenEscenaPreview | null {
+  return normalizarImagenPreview(leer<unknown>(CLAVE_ESCENA_PREVIEW, null));
+}
+
+export function guardarEscenaPreview(imagen: ImagenEscenaPreview | null): void {
+  escribir(CLAVE_ESCENA_PREVIEW, imagen);
+}
+
+export function cargarProyeccionPreview(): ImagenEscenaPreview | null {
+  return normalizarImagenPreview(leer<unknown>(CLAVE_PROYECCION_PREVIEW, null));
+}
+
+export function guardarProyeccionPreview(
+  imagen: ImagenEscenaPreview | null
+): void {
+  escribir(CLAVE_PROYECCION_PREVIEW, imagen);
 }

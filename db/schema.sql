@@ -71,6 +71,13 @@ ALTER TABLE mesas ADD COLUMN IF NOT EXISTS pending_host_id UUID;
 -- datos creadas antes de que existiera.
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'ESPERA';
 
+-- Imágenes compartidas por el máster en la sala: imagen fijada en la pizarra
+-- de la pared (escena) e imagen proyectada en primer plano a todos los jugadores.
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_escena_id UUID;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_escena_titulo TEXT;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_id UUID;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_titulo TEXT;
+
 CREATE TABLE IF NOT EXISTS mesa_jugadores ( 
   mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
   user_id UUID NOT NULL, 

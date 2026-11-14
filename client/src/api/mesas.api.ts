@@ -50,5 +50,23 @@ export const mesasApi = {
 
   /** Cambia el color del jugador dentro de la mesa. */
   ponerColor: (id: string, color: string | null) =>
-    http.post<PublicMesa>(`/api/mesas/${id}/color`, { color })
+    http.post<PublicMesa>(`/api/mesas/${id}/color`, { color }),
+
+  /** Fija o retira la imagen de escena del máster en la pizarra de la sala. */
+  ponerEscena: (
+    id: string,
+    archivoId: string | null,
+    titulo?: string | null
+  ) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/escena`, {
+      archivoId,
+      titulo: titulo ?? null
+    }),
+
+  /** Proyecta o retira una imagen dramática a pantalla completa para todos. */
+  proyectar: (id: string, archivoId: string | null, titulo?: string | null) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/proyeccion`, {
+      archivoId,
+      titulo: titulo ?? null
+    })
 };

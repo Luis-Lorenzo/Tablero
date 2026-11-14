@@ -67,4 +67,10 @@ export interface DocumentoMesa {
   y: number;
 }
 
+export interface ImagenEscenaPreview {
+  id: string;
+  titulo: string | null;
+  url?: string;
+}
+
 export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa" | "archivador";

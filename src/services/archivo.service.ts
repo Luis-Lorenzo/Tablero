@@ -13,6 +13,7 @@ import type {
   Archivo,
   ArchivoRepository
 } from "../repositories/archivo.repository.js";
+import type { MesaRepository } from "../repositories/mesa.repository.js";
 import type { User } from "../repositories/user.repository.js";
 
 export interface EntradaArchivo {
@@ -36,8 +37,9 @@ export class ArchivoService {
     private readonly archivos: ArchivoRepository,
     private readonly almacen: AlmacenArchivos,
     private readonly logger: Logger,
-    private readonly maxBytes: number
-  ) {}
+    private readonly maxBytes: number,
+    private readonly mesas?: MesaRepository
+  ) { }
 
   async subir(actor: User, entrada: EntradaArchivo): Promise<Archivo> {
     if (!tipoPermitido(entrada.tipo)) {
@@ -86,7 +88,7 @@ export class ArchivoService {
   }
 
   async obtener(actor: User, id: string): Promise<ArchivoConDatos> {
-    const archivo = await this.autorizado(actor, id);
+    const archivo = await this.autorizadoLectura(actor, id);
     const datos = await this.almacen.leer(archivo.clave);
 
     if (!datos) {
@@ -103,6 +105,44 @@ export class ArchivoService {
     await this.archivos.delete(id);
 
     this.logger.info("Archivo borrado", { id, ownerId: actor.id });
+  }
+
+  private async autorizadoLectura(actor: User, id: string): Promise<Archivo> {
+    if (!esUuid(id)) {
+      throw errors.archivoNotFound();
+    }
+
+    const archivo = await this.archivos.findById(id);
+
+    if (!archivo) {
+      throw errors.archivoNotFound();
+    }
+
+    if (archivo.ownerId === actor.id || actor.role === "ADMIN") {
+      return archivo;
+    }
+
+    if (this.mesas) {
+      const lista = await this.mesas.list();
+      const compartidoEnMesa = lista.some(mesa => {
+        const actorEnMesa =
+          mesa.hostId === actor.id || mesa.players.includes(actor.id);
+        if (!actorEnMesa) return false;
+
+        const duenoEnMesa =
+          mesa.hostId === archivo.ownerId ||
+          mesa.players.includes(archivo.ownerId);
+        const usadoComoImagen =
+          mesa.imagenEscena?.id === id || mesa.imagenProyectada?.id === id;
+        return duenoEnMesa || usadoComoImagen;
+      });
+
+      if (compartidoEnMesa) {
+        return archivo;
+      }
+    }
+
+    throw errors.forbidden();
   }
 
   private async autorizado(actor: User, id: string): Promise<Archivo> {

@@ -6,14 +6,20 @@ import type {
   PointerEvent as ReactPointerEvent,
   SetStateAction
 } from "react";
-import { nuevoId, textoLegible } from "./calibracion";
+import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
+import { nuevoId, textoLegible, urlImagenEscena } from "./calibracion";
 import { COLORES_POSIT } from "./datos";
-import type { PositPreview } from "./tipos";
+import type { ImagenEscenaPreview, PositPreview } from "./tipos";
 
 interface PizarraProps {
   posits: PositPreview[];
   onPosits: Dispatch<SetStateAction<PositPreview[]>>;
   onVolver: () => void;
+  esMaster?: boolean;
+  imagenEscena?: ImagenEscenaPreview | null;
+  imagenProyectada?: ImagenEscenaPreview | null;
+  onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
+  onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
 }
 
 interface PositProps {
@@ -162,145 +168,290 @@ export function Posit({
   );
 }
 
-export function Pizarra({ posits, onPosits, onVolver }: PizarraProps) {
-  const [activo, setActivo] = useState<string | null>(null);
-  const lienzo = useRef<HTMLDivElement>(null);
-  const arrastre = useRef<{
-    id: string;
-    inicioX: number;
-    inicioY: number;
-    base: { x: number; y: number };
-    rect: DOMRect;
-  } | null>(null);
+  export function Pizarra({
+    posits,
+    onPosits,
+    onVolver,
+    esMaster,
+    imagenEscena,
+    imagenProyectada,
+    onCambiarEscena,
+    onProyectarImagen
+  }: PizarraProps) {
+    const [activo, setActivo] = useState<string | null>(null);
+    const [escenaMinimizada, setEscenaMinimizada] = useState(false);
+    const [panelMasterAbierto, setPanelMasterAbierto] = useState(false);
+    const [visorEscena, setVisorEscena] = useState(false);
+    const lienzo = useRef<HTMLDivElement>(null);
+    const arrastre = useRef<{
+      id: string;
+      inicioX: number;
+      inicioY: number;
+      base: { x: number; y: number };
+      rect: DOMRect;
+    } | null>(null);
 
-  useEffect(() => {
-    function mover(evento: PointerEvent) {
-      const actual = arrastre.current;
-      if (!actual) return;
+    useEffect(() => {
+      function mover(evento: PointerEvent) {
+        const actual = arrastre.current;
+        if (!actual) return;
 
-      const dx = ((evento.clientX - actual.inicioX) / actual.rect.width) * 100;
-      const dy = ((evento.clientY - actual.inicioY) / actual.rect.height) * 100;
+        const dx = ((evento.clientX - actual.inicioX) / actual.rect.width) * 100;
+        const dy = ((evento.clientY - actual.inicioY) / actual.rect.height) * 100;
 
-      onPosits(prev =>
-        prev.map(posit =>
-          posit.id === actual.id
-            ? {
+        onPosits(prev =>
+          prev.map(posit =>
+            posit.id === actual.id
+              ? {
                 ...posit,
                 x: limitar(actual.base.x + dx, 8, 92),
                 y: limitar(actual.base.y + dy, 10, 90)
               }
-            : posit
-        )
+              : posit
+          )
+        );
+      }
+
+      function soltar() {
+        arrastre.current = null;
+      }
+
+      window.addEventListener("pointermove", mover);
+      window.addEventListener("pointerup", soltar);
+      window.addEventListener("pointercancel", soltar);
+
+      return () => {
+        window.removeEventListener("pointermove", mover);
+        window.removeEventListener("pointerup", soltar);
+        window.removeEventListener("pointercancel", soltar);
+      };
+    }, [onPosits]);
+
+    function crearPosit(x: number, y: number): void {
+      const posit: PositPreview = {
+        id: nuevoId(),
+        texto: "",
+        color: COLORES_POSIT[3].valor,
+        x: limitar(x, 8, 92),
+        y: limitar(y, 10, 90),
+        giro: (Math.random() - 0.5) * 4
+      };
+
+      onPosits(prev => [...prev, posit]);
+      setActivo(posit.id);
+    }
+
+    function iniciarArrastre(evento: ReactPointerEvent, posit: PositPreview): void {
+      const rect = lienzo.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      evento.preventDefault();
+      arrastre.current = {
+        id: posit.id,
+        inicioX: evento.clientX,
+        inicioY: evento.clientY,
+        base: { x: posit.x, y: posit.y },
+        rect
+      };
+      setActivo(posit.id);
+    }
+
+    function cambiarTexto(id: string, texto: string): void {
+      onPosits(prev =>
+        prev.map(posit => (posit.id === id ? { ...posit, texto } : posit))
       );
     }
 
-    function soltar() {
-      arrastre.current = null;
+    function cambiarColor(id: string, color: string): void {
+      onPosits(prev =>
+        prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
+      );
     }
 
-    window.addEventListener("pointermove", mover);
-    window.addEventListener("pointerup", soltar);
-    window.addEventListener("pointercancel", soltar);
+    function borrarPosit(id: string): void {
+      onPosits(prev => prev.filter(posit => posit.id !== id));
+      setActivo(null);
+    }
 
-    return () => {
-      window.removeEventListener("pointermove", mover);
-      window.removeEventListener("pointerup", soltar);
-      window.removeEventListener("pointercancel", soltar);
-    };
-  }, [onPosits]);
+    function dobleClic(evento: ReactMouseEvent<HTMLDivElement>): void {
+      if ((evento.target as HTMLElement).closest(".posit, .pizarra-escena-tarjeta")) {
+        return;
+      }
 
-  function crearPosit(x: number, y: number): void {
-    const posit: PositPreview = {
-      id: nuevoId(),
-      texto: "",
-      color: COLORES_POSIT[3].valor,
-      x: limitar(x, 8, 92),
-      y: limitar(y, 10, 90),
-      giro: (Math.random() - 0.5) * 4
-    };
+      const rect = evento.currentTarget.getBoundingClientRect();
+      const x = ((evento.clientX - rect.left) / rect.width) * 100;
+      const y = ((evento.clientY - rect.top) / rect.height) * 100;
+      crearPosit(x, y);
+    }
 
-    onPosits(prev => [...prev, posit]);
-    setActivo(posit.id);
-  }
+    return (
+      <div className="pizarra-page">
+        <Marmol />
 
-  function iniciarArrastre(evento: ReactPointerEvent, posit: PositPreview): void {
-    const rect = lienzo.current?.getBoundingClientRect();
-    if (!rect) return;
+        <div className="pizarra-barra">
+          <div className="pizarra-barra-izq">
+            <button type="button" className="pizarra-btn" onClick={onVolver}>
+              ← Volver
+            </button>
+            {esMaster && (
+              <span className="master-pill-badge">👑 MODO MÁSTER</span>
+            )}
+          </div>
 
-    evento.preventDefault();
-    arrastre.current = {
-      id: posit.id,
-      inicioX: evento.clientX,
-      inicioY: evento.clientY,
-      base: { x: posit.x, y: posit.y },
-      rect
-    };
-    setActivo(posit.id);
-  }
+          <div className="pizarra-barra-der">
+            {esMaster && (onCambiarEscena || onProyectarImagen) && (
+              <button
+                type="button"
+                className="master-btn-dorado"
+                onClick={() => setPanelMasterAbierto(true)}
+              >
+                🖼 Imagen de escena
+              </button>
+            )}
+            <button
+              type="button"
+              className="pizarra-btn pizarra-btn-nuevo"
+              onClick={() => crearPosit(50, 50)}
+            >
+              + Nuevo posit
+            </button>
+          </div>
+        </div>
 
-  function cambiarTexto(id: string, texto: string): void {
-    onPosits(prev =>
-      prev.map(posit => (posit.id === id ? { ...posit, texto } : posit))
-    );
-  }
+        <div className="pizarra-lienzo" ref={lienzo} onDoubleClick={dobleClic}>
+          {imagenEscena && (
+            <aside
+              className={`pizarra-escena-tarjeta${escenaMinimizada ? " minimizada" : ""}`}
+              onDoubleClick={evento => evento.stopPropagation()}
+            >
+              {escenaMinimizada ? (
+                <button
+                  type="button"
+                  className="pizarra-escena-mini-btn"
+                  onClick={() => setEscenaMinimizada(false)}
+                >
+                  🖼 Escena: {imagenEscena.titulo ?? "Ver imagen del Máster"}
+                </button>
+              ) : (
+                <>
+                  <div className="pizarra-escena-cabecera">
+                    <span>🖼 Escena del Máster</span>
+                    <div className="pizarra-escena-cabecera-btns">
+                      <button
+                        type="button"
+                        onClick={() => setVisorEscena(true)}
+                        title="Ampliar imagen"
+                      >
+                        Ampliar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEscenaMinimizada(true)}
+                        title="Minimizar"
+                      >
+                        —
+                      </button>
+                    </div>
+                  </div>
 
-  function cambiarColor(id: string, color: string): void {
-    onPosits(prev =>
-      prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
-    );
-  }
+                  <button
+                    type="button"
+                    className="pizarra-escena-img-btn"
+                    onClick={() => setVisorEscena(true)}
+                    title="Pulsar para ver en grande"
+                  >
+                    <img
+                      src={urlImagenEscena(imagenEscena)}
+                      alt={imagenEscena.titulo ?? "Escena de la campaña"}
+                    />
+                  </button>
 
-  function borrarPosit(id: string): void {
-    onPosits(prev => prev.filter(posit => posit.id !== id));
-    setActivo(null);
-  }
+                  {imagenEscena.titulo && (
+                    <p className="pizarra-escena-titulo">{imagenEscena.titulo}</p>
+                  )}
 
-  function dobleClic(evento: ReactMouseEvent<HTMLDivElement>): void {
-    if ((evento.target as HTMLElement).closest(".posit")) return;
+                  {esMaster && (onProyectarImagen || onCambiarEscena) && (
+                    <div className="pizarra-escena-master-btns">
+                      {onProyectarImagen && (
+                        <button
+                          type="button"
+                          className={`master-accion-btn${imagenProyectada?.id === imagenEscena.id ? " activo" : ""
+                            }`}
+                          onClick={() =>
+                            onProyectarImagen(
+                              imagenProyectada?.id === imagenEscena.id
+                                ? null
+                                : imagenEscena
+                            )
+                          }
+                        >
+                          {imagenProyectada?.id === imagenEscena.id
+                            ? "✦ Quitar proyección"
+                            : "✦ Mostrar a todos"}
+                        </button>
+                      )}
+                      {onCambiarEscena && (
+                        <button
+                          type="button"
+                          className="master-quitar-btn"
+                          onClick={() => onCambiarEscena(null)}
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </aside>
+          )}
 
-    const rect = evento.currentTarget.getBoundingClientRect();
-    const x = ((evento.clientX - rect.left) / rect.width) * 100;
-    const y = ((evento.clientY - rect.top) / rect.height) * 100;
-    crearPosit(x, y);
-  }
+          {posits.map(posit => (
+            <Posit
+              key={posit.id}
+              posit={posit}
+              activo={activo === posit.id}
+              onActivar={setActivo}
+              onTexto={cambiarTexto}
+              onColor={cambiarColor}
+              onBorrar={borrarPosit}
+              onArrastrar={iniciarArrastre}
+            />
+          ))}
+        </div>
 
-  return (
-    <div className="pizarra-page">
-      <Marmol />
+        <p className="pizarra-pista">
+          Doble clic en el mármol para crear un posit · arrastra para moverlo ·
+          los cuadraditos cambian el color
+        </p>
 
-      <div className="pizarra-barra">
-        <button type="button" className="pizarra-btn" onClick={onVolver}>
-          ← Volver
-        </button>
-
-        <button
-          type="button"
-          className="pizarra-btn pizarra-btn-nuevo"
-          onClick={() => crearPosit(50, 50)}
-        >
-          + Nuevo posit
-        </button>
-      </div>
-
-      <div className="pizarra-lienzo" ref={lienzo} onDoubleClick={dobleClic}>
-        {posits.map(posit => (
-          <Posit
-            key={posit.id}
-            posit={posit}
-            activo={activo === posit.id}
-            onActivar={setActivo}
-            onTexto={cambiarTexto}
-            onColor={cambiarColor}
-            onBorrar={borrarPosit}
-            onArrastrar={iniciarArrastre}
+        {panelMasterAbierto && (
+          <PanelImagenesMasterModal
+            tituloPanel="IMAGEN DE ESCENA DE LA PIZARRA"
+            imagenEscena={imagenEscena}
+            imagenProyectada={imagenProyectada}
+            onCambiarEscena={onCambiarEscena}
+            onProyectarImagen={onProyectarImagen}
+            onCerrar={() => setPanelMasterAbierto(false)}
           />
-        ))}
-      </div>
+        )}
 
-      <p className="pizarra-pista">
-        Doble clic en el mármol para crear un posit · arrastra para moverlo ·
-        los cuadraditos cambian el color
-      </p>
-    </div>
-  );
-}
+        {visorEscena && imagenEscena && (
+          <DocumentoVisorModal
+            archivo={{
+              id: imagenEscena.id,
+              nombre: imagenEscena.titulo ?? "Escena de campaña",
+              vista: "imagen",
+              url: urlImagenEscena(imagenEscena)
+            }}
+            esMaster={esMaster}
+            imagenEscena={imagenEscena}
+            imagenProyectada={imagenProyectada}
+            onCambiarEscena={onCambiarEscena}
+            onProyectarImagen={onProyectarImagen}
+            onCerrar={() => setVisorEscena(false)}
+          />
+        )}
+      </div>
+    );
+  }

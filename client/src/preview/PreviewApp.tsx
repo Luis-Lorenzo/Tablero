@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Archivador } from "./Archivador";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Archivador, ProyeccionMasterModal } from "./Archivador";
 import { Lobby } from "./Lobby";
 import { Mapa } from "./Mapa";
 import { Pizarra } from "./Pizarra";
@@ -7,19 +7,24 @@ import { Sala } from "./Sala";
 import {
   cargarCalibracion,
   cargarDocumentosMesa,
+  cargarEscenaPreview,
   cargarJugadores,
   cargarPosits,
   cargarPositsMesa,
+  cargarProyeccionPreview,
   guardarCalibracion,
   guardarDocumentosMesa,
+  guardarEscenaPreview,
   guardarJugadores,
   guardarPosits,
-  guardarPositsMesa
+  guardarPositsMesa,
+  guardarProyeccionPreview
 } from "./calibracion";
 import type {
   Calibracion,
   DocumentoMesa,
   FasePreview,
+  ImagenEscenaPreview,
   JugadorPreview,
   PositPreview
 } from "./tipos";
@@ -51,6 +56,14 @@ export default function PreviewApp() {
   const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
     cargarDocumentosMesa("preview")
   );
+  const [imagenEscena, setImagenEscena] = useState<ImagenEscenaPreview | null>(
+    cargarEscenaPreview
+  );
+  const [imagenProyectada, setImagenProyectada] =
+    useState<ImagenEscenaPreview | null>(cargarProyeccionPreview);
+  const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     guardarJugadores(jugadores);
@@ -72,51 +85,99 @@ export default function PreviewApp() {
     guardarDocumentosMesa(documentosMesa, "preview");
   }, [documentosMesa]);
 
-  const volverASala = useCallback(() => setFase("sala"), []);
+  useEffect(() => {
+    guardarEscenaPreview(imagenEscena);
+  }, [imagenEscena]);
 
+  useEffect(() => {
+    guardarProyeccionPreview(imagenProyectada);
+  }, [imagenProyectada]);
+
+  const volverASala = useCallback(() => setFase("sala"), []);
+  const proyectar = useCallback((imagen: ImagenEscenaPreview | null) => {
+    setProyeccionOcultadaId(null);
+    setImagenProyectada(imagen);
+  }, []);
+
+  const proyeccionOculta = Boolean(
+    imagenProyectada && proyeccionOcultadaId === imagenProyectada.id
+  );
+
+  let contenido: ReactNode;
   if (fase === "lobby") {
-    return (
-      <Lobby
-        jugadores={jugadores}
-        onJugadores={setJugadores}
-        onEmpezar={() => setFase("sala")}
+      contenido = (
+        <Lobby
+          jugadores={jugadores}
+          onJugadores={setJugadores}
+          onEmpezar={() => setFase("sala")}
+        />
+      );
+  } else if (fase === "pizarra") {
+    contenido = (
+      <Pizarra
+        posits={posits}
+        onPosits={setPosits}
+        onVolver={volverASala}
+        esMaster
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={setImagenEscena}
+        onProyectarImagen={proyectar}
       />
     );
-  }
-
-  if (fase === "pizarra") {
-    return <Pizarra posits={posits} onPosits={setPosits} onVolver={volverASala} />;
-  }
-
-  if (fase === "mapa") {
-    return <Mapa onVolver={volverASala} />;
-  }
-
-  if (fase === "archivador") {
-    return (
+  } else if (fase === "mapa") {
+    contenido = <Mapa onVolver={volverASala} />;
+  } else if (fase === "archivador") {
+    contenido = (
       <Archivador
         posits={positsMesa}
         onPosits={setPositsMesa}
         documentosMesa={documentosMesa}
         onDocumentosMesa={setDocumentosMesa}
         onVolver={volverASala}
+        esMaster
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={setImagenEscena}
+        onProyectarImagen={proyectar}
+      />
+    );
+  } else {
+    contenido = (
+      <Sala
+        jugadores={jugadores}
+        calibracion={calibracion}
+        onCalibracion={setCalibracion}
+        positsMesa={positsMesa}
+        onPositsMesa={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
+        onAbrirPizarra={() => setFase("pizarra")}
+        onAbrirMapa={() => setFase("mapa")}
+        onAbrirArchivador={() => setFase("archivador")}
+        onVolver={() => setFase("lobby")}
+        esMaster
+        imagenEscena={imagenEscena}
+        imagenProyectada={imagenProyectada}
+        onCambiarEscena={setImagenEscena}
+        onProyectarImagen={proyectar}
+        proyeccionOculta={proyeccionOculta}
+        onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
       />
     );
   }
 
   return (
-    <Sala
-      jugadores={jugadores}
-      calibracion={calibracion}
-      onCalibracion={setCalibracion}
-      positsMesa={positsMesa}
-      onPositsMesa={setPositsMesa}
-      documentosMesa={documentosMesa}
-      onDocumentosMesa={setDocumentosMesa}
-      onAbrirPizarra={() => setFase("pizarra")}
-      onAbrirMapa={() => setFase("mapa")}
-      onAbrirArchivador={() => setFase("archivador")}
-      onVolver={() => setFase("lobby")}
-    />
+    <>
+      {contenido}
+      {imagenProyectada && !proyeccionOculta && (
+        <ProyeccionMasterModal
+          imagen={imagenProyectada}
+          esMaster
+          onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
+          onRetirarTodos={() => proyectar(null)}
+        />
+      )}
+    </>
   );
 }

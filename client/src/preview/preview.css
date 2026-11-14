@@ -1697,6 +1697,7 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
+  gap: 4px;
   padding: 4px 6px;
   border-radius: 9px;
   background: rgb(24 20 32 / 94%);
@@ -1803,4 +1804,756 @@
   font-size: 11px;
   line-height: 1.35;
   text-align: center;
+}
+
+/* --------------------------------------------------------------- Controles exclusivos del Máster y Opciones A / B */
+
+.sala-barra {
+  max-width: calc(100vw - 24px);
+}
+
+.sala-barra.sala-barra-master {
+  border-color: rgb(232 197 106 / 45%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 38%);
+}
+
+.sala-barra-grupo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.master-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border: 1px solid rgb(232 197 106 / 65%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgb(232 197 106 / 22%), rgb(140 98 32 / 24%));
+  color: #f6e3b0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.master-proyeccion-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 12px;
+  border: 1px solid rgb(232 197 106 / 65%);
+  border-radius: 999px;
+  background: rgb(56 41 18 / 88%);
+  color: #f6e3b0;
+  font-size: 0.76rem;
+}
+
+.master-proyeccion-texto {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.master-pill-mini-btn {
+  padding: 3px 9px;
+  border: 1px solid rgb(232 197 106 / 55%);
+  border-radius: 999px;
+  background: rgb(232 197 106 / 16%);
+  color: #f6e3b0;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.master-pill-mini-btn:hover {
+  background: rgb(232 197 106 / 32%);
+}
+
+.master-pill-mini-btn.quitar {
+  border-color: rgb(255 179 203 / 50%);
+  color: #ffd0df;
+}
+
+.sala-btn-revelacion {
+  border-color: #e8c56a;
+  background: linear-gradient(135deg, rgb(232 197 106 / 24%), rgb(90 66 30 / 60%));
+  color: #f8e9be;
+  font-weight: 700;
+}
+
+.dock-separador-master {
+  width: 1px;
+  height: 46px;
+  align-self: center;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(232 197 106 / 55%),
+    transparent
+  );
+}
+
+.dock-btn-master {
+  border-color: #e8c56a;
+  background: radial-gradient(circle at 34% 28%, #5b4522, #22190c 72%);
+  color: #f8e5b2;
+  box-shadow:
+    0 0 0 3px rgb(232 197 106 / 18%),
+    0 12px 30px rgb(0 0 0 / 55%);
+}
+
+.dock-btn-master:hover,
+.dock-btn-master.activo {
+  border-color: #ffe39b;
+  color: #fff5d6;
+}
+
+.dock-badge.master {
+  background: #e8c56a;
+  color: #241908;
+}
+
+.dock-etiqueta.master {
+  border-color: rgb(232 197 106 / 45%);
+  color: #f6e3b0;
+}
+
+/* Opción B: imagen de escena fijada sobre la pizarra en la pared de la sala */
+
+.sala-hotspot.hotspot-pizarra.con-escena {
+  display: block;
+  overflow: hidden;
+  border: 2px solid rgb(232 197 106 / 70%);
+  background: rgb(14 11 18 / 88%);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 55%);
+  cursor: default;
+}
+
+.sala-pizarra-escena-btn {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sala-pizarra-escena-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sala-pizarra-escena-titulo {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  left: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgb(13 11 17 / 82%);
+  color: #f6e3b0;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 1;
+  transform: none;
+}
+
+.sala-pizarra-acciones {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  left: 6px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.sala-hotspot.hotspot-pizarra.con-escena:hover .sala-pizarra-acciones,
+.sala-hotspot.hotspot-pizarra.con-escena:focus-within .sala-pizarra-acciones {
+  opacity: 1;
+}
+
+.sala-pizarra-chip {
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 999px;
+  background: rgb(16 13 21 / 88%);
+  color: #f5f0e8;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sala-pizarra-chip:hover {
+  border-color: #e8c56a;
+  color: #f6e3b0;
+}
+
+.sala-pizarra-chip.quitar {
+  color: #ffb3cb;
+}
+
+/* Acciones rápidas del Máster en fichas de imagen sobre la mesa */
+
+.doc-master-icono {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgb(232 197 106 / 35%);
+  border-radius: 6px;
+  background: rgb(232 197 106 / 14%);
+  color: #f6e3b0;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.doc-master-icono:hover,
+.doc-master-icono.activo {
+  border-color: #e8c56a;
+  background: #e8c56a;
+  color: #241908;
+}
+
+/* Botones dorados y acciones del Máster en Archivador y Visor */
+
+.archivador-barra-master {
+  border-bottom-color: rgb(196 149 46 / 38%);
+}
+
+.archivador-master-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.master-accion-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid rgb(184 134 28 / 55%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgb(246 227 176 / 26%), rgb(214 166 55 / 22%));
+  color: #6b4b08;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.master-accion-btn:hover {
+  border-color: #c89524;
+  background: linear-gradient(135deg, rgb(246 227 176 / 45%), rgb(224 176 62 / 42%));
+}
+
+.master-accion-btn.activo {
+  border-color: #e8c56a;
+  background: #d9a83e;
+  color: #241908;
+}
+
+/* Dentro de paneles oscuros del Máster, el texto del botón necesita alto contraste */
+.master-panel-modal .master-accion-btn,
+.archivador-visor .master-accion-btn,
+.pizarra-page .master-accion-btn {
+  color: #f6e3b0;
+  background: rgb(72 54 24 / 75%);
+  border-color: rgb(232 197 106 / 55%);
+}
+
+.archivador-visor .master-accion-btn {
+  color: #5e4107;
+  background: #fbf1d6;
+}
+
+.archivador-visor .master-accion-btn.activo,
+.master-panel-modal .master-accion-btn.activo,
+.pizarra-page .master-accion-btn.activo {
+  background: #e8c56a;
+  color: #241908;
+}
+
+.master-btn-dorado {
+  padding: 8px 16px;
+  border: 1px solid #f0d48a;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f0d48a, #c79a38);
+  color: #241908;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.master-btn-dorado:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.master-btn-dorado:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.master-quitar-btn {
+  padding: 5px 10px;
+  border: 1px solid rgb(255 160 190 / 45%);
+  border-radius: 999px;
+  background: rgb(160 40 70 / 24%);
+  color: #ffd7e3;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.master-quitar-btn:hover {
+  background: rgb(160 40 70 / 45%);
+}
+
+/* Vista de Pizarra: barra superior e imagen de escena */
+
+.pizarra-barra-izq,
+.pizarra-barra-der {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pizarra-page .master-pill-badge {
+  background: rgb(88 64 20 / 90%);
+}
+
+.pizarra-escena-tarjeta {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 9;
+  width: min(260px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgb(200 155 56 / 55%);
+  border-radius: 14px;
+  background: rgb(24 20 32 / 92%);
+  color: #f6e3b0;
+  box-shadow: 0 16px 36px rgb(0 0 0 / 32%);
+}
+
+.pizarra-escena-tarjeta.minimizada {
+  width: auto;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.pizarra-escena-mini-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #f6e3b0;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pizarra-escena-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pizarra-escena-cabecera-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.pizarra-escena-cabecera-btns button {
+  padding: 3px 8px;
+  border: 1px solid rgb(232 197 106 / 40%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 8%);
+  color: #f6e3b0;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.pizarra-escena-img-btn {
+  padding: 0;
+  border: 1px solid rgb(232 197 106 / 35%);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #100d15;
+  cursor: pointer;
+}
+
+.pizarra-escena-img-btn img {
+  width: 100%;
+  max-height: 170px;
+  object-fit: cover;
+  display: block;
+}
+
+.pizarra-escena-titulo {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f5f0e8;
+  text-align: center;
+}
+
+.pizarra-escena-master-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* Opción A: Modal de Revelación Dramática del Máster */
+
+.proyeccion-master-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(
+    ellipse at center,
+    rgb(18 14 26 / 86%) 0%,
+    rgb(6 4 10 / 95%) 100%
+  );
+  backdrop-filter: blur(8px);
+}
+
+.proyeccion-master-marco {
+  width: min(100%, 960px);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid rgb(232 197 106 / 65%);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgb(28 22 36 / 96%), rgb(15 12 20 / 98%));
+  box-shadow:
+    0 0 0 1px rgb(232 197 106 / 20%),
+    0 30px 90px rgb(0 0 0 / 75%);
+  color: #f5f0e8;
+}
+
+.proyeccion-master-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proyeccion-master-sello {
+  color: #e8c56a;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.proyeccion-master-cerrar-x {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 8%);
+  color: #f5f0e8;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.proyeccion-master-cerrar-x:hover {
+  border-color: #e8c56a;
+  color: #e8c56a;
+}
+
+.proyeccion-master-lienzo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(232 197 106 / 28%);
+  border-radius: 14px;
+  background: #0b090f;
+}
+
+.proyeccion-master-lienzo img {
+  max-width: 100%;
+  max-height: 66vh;
+  object-fit: contain;
+  display: block;
+}
+
+.proyeccion-master-titulo {
+  margin: 0;
+  color: #f6e3b0;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.proyeccion-master-pie {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.proyeccion-btn-secundario {
+  padding: 8px 18px;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 8%);
+  color: #efe8f7;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.proyeccion-btn-secundario:hover {
+  border-color: #e8c56a;
+  color: #f6e3b0;
+}
+
+/* Panel modal de Dirección de Escena del Máster */
+
+.master-modal-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(10 8 15 / 76%);
+  backdrop-filter: blur(5px);
+}
+
+.master-panel-modal {
+  width: min(100%, 840px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid rgb(232 197 106 / 55%);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #211b2a, #15111c);
+  color: #f5f0e8;
+  box-shadow: 0 26px 80px rgb(0 0 0 / 70%);
+}
+
+.master-panel-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.master-panel-titulo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.master-corona {
+  font-size: 1.5rem;
+}
+
+.master-panel-titulo-wrap h2 {
+  margin: 0 0 2px;
+  color: #f6e3b0;
+  font-family: "Cinzel Decorative", "Times New Roman", serif;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+}
+
+.master-panel-titulo-wrap p {
+  margin: 0;
+  color: #bdb3cc;
+  font-size: 0.82rem;
+}
+
+.master-estado-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.master-estado-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgb(232 197 106 / 26%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.master-estado-etiqueta {
+  color: #e8c56a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.master-estado-activo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.master-estado-activo img {
+  width: 58px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgb(232 197 106 / 40%);
+}
+
+.master-estado-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.master-estado-info strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+}
+
+.master-estado-vacio {
+  color: #9e93ad;
+  font-size: 0.8rem;
+}
+
+.master-panel-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.master-titulo-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 8px 14px;
+  border: 1px solid #594b6b;
+  border-radius: 999px;
+  background: #100d16;
+  color: #f5f0e8;
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.master-titulo-input:focus {
+  outline: none;
+  border-color: #e8c56a;
+}
+
+.master-panel-lista {
+  flex: 1;
+  min-height: 160px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.master-lista-vacia {
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed rgb(232 197 106 / 28%);
+  border-radius: 12px;
+  color: #bdb3cc;
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.master-imagenes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  gap: 12px;
+}
+
+.master-imagen-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.master-imagen-thumb {
+  height: 106px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d0a12;
+}
+
+.master-imagen-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.master-imagen-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e8dff2;
+}
+
+.master-imagen-botones {
+  display: flex;
+  gap: 6px;
 }
