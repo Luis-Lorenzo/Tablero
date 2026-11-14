@@ -64,5 +64,7 @@ export interface EventoTirada {
   formula: string;
   dados: number[];
   bonificador: number;
+  caras?: number;
+  especial?: "critico" | "pifia" | null;
   createdAt: string;
 }

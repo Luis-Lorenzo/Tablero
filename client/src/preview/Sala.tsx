@@ -7,6 +7,7 @@ import type {
 } from "react";
 import { CALIBRACION_INICIAL, FONDO_SALA } from "./datos";
 import { ChatSala } from "./ChatSala";
+import { reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
@@ -15,6 +16,7 @@ import type {
   Punto,
   QuadMapa,
   RectPizarra,
+  TipoEspecialTirada,
   TiradaAsiento
 } from "./tipos";
 
@@ -36,6 +38,8 @@ interface SalaProps {
     formula: string;
     dados: number[];
     bonificador: number;
+    caras: number;
+    especial: TipoEspecialTirada;
   }) => void | Promise<void>;
 }
 
@@ -89,8 +93,17 @@ interface ResultadoTirada {
   total: number;
   dados: number[];
   bonificador: number;
+  caras: number;
+  especial: TipoEspecialTirada;
   formula: string;
   secreta?: boolean;
+}
+
+function detectarEspecialTirada(caras: number, dados: number[]): TipoEspecialTirada {
+  if (caras !== 20 || dados.length === 0) return null;
+  if (dados.includes(20)) return "critico";
+  if (dados.includes(1)) return "pifia";
+  return null;
 }
 
 function formatearFormula(
@@ -118,6 +131,8 @@ function lanzarDados(
     total: suma + bonificador,
     dados,
     bonificador,
+    caras,
+    especial: detectarEspecialTirada(caras, dados),
     formula: formatearFormula(cantidad, caras, bonificador)
   };
 }
@@ -420,30 +435,24 @@ export function Sala({
   }
 
   function iniciarChat(evento: ReactPointerEvent): void {
-    const medidas = medidasPlano();
-    if (!medidas) return;
-
     evento.stopPropagation();
     arrastre.current = {
       tipo: "chat",
       inicioX: evento.clientX,
       inicioY: evento.clientY,
       base: calibracion.chat,
-      medidas
+      medidas: { width: window.innerWidth, height: window.innerHeight }
     };
   }
 
   function iniciarChatTam(evento: ReactPointerEvent): void {
-    const medidas = medidasPlano();
-    if (!medidas) return;
-
     evento.stopPropagation();
     arrastre.current = {
       tipo: "chat-tam",
       inicioX: evento.clientX,
       inicioY: evento.clientY,
       base: calibracion.chat,
-      medidas
+      medidas: { width: window.innerWidth, height: window.innerHeight }
     };
   }
 
@@ -462,7 +471,11 @@ export function Sala({
     };
   }
 
-  function mostrarD20Local(asientoId: string, total: number): void {
+  function mostrarD20Local(
+    asientoId: string,
+    total: number,
+    especial: TipoEspecialTirada = null
+  ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
       window.clearTimeout(prevTimer);
@@ -470,7 +483,7 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total }
+      [asientoId]: { id: tiradaId, total, especial }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -538,7 +551,8 @@ export function Sala({
             const miAsiento =
               jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ??
               "master";
-            mostrarD20Local(miAsiento, resultadoFinal.total);
+            mostrarD20Local(miAsiento, resultadoFinal.total, resultadoFinal.especial);
+            reproducirSonidoTirada(resultadoFinal.especial);
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
               ...prev,
@@ -591,43 +605,24 @@ export function Sala({
           style={{ backgroundImage: `url(${FONDO_SALA})` }}
         >
           {ajuste ? (
-            <>
-              <div
-                className="rect-calibrado rect-pizarra"
-                style={estiloRect(calibracion.pizarra)}
-                onPointerDown={iniciarPizarra}
-              >
-                <span className="rect-calibrado-etiqueta">pizarra</span>
-                <span className="rect-tirador" onPointerDown={iniciarPizarraTam} />
-              </div>
-              <div
-                className="rect-calibrado rect-chat"
-                style={estiloRect(calibracion.chat)}
-                onPointerDown={iniciarChat}
-              >
-                <span className="rect-calibrado-etiqueta">chat</span>
-                <span className="rect-tirador" onPointerDown={iniciarChatTam} />
-              </div>
-            </>
+            <div
+              className="rect-calibrado rect-pizarra"
+              style={estiloRect(calibracion.pizarra)}
+              onPointerDown={iniciarPizarra}
+            >
+              <span className="rect-calibrado-etiqueta">pizarra</span>
+              <span className="rect-tirador" onPointerDown={iniciarPizarraTam} />
+            </div>
           ) : (
-            <>
-              <ChatSala
-                rect={calibracion.chat}
-                jugadores={jugadores}
-                miUsuarioId={miUsuarioId}
-                mensajes={mensajesVisibles}
-                onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
-              />
-              <button
-                type="button"
-                className="sala-hotspot hotspot-pizarra"
-                style={estiloRect(calibracion.pizarra)}
-                onClick={onAbrirPizarra}
-                title="Abrir la pizarra"
-              >
-                <span>Abrir pizarra</span>
-              </button>
-            </>
+            <button
+              type="button"
+              className="sala-hotspot hotspot-pizarra"
+              style={estiloRect(calibracion.pizarra)}
+              onClick={onAbrirPizarra}
+              title="Abrir la pizarra"
+            >
+              <span>Abrir pizarra</span>
+            </button>
           )}
 
           <svg
@@ -717,7 +712,7 @@ export function Sala({
                   {tiradaSobreAsiento && !ajuste && (
                     <div
                       key={tiradaSobreAsiento.id}
-                      className="asiento-d20"
+                      className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
                       aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
                     >
                       <IconoD20 valor={tiradaSobreAsiento.total} />
@@ -732,6 +727,25 @@ export function Sala({
       </div>
 
       <div className="sala-vineta" aria-hidden="true" />
+
+      {ajuste ? (
+        <div
+          className="rect-calibrado rect-chat rect-chat-pantalla"
+          style={estiloRect(calibracion.chat)}
+          onPointerDown={iniciarChat}
+        >
+          <span className="rect-calibrado-etiqueta">chat</span>
+          <span className="rect-tirador" onPointerDown={iniciarChatTam} />
+        </div>
+      ) : (
+        <ChatSala
+          rect={calibracion.chat}
+          jugadores={jugadores}
+          miUsuarioId={miUsuarioId}
+          mensajes={mensajesVisibles}
+          onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
+        />
+      )}
 
       <div className="sala-barra">
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
@@ -901,7 +915,7 @@ export function Sala({
 
       {tirada !== null && !selectorAbierto && (
         <div
-          className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}`}
+          className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
           style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
         >
           <span className="tirada-icono">

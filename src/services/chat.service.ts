@@ -20,6 +20,8 @@ export interface MensajeChat {
   createdAt: string;
 }
 
+export type TipoEspecialTirada = "critico" | "pifia" | null;
+
 export interface EventoTirada {
   id: string;
   mesaId: string;
@@ -29,6 +31,8 @@ export interface EventoTirada {
   formula: string;
   dados: number[];
   bonificador: number;
+  caras?: number;
+  especial: TipoEspecialTirada;
   createdAt: string;
 }
 
@@ -37,7 +41,21 @@ export interface DatosTirada {
   formula: string;
   dados: number[];
   bonificador: number;
+  caras?: number;
+  especial?: TipoEspecialTirada;
   secreta?: boolean;
+}
+
+function resolverEspecial(datos: DatosTirada): TipoEspecialTirada {
+  if (datos.caras === 20) {
+    if (datos.dados.includes(20)) return "critico";
+    if (datos.dados.includes(1)) return "pifia";
+    return null;
+  }
+  if (datos.especial === "critico" || datos.especial === "pifia") {
+    return datos.especial;
+  }
+  return null;
 }
 
 function esMiembro(mesa: Mesa, userId: string): boolean {
@@ -163,6 +181,10 @@ export class ChatService {
       formula: datos.formula.trim().slice(0, 64),
       dados: datos.dados.slice(0, 50),
       bonificador: datos.bonificador,
+      ...(typeof datos.caras === "number" && Number.isFinite(datos.caras)
+        ? { caras: datos.caras }
+        : {}),
+      especial: resolverEspecial(datos),
       createdAt: new Date().toISOString()
     };
 

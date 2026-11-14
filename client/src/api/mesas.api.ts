@@ -70,6 +70,8 @@ export const mesasApi = {
       formula: string;
       dados: number[];
       bonificador: number;
+      caras?: number;
+      especial?: "critico" | "pifia" | null;
       secreta?: boolean;
     }
   ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos)

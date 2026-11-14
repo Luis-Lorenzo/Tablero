@@ -6,6 +6,7 @@ import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
+import { reproducirSonidoTirada } from "../../preview/sonidoDados";
 import {
   cargarCalibracion,
   cargarPosits,
@@ -17,6 +18,7 @@ import type {
   JugadorPreview,
   MensajeSala,
   PositPreview,
+  TipoEspecialTirada,
   TiradaAsiento
 } from "../../preview/tipos";
 import "../../preview/preview.css";
@@ -169,7 +171,11 @@ function SalaRealContent({
 
         setTiradasAsiento(prev => ({
           ...prev,
-          [asientoId]: { id: roll.id, total: roll.total }
+          [asientoId]: {
+            id: roll.id,
+            total: roll.total,
+            especial: roll.especial ?? null
+          }
         }));
 
         timersAsiento.current[asientoId] = window.setTimeout(() => {
@@ -182,6 +188,8 @@ function SalaRealContent({
           delete timersAsiento.current[asientoId];
         }, DURACION_D20_ASIENTO);
       }
+
+      reproducirSonidoTirada(roll.especial ?? null);
 
       setMensajesChat(prev => {
         const idSistema = `roll-${roll.id}`;
@@ -226,6 +234,8 @@ function SalaRealContent({
     formula: string;
     dados: number[];
     bonificador: number;
+    caras: number;
+    especial: TipoEspecialTirada;
   }): Promise<void> {
     try {
       await mesasApi.enviarTirada(mesa.id, { ...tirada, secreta: false });

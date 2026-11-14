@@ -59,9 +59,12 @@ export interface MensajeSala {
   esSistema?: boolean;
 }
 
+export type TipoEspecialTirada = "critico" | "pifia" | null;
+
 export interface TiradaAsiento {
   id: string;
   total: number;
+  especial?: TipoEspecialTirada;
 }
 
 export interface PositPreview {

@@ -223,21 +223,47 @@ describe("chat en vivo y tiradas de dados en /api/mesas/:id", () => {
       .expect(200);
     expect(histAria.body).toHaveLength(2);
 
-    // 3. Tirada pública de Aria -> se difunde dice:roll a la mesa
+    // 3. Tirada pública de Aria con 20 natural -> se difunde dice:roll con especial: "critico"
     const evRollMaster = esperarEvento(wsMaster, "dice:roll");
     const evRollBorin = esperarEvento(wsBorin, "dice:roll");
 
     await request(app)
       .post(`/api/mesas/${mesaId}/tiradas`)
       .set("Cookie", cookieAria)
-      .send({ total: 18, formula: "1d20 + 3", dados: [15], bonificador: 3, secreta: false })
+      .send({
+        total: 23,
+        formula: "1d20 + 3",
+        dados: [20],
+        bonificador: 3,
+        caras: 20,
+        secreta: false
+      })
       .expect(201);
 
     const rollMaster = (await evRollMaster).roll as Record<string, unknown>;
     const rollBorin = (await evRollBorin).roll as Record<string, unknown>;
-    expect(rollMaster.total).toBe(18);
+    expect(rollMaster.total).toBe(23);
     expect(rollMaster.jugadorId).toBe(aria.id);
-    expect(rollBorin.total).toBe(18);
+    expect(rollMaster.especial).toBe("critico");
+    expect(rollBorin.total).toBe(23);
+    expect(rollBorin.especial).toBe("critico");
+
+    // 3b. Pifia (1 natural en d20) -> se difunde con especial: "pifia"
+    const evPifiaMaster = esperarEvento(wsMaster, "dice:roll");
+    await request(app)
+      .post(`/api/mesas/${mesaId}/tiradas`)
+      .set("Cookie", cookieBorin)
+      .send({
+        total: 4,
+        formula: "1d20 + 3",
+        dados: [1],
+        bonificador: 3,
+        caras: 20,
+        secreta: false
+      })
+      .expect(201);
+    const pifiaMaster = (await evPifiaMaster).roll as Record<string, unknown>;
+    expect(pifiaMaster.especial).toBe("pifia");
 
     // 4. Dados negros secretos: jugador normal no puede (403); Máster sí (204) y nadie recibe nada
     await request(app)

@@ -232,6 +232,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         formula?: string;
         dados?: number[];
         bonificador?: number;
+        caras?: number;
+        especial?: "critico" | "pifia" | null;
         secreta?: boolean;
       };
       const resultado = await context.chatService.registrarTirada(
@@ -242,6 +244,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           formula: body.formula as string,
           dados: body.dados as number[],
           bonificador: body.bonificador as number,
+          caras: body.caras,
+          especial: body.especial,
           secreta: Boolean(body.secreta)
         }
       );

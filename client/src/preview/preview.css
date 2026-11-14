@@ -165,7 +165,7 @@
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 50%, #241f2e 0%, #100d15 68%),
+    url("/medios/tablero/fondos/sala-extendida.jpg") center / cover no-repeat,
     #0d0b11;
   color: #f5f0e8;
 }
@@ -186,17 +186,26 @@
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 18px;
+  border-radius: 24px;
   transform: rotateX(22deg) scale(1.03);
   transform-origin: 50% 52%;
-  box-shadow: 0 40px 110px rgb(0 0 0 / 65%);
-  transition: transform 0.6s ease, box-shadow 0.6s ease;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 96.5%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 96.5%, transparent 100%);
+  mask-composite: intersect;
+  transition: transform 0.6s ease;
   will-change: transform;
 }
 
 .sala-plano.ajuste {
   transform: none;
   border-radius: 10px;
+  -webkit-mask-image: none;
+  mask-image: none;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 12%);
   cursor: default;
 }
@@ -1152,16 +1161,20 @@
   background: #8fb8ff;
 }
 
+.rect-chat-pantalla {
+  z-index: 21;
+}
+
 .sala-chat {
   position: absolute;
-  z-index: 6;
+  z-index: 19;
   display: flex;
   flex-direction: column;
-  min-width: 180px;
-  min-height: 120px;
+  min-width: 220px;
+  min-height: 150px;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 14px;
-  background: rgb(16 13 21 / 84%);
+  background: rgb(16 13 21 / 86%);
   backdrop-filter: blur(8px);
   box-shadow: 0 14px 36px rgb(0 0 0 / 48%);
   color: #f0e7fb;
@@ -1443,6 +1456,50 @@
   fill: rgb(22 16 32 / 92%);
   stroke: #e8c56a;
   stroke-width: 1.7;
+}
+
+.asiento-d20.critico {
+  color: #3ddc84;
+  filter: drop-shadow(0 0 12px rgb(61 220 132 / 85%));
+}
+
+.asiento-d20.critico polygon {
+  fill: rgb(10 32 22 / 94%);
+  stroke: #3ddc84;
+}
+
+.asiento-d20.pifia {
+  color: #ff5c77;
+  filter: drop-shadow(0 0 12px rgb(255 92 119 / 85%));
+}
+
+.asiento-d20.pifia polygon {
+  fill: rgb(36 10 18 / 94%);
+  stroke: #ff5c77;
+}
+
+.tirada-panel.critico {
+  border-color: #3ddc84;
+  box-shadow:
+    0 0 18px rgb(61 220 132 / 35%),
+    0 16px 40px rgb(0 0 0 / 45%);
+}
+
+.tirada-panel.critico .tirada-icono svg,
+.tirada-panel.critico .tirada-num {
+  color: #3ddc84;
+}
+
+.tirada-panel.pifia {
+  border-color: #ff5c77;
+  box-shadow:
+    0 0 18px rgb(255 92 119 / 35%),
+    0 16px 40px rgb(0 0 0 / 45%);
+}
+
+.tirada-panel.pifia .tirada-icono svg,
+.tirada-panel.pifia .tirada-num {
+  color: #ff5c77;
 }
 
 @keyframes asiento-d20-pop {
