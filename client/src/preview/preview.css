@@ -2075,6 +2075,12 @@
   border-bottom: none;
 }
 
+.chat-cabecera-izq {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chat-titulo {
   display: inline-flex;
   align-items: center;
@@ -2084,6 +2090,27 @@
   font-size: 0.58rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.chat-compartir-btn {
+  width: 24px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(232 197 106 / 35%);
+  border-radius: 6px;
+  background: rgb(232 197 106 / 10%);
+  color: #e8c56a;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.chat-compartir-btn:hover,
+.chat-compartir-btn.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 26%);
+  color: #fff6d6;
 }
 
 .chat-plegar-btn {
@@ -2282,6 +2309,57 @@
 .compartir-panel.debajo {
   bottom: auto;
   top: 120px;
+}
+
+.compartir-panel.anclado-pelota {
+  bottom: auto;
+  z-index: 25;
+  transform: translateX(-50%);
+  max-height: min(46vh, 340px);
+}
+
+.compartir-panel.desde-chat {
+  bottom: auto;
+  z-index: 25;
+  transform: none;
+}
+
+.compartir-destinos-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.compartir-jugadores-rapidos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.compartir-jugador-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 8px;
+  background: rgb(35 28 48 / 85%);
+  color: #f3ece0;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.compartir-jugador-chip:hover {
+  border-color: #e8c56a;
+  background: rgb(56 43 76 / 95%);
+}
+
+.compartir-jugador-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .compartir-panel-cabecera {

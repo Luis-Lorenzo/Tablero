@@ -5,7 +5,7 @@ import type {
   KeyboardEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
-import { Crown, Lock, MessageSquare, Minus, Plus, Send, X } from "lucide-react";
+import { Crown, FolderUp, Lock, MessageSquare, Minus, Plus, Send, X } from "lucide-react";
 import type { JugadorPreview, MensajeSala, RectPizarra } from "./tipos";
 
 interface ChatSalaProps {
@@ -16,6 +16,8 @@ interface ChatSalaProps {
   onEnviarMensaje: (texto: string, destinatarioId: string | null) => void | Promise<void>;
   onIniciarArrastre?: (evento: ReactPointerEvent) => void;
   onIniciarRedimension?: (evento: ReactPointerEvent) => void;
+  compartirAbierto?: boolean;
+  onToggleCompartir?: () => void;
 }
 
 interface Destinatario {
@@ -41,7 +43,9 @@ export function ChatSala({
   mensajes,
   onEnviarMensaje,
   onIniciarArrastre,
-  onIniciarRedimension
+  onIniciarRedimension,
+  compartirAbierto = false,
+  onToggleCompartir
 }: ChatSalaProps) {
   const [plegado, setPlegado] = useState(false);
   const [texto, setTexto] = useState("");
@@ -146,10 +150,25 @@ export function ChatSala({
       aria-label="Chat de la sala"
     >
       <header className="chat-cabecera" onPointerDown={onIniciarArrastre}>
-        <span className="chat-titulo">
-          <MessageSquare size={13} aria-hidden="true" />
-          <span>Chat</span>
-        </span>
+        <div className="chat-cabecera-izq">
+          <span className="chat-titulo">
+            <MessageSquare size={13} aria-hidden="true" />
+            <span>Chat</span>
+          </span>
+          {onToggleCompartir && (
+            <button
+              type="button"
+              className={`chat-compartir-btn${compartirAbierto ? " activo" : ""}`}
+              onPointerDown={e => e.stopPropagation()}
+              onClick={onToggleCompartir}
+              aria-expanded={compartirAbierto}
+              aria-label="Pasar notas y archivos"
+              title="Pasar notas y archivos"
+            >
+              <FolderUp size={13} aria-hidden="true" />
+            </button>
+          )}
+        </div>
         <button
           type="button"
           className="chat-plegar-btn"

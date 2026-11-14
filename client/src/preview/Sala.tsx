@@ -314,28 +314,6 @@ function IconoPosit() {
   );
 }
 
-function IconoCompartir() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 15V10m0 0-2.5 2.5M12 10l2.5 2.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function IconoArchivador() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -483,6 +461,7 @@ export function Sala({
   );
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
+  const [anclaCompartir, setAnclaCompartir] = useState<{ x: number; y: number } | null>(null);
   const [nuevoPositTexto, setNuevoPositTexto] = useState("");
   const [nuevoPositColor, setNuevoPositColor] = useState<string>(COLORES_POSIT[3].valor);
   const [jugadorSeleccionadoId, setJugadorSeleccionadoId] = useState<string | null>(null);
@@ -1116,6 +1095,43 @@ export function Sala({
     jugadores.find(j => j.activo && j.id === jugadorSeleccionadoId && j.id !== yoAsientoId) ??
     null;
 
+  function abrirCompartirDesdePelota(jugadorId: string): void {
+    if (compartirAbierto && jugadorSeleccionadoId === jugadorId) {
+      setCompartirAbierto(false);
+      setJugadorSeleccionadoId(null);
+      setAnclaCompartir(null);
+      return;
+    }
+
+    const nodo = asientoRefs.current.get(jugadorId);
+    if (nodo) {
+      const rect = nodo.getBoundingClientRect();
+      setAnclaCompartir({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 10
+      });
+    } else {
+      setAnclaCompartir(null);
+    }
+
+    setJugadorSeleccionadoId(jugadorId);
+    setSelectorAbierto(false);
+    setCompartirAbierto(true);
+    onSolicitarArchivos?.();
+  }
+
+  function alternarCompartirDesdeChat(): void {
+    setCompartirAbierto(abierto => {
+      const siguiente = !abierto;
+      if (siguiente) {
+        setAnclaCompartir(null);
+        setSelectorAbierto(false);
+        onSolicitarArchivos?.();
+      }
+      return siguiente;
+    });
+  }
+
   function iniciarMesaElemento(
     elemento: ElementoMesa,
     evento: ReactPointerEvent
@@ -1397,10 +1413,7 @@ export function Sala({
                   onClick={
                     ajuste || esMio
                       ? undefined
-                      : () =>
-                          setJugadorSeleccionadoId(prev =>
-                            prev === jugador.id ? null : jugador.id
-                          )
+                      : () => abrirCompartirDesdePelota(jugador.id)
                   }
                   onKeyDown={
                     ajuste || esMio
@@ -1408,9 +1421,7 @@ export function Sala({
                       : evento => {
                           if (evento.key === "Enter" || evento.key === " ") {
                             evento.preventDefault();
-                            setJugadorSeleccionadoId(prev =>
-                              prev === jugador.id ? null : jugador.id
-                            );
+                            abrirCompartirDesdePelota(jugador.id);
                           }
                         }
                   }
@@ -1539,6 +1550,8 @@ export function Sala({
           onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
           onIniciarArrastre={iniciarChat}
           onIniciarRedimension={iniciarChatTam}
+          compartirAbierto={compartirAbierto && !ajuste}
+          onToggleCompartir={alternarCompartirDesdeChat}
         />
       )}
 
@@ -1985,27 +1998,6 @@ export function Sala({
               <span className="dock-etiqueta">Posits</span>
             </div>
 
-            <div className="dock-item">
-              <button
-                type="button"
-                className={`dock-btn${compartirAbierto ? " activo" : ""}`}
-                onClick={() => {
-                  setCompartirAbierto(abierto => {
-                    const siguiente = !abierto;
-                    if (siguiente) onSolicitarArchivos?.();
-                    return siguiente;
-                  });
-                  setSelectorAbierto(false);
-                }}
-                aria-expanded={compartirAbierto}
-                title="Notas y archivos para pasar"
-                aria-label="Pasar"
-              >
-                <IconoCompartir />
-              </button>
-              <span className="dock-etiqueta">Pasar</span>
-            </div>
-
             {onAbrirArchivador && (
               <div className="dock-item">
                 <button
@@ -2053,12 +2045,25 @@ export function Sala({
 
       {compartirAbierto && !ajuste && (
         <div
-          className={`compartir-panel${calibracion.dock.y < 30 ? " debajo" : ""}`}
+          className={`compartir-panel${anclaCompartir ? " anclado-pelota" : " desde-chat"}`}
+          style={
+            anclaCompartir
+              ? {
+                  left: `clamp(190px, ${anclaCompartir.x}px, calc(100vw - 190px))`,
+                  top: `${Math.max(56, Math.min(anclaCompartir.y, window.innerHeight - 310))}px`
+                }
+              : {
+                  left: `${Math.min(calibracion.chat.x + calibracion.chat.w + 1.5, 68)}%`,
+                  top: `${Math.max(calibracion.chat.y, 10)}%`
+                }
+          }
           role="dialog"
           aria-label="Notas y archivos para pasar"
         >
           <div className="compartir-panel-cabecera">
-            <h3 className="compartir-panel-titulo">Pasar a jugadores</h3>
+            <h3 className="compartir-panel-titulo">
+              {jugadorSeleccionado ? `Pasar a ${jugadorSeleccionado.nombre}` : "Pasar a jugadores"}
+            </h3>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               {onSimularRecepcion && (
                 <button
@@ -2073,7 +2078,10 @@ export function Sala({
               <button
                 type="button"
                 className="dados-cerrar"
-                onClick={() => setCompartirAbierto(false)}
+                onClick={() => {
+                  setCompartirAbierto(false);
+                  setAnclaCompartir(null);
+                }}
                 aria-label="Cerrar panel de compartir"
               >
                 <X size={13} strokeWidth={2.4} aria-hidden="true" />
@@ -2089,15 +2097,39 @@ export function Sala({
               <button
                 type="button"
                 className="compartir-btn-sec"
-                onClick={() => setJugadorSeleccionadoId(null)}
+                onClick={() => {
+                  setJugadorSeleccionadoId(null);
+                  setAnclaCompartir(null);
+                }}
               >
-                Quitar
+                Cambiar
               </button>
             </div>
           ) : (
-            <span className="compartir-subtitulo">
-              Arrastra un elemento a un círculo o clica un jugador primero.
-            </span>
+            <div className="compartir-destinos-bloque">
+              <span className="compartir-subtitulo">
+                Elige un jugador o arrastra un elemento hacia su círculo:
+              </span>
+              <div className="compartir-jugadores-rapidos">
+                {jugadores
+                  .filter(j => j.activo && j.id !== yoAsientoId)
+                  .map(j => (
+                    <button
+                      key={j.id}
+                      type="button"
+                      className="compartir-jugador-chip"
+                      onClick={() => setJugadorSeleccionadoId(j.id)}
+                    >
+                      <span
+                        className="compartir-jugador-punto"
+                        style={{ backgroundColor: j.color }}
+                        aria-hidden="true"
+                      />
+                      <span>{j.nombre}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
           )}
 
           {onElementosMesa && (
