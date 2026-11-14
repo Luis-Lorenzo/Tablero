@@ -4528,3 +4528,135 @@
   letter-spacing: 0.03em;
   line-height: 1;
 }
+
+/* ------------------------------------------- Pestañas y vista Escena en Pizarra */
+
+.pizarra-vista-tabs {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  background: #07070b;
+  border-bottom: 2px solid #2c2a3a;
+}
+
+.pizarra-vista-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid #2c2a3a;
+  background: #07070b;
+  color: rgb(255 255 255 / 62%);
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.pizarra-vista-tab:last-child {
+  border-right: 0;
+}
+
+.pizarra-vista-tab:hover {
+  background: #10121d;
+  color: #ffffff;
+}
+
+.pizarra-vista-tab.activo {
+  background: #111526;
+  color: #ffffff;
+  box-shadow: inset 0 -3px 0 #ffffff;
+}
+
+.pizarra-lienzo.vista-escena {
+  background:
+    radial-gradient(ellipse at 50% 35%, #0d1633 0%, #060916 65%, #04060f 100%);
+}
+
+.pizarra-escena-cielo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pizarra-escena-estrellas-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.pizarra-escena-fondo-img {
+  position: absolute;
+  inset: 14px;
+  z-index: 1;
+  width: calc(100% - 28px);
+  height: calc(100% - 28px);
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 16px 36px rgb(0 0 0 / 55%));
+}
+
+.pizarra-escena-barra-flotante {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgb(186 230 253 / 28%);
+  border-radius: 10px;
+  background: rgb(6 9 22 / 78%);
+  backdrop-filter: blur(8px);
+}
+
+.pizarra-escena-flotante-titulo {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f4f7ff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.pizarra-escena-flotante-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 7px;
+  background: rgb(17 24 48 / 88%);
+  color: #f4f7ff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pizarra-escena-flotante-btn:hover {
+  border-color: #ffffff;
+  background: rgb(28 38 72 / 96%);
+}
+
+.pizarra-escena-flotante-btn.quitar:hover {
+  border-color: #ff5c77;
+  color: #ff8ca0;
+}
+
+.pizarra-lienzo.vista-escena .pizarra-pista {
+  color: rgb(226 234 255 / 80%);
+  text-shadow: 0 1px 4px rgb(0 0 0 / 85%);
+}
