@@ -48,11 +48,13 @@ export interface PositPreview {
   id: string;
   texto: string;
   color: string;
-  /** Posición normalizada dentro del lienzo de la pizarra (0-100). */
+  /** Posición normalizada dentro del lienzo de la pizarra o mesa (0-100). */
   x: number;
   y: number;
   /** Inclinación en grados, para que no parezcan pegados con regla. */
   giro: number;
+  /** Si está guardado en el archivador personal del jugador. */
+  archivado?: boolean;
 }
 
-export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa";
+export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa" | "archivador";

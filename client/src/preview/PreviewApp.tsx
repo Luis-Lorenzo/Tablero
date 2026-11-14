@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Archivador } from "./Archivador";
 import { Lobby } from "./Lobby";
 import { Mapa } from "./Mapa";
 import { Pizarra } from "./Pizarra";
@@ -7,9 +8,11 @@ import {
   cargarCalibracion,
   cargarJugadores,
   cargarPosits,
+  cargarPositsMesa,
   guardarCalibracion,
   guardarJugadores,
-  guardarPosits
+  guardarPosits,
+  guardarPositsMesa
 } from "./calibracion";
 import type {
   Calibracion,
@@ -26,7 +29,10 @@ import "./preview.css";
 /** Permite abrir directamente una fase: `?preview=1&fase=sala`. */
 function faseInicial(): FasePreview {
   const valor = new URLSearchParams(window.location.search).get("fase");
-  return valor === "sala" || valor === "pizarra" || valor === "mapa"
+  return valor === "sala" ||
+    valor === "pizarra" ||
+    valor === "mapa" ||
+    valor === "archivador"
     ? valor
     : "lobby";
 }
@@ -36,6 +42,9 @@ export default function PreviewApp() {
   const [jugadores, setJugadores] = useState<JugadorPreview[]>(cargarJugadores);
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
+    cargarPositsMesa("preview")
+  );
 
   useEffect(() => {
     guardarJugadores(jugadores);
@@ -48,6 +57,10 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarPosits(posits);
   }, [posits]);
+
+  useEffect(() => {
+    guardarPositsMesa(positsMesa, "preview");
+  }, [positsMesa]);
 
   const volverASala = useCallback(() => setFase("sala"), []);
 
@@ -69,13 +82,26 @@ export default function PreviewApp() {
     return <Mapa onVolver={volverASala} />;
   }
 
+  if (fase === "archivador") {
+    return (
+      <Archivador
+        posits={positsMesa}
+        onPosits={setPositsMesa}
+        onVolver={volverASala}
+      />
+    );
+  }
+
   return (
     <Sala
       jugadores={jugadores}
       calibracion={calibracion}
       onCalibracion={setCalibracion}
+      positsMesa={positsMesa}
+      onPositsMesa={setPositsMesa}
       onAbrirPizarra={() => setFase("pizarra")}
       onAbrirMapa={() => setFase("mapa")}
+      onAbrirArchivador={() => setFase("archivador")}
       onVolver={() => setFase("lobby")}
     />
   );

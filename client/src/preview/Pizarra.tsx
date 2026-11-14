@@ -6,6 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   SetStateAction
 } from "react";
+import { nuevoId, textoLegible } from "./calibracion";
 import { COLORES_POSIT } from "./datos";
 import type { PositPreview } from "./tipos";
 
@@ -21,38 +22,13 @@ interface PositProps {
   onActivar: (id: string) => void;
   onTexto: (id: string, texto: string) => void;
   onColor: (id: string, color: string) => void;
+  onArchivar?: (id: string) => void;
   onBorrar: (id: string) => void;
   onArrastrar: (evento: ReactPointerEvent, posit: PositPreview) => void;
 }
 
 function limitar(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
-}
-
-function nuevoId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `posit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-/** Elige texto oscuro o claro según la luminosidad del color del posit. */
-function textoLegible(color: string): string {
-  const limpio = color.replace("#", "");
-  const completo =
-    limpio.length === 3
-      ? limpio
-          .split("")
-          .map(caracter => caracter + caracter)
-          .join("")
-      : limpio;
-
-  const r = parseInt(completo.slice(0, 2), 16) || 0;
-  const g = parseInt(completo.slice(2, 4), 16) || 0;
-  const b = parseInt(completo.slice(4, 6), 16) || 0;
-  const luz = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-  return luz > 0.62 ? "#2a2433" : "#fbf8f2";
 }
 
 /** Mármol suave: degradados + vetas SVG. Sin imágenes, pesa 0 KB. */
@@ -86,12 +62,13 @@ function Marmol() {
   );
 }
 
-function Posit({
+export function Posit({
   posit,
   activo,
   onActivar,
   onTexto,
   onColor,
+  onArchivar,
   onBorrar,
   onArrastrar
 }: PositProps) {
@@ -133,10 +110,34 @@ function Posit({
             }}
           />
         ))}
+        {onArchivar && (
+          <button
+            type="button"
+            className="posit-archivar"
+            title="Archivar posit"
+            aria-label="Archivar posit"
+            onClick={evento => {
+              evento.stopPropagation();
+              onArchivar(posit.id);
+            }}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           className="posit-borrar"
           title="Borrar posit"
+          aria-label="Borrar posit"
           onClick={evento => {
             evento.stopPropagation();
             onBorrar(posit.id);

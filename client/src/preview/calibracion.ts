@@ -23,6 +23,7 @@ const CLAVE_CALIBRACION = "pocketrol.preview.calibracion.v1";
 // Borin, Dorian, Fenrir). La lista guardada por la v1 traía otro orden.
 const CLAVE_JUGADORES = "pocketrol.preview.jugadores.v2";
 const CLAVE_POSITS = "pocketrol.preview.posits.v1";
+const CLAVE_POSITS_MESA = "pocketrol.mesa.posits.v1";
 
 function limitar(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
@@ -142,4 +143,45 @@ export function cargarPosits(): PositPreview[] {
 
 export function guardarPosits(posits: PositPreview[]): void {
   escribir(CLAVE_POSITS, posits);
+}
+
+export function nuevoId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `posit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Elige texto oscuro o claro según la luminosidad del color del posit. */
+export function textoLegible(color: string): string {
+  const limpio = color.replace("#", "");
+  const completo =
+    limpio.length === 3
+      ? limpio
+          .split("")
+          .map(caracter => caracter + caracter)
+          .join("")
+      : limpio;
+
+  const r = parseInt(completo.slice(0, 2), 16) || 0;
+  const g = parseInt(completo.slice(2, 4), 16) || 0;
+  const b = parseInt(completo.slice(4, 6), 16) || 0;
+  const luz = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+  return luz > 0.62 ? "#2a2433" : "#fbf8f2";
+}
+
+export function cargarPositsMesa(usuarioId = "preview"): PositPreview[] {
+  const guardados = leer<PositPreview[] | null>(
+    `${CLAVE_POSITS_MESA}:${usuarioId}`,
+    null
+  );
+  return Array.isArray(guardados) ? guardados : [];
+}
+
+export function guardarPositsMesa(
+  posits: PositPreview[],
+  usuarioId = "preview"
+): void {
+  escribir(`${CLAVE_POSITS_MESA}:${usuarioId}`, posits);
 }

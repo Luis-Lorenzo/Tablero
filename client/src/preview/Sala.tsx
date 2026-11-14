@@ -5,11 +5,14 @@ import type {
   PointerEvent as ReactPointerEvent,
   SetStateAction
 } from "react";
-import { CALIBRACION_INICIAL, FONDO_SALA } from "./datos";
+import { nuevoId } from "./calibracion";
+import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
+import { Posit } from "./Pizarra";
 import type {
   Asiento,
   Calibracion,
   JugadorPreview,
+  PositPreview,
   Punto,
   QuadMapa,
   RectPizarra
@@ -19,8 +22,11 @@ interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
   onCalibracion: Dispatch<SetStateAction<Calibracion>>;
+  positsMesa?: PositPreview[];
+  onPositsMesa?: Dispatch<SetStateAction<PositPreview[]>>;
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
+  onAbrirArchivador?: () => void;
   onVolver: () => void;
   hostName?: string;
 }
@@ -57,6 +63,14 @@ type Arrastre =
   | {
       tipo: "mapa-vertice";
       indice: number;
+      inicioX: number;
+      inicioY: number;
+      base: Punto;
+      medidas: Medidas;
+    }
+  | {
+      tipo: "posit-mesa";
+      id: string;
       inicioX: number;
       inicioY: number;
       base: Punto;
@@ -197,12 +211,36 @@ function IconoPosit() {
   );
 }
 
+function IconoArchivador() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h4.5l2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 11h18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function Sala({
   jugadores,
   calibracion,
   onCalibracion,
+  positsMesa,
+  onPositsMesa,
   onAbrirPizarra,
   onAbrirMapa,
+  onAbrirArchivador,
   onVolver,
   hostName
 }: SalaProps) {
@@ -217,8 +255,10 @@ export function Sala({
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sobreMapa, setSobreMapa] = useState(false);
+  const [positActivo, setPositActivo] = useState<string | null>(null);
 
   const plano = useRef<HTMLDivElement>(null);
+  const capaPosits = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
   const temporizador = useRef<number | null>(null);
   const ocultarResultado = useRef<number | null>(null);
@@ -266,6 +306,17 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "posit-mesa") {
+        const x = limitar(actual.base.x + dx, 8, 92);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onPositsMesa?.(prev =>
+          prev.map(posit =>
+            posit.id === actual.id ? { ...posit, x, y } : posit
+          )
+        );
+        return;
+      }
+
       if (actual.tipo === "pizarra") {
         onCalibracion(prev => ({
           ...prev,
@@ -293,7 +344,7 @@ export function Sala({
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
-  }, [onCalibracion]);
+  }, [onCalibracion, onPositsMesa]);
 
   useEffect(
     () => () => {
@@ -433,10 +484,85 @@ export function Sala({
     }
   }
 
+  function crearPositMesa(): void {
+    if (!onPositsMesa) return;
+    setSelectorAbierto(false);
+    const desplazamiento = (positsVisibles.length % 5) * 3;
+    const posit: PositPreview = {
+      id: nuevoId(),
+      texto: "",
+      color: COLORES_POSIT[3].valor,
+      x: limitar(24 + desplazamiento, 8, 92),
+      y: limitar(34 + desplazamiento, 12, 88),
+      giro: (Math.random() - 0.5) * 4,
+      archivado: false
+    };
+    onPositsMesa(prev => [...prev, posit]);
+    setPositActivo(posit.id);
+  }
+
+  function iniciarPositMesa(
+    evento: ReactPointerEvent,
+    posit: PositPreview
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    evento.preventDefault();
+    evento.stopPropagation();
+    arrastre.current = {
+      tipo: "posit-mesa",
+      id: posit.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      base: { x: posit.x, y: posit.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+    setPositActivo(posit.id);
+  }
+
+  function cambiarTextoPositMesa(id: string, texto: string): void {
+    onPositsMesa?.(prev =>
+      prev.map(posit => (posit.id === id ? { ...posit, texto } : posit))
+    );
+  }
+
+  function cambiarColorPositMesa(id: string, color: string): void {
+    onPositsMesa?.(prev =>
+      prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
+    );
+  }
+
+  function archivarPositMesa(id: string): void {
+    onPositsMesa?.(prev =>
+      prev.map(posit =>
+        posit.id === id ? { ...posit, archivado: true } : posit
+      )
+    );
+    setPositActivo(actual => (actual === id ? null : actual));
+    mostrarAviso("Posit archivado.");
+  }
+
+  function borrarPositMesa(id: string): void {
+    onPositsMesa?.(prev => prev.filter(posit => posit.id !== id));
+    setPositActivo(actual => (actual === id ? null : actual));
+  }
+
   const centro = centroide(calibracion.mapa);
+  const positsVisibles = (positsMesa ?? []).filter(posit => !posit.archivado);
+  const positsArchivadosCount = (positsMesa ?? []).filter(
+    posit => posit.archivado
+  ).length;
 
   return (
-    <div className="sala">
+    <div
+      className="sala"
+      onPointerDown={evento => {
+        if (!(evento.target as HTMLElement).closest(".posit")) {
+          setPositActivo(null);
+        }
+      }}
+    >
       <div className="sala-escena">
         <div
           ref={plano}
@@ -731,28 +857,73 @@ export function Sala({
         </div>
       )}
 
+      {!ajuste && (
+        <div className="sala-posits-capa" ref={capaPosits}>
+          {positsVisibles.map(posit => (
+            <Posit
+              key={posit.id}
+              posit={posit}
+              activo={positActivo === posit.id}
+              onActivar={setPositActivo}
+              onTexto={cambiarTextoPositMesa}
+              onColor={cambiarColorPositMesa}
+              onArchivar={archivarPositMesa}
+              onBorrar={borrarPositMesa}
+              onArrastrar={iniciarPositMesa}
+            />
+          ))}
+        </div>
+      )}
+
       <div
         className={`sala-dock${ajuste ? " ajustable" : ""}`}
         style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
         onPointerDown={ajuste ? iniciarDock : undefined}
       >
-        <button
-          type="button"
-          className={`dock-btn${selectorAbierto ? " activo" : ""}`}
-          onClick={() => setSelectorAbierto(abierto => !abierto)}
-          aria-expanded={selectorAbierto}
-          title="Seleccionar tirada de dados"
-        >
-          <IconoD20 />
-        </button>
-        <button
-          type="button"
-          className="dock-btn"
-          onClick={onAbrirPizarra}
-          title="Abrir la pizarra"
-        >
-          <IconoPosit />
-        </button>
+        <div className="dock-item">
+          <button
+            type="button"
+            className={`dock-btn${selectorAbierto ? " activo" : ""}`}
+            onClick={() => setSelectorAbierto(abierto => !abierto)}
+            aria-expanded={selectorAbierto}
+            title="Seleccionar tirada de dados"
+            aria-label="Dados"
+          >
+            <IconoD20 />
+          </button>
+          <span className="dock-etiqueta">Dados</span>
+        </div>
+
+        <div className="dock-item">
+          <button
+            type="button"
+            className="dock-btn"
+            onClick={crearPositMesa}
+            title="Crear posit personal"
+            aria-label="Crear posit"
+          >
+            <IconoPosit />
+          </button>
+          <span className="dock-etiqueta">Posits</span>
+        </div>
+
+        {onAbrirArchivador && (
+          <div className="dock-item">
+            <button
+              type="button"
+              className="dock-btn"
+              onClick={onAbrirArchivador}
+              title="Abrir archivador"
+              aria-label="Archivador"
+            >
+              <IconoArchivador />
+              {positsArchivadosCount > 0 && (
+                <span className="dock-badge">{positsArchivadosCount}</span>
+              )}
+            </button>
+            <span className="dock-etiqueta">Archivador</span>
+          </div>
+        )}
       </div>
 
       {aviso && <div className="sala-aviso">{aviso}</div>}

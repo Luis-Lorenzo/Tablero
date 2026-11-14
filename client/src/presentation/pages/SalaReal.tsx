@@ -6,11 +6,14 @@ import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
+import { Archivador } from "../../preview/Archivador";
 import {
   cargarCalibracion,
   cargarPosits,
+  cargarPositsMesa,
   guardarCalibracion,
-  guardarPosits
+  guardarPosits,
+  guardarPositsMesa
 } from "../../preview/calibracion";
 import type { Calibracion, JugadorPreview, PositPreview } from "../../preview/tipos";
 import "../../preview/preview.css";
@@ -23,7 +26,7 @@ interface SalaRealProps {
   onSessionExpired?: () => void;
 }
 
-type Fase = "sala" | "pizarra" | "mapa";
+type Fase = "sala" | "pizarra" | "mapa" | "archivador";
 
 const PALETA_COLORES = [
   "#74569b",
@@ -71,13 +74,16 @@ function SalaRealContent({
   const [fase, setFase] = useState<Fase>("sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
+    cargarPositsMesa(user.id)
+  );
   const [error, setError] = useState<string | null>(null);
 
   const esMaster = mesa.hostId === user.id;
 
   useEffect(() => {
     const root = document.getElementById("root");
-    if (fase === "pizarra" || fase === "mapa") {
+    if (fase === "pizarra" || fase === "mapa" || fase === "archivador") {
       root?.classList.add("ocultar-menus");
     } else {
       root?.classList.remove("ocultar-menus");
@@ -92,6 +98,10 @@ function SalaRealContent({
   useEffect(() => {
     guardarPosits(posits);
   }, [posits]);
+
+  useEffect(() => {
+    guardarPositsMesa(positsMesa, user.id);
+  }, [positsMesa, user.id]);
 
   const refrescar = useCallback(async () => {
     try {
@@ -130,14 +140,27 @@ function SalaRealContent({
     return <Mapa onVolver={() => setFase("sala")} />;
   }
 
+  if (fase === "archivador") {
+    return (
+      <Archivador
+        posits={positsMesa}
+        onPosits={setPositsMesa}
+        onVolver={() => setFase("sala")}
+      />
+    );
+  }
+
   return (
     <div>
       <Sala
         jugadores={jugadores}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
+        positsMesa={positsMesa}
+        onPositsMesa={setPositsMesa}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
+        onAbrirArchivador={() => setFase("archivador")}
         onVolver={volverAEspera}
         hostName={mesa.hostName}
       />
@@ -163,5 +186,5 @@ function SalaRealContent({
 }
 
 export function SalaReal(props: SalaRealProps) {
-  return <SalaRealContent {...props} />;
+  return <SalaRealContent key={props.user.id} {...props} />;
 }
