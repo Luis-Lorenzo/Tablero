@@ -64,8 +64,8 @@ export function PanelIzquierdo({
     <aside className="panel-lateral panel-izquierdo" aria-label="Resumen de taberna y utilidades">
       <section className="panel-caja taberna-caja">
         <div className="panel-cabecera">
-          <span className="panel-titulo-pixel">TABERNA EN VIVO</span>
-          <span className="taberna-live-dot" title="Actualización en vivo">
+          <span className="panel-titulo-pixel">SALAS EN DIRECTO</span>
+          <span className="taberna-live-dot" title="Actualización en directo">
             <Radio size={12} aria-hidden="true" />
           </span>
         </div>

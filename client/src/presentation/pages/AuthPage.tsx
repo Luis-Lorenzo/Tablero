@@ -78,11 +78,6 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
 
         <section className="card auth-card">
           <h1>{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h1>
-          <p className="muted auth-subtitulo">
-            {mode === "login"
-              ? "Accede a tus mesas de rol y archivos."
-              : "Regístrate para unirte o dirigir partidas."}
-          </p>
 
           <div className="tabs tabs-center">
             <button
