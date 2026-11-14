@@ -4,6 +4,7 @@ import { authApi } from "../../api/auth.api";
 import type { PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { LogoPocketRol } from "../components/LogoPocketRol";
+import { DadoPixelD6, DadoPixelPoliedro } from "../components/Dado";
 
 interface AuthPageProps {
   onAuthenticated: (user: PublicUser) => void;
@@ -63,8 +64,16 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   return (
     <main className="page">
       <div className="auth-contenedor">
-        <div className="auth-logo">
-          <LogoPocketRol clickable={false} />
+        <div className="auth-logo-con-dados">
+          <div className="auth-dados-lado" aria-hidden="true">
+            <DadoPixelD6 cara={5} clase="rot-izq" />
+          </div>
+          <div className="auth-logo">
+            <LogoPocketRol variante="banner" clickable={false} />
+          </div>
+          <div className="auth-dados-lado" aria-hidden="true">
+            <DadoPixelPoliedro tipo="d20" clase="rot-der" />
+          </div>
         </div>
 
         <section className="card auth-card">

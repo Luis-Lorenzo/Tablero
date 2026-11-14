@@ -1780,3 +1780,479 @@ tbody tr:hover {
     max-width: 90px;
   }
 }
+
+/* ------------------------------------------------ Layout 3 columnas & Pixel */
+
+.workspace-contenedor {
+  width: min(100%, 1440px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.workspace-3col {
+  display: grid;
+  grid-template-columns: 265px minmax(0, 1fr) 295px;
+  align-items: start;
+  gap: 20px;
+}
+
+.workspace-centro {
+  min-width: 0;
+}
+
+.topbar-logo-movil {
+  display: none;
+  width: 190px;
+}
+
+/* Paneles laterales */
+.panel-lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-caja {
+  padding: 16px;
+  border: 1px solid rgb(120 98 150 / 34%);
+  border-radius: 18px;
+  background: rgb(25 22 34 / 86%);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 14px 36px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.panel-titulo-pixel {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: #e4d8f8;
+}
+
+.panel-icono-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgb(120 98 150 / 35%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  color: #cbbbe6;
+  cursor: pointer;
+}
+
+.panel-icono-btn:hover:not(:disabled) {
+  background: rgb(169 143 206 / 16%);
+  color: #fff;
+}
+
+.panel-vacio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+/* Taberna en vivo */
+.taberna-live-dot {
+  display: grid;
+  place-items: center;
+  color: #6fe39c;
+  animation: pulso-vivo 2s ease-in-out infinite;
+}
+
+@keyframes pulso-vivo {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.taberna-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.taberna-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 8px;
+  border: 1px solid rgb(120 98 150 / 24%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 3%);
+}
+
+.taberna-stat-num {
+  font-family: "Press Start 2P", monospace;
+  font-size: 1.05rem;
+  color: #ffffff;
+}
+
+.taberna-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #a99ec0;
+}
+
+.taberna-mi-mesa {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/* Archivos rápidos */
+.archivos-rapidos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.archivo-rapido-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid rgb(120 98 150 / 20%);
+  background: rgb(255 255 255 / 2%);
+  color: #e4dcf2;
+  font-size: 0.81rem;
+  text-decoration: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.archivo-rapido-link:hover {
+  background: rgb(169 143 206 / 14%);
+  border-color: rgb(169 143 206 / 50%);
+}
+
+.archivo-rapido-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mini-widget clicker de dados */
+.clicker-contador {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.58rem;
+  color: #b7a3d9;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgb(124 92 208 / 18%);
+  border: 1px solid rgb(124 92 208 / 38%);
+}
+
+.clicker-visor {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgb(120 98 150 / 30%);
+  background: #14111d;
+  animation: clicker-pop 0.18s ease-out;
+}
+
+@keyframes clicker-pop {
+  from {
+    transform: scale(0.95);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.clicker-dado-tag {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  color: #a99ec0;
+}
+
+.clicker-resultado {
+  font-family: "Press Start 2P", monospace;
+  font-size: 1.35rem;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #3a265e;
+}
+
+.clicker-resultado.critico {
+  color: #ffe26a;
+  text-shadow: 2px 2px 0 #704b08;
+}
+
+.clicker-resultado.pifia {
+  color: #ff7a8a;
+  text-shadow: 2px 2px 0 #59111f;
+}
+
+.clicker-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.clicker-estado.critico {
+  background: rgb(255 226 106 / 18%);
+  color: #ffe26a;
+}
+
+.clicker-estado.pifia {
+  background: rgb(255 122 138 / 18%);
+  color: #ff9aa7;
+}
+
+.clicker-placeholder {
+  font-size: 0.78rem;
+  color: #8b819e;
+}
+
+.clicker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.clicker-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 4px;
+  border: 1px solid rgb(120 98 150 / 32%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 3%);
+  color: #e4dcf2;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.56rem;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.clicker-btn:hover {
+  background: rgb(169 143 206 / 14%);
+  border-color: #a98fce;
+}
+
+.clicker-btn:active {
+  transform: translateY(2px) scale(0.96);
+}
+
+/* Panel derecho: Emblema Pixel 3D + Dados */
+.panel-emblema {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at 50% 45%, rgb(124 92 208 / 22%) 0%, transparent 70%),
+    rgb(25 22 34 / 90%);
+}
+
+.panel-logo-wrap {
+  width: 100%;
+}
+
+.logo-pixel {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.logo-pixel:hover {
+  transform: translateY(-2px) scale(1.02);
+  filter: drop-shadow(0 8px 18px rgb(124 92 208 / 38%));
+}
+
+.logo-pixel.estatico {
+  cursor: default;
+}
+
+.logo-pixel.estatico:hover {
+  transform: none;
+  filter: none;
+}
+
+.logo-pixel-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.logo-pixel-texto {
+  font-family: "Press Start 2P", monospace;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.logo-pixel-texto.panel-linea-1 {
+  font-size: 34px;
+}
+
+.logo-pixel-texto.panel-linea-2 {
+  font-size: 40px;
+  letter-spacing: 5px;
+}
+
+.logo-pixel-texto.banner-linea {
+  font-size: 30px;
+}
+
+.logo-pixel-cara {
+  paint-order: stroke fill;
+  stroke: #1b1130;
+  stroke-width: 3px;
+  stroke-linejoin: miter;
+}
+
+.dados-pixel-fila {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.dado-pixel {
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 50%));
+  transition: transform 0.18s ease;
+}
+
+.dado-pixel.mini {
+  width: 22px;
+  height: 22px;
+  filter: none;
+}
+
+.dado-pixel-num {
+  font-family: "Press Start 2P", monospace;
+  font-size: 4.8px;
+  fill: #ffffff;
+  paint-order: stroke fill;
+  stroke: #120b20;
+  stroke-width: 1.4px;
+}
+
+.dado-pixel.rot-izq {
+  transform: rotate(-12deg) translateY(2px);
+}
+
+.dado-pixel.rot-centro {
+  transform: rotate(5deg) translateY(-4px) scale(1.06);
+}
+
+.dado-pixel.rot-suave {
+  transform: rotate(-6deg) translateY(2px);
+}
+
+.dado-pixel.rot-der {
+  transform: rotate(12deg) translateY(-2px);
+}
+
+.dado-pixel.destacado {
+  width: 50px;
+  height: 50px;
+  transform: rotate(6deg) translateY(-3px);
+}
+
+.emblema-subtitulo {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  color: #b7a3d9;
+  text-align: center;
+}
+
+/* Auth con logo pixel + dados */
+.auth-logo-con-dados {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.auth-logo {
+  flex: 1;
+  max-width: 320px;
+}
+
+.auth-dados-lado {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1120px) {
+  .workspace-3col {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-derecho {
+    display: none;
+  }
+
+  .topbar-logo-movil {
+    display: block;
+  }
+
+  .panel-izquierdo {
+    order: 2;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .workspace-centro {
+    order: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-logo-movil {
+    width: 145px;
+  }
+
+  .auth-dados-lado {
+    display: none;
+  }
+}

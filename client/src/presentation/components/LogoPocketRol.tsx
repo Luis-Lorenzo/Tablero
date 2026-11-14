@@ -3,60 +3,131 @@ import { useId } from "react";
 interface LogoPocketRolProps {
   onClick?: () => void;
   clickable?: boolean;
+  variante?: "panel" | "banner";
 }
 
+const EXTRUSION_CAPAS = [
+  { dx: 10, dy: 12, color: "#120b20" },
+  { dx: 8.5, dy: 10, color: "#23153d" },
+  { dx: 7, dy: 8.2, color: "#36205c" },
+  { dx: 5.5, dy: 6.4, color: "#4b2d7d" },
+  { dx: 4, dy: 4.6, color: "#623d9e" },
+  { dx: 2.5, dy: 2.8, color: "#7f58bd" },
+  { dx: 1.2, dy: 1.4, color: "#b6a2db" }
+];
+
 /**
- * Logotipo "POCKET ROL" con el arco de los rótulos clásicos de mesa/casino,
- * acabado dorado metálico y ornamento inferior. Si es clickable, vuelve a la recepción.
+ * Logotipo "POCKET ROL" en estilo retro pixel 3D: letras rectas, gruesas y
+ * blancas con extrusión de profundidad en perspectiva.
  */
-export function LogoPocketRol({ onClick, clickable = true }: LogoPocketRolProps) {
+export function LogoPocketRol({
+  onClick,
+  clickable = true,
+  variante = "panel"
+}: LogoPocketRolProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const arco = `arco-${uid}`;
-  const oro = `oro-${uid}`;
-  const sombra = `sombra-${uid}`;
+  const gradId = `pixel-face-${uid}`;
+  const esPanel = variante === "panel";
+
+  const viewBox = esPanel ? "0 0 280 128" : "0 0 420 76";
 
   const contenido = (
-    <svg viewBox="0 0 360 104" role="img" aria-label="POCKET ROL">
+    <svg
+      viewBox={viewBox}
+      role="img"
+      aria-label="POCKET ROL"
+      className={`logo-pixel-svg ${variante}`}
+      shapeRendering="crispEdges"
+    >
       <defs>
-        <path id={arco} d="M 18 82 Q 180 6 342 82" fill="none" />
-        <linearGradient id={oro} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fff9e8" />
-          <stop offset="48%" stopColor="#f5d57a" />
-          <stop offset="100%" stopColor="#c4942a" />
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="68%" stopColor="#f2eef9" />
+          <stop offset="100%" stopColor="#d4cbe6" />
         </linearGradient>
-        <filter id={sombra} x="-10%" y="-15%" width="120%" height="140%">
-          <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#09070f" floodOpacity="0.75" />
-        </filter>
       </defs>
 
-      <text
-        className="logo-poker-texto"
-        fill={`url(#${oro})`}
-        filter={`url(#${sombra})`}
-        textAnchor="middle"
-      >
-        <textPath href={`#${arco}`} startOffset="50%">
-          POCKET ROL
-        </textPath>
-      </text>
+      {esPanel ? (
+        <g transform="skewY(-5)">
+          {EXTRUSION_CAPAS.map((capa, idx) => (
+            <g key={idx} transform={`translate(${capa.dx}, ${capa.dy})`}>
+              <text
+                x="134"
+                y="54"
+                textAnchor="middle"
+                className="logo-pixel-texto panel-linea-1"
+                fill={capa.color}
+              >
+                POCKET
+              </text>
+              <text
+                x="134"
+                y="108"
+                textAnchor="middle"
+                className="logo-pixel-texto panel-linea-2"
+                fill={capa.color}
+              >
+                ROL
+              </text>
+            </g>
+          ))}
 
-      {/* Ornamento inferior sutil */}
-      <g className="logo-ornamento" opacity="0.85">
-        <line x1="92" y1="88" x2="164" y2="88" stroke={`url(#${oro})`} strokeWidth="1.2" strokeLinecap="round" />
-        <polygon points="180,82 186,88 180,94 174,88" fill={`url(#${oro})`} />
-        <line x1="196" y1="88" x2="268" y2="88" stroke={`url(#${oro})`} strokeWidth="1.2" strokeLinecap="round" />
-      </g>
+          <text
+            x="134"
+            y="54"
+            textAnchor="middle"
+            className="logo-pixel-texto panel-linea-1 logo-pixel-cara"
+            fill={`url(#${gradId})`}
+          >
+            POCKET
+          </text>
+          <text
+            x="134"
+            y="108"
+            textAnchor="middle"
+            className="logo-pixel-texto panel-linea-2 logo-pixel-cara"
+            fill={`url(#${gradId})`}
+          >
+            ROL
+          </text>
+        </g>
+      ) : (
+        <g transform="skewY(-2.5)">
+          {EXTRUSION_CAPAS.map((capa, idx) => (
+            <text
+              key={idx}
+              x="204"
+              y="52"
+              textAnchor="middle"
+              className="logo-pixel-texto banner-linea"
+              fill={capa.color}
+              transform={`translate(${capa.dx * 0.75}, ${capa.dy * 0.75})`}
+            >
+              POCKET ROL
+            </text>
+          ))}
+          <text
+            x="204"
+            y="52"
+            textAnchor="middle"
+            className="logo-pixel-texto banner-linea logo-pixel-cara"
+            fill={`url(#${gradId})`}
+          >
+            POCKET ROL
+          </text>
+        </g>
+      )}
     </svg>
   );
 
   if (!clickable || !onClick) {
-    return <div className="logo-poker estatico">{contenido}</div>;
+    return <div className={`logo-pixel ${variante} estatico`}>{contenido}</div>;
   }
 
   return (
     <button
       type="button"
-      className="logo-poker"
+      className={`logo-pixel ${variante}`}
       onClick={onClick}
       title="Ir a la recepción"
       aria-label="Ir a la recepción"

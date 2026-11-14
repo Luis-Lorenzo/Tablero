@@ -11,9 +11,10 @@ import { RecepcionPage } from "./presentation/pages/RecepcionPage";
 import { GestionMesaPage } from "./presentation/pages/GestionMesaPage";
 import { SalaReal } from "./presentation/pages/SalaReal";
 import { LogoPocketRol } from "./presentation/components/LogoPocketRol";
-import { Dado } from "./presentation/components/Dado";
 import { AccountMenu } from "./presentation/components/AccountMenu";
 import { ArchivosMenu } from "./presentation/components/ArchivosMenu";
+import { PanelIzquierdo } from "./presentation/components/PanelIzquierdo";
+import { PanelDerecho } from "./presentation/components/PanelDerecho";
 import { useMesasLive } from "./presentation/hooks/useMesasLive";
 
 type View = "recepcion" | "cuenta" | "moderar" | "gestion" | "sala";
@@ -133,95 +134,111 @@ function App() {
   const esAdmin = user.role === "ADMIN";
   const ocultarMenusSuperiores = view === "sala" || view === "gestion";
 
+  if (ocultarMenusSuperiores) {
+    return (
+      <main className="page">
+        <div className="shell">
+          {view === "sala" && salaMesa ? (
+            <SalaReal
+              mesa={salaMesa}
+              user={user}
+              onActualizarMesa={setSalaMesa}
+              onVolver={volverRecpcion}
+              onSessionExpired={handleLogout}
+            />
+          ) : view === "gestion" && gestionMesaId ? (
+            <GestionMesaPage
+              mesaId={gestionMesaId}
+              user={user}
+              onVolver={() => setView("recepcion")}
+              onAbrirSala={abrirSala}
+              onSessionExpired={handleLogout}
+            />
+          ) : null}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="page">
-      <div className="shell">
-        {!ocultarMenusSuperiores && (
-          <header className="topbar">
-            <div className="topbar-nav">
-              <div className="topbar-izq">
-                <ArchivosMenu />
-              </div>
+      <div className="workspace-contenedor">
+        <header className="topbar-nav">
+          <div className="topbar-izq">
+            <ArchivosMenu />
+          </div>
 
-              <div className="topbar-der">
-                {esAdmin && miMesa && (
-                  <button
-                    type="button"
-                    className="primary verde small listar-mesa"
-                    onClick={() => abrirGestion(miMesa)}
-                  >
-                    <ListChecks size={14} aria-hidden="true" />
-                    <span>Listar mesa</span>
-                  </button>
-                )}
+          <div className="topbar-logo-movil">
+            <LogoPocketRol variante="banner" onClick={() => setView("recepcion")} />
+          </div>
 
-                {esAdmin && (
-                  <button
-                    type="button"
-                    className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
-                    onClick={() => setView(view === "moderar" ? "recepcion" : "moderar")}
-                  >
-                    <ShieldAlert size={14} aria-hidden="true" />
-                    <span>Moderar</span>
-                  </button>
-                )}
+          <div className="topbar-der">
+            {esAdmin && miMesa && (
+              <button
+                type="button"
+                className="primary verde small listar-mesa"
+                onClick={() => abrirGestion(miMesa)}
+              >
+                <ListChecks size={14} aria-hidden="true" />
+                <span>Listar mesa</span>
+              </button>
+            )}
 
-                <AccountMenu
-                  label={nombreDeUsuario(user)}
-                  showHome={view !== "recepcion"}
-                  onGoHome={() => setView("recepcion")}
-                  onOpenAccount={() => setView("cuenta")}
-                  onLogout={handleLogout}
-                />
-              </div>
-            </div>
+            {esAdmin && (
+              <button
+                type="button"
+                className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
+                onClick={() => setView(view === "moderar" ? "recepcion" : "moderar")}
+              >
+                <ShieldAlert size={14} aria-hidden="true" />
+                <span>Moderar</span>
+              </button>
+            )}
 
-            <div className="titulo-con-dados">
-              <Dado cara={5} clase="dado-izquierda" />
-              <LogoPocketRol onClick={() => setView("recepcion")} />
-              <Dado cara={2} clase="dado-derecha" />
-            </div>
-          </header>
-        )}
+            <AccountMenu
+              label={nombreDeUsuario(user)}
+              showHome={view !== "recepcion"}
+              onGoHome={() => setView("recepcion")}
+              onOpenAccount={() => setView("cuenta")}
+              onLogout={handleLogout}
+            />
+          </div>
+        </header>
 
-        {view === "sala" && salaMesa ? (
-          <SalaReal
-            mesa={salaMesa}
+        <div className="workspace-3col">
+          <PanelIzquierdo
             user={user}
-            onActualizarMesa={setSalaMesa}
-            onVolver={volverRecpcion}
-            onSessionExpired={handleLogout}
+            onGestionarMesa={abrirGestion}
+            onIrRecepcion={() => setView("recepcion")}
           />
-        ) : view === "gestion" && gestionMesaId ? (
-          <GestionMesaPage
-            mesaId={gestionMesaId}
-            user={user}
-            onVolver={() => setView("recepcion")}
-            onAbrirSala={abrirSala}
-            onSessionExpired={handleLogout}
-          />
-        ) : view === "moderar" && esAdmin ? (
-          <AdminUsersPage
-            currentUser={user}
-            onSelfDeleted={handleLogout}
-            onVolver={() => setView("recepcion")}
-          />
-        ) : view === "cuenta" ? (
-          <DashboardPage
-            user={user}
-            onUserUpdated={setUser}
-            onAccountDeleted={handleLogout}
-            onLogout={handleLogout}
-            onVolver={() => setView("recepcion")}
-          />
-        ) : (
-          <RecepcionPage
-            user={user}
-            onGestionar={abrirGestion}
-            onMiMesa={handleMiMesa}
-            onSessionExpired={handleLogout}
-          />
-        )}
+
+          <div className="workspace-centro">
+            {view === "moderar" && esAdmin ? (
+              <AdminUsersPage
+                currentUser={user}
+                onSelfDeleted={handleLogout}
+                onVolver={() => setView("recepcion")}
+              />
+            ) : view === "cuenta" ? (
+              <DashboardPage
+                user={user}
+                onUserUpdated={setUser}
+                onAccountDeleted={handleLogout}
+                onLogout={handleLogout}
+                onVolver={() => setView("recepcion")}
+              />
+            ) : (
+              <RecepcionPage
+                user={user}
+                onGestionar={abrirGestion}
+                onMiMesa={handleMiMesa}
+                onSessionExpired={handleLogout}
+              />
+            )}
+          </div>
+
+          <PanelDerecho onLogoClick={() => setView("recepcion")} />
+        </div>
       </div>
     </main>
   );
