@@ -5,6 +5,7 @@ import {
 } from "./datos";
 import type {
   Calibracion,
+  DocumentoMesa,
   JugadorPreview,
   PositPreview,
   Punto,
@@ -24,6 +25,7 @@ const CLAVE_CALIBRACION = "pocketrol.preview.calibracion.v1";
 const CLAVE_JUGADORES = "pocketrol.preview.jugadores.v2";
 const CLAVE_POSITS = "pocketrol.preview.posits.v1";
 const CLAVE_POSITS_MESA = "pocketrol.mesa.posits.v1";
+const CLAVE_DOCS_MESA = "pocketrol.mesa.docs.v1";
 
 function limitar(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
@@ -184,4 +186,36 @@ export function guardarPositsMesa(
   usuarioId = "preview"
 ): void {
   escribir(`${CLAVE_POSITS_MESA}:${usuarioId}`, posits);
+}
+
+export function cargarDocumentosMesa(usuarioId = "preview"): DocumentoMesa[] {
+  const guardados = leer<DocumentoMesa[] | null>(
+    `${CLAVE_DOCS_MESA}:${usuarioId}`,
+    null
+  );
+  return Array.isArray(guardados) ? guardados : [];
+}
+
+export function guardarDocumentosMesa(
+  documentos: DocumentoMesa[],
+  usuarioId = "preview"
+): void {
+  escribir(`${CLAVE_DOCS_MESA}:${usuarioId}`, documentos);
+}
+
+export function infoFormatoArchivo(vista: string): {
+  codigo: "PDF" | "DOC" | "IMG" | "TXT";
+  clase: "pdf" | "doc" | "img" | "txt";
+  color: string;
+} {
+  switch (vista) {
+    case "pdf":
+      return { codigo: "PDF", clase: "pdf", color: "#d64545" };
+    case "docx":
+      return { codigo: "DOC", clase: "doc", color: "#2b6cb0" };
+    case "imagen":
+      return { codigo: "IMG", clase: "img", color: "#2f9e6f" };
+    default:
+      return { codigo: "TXT", clase: "txt", color: "#64748b" };
+  }
 }

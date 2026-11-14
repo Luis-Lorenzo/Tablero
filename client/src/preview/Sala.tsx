@@ -5,12 +5,14 @@ import type {
   PointerEvent as ReactPointerEvent,
   SetStateAction
 } from "react";
-import { nuevoId } from "./calibracion";
+import { DocumentoVisorModal } from "./Archivador";
+import { infoFormatoArchivo, nuevoId } from "./calibracion";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
 import { Posit } from "./Pizarra";
 import type {
   Asiento,
   Calibracion,
+  DocumentoMesa,
   JugadorPreview,
   PositPreview,
   Punto,
@@ -24,6 +26,8 @@ interface SalaProps {
   onCalibracion: Dispatch<SetStateAction<Calibracion>>;
   positsMesa?: PositPreview[];
   onPositsMesa?: Dispatch<SetStateAction<PositPreview[]>>;
+  documentosMesa?: DocumentoMesa[];
+  onDocumentosMesa?: Dispatch<SetStateAction<DocumentoMesa[]>>;
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
   onAbrirArchivador?: () => void;
@@ -73,6 +77,15 @@ type Arrastre =
       id: string;
       inicioX: number;
       inicioY: number;
+      base: Punto;
+      medidas: Medidas;
+    }
+  | {
+      tipo: "doc-mesa";
+      id: string;
+      inicioX: number;
+      inicioY: number;
+      movido: boolean;
       base: Punto;
       medidas: Medidas;
     };
@@ -238,6 +251,8 @@ export function Sala({
   onCalibracion,
   positsMesa,
   onPositsMesa,
+  documentosMesa,
+  onDocumentosMesa,
   onAbrirPizarra,
   onAbrirMapa,
   onAbrirArchivador,
@@ -256,10 +271,12 @@ export function Sala({
   const [aviso, setAviso] = useState<string | null>(null);
   const [sobreMapa, setSobreMapa] = useState(false);
   const [positActivo, setPositActivo] = useState<string | null>(null);
+  const [visorDoc, setVisorDoc] = useState<DocumentoMesa | null>(null);
 
   const plano = useRef<HTMLDivElement>(null);
   const capaPosits = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
+  const arrastreDocMovido = useRef(false);
   const temporizador = useRef<number | null>(null);
   const ocultarResultado = useRef<number | null>(null);
   const avisoTimer = useRef<number | null>(null);
@@ -317,6 +334,27 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "doc-mesa") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 5
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+        }
+        if (!actual.movido) return;
+
+        const x = limitar(actual.base.x + dx, 6, 94);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onDocumentosMesa?.(prev =>
+          prev.map(doc => (doc.id === actual.id ? { ...doc, x, y } : doc))
+        );
+        return;
+      }
+
       if (actual.tipo === "pizarra") {
         onCalibracion(prev => ({
           ...prev,
@@ -333,6 +371,11 @@ export function Sala({
 
     function soltar() {
       arrastre.current = null;
+      if (arrastreDocMovido.current) {
+        window.setTimeout(() => {
+          arrastreDocMovido.current = false;
+        }, 0);
+      }
     }
 
     window.addEventListener("pointermove", mover);
@@ -344,7 +387,7 @@ export function Sala({
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
-  }, [onCalibracion, onPositsMesa]);
+  }, [onCalibracion, onPositsMesa, onDocumentosMesa]);
 
   useEffect(
     () => () => {
@@ -548,11 +591,39 @@ export function Sala({
     setPositActivo(actual => (actual === id ? null : actual));
   }
 
+  function iniciarDocMesa(
+    evento: ReactPointerEvent,
+    doc: DocumentoMesa
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    evento.stopPropagation();
+    setPositActivo(null);
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "doc-mesa",
+      id: doc.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false,
+      base: { x: doc.x, y: doc.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+  }
+
+  function archivarDocMesa(id: string): void {
+    onDocumentosMesa?.(prev => prev.filter(doc => doc.id !== id));
+    setVisorDoc(actual => (actual?.id === id ? null : actual));
+    mostrarAviso("Documento archivado.");
+  }
+
   const centro = centroide(calibracion.mapa);
   const positsVisibles = (positsMesa ?? []).filter(posit => !posit.archivado);
   const positsArchivadosCount = (positsMesa ?? []).filter(
     posit => posit.archivado
   ).length;
+  const docsVisibles = documentosMesa ?? [];
 
   return (
     <div
@@ -872,6 +943,68 @@ export function Sala({
               onArrastrar={iniciarPositMesa}
             />
           ))}
+
+          {docsVisibles.map(doc => {
+            const formato = infoFormatoArchivo(doc.vista);
+            return (
+              <div
+                key={doc.id}
+                className="ficha-doc"
+                style={
+                  {
+                    left: `${doc.x}%`,
+                    top: `${doc.y}%`,
+                    "--doc-color": formato.color
+                  } as CSSProperties
+                }
+                onPointerDown={evento => iniciarDocMesa(evento, doc)}
+              >
+                <div
+                  className="ficha-doc-barra"
+                  onPointerDown={evento => evento.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="posit-archivar"
+                    title="Archivar documento"
+                    aria-label="Archivar documento"
+                    onClick={evento => {
+                      evento.stopPropagation();
+                      archivarDocMesa(doc.id);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className={`ficha-doc-hoja ${formato.clase}`}
+                  title={`Abrir ${doc.nombre}`}
+                  aria-label={`Abrir ${doc.nombre}`}
+                  onClick={() => {
+                    if (arrastreDocMovido.current) return;
+                    setVisorDoc(doc);
+                  }}
+                >
+                  <span className="ficha-doc-codigo">{formato.codigo}</span>
+                </button>
+
+                <span className="ficha-doc-nombre" title={doc.nombre}>
+                  {doc.nombre}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -927,6 +1060,13 @@ export function Sala({
       </div>
 
       {aviso && <div className="sala-aviso">{aviso}</div>}
+
+      {visorDoc && (
+        <DocumentoVisorModal
+          archivo={visorDoc}
+          onCerrar={() => setVisorDoc(null)}
+        />
+      )}
     </div>
   );
 }

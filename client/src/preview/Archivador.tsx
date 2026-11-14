@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChangeEvent, Dispatch, SetStateAction } from "react";
+import type {
+  CSSProperties,
+  ChangeEvent,
+  Dispatch,
+  SetStateAction
+} from "react";
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
-import { textoLegible } from "./calibracion";
-import type { PositPreview } from "./tipos";
+import { infoFormatoArchivo, textoLegible } from "./calibracion";
+import type { DocumentoMesa, PositPreview } from "./tipos";
 
 interface ArchivadorProps {
   posits: PositPreview[];
   onPosits: Dispatch<SetStateAction<PositPreview[]>>;
+  documentosMesa: DocumentoMesa[];
+  onDocumentosMesa: Dispatch<SetStateAction<DocumentoMesa[]>>;
   onVolver: () => void;
 }
 
@@ -20,21 +27,6 @@ function formatearTamano(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function etiquetaVista(vista: string): string {
-  switch (vista) {
-    case "pdf":
-      return "PDF";
-    case "imagen":
-      return "IMAGEN";
-    case "docx":
-      return "DOCX";
-    case "texto":
-      return "TEXTO";
-    default:
-      return "ARCHIVO";
-  }
 }
 
 function TextoVisor({ id, nombre }: { id: string; nombre: string }) {
@@ -66,60 +58,17 @@ function TextoVisor({ id, nombre }: { id: string; nombre: string }) {
   );
 }
 
-export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
-  const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [subiendo, setSubiendo] = useState(false);
-  const [visor, setVisor] = useState<PublicArchivo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const selector = useRef<HTMLInputElement>(null);
+export function DocumentoVisorModal({
+  archivo,
+  onCerrar
+}: {
+  archivo: PublicArchivo | DocumentoMesa;
+  onCerrar: () => void;
+}) {
   const docxRef = useRef<HTMLDivElement>(null);
 
-  const cargarArchivos = useCallback(async () => {
-    const esPreview =
-      new URLSearchParams(window.location.search).get("preview") === "1";
-
-    setCargando(true);
-    try {
-      setArchivos(await archivosApi.listar());
-      setError(null);
-    } catch (fallo) {
-      if (!esPreview) {
-        setError(describeError(fallo));
-      }
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
   useEffect(() => {
-    let activo = true;
-    const esPreview =
-      new URLSearchParams(window.location.search).get("preview") === "1";
-
-    archivosApi
-      .listar()
-      .then(lista => {
-        if (!activo) return;
-        setArchivos(lista);
-        setError(null);
-      })
-      .catch(fallo => {
-        if (!activo || esPreview) return;
-        setError(describeError(fallo));
-      })
-      .finally(() => {
-        if (activo) setCargando(false);
-      });
-
-    return () => {
-      activo = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!visor || visor.vista !== "docx") return undefined;
+    if (archivo.vista !== "docx") return undefined;
 
     let cancelado = false;
 
@@ -130,7 +79,7 @@ export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
         if (cancelado || !contenedor) return;
         contenedor.innerHTML = "";
 
-        const respuesta = await fetch(archivosApi.url(visor.id), {
+        const respuesta = await fetch(archivosApi.url(archivo.id), {
           credentials: "include"
         });
         if (!respuesta.ok || cancelado) return;
@@ -151,20 +100,140 @@ export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
     return () => {
       cancelado = true;
     };
-  }, [visor]);
+  }, [archivo.id, archivo.vista]);
 
   useEffect(() => {
-    if (!visor) return undefined;
-
     function alPulsarTecla(evento: KeyboardEvent) {
       if (evento.key === "Escape") {
-        setVisor(null);
+        onCerrar();
       }
     }
 
     document.addEventListener("keydown", alPulsarTecla);
     return () => document.removeEventListener("keydown", alPulsarTecla);
-  }, [visor]);
+  }, [onCerrar]);
+
+  return (
+    <div className="archivador-visor" onClick={onCerrar}>
+      <div
+        className="archivador-visor-caja"
+        onClick={evento => evento.stopPropagation()}
+      >
+        <header className="archivador-visor-cabecera">
+          <span className="archivador-visor-nombre" title={archivo.nombre}>
+            {archivo.nombre}
+          </span>
+          <div className="archivador-visor-acciones">
+            <a
+              className="archivador-visor-descargar"
+              href={archivosApi.url(archivo.id, true)}
+              download={archivo.nombre}
+            >
+              Descargar
+            </a>
+            <button
+              type="button"
+              className="archivador-visor-cerrar"
+              onClick={onCerrar}
+              aria-label="Cerrar"
+            >
+              Cerrar
+            </button>
+          </div>
+        </header>
+
+        <div className="archivador-visor-marco">
+          {archivo.vista !== "ninguna" ? (
+            archivo.vista === "pdf" ? (
+              <iframe src={archivosApi.url(archivo.id)} title={archivo.nombre} />
+            ) : archivo.vista === "imagen" ? (
+              <img src={archivosApi.url(archivo.id)} alt={archivo.nombre} />
+            ) : archivo.vista === "docx" ? (
+              <div ref={docxRef} className="archivador-docx-contenedor" />
+            ) : archivo.vista === "texto" ? (
+              <TextoVisor id={archivo.id} nombre={archivo.nombre} />
+            ) : (
+              <iframe src={archivosApi.url(archivo.id)} title={archivo.nombre} />
+            )
+          ) : (
+            <p className="archivador-vacio">
+              Este tipo de archivo no se puede mostrar aquí. Usa «Descargar».
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Archivador({
+  posits,
+  onPosits,
+  documentosMesa,
+  onDocumentosMesa,
+  onVolver
+}: ArchivadorProps) {
+  const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [subiendo, setSubiendo] = useState(false);
+  const [visor, setVisor] = useState<PublicArchivo | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const selector = useRef<HTMLInputElement>(null);
+
+  const sincronizarLista = useCallback(
+    (lista: PublicArchivo[]) => {
+      setArchivos(lista);
+      setError(null);
+      const ids = new Set(lista.map(archivo => archivo.id));
+      onDocumentosMesa(prev => {
+        const filtrados = prev.filter(doc => ids.has(doc.id));
+        return filtrados.length === prev.length ? prev : filtrados;
+      });
+    },
+    [onDocumentosMesa]
+  );
+
+  const cargarArchivos = useCallback(async () => {
+    const esPreview =
+      new URLSearchParams(window.location.search).get("preview") === "1";
+
+    setCargando(true);
+    try {
+      const lista = await archivosApi.listar();
+      sincronizarLista(lista);
+    } catch (fallo) {
+      if (!esPreview) {
+        setError(describeError(fallo));
+      }
+    } finally {
+      setCargando(false);
+    }
+  }, [sincronizarLista]);
+
+  useEffect(() => {
+    let activo = true;
+    const esPreview =
+      new URLSearchParams(window.location.search).get("preview") === "1";
+
+    archivosApi
+      .listar()
+      .then(lista => {
+        if (!activo) return;
+        sincronizarLista(lista);
+      })
+      .catch(fallo => {
+        if (!activo || esPreview) return;
+        setError(describeError(fallo));
+      })
+      .finally(() => {
+        if (activo) setCargando(false);
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [sincronizarLista]);
 
   async function alElegirArchivos(evento: ChangeEvent<HTMLInputElement>) {
     const elegidos = Array.from(evento.target.files ?? []);
@@ -197,10 +266,28 @@ export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
     onPosits(prev => prev.filter(posit => posit.id !== id));
   }
 
+  function desarchivarDocumento(archivo: PublicArchivo): void {
+    const desplazamiento = (documentosMesa.length % 5) * 3;
+    const docMesa: DocumentoMesa = {
+      id: archivo.id,
+      nombre: archivo.nombre,
+      tipo: archivo.tipo,
+      vista: archivo.vista,
+      tamano: archivo.tamano,
+      x: Math.min(90, Math.max(10, 74 - desplazamiento)),
+      y: Math.min(86, Math.max(14, 34 + desplazamiento))
+    };
+
+    onDocumentosMesa(prev =>
+      prev.some(doc => doc.id === archivo.id) ? prev : [...prev, docMesa]
+    );
+  }
+
   async function borrarArchivo(archivo: PublicArchivo): Promise<void> {
     try {
       await archivosApi.borrar(archivo.id);
       if (visor?.id === archivo.id) setVisor(null);
+      onDocumentosMesa(prev => prev.filter(doc => doc.id !== archivo.id));
       await cargarArchivos();
     } catch (fallo) {
       setError(describeError(fallo));
@@ -208,6 +295,9 @@ export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
   }
 
   const positsArchivados = posits.filter(posit => posit.archivado);
+  const archivosArchivados = archivos.filter(
+    archivo => !documentosMesa.some(doc => doc.id === archivo.id)
+  );
 
   return (
     <div className="archivador-page">
@@ -303,7 +393,9 @@ export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
         <section className="archivador-seccion">
           <div className="archivador-seccion-cabecera">
             <h2>Mis archivos</h2>
-            <span className="archivador-contador">{archivos.length}</span>
+            <span className="archivador-contador">
+              {archivosArchivados.length}
+            </span>
           </div>
 
           {cargando && archivos.length === 0 ? (
@@ -313,105 +405,76 @@ export function Archivador({ posits, onPosits, onVolver }: ArchivadorProps) {
               Todavía no tienes archivos subidos. Pulsa «+ Añadir archivo» para
               subir PDF, imágenes, .docx o texto.
             </p>
+          ) : archivosArchivados.length === 0 ? (
+            <p className="archivador-vacio">
+              Todos tus archivos están abiertos sobre la mesa. Archívalos desde
+              la mesa para guardarlos aquí.
+            </p>
           ) : (
             <div className="archivador-grid">
-              {archivos.map(archivo => (
-                <article
-                  key={archivo.id}
-                  className="archivador-card archivador-card-archivo"
-                >
-                  <button
-                    type="button"
-                    className="archivador-archivo-cuerpo"
-                    onClick={() => setVisor(archivo)}
-                    title={archivo.nombre}
+              {archivosArchivados.map(archivo => {
+                const formato = infoFormatoArchivo(archivo.vista);
+                return (
+                  <article
+                    key={archivo.id}
+                    className="archivador-card archivador-card-archivo"
                   >
-                    <span className="archivador-tipo-badge">
-                      {etiquetaVista(archivo.vista)}
-                    </span>
-                    <span className="archivador-archivo-nombre">
-                      {archivo.nombre}
-                    </span>
-                    <span className="archivador-archivo-peso">
-                      {formatearTamano(archivo.tamano)}
-                    </span>
-                  </button>
-
-                  <div className="archivador-card-acciones">
                     <button
                       type="button"
-                      className="archivador-accion-principal"
+                      className="archivador-archivo-cuerpo"
                       onClick={() => setVisor(archivo)}
+                      title={`Previsualizar ${archivo.nombre}`}
                     >
-                      Abrir
+                      <div className="archivador-archivo-cabecera">
+                        <span
+                          className={`ficha-doc-hoja mini ${formato.clase}`}
+                          style={{ "--doc-color": formato.color } as CSSProperties}
+                        >
+                          {formato.codigo}
+                        </span>
+                        <span className={`archivador-tipo-badge ${formato.clase}`}>
+                          {formato.codigo}
+                        </span>
+                      </div>
+                      <span className="archivador-archivo-nombre">
+                        {archivo.nombre}
+                      </span>
+                      <span className="archivador-archivo-peso">
+                        {formatearTamano(archivo.tamano)}
+                      </span>
                     </button>
-                    <button
-                      type="button"
-                      className="archivador-accion-borrar"
-                      title="Borrar archivo"
-                      aria-label={`Borrar ${archivo.nombre}`}
-                      onClick={() => void borrarArchivo(archivo)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </article>
-              ))}
+
+                    <div className="archivador-card-acciones">
+                      <button
+                        type="button"
+                        className="archivador-accion-principal"
+                        onClick={() => desarchivarDocumento(archivo)}
+                      >
+                        Desarchivar
+                      </button>
+                      <button
+                        type="button"
+                        className="archivador-accion-borrar"
+                        title="Borrar archivo"
+                        aria-label={`Borrar ${archivo.nombre}`}
+                        onClick={() => void borrarArchivo(archivo)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
       </div>
 
       {visor && (
-        <div className="archivador-visor" onClick={() => setVisor(null)}>
-          <div
-            className="archivador-visor-caja"
-            onClick={evento => evento.stopPropagation()}
-          >
-            <header className="archivador-visor-cabecera">
-              <span className="archivador-visor-nombre" title={visor.nombre}>
-                {visor.nombre}
-              </span>
-              <div className="archivador-visor-acciones">
-                <a
-                  className="archivador-visor-descargar"
-                  href={archivosApi.url(visor.id, true)}
-                  download={visor.nombre}
-                >
-                  Descargar
-                </a>
-                <button
-                  type="button"
-                  className="archivador-visor-cerrar"
-                  onClick={() => setVisor(null)}
-                  aria-label="Cerrar"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </header>
-
-            <div className="archivador-visor-marco">
-              {visor.vista !== "ninguna" ? (
-                visor.vista === "pdf" ? (
-                  <iframe src={archivosApi.url(visor.id)} title={visor.nombre} />
-                ) : visor.vista === "imagen" ? (
-                  <img src={archivosApi.url(visor.id)} alt={visor.nombre} />
-                ) : visor.vista === "docx" ? (
-                  <div ref={docxRef} className="archivador-docx-contenedor" />
-                ) : visor.vista === "texto" ? (
-                  <TextoVisor id={visor.id} nombre={visor.nombre} />
-                ) : (
-                  <iframe src={archivosApi.url(visor.id)} title={visor.nombre} />
-                )
-              ) : (
-                <p className="archivador-vacio">
-                  Este tipo de archivo no se puede mostrar aquí. Usa «Descargar».
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <DocumentoVisorModal
+          archivo={visor}
+          onCerrar={() => setVisor(null)}
+        />
       )}
     </div>
   );

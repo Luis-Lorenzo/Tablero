@@ -9,13 +9,20 @@ import { Mapa } from "../../preview/Mapa";
 import { Archivador } from "../../preview/Archivador";
 import {
   cargarCalibracion,
+  cargarDocumentosMesa,
   cargarPosits,
   cargarPositsMesa,
   guardarCalibracion,
+  guardarDocumentosMesa,
   guardarPosits,
   guardarPositsMesa
 } from "../../preview/calibracion";
-import type { Calibracion, JugadorPreview, PositPreview } from "../../preview/tipos";
+import type {
+  Calibracion,
+  DocumentoMesa,
+  JugadorPreview,
+  PositPreview
+} from "../../preview/tipos";
 import "../../preview/preview.css";
 
 interface SalaRealProps {
@@ -77,6 +84,9 @@ function SalaRealContent({
   const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
     cargarPositsMesa(user.id)
   );
+  const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
+    cargarDocumentosMesa(user.id)
+  );
   const [error, setError] = useState<string | null>(null);
 
   const esMaster = mesa.hostId === user.id;
@@ -102,6 +112,10 @@ function SalaRealContent({
   useEffect(() => {
     guardarPositsMesa(positsMesa, user.id);
   }, [positsMesa, user.id]);
+
+  useEffect(() => {
+    guardarDocumentosMesa(documentosMesa, user.id);
+  }, [documentosMesa, user.id]);
 
   const refrescar = useCallback(async () => {
     try {
@@ -145,6 +159,8 @@ function SalaRealContent({
       <Archivador
         posits={positsMesa}
         onPosits={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
         onVolver={() => setFase("sala")}
       />
     );
@@ -158,6 +174,8 @@ function SalaRealContent({
         onCalibracion={setCalibracion}
         positsMesa={positsMesa}
         onPositsMesa={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
         onAbrirArchivador={() => setFase("archivador")}

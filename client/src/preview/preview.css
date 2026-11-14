@@ -1428,6 +1428,7 @@
 }
 
 .archivador-archivo-cuerpo {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1441,6 +1442,12 @@
   cursor: pointer;
 }
 
+.archivador-archivo-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .archivador-tipo-badge {
   padding: 2px 8px;
   border-radius: 6px;
@@ -1449,6 +1456,26 @@
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.06em;
+}
+
+.archivador-tipo-badge.pdf {
+  background: #fde2e2;
+  color: #a82424;
+}
+
+.archivador-tipo-badge.doc {
+  background: #dcebfa;
+  color: #1d5592;
+}
+
+.archivador-tipo-badge.img {
+  background: #d8f3e7;
+  color: #1b734f;
+}
+
+.archivador-tipo-badge.txt {
+  background: #e2e8f0;
+  color: #3f4d60;
 }
 
 .archivador-archivo-nombre {
@@ -1637,4 +1664,143 @@
     Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.92rem;
   box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------- Fichas de documento en mesa */
+
+.ficha-doc {
+  position: absolute;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: auto;
+  user-select: none;
+  cursor: grab;
+}
+
+.ficha-doc:active {
+  cursor: grabbing;
+}
+
+.ficha-doc:hover,
+.ficha-doc:focus-within {
+  z-index: 8;
+}
+
+.ficha-doc-barra {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 9px;
+  background: rgb(24 20 32 / 94%);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 32%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.ficha-doc-barra::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 8px;
+}
+
+.ficha-doc:hover .ficha-doc-barra,
+.ficha-doc:focus-within .ficha-doc-barra {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ficha-doc-barra .posit-archivar {
+  margin-left: 0;
+}
+
+.ficha-doc-hoja {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 50px;
+  padding: 7px 2px 2px;
+  border: 1px solid rgb(255 255 255 / 38%);
+  border-radius: 4px;
+  background:
+    linear-gradient(155deg, rgb(255 255 255 / 18%) 0%, transparent 56%),
+    var(--doc-color, #64748b);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%);
+  box-shadow: 0 10px 20px rgb(0 0 0 / 45%);
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.ficha-doc-hoja::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 11px;
+  height: 11px;
+  background: rgb(255 255 255 / 36%);
+  border-bottom-left-radius: 3px;
+  pointer-events: none;
+}
+
+.ficha-doc-hoja:hover {
+  transform: translateY(-2px) scale(1.04);
+  filter: brightness(1.06);
+}
+
+.ficha-doc-hoja.mini {
+  width: 30px;
+  height: 36px;
+  padding: 5px 1px 1px;
+  font-size: 0.58rem;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 18%);
+  cursor: inherit;
+}
+
+.ficha-doc-hoja.mini::after {
+  width: 8px;
+  height: 8px;
+}
+
+.ficha-doc-hoja.mini:hover {
+  transform: none;
+  filter: none;
+}
+
+.ficha-doc-codigo {
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+}
+
+.ficha-doc-nombre {
+  max-width: 116px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(13 11 17 / 78%);
+  color: #f5f0e8;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
 }

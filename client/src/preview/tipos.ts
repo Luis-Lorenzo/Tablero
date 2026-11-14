@@ -57,4 +57,14 @@ export interface PositPreview {
   archivado?: boolean;
 }
 
+export interface DocumentoMesa {
+  id: string;
+  nombre: string;
+  tipo: string;
+  vista: string;
+  tamano: number;
+  x: number;
+  y: number;
+}
+
 export type FasePreview = "lobby" | "sala" | "pizarra" | "mapa" | "archivador";

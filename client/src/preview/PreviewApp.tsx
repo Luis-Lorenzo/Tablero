@@ -6,16 +6,19 @@ import { Pizarra } from "./Pizarra";
 import { Sala } from "./Sala";
 import {
   cargarCalibracion,
+  cargarDocumentosMesa,
   cargarJugadores,
   cargarPosits,
   cargarPositsMesa,
   guardarCalibracion,
+  guardarDocumentosMesa,
   guardarJugadores,
   guardarPosits,
   guardarPositsMesa
 } from "./calibracion";
 import type {
   Calibracion,
+  DocumentoMesa,
   FasePreview,
   JugadorPreview,
   PositPreview
@@ -45,6 +48,9 @@ export default function PreviewApp() {
   const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
     cargarPositsMesa("preview")
   );
+  const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
+    cargarDocumentosMesa("preview")
+  );
 
   useEffect(() => {
     guardarJugadores(jugadores);
@@ -61,6 +67,10 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarPositsMesa(positsMesa, "preview");
   }, [positsMesa]);
+
+  useEffect(() => {
+    guardarDocumentosMesa(documentosMesa, "preview");
+  }, [documentosMesa]);
 
   const volverASala = useCallback(() => setFase("sala"), []);
 
@@ -87,6 +97,8 @@ export default function PreviewApp() {
       <Archivador
         posits={positsMesa}
         onPosits={setPositsMesa}
+        documentosMesa={documentosMesa}
+        onDocumentosMesa={setDocumentosMesa}
         onVolver={volverASala}
       />
     );
@@ -99,6 +111,8 @@ export default function PreviewApp() {
       onCalibracion={setCalibracion}
       positsMesa={positsMesa}
       onPositsMesa={setPositsMesa}
+      documentosMesa={documentosMesa}
+      onDocumentosMesa={setDocumentosMesa}
       onAbrirPizarra={() => setFase("pizarra")}
       onAbrirMapa={() => setFase("mapa")}
       onAbrirArchivador={() => setFase("archivador")}
