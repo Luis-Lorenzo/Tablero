@@ -165,8 +165,8 @@
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 50%, #1e1828 0%, #0d0b11 70%),
-    #0d0b11;
+    radial-gradient(ellipse at 50% 34%, #6a4d86 0%, #4e3768 58%, #342348 100%),
+    #432f5a;
   color: #f5f0e8;
 }
 
@@ -181,13 +181,13 @@
 
 .sala-plano {
   position: relative;
-  width: min(100vw, 1840px, calc(96vh * 1.7787));
+  width: min(96vw, 1700px, calc(88vh * 1.7787));
   aspect-ratio: 1672 / 940;
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
   border-radius: 18px;
-  transform: rotateX(20deg) scale(1.06);
+  transform: rotateX(22deg) scale(1.03);
   transform-origin: 50% 52%;
   box-shadow: 0 40px 110px rgb(0 0 0 / 65%);
   transition: transform 0.6s ease, box-shadow 0.6s ease;

@@ -1,7 +1,7 @@
 import type { Calibracion, JugadorPreview, PositPreview } from "./tipos";
 
 /** Fondo de la sala. Vive en `client/public/medios/tablero/fondos/`. */
-export const FONDO_SALA = "/medios/tablero/fondos/sala-extendida.jpg";
+export const FONDO_SALA = "/medios/tablero/fondos/sala-default.png";
 
 /**
  * Paleta de posits acordada con el autor: blanco + cinco tonos.
@@ -37,28 +37,33 @@ export const JUGADORES_INICIALES: JugadorPreview[] = [
  * Colocación de partida (se ajusta a mano con el calibrador). Las posiciones
  * son porcentajes de la imagen del fondo, no píxeles.
  *
- * Estos valores salen del calibrado sobre `sala-extendida.jpg`.
+ * Estos valores salen del calibrado real sobre `sala-default.png`.
  */
 export const CALIBRACION_INICIAL: Calibracion = {
   asientos: {
-    master: { x: 50.0, y: 52.8 },
-    p1: { x: 61.7, y: 56.2 },
-    p2: { x: 34.1, y: 60.4 },
-    p3: { x: 38.0, y: 56.2 },
-    p4: { x: 70.6, y: 66.2 },
-    p5: { x: 65.5, y: 60.4 },
-    p6: { x: 29.0, y: 66.2 }
+    master: { x: 50.04076963801972, y: 42.934901250994145 },
+    p1: { x: 69.2578265057803, y: 50.31669512213982 },
+    p2: { x: 24.49736947128753, y: 58.01911367332742 },
+    p3: { x: 30.544822273537044, y: 50.622217546036865 },
+    p4: { x: 85.619671798266, y: 68.37402442562203 },
+    p5: { x: 76.03265997559794, y: 57.94658853791983 },
+    p6: { x: 14.98536921553315, y: 68.75206807942662 }
   },
-  pizarra: { x: 38.8, y: 34.4, w: 22.5, h: 15.0 },
+  pizarra: {
+    x: 32.025959245819664,
+    y: 12.843529500350636,
+    w: 36.19270372786609,
+    h: 24.641241549083777
+  },
   mapa: {
     vertices: [
-      { x: 43.3, y: 55.4 },
-      { x: 56.8, y: 55.4 },
-      { x: 61.0, y: 63.3 },
-      { x: 39.1, y: 63.3 }
+      { x: 39.31904035306125, y: 48.6144481005132 },
+      { x: 60.96928268880985, y: 48.89707977419673 },
+      { x: 68.8940981175785, y: 62.26763032536409 },
+      { x: 31.050664774081742, y: 62.42985583019637 }
     ]
   },
-  dock: { x: 50.0, y: 80.5 },
+  dock: { x: 50.17360986447802, y: 80.47148201057503 },
   chat: { x: 1.5, y: 11, w: 22, h: 42 }
 };
 
