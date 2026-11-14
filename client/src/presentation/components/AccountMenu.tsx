@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Home, LogOut, Settings, User } from "lucide-react";
 
 interface AccountMenuProps {
   /** Nombre con el que se identifica al usuario (nickname o parte del correo). */
   label: string;
+  /** Muestra acceso rápido a recepción cuando estamos en otra vista. */
+  showHome?: boolean;
+  onGoHome?: () => void;
   /** Lleva a la página de la cuenta. */
   onOpenAccount: () => void;
   /** Cierra la sesión. */
@@ -10,11 +14,15 @@ interface AccountMenuProps {
 }
 
 /**
- * Círculo de cuenta de la barra superior. Al pulsarlo se despliega un menú
- * pequeño con "Cuenta", "Ajustes" (todavía no funcional) y "Cerrar sesión".
- * Se cierra al pulsar fuera o con la tecla Escape.
+ * Menú de cuenta en la barra superior. Se cierra al pulsar fuera o con Escape.
  */
-export function AccountMenu({ label, onOpenAccount, onLogout }: AccountMenuProps) {
+export function AccountMenu({
+  label,
+  showHome = false,
+  onGoHome,
+  onOpenAccount,
+  onLogout
+}: AccountMenuProps) {
   const [abierto, setAbierto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -39,32 +47,52 @@ export function AccountMenu({ label, onOpenAccount, onLogout }: AccountMenuProps
     };
   }, [abierto]);
 
+  const inicial = label.trim().charAt(0).toUpperCase() || "?";
+
   return (
     <div className="cuenta-menu" ref={ref}>
-      <span className="cuenta-etiqueta" title={label}>
-        {label}
-      </span>
-
       <button
         type="button"
-        className={abierto ? "cuenta-circulo abierto" : "cuenta-circulo"}
+        className={abierto ? "cuenta-boton abierto" : "cuenta-boton"}
         onClick={() => setAbierto(actual => !actual)}
         aria-haspopup="menu"
         aria-expanded={abierto}
         aria-label={`Cuenta de ${label}`}
         title={label}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <circle cx="12" cy="8.4" r="3.6" />
-          <path d="M4.6 20c0-3.7 3.3-6.1 7.4-6.1s7.4 2.4 7.4 6.1" />
-        </svg>
+        <span className="cuenta-avatar" aria-hidden="true">
+          {inicial}
+        </span>
+        <span className="cuenta-etiqueta">{label}</span>
+        <ChevronDown
+          size={15}
+          className={abierto ? "cuenta-chevron rotado" : "cuenta-chevron"}
+          aria-hidden="true"
+        />
       </button>
 
       {abierto && (
         <div className="cuenta-desplegable" role="menu">
-          <span className="cuenta-nombre" title={label}>
-            {label}
-          </span>
+          <div className="cuenta-cabecera-menu">
+            <span className="cuenta-nombre" title={label}>
+              {label}
+            </span>
+          </div>
+
+          {showHome && onGoHome && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAbierto(false);
+                onGoHome();
+              }}
+            >
+              <Home size={15} aria-hidden="true" />
+              <span>Recepción</span>
+            </button>
+          )}
+
           <button
             type="button"
             role="menuitem"
@@ -73,11 +101,18 @@ export function AccountMenu({ label, onOpenAccount, onLogout }: AccountMenuProps
               onOpenAccount();
             }}
           >
-            Cuenta
+            <User size={15} aria-hidden="true" />
+            <span>Mi cuenta</span>
           </button>
-          <button type="button" role="menuitem" disabled>
-            Ajustes
+
+          <button type="button" role="menuitem" disabled className="cuenta-item-deshabilitado">
+            <Settings size={15} aria-hidden="true" />
+            <span>Ajustes</span>
+            <span className="cuenta-tag">Pronto</span>
           </button>
+
+          <div className="cuenta-separador" role="separator" />
+
           <button
             type="button"
             role="menuitem"
@@ -87,7 +122,8 @@ export function AccountMenu({ label, onOpenAccount, onLogout }: AccountMenuProps
               onLogout();
             }}
           >
-            Cerrar sesión
+            <LogOut size={15} aria-hidden="true" />
+            <span>Cerrar sesión</span>
           </button>
         </div>
       )}

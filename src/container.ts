@@ -25,6 +25,7 @@ import { MesasBroadcaster } from "./realtime/mesas-broadcaster.js";
 import { AuthService } from "./services/auth.service.js";
 import { BloqueoService } from "./services/bloqueo.service.js";
 import { MesaService } from "./services/mesa.service.js";
+import { ChatService } from "./services/chat.service.js";
 import { ensureAdmin } from "./services/seed.service.js";
 import { TransferenciaService } from "./services/transferencia.service.js";
 import { UserService } from "./services/user.service.js";
@@ -82,11 +83,13 @@ export async function createContainer(): Promise<Container> {
   const userService = new UserService(userRepository, logger);
   const bloqueoService = new BloqueoService(logger);
   const mesaService = new MesaService(mesaRepository, userRepository, logger);
+  const chatService = new ChatService(mesaRepository, userRepository);
   const archivoService = new ArchivoService(
     archivoRepository,
     almacen,
     logger,
-    config.archivos.maxBytes
+    config.archivos.maxBytes,
+    mesaRepository
   );
   const transferenciaService = new TransferenciaService(
     mesaRepository,
@@ -114,6 +117,7 @@ export async function createContainer(): Promise<Container> {
     userService,
     bloqueoService,
     mesaService,
+    chatService,
     archivoService,
     transferenciaService,
     mesasNotifier

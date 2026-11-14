@@ -21,6 +21,12 @@ export interface MesaJugador {
   color?: string | null;
 }
 
+export interface ImagenMaster {
+  id: string;
+  titulo: string | null;
+  url?: string;
+}
+
 export interface PublicMesa {
   id: string;
   hostId: string;
@@ -30,6 +36,8 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: "ESPERA" | "EN_CURSO";
   colores?: Record<string, string>;
+  imagenEscena?: ImagenMaster | null;
+  imagenProyectada?: ImagenMaster | null;
   createdAt: string;
 }
 
@@ -89,3 +97,28 @@ export type ResultadoAceptarTransferencia =
       tipo: "archivo";
       archivo: PublicArchivo;
     };
+
+export interface MensajeChat {
+  id: string;
+  mesaId: string;
+  autorId: string;
+  autorNombre: string;
+  texto: string;
+  destinatarioId: string | null;
+  destinatarioNombre: string | null;
+  createdAt: string;
+}
+
+export interface EventoTirada {
+  id: string;
+  mesaId: string;
+  jugadorId: string;
+  jugadorNombre: string;
+  total: number;
+  formula: string;
+  dados: number[];
+  bonificador: number;
+  caras?: number;
+  especial?: "critico" | "pifia" | null;
+  createdAt: string;
+}

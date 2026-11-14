@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { ArrowLeft, LogOut, Save, Trash2 } from "lucide-react";
 import { usersApi } from "../../api/users.api";
 import type { PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface DashboardPageProps {
   user: PublicUser;
@@ -9,32 +11,31 @@ interface DashboardPageProps {
   onUserUpdated: (user: PublicUser) => void;
   onAccountDeleted: () => void;
   onLogout: () => void;
+  onVolver?: () => void;
 }
 
 export function DashboardPage({
   user,
   onUserUpdated,
   onAccountDeleted,
-  onLogout
+  onLogout,
+  onVolver
 }: DashboardPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [nickname, setNickname] = useState(user.nickname ?? "");
   const [nickBusy, setNickBusy] = useState(false);
   const [nickOk, setNickOk] = useState<string | null>(null);
   const [nickError, setNickError] = useState<string | null>(null);
 
-  async function handleDelete() {
-    const confirmed = window.confirm(
-      "¿Seguro que quieres eliminar tu cuenta? No podrás volver a iniciar sesión."
-    );
-    if (!confirmed) return;
-
+  async function confirmarEliminarCuenta() {
     setBusy(true);
     setError(null);
 
     try {
       await usersApi.remove(user.id);
+      setConfirmDelete(false);
       onAccountDeleted();
     } catch (deleteError) {
       setError(describeError(deleteError));
@@ -66,35 +67,44 @@ export function DashboardPage({
 
   return (
     <section className="card">
-      <h2>Mi cuenta</h2>
+      <div className="card-header">
+        <div className="card-titulo-con-volver">
+          {onVolver && (
+            <button type="button" className="ghost small" onClick={onVolver}>
+              <ArrowLeft size={14} aria-hidden="true" />
+              <span>Volver</span>
+            </button>
+          )}
+          <h2>Mi cuenta</h2>
+        </div>
+        <span className={user.active ? "pill on" : "pill off"}>
+          {user.active ? "Activo" : "Inactivo"}
+        </span>
+      </div>
 
       {error && <p className="feedback ko">{error}</p>}
 
       <dl className="details">
-        <div>
+        <div className="detail-item">
           <dt>Nombre visible</dt>
           <dd>{user.nickname ?? "Sin nombre (se usa tu correo)"}</dd>
         </div>
-        <div>
+        <div className="detail-item">
           <dt>Correo</dt>
           <dd>{user.email}</dd>
         </div>
-        <div>
+        <div className="detail-item">
           <dt>Rol</dt>
           <dd>{user.role === "ADMIN" ? "Administrador" : "Usuario"}</dd>
         </div>
-        <div>
-          <dt>Estado</dt>
-          <dd>{user.active ? "Activo" : "Inactivo"}</dd>
-        </div>
-        <div>
+        <div className="detail-item">
           <dt>Creado</dt>
           <dd>{new Date(user.createdAt).toLocaleString()}</dd>
         </div>
       </dl>
 
       <form
-        className="form"
+        className="form cuenta-form"
         onSubmit={event => {
           event.preventDefault();
           void handleSaveNickname();
@@ -122,19 +132,39 @@ export function DashboardPage({
         {nickError && <p className="feedback ko">{nickError}</p>}
         {nickOk && <p className="feedback ok">{nickOk}</p>}
 
-        <button type="submit" className="primary" disabled={nickBusy}>
-          {nickBusy ? "Guardando…" : "Guardar nombre"}
-        </button>
+        <div>
+          <button type="submit" className="primary" disabled={nickBusy}>
+            <Save size={15} aria-hidden="true" />
+            <span>{nickBusy ? "Guardando…" : "Guardar nombre"}</span>
+          </button>
+        </div>
       </form>
 
-      <div className="acciones-cuenta">
+      <div className="acciones-cuenta cuenta-pie">
         <button type="button" className="ghost" onClick={onLogout}>
-          Cerrar sesión
+          <LogOut size={15} aria-hidden="true" />
+          <span>Cerrar sesión</span>
         </button>
-        <button type="button" className="danger" onClick={handleDelete} disabled={busy}>
-          {busy ? "Eliminando…" : "Eliminar mi cuenta"}
+        <button
+          type="button"
+          className="danger"
+          onClick={() => setConfirmDelete(true)}
+          disabled={busy}
+        >
+          <Trash2 size={15} aria-hidden="true" />
+          <span>{busy ? "Eliminando…" : "Eliminar mi cuenta"}</span>
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="¿Eliminar tu cuenta?"
+        description="Esta acción es permanente y no podrás volver a iniciar sesión."
+        confirmLabel="Eliminar cuenta"
+        busy={busy}
+        onConfirm={() => void confirmarEliminarCuenta()}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </section>
   );
 }

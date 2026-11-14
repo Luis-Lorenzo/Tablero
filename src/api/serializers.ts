@@ -44,6 +44,11 @@ export interface PublicMesaJugador {
   color?: string | null;
 }
 
+export interface PublicImagenMesa {
+  id: string;
+  titulo: string | null;
+}
+
 export interface PublicMesa {
   id: string;
   hostId: string;
@@ -53,6 +58,8 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: MesaVista["estado"];
   colores: Record<string, string>;
+  imagenEscena: PublicImagenMesa | null;
+  imagenProyectada: PublicImagenMesa | null;
   createdAt: string;
 }
 
@@ -69,6 +76,8 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     pendingHostId: mesa.pendingHostId,
     estado: mesa.estado,
     colores: mesa.colores ?? {},
+    imagenEscena: mesa.imagenEscena ?? null,
+    imagenProyectada: mesa.imagenProyectada ?? null,
     createdAt: mesa.createdAt.toISOString()
   };
 }

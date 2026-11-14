@@ -49,7 +49,12 @@ export const CALIBRACION_INICIAL: Calibracion = {
     p5: { x: 76.03265997559794, y: 57.94658853791983 },
     p6: { x: 14.98536921553315, y: 68.75206807942662 }
   },
-  pizarra: { x: 32.025959245819664, y: 12.843529500350636, w: 36.19270372786609, h: 24.641241549083777 },
+  pizarra: {
+    x: 32.025959245819664,
+    y: 12.843529500350636,
+    w: 36.19270372786609,
+    h: 24.641241549083777
+  },
   mapa: {
     vertices: [
       { x: 39.31904035306125, y: 48.6144481005132 },
@@ -58,7 +63,8 @@ export const CALIBRACION_INICIAL: Calibracion = {
       { x: 31.050664774081742, y: 62.42985583019637 }
     ]
   },
-  dock: { x: 50.17360986447802, y: 80.47148201057503 }
+  dock: { x: 50.17360986447802, y: 80.47148201057503 },
+  chat: { x: 1.5, y: 11, w: 22, h: 42 }
 };
 
 export const POSITS_INICIALES: PositPreview[] = [
@@ -68,7 +74,10 @@ export const POSITS_INICIALES: PositPreview[] = [
     color: "#f7ffae",
     x: 24,
     y: 32,
-    giro: -2.5
+    giro: -2.5,
+    autorNombre: "Máster",
+    autorColor: "#e8c56a",
+    esMaster: true
   },
   {
     id: "posit-inicial-2",
@@ -76,7 +85,10 @@ export const POSITS_INICIALES: PositPreview[] = [
     color: "#ffb3cb",
     x: 50,
     y: 22,
-    giro: 1.8
+    giro: 1.8,
+    autorNombre: "Aria",
+    autorColor: "#74569b",
+    esMaster: false
   },
   {
     id: "posit-inicial-3",
@@ -84,6 +96,9 @@ export const POSITS_INICIALES: PositPreview[] = [
     color: "#96fbc7",
     x: 74,
     y: 36,
-    giro: -1.2
+    giro: -1.2,
+    autorNombre: "Borin",
+    autorColor: "#96fbc7",
+    esMaster: false
   }
 ];

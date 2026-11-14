@@ -1,5 +1,7 @@
 import { http } from "./client";
 import type {
+  EventoTirada,
+  MensajeChat,
   PublicMesa,
   PublicTransferencia,
   ResultadoAceptarTransferencia
@@ -82,5 +84,47 @@ export const mesasApi = {
   rechazarCompartir: (id: string, transferenciaId: string) =>
     http.post<void>(
       `/api/mesas/${id}/compartir/${encodeURIComponent(transferenciaId)}/rechazar`
-    )
+    ),
+
+  /** Historial reciente del chat de la mesa. */
+  listarChat: (id: string) => http.get<MensajeChat[]>(`/api/mesas/${id}/chat`),
+
+  /** Envía un mensaje público o privado (@mención) al chat de la mesa. */
+  enviarChat: (id: string, texto: string, destinatarioId?: string | null) =>
+    http.post<MensajeChat>(`/api/mesas/${id}/chat`, {
+      texto,
+      destinatarioId: destinatarioId ?? null
+    }),
+
+  /** Difunde una tirada de dados pública (o valida una secreta del Máster). */
+  enviarTirada: (
+    id: string,
+    datos: {
+      total: number;
+      formula: string;
+      dados: number[];
+      bonificador: number;
+      caras?: number;
+      especial?: "critico" | "pifia" | null;
+      secreta?: boolean;
+    }
+  ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos),
+
+  /** Fija o retira la imagen de escena del máster en la pizarra de la sala. */
+  ponerEscena: (
+    id: string,
+    archivoId: string | null,
+    titulo?: string | null
+  ) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/escena`, {
+      archivoId,
+      titulo: titulo ?? null
+    }),
+
+  /** Proyecta o retira una imagen dramática a pantalla completa para todos. */
+  proyectar: (id: string, archivoId: string | null, titulo?: string | null) =>
+    http.post<PublicMesa>(`/api/mesas/${id}/proyeccion`, {
+      archivoId,
+      titulo: titulo ?? null
+    })
 };

@@ -9,6 +9,19 @@ import { errors } from "../lib/errors.js";
 import { nombreDeUsuario } from "../repositories/user.repository.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
 
+function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
+  const { archivoId, titulo } = (body ?? {}) as {
+    archivoId?: unknown;
+    titulo?: unknown;
+  };
+  if (typeof archivoId !== "string" || !archivoId.trim()) {
+    return null;
+  }
+  const tituloLimpio =
+    typeof titulo === "string" && titulo.trim() ? titulo.trim() : null;
+  return { id: archivoId.trim(), titulo: tituloLimpio };
+}
+
 export function createMesaRouter(context: AppContext, requireAuth: RequestHandler): Router {
   const router = Router();
   const transferencias =
@@ -127,6 +140,34 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     try {
       const color = typeof (req.body ?? {}).color === "string" ? (req.body ?? {}).color : null;
       const mesa = await context.mesaService.ponerColor(req.currentUser!, String(req.params.id), color);
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/escena", requireAuth, async (req, res, next) => {
+    try {
+      const mesa = await context.mesaService.ponerImagenEscena(
+        req.currentUser!,
+        String(req.params.id),
+        leerImagenBody(req.body)
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/proyeccion", requireAuth, async (req, res, next) => {
+    try {
+      const mesa = await context.mesaService.proyectarImagen(
+        req.currentUser!,
+        String(req.params.id),
+        leerImagenBody(req.body)
+      );
       context.mesasNotifier.notificarCambio();
       res.json(toPublicMesa(mesa));
     } catch (error) {
@@ -322,6 +363,81 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       await context.mesaService.cerrar(req.currentUser!, String(req.params.id));
       context.mesasNotifier.notificarCambio();
       res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:id/chat", requireAuth, async (req, res, next) => {
+    try {
+      const mensajes = await context.chatService.listar(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mensajes);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/chat", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const body = (req.body ?? {}) as { texto?: unknown; destinatarioId?: unknown };
+      const { mensaje, destinatarios } = await context.chatService.enviar(
+        req.currentUser!,
+        mesaId,
+        body.texto,
+        body.destinatarioId
+      );
+      context.mesasNotifier.enviarAUsuarios(destinatarios, {
+        type: "chat:message",
+        mesaId,
+        message: mensaje
+      });
+      res.status(201).json(mensaje);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/tiradas", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const body = (req.body ?? {}) as {
+        total?: number;
+        formula?: string;
+        dados?: number[];
+        bonificador?: number;
+        caras?: number;
+        especial?: "critico" | "pifia" | null;
+        secreta?: boolean;
+      };
+      const resultado = await context.chatService.registrarTirada(
+        req.currentUser!,
+        mesaId,
+        {
+          total: body.total as number,
+          formula: body.formula as string,
+          dados: body.dados as number[],
+          bonificador: body.bonificador as number,
+          caras: body.caras,
+          especial: body.especial,
+          secreta: Boolean(body.secreta)
+        }
+      );
+
+      if (!resultado) {
+        res.status(204).end();
+        return;
+      }
+
+      context.mesasNotifier.enviarAUsuarios(resultado.destinatarios, {
+        type: "dice:roll",
+        mesaId,
+        roll: resultado.tirada
+      });
+      res.status(201).json(resultado.tirada);
     } catch (error) {
       next(error);
     }

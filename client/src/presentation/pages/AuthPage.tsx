@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from "react";
+import { Clock, Eye, EyeOff, Loader2, Lock, LogIn, Mail, UserPlus } from "lucide-react";
 import { authApi } from "../../api/auth.api";
 import type { PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
+import { LogoPocketRol } from "../components/LogoPocketRol";
+import { DadoPixelD6, DadoPixelPoliedro } from "../components/Dado";
 
 interface AuthPageProps {
   onAuthenticated: (user: PublicUser) => void;
@@ -13,8 +16,10 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isPendingNotice, setIsPendingNotice] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -22,6 +27,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     setBusy(true);
     setError(null);
     setMessage(null);
+    setIsPendingNotice(false);
 
     try {
       if (mode === "register") {
@@ -37,6 +43,11 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
       const user = await authApi.login(email, password);
       onAuthenticated(user);
     } catch (submitError) {
+      const code =
+        submitError && typeof submitError === "object" && "code" in submitError
+          ? String((submitError as { code: unknown }).code)
+          : "";
+      setIsPendingNotice(code === "ACCOUNT_PENDING");
       setError(describeError(submitError));
     } finally {
       setBusy(false);
@@ -47,69 +58,115 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     setMode(next);
     setError(null);
     setMessage(null);
+    setIsPendingNotice(false);
   }
 
   return (
     <main className="page">
-      <section className="card auth-card">
-        <p className="eyebrow">POCKET ROL</p>
-        <h1>{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h1>
-
-        <div className="tabs tabs-center">
-          <button
-            type="button"
-            className={mode === "login" ? "tab active" : "tab"}
-            onClick={() => switchMode("login")}
-          >
-            Iniciar sesión
-          </button>
-          <button
-            type="button"
-            className={mode === "register" ? "tab active" : "tab"}
-            onClick={() => switchMode("register")}
-          >
-            Registrarme
-          </button>
+      <div className="auth-contenedor">
+        <div className="auth-logo-con-dados">
+          <div className="auth-dados-lado" aria-hidden="true">
+            <DadoPixelD6 cara={5} clase="rot-izq" />
+          </div>
+          <div className="auth-logo">
+            <LogoPocketRol variante="banner" clickable={false} />
+          </div>
+          <div className="auth-dados-lado" aria-hidden="true">
+            <DadoPixelPoliedro tipo="d20" clase="rot-der" />
+          </div>
         </div>
 
-        {message && <p className="feedback ok">{message}</p>}
-        {error && <p className="feedback ko">{error}</p>}
+        <section className="card auth-card">
+          <h1>{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h1>
 
-        <form onSubmit={handleSubmit} className="form">
-          <label>
-            Correo electrónico
-            <input
-              type="email"
-              value={email}
-              onChange={event => setEmail(event.target.value)}
-              required
-              autoComplete="email"
-            />
-          </label>
+          <div className="tabs tabs-center">
+            <button
+              type="button"
+              className={mode === "login" ? "tab active" : "tab"}
+              onClick={() => switchMode("login")}
+            >
+              <LogIn size={14} aria-hidden="true" />
+              <span>Iniciar sesión</span>
+            </button>
+            <button
+              type="button"
+              className={mode === "register" ? "tab active" : "tab"}
+              onClick={() => switchMode("register")}
+            >
+              <UserPlus size={14} aria-hidden="true" />
+              <span>Registrarme</span>
+            </button>
+          </div>
 
-          <label>
-            Contraseña
-            <input
-              type="password"
-              value={password}
-              onChange={event => setPassword(event.target.value)}
-              required
-              minLength={mode === "register" ? 8 : undefined}
-              autoComplete={
-                mode === "register" ? "new-password" : "current-password"
-              }
-            />
-          </label>
+          {message && <p className="feedback ok">{message}</p>}
+          {error && (
+            <p className={isPendingNotice ? "feedback aviso feedback-con-icono" : "feedback ko"}>
+              {isPendingNotice && <Clock size={16} aria-hidden="true" />}
+              <span>{error}</span>
+            </p>
+          )}
 
-          <button type="submit" className="primary" disabled={busy}>
-            {busy
-              ? "Procesando…"
-              : mode === "login"
-                ? "Entrar"
-                : "Crear cuenta"}
-          </button>
-        </form>
-      </section>
+          <form onSubmit={handleSubmit} className="form">
+            <label>
+              <span>Correo electrónico</span>
+              <div className="input-con-icono">
+                <Mail size={16} className="input-icono" aria-hidden="true" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={event => setEmail(event.target.value)}
+                  placeholder="tu@correo.com"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+            </label>
+
+            <label>
+              <span>Contraseña</span>
+              <div className="input-con-icono">
+                <Lock size={16} className="input-icono" aria-hidden="true" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={event => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={mode === "register" ? 8 : undefined}
+                  autoComplete={
+                    mode === "register" ? "new-password" : "current-password"
+                  }
+                />
+                <button
+                  type="button"
+                  className="input-ojo"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                  title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {mode === "register" && (
+                <span className="ayuda-campo">Mínimo 8 caracteres.</span>
+              )}
+            </label>
+
+            <button type="submit" className="primary auth-submit" disabled={busy}>
+              {busy ? (
+                <>
+                  <Loader2 size={16} className="icono-girando" aria-hidden="true" />
+                  <span>Procesando…</span>
+                </>
+              ) : mode === "login" ? (
+                "Entrar"
+              ) : (
+                "Crear cuenta"
+              )}
+            </button>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }

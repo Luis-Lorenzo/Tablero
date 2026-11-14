@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { config } from "../src/lib/config.js";
@@ -15,6 +15,7 @@ import { ArchivoService } from "../src/services/archivo.service.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
+import { ChatService } from "../src/services/chat.service.js";
 import { UserService } from "../src/services/user.service.js";
 import type { AppContext } from "../src/api/context.js";
 
@@ -27,6 +28,7 @@ function notificadorEspia() {
     notificarCambio: () => {
       avisos.push(avisos.length + 1);
     },
+    enviarAUsuarios: () => {},
     avisos
   };
 }
@@ -47,11 +49,13 @@ function montar() {
     userService: new UserService(users, logger),
     bloqueoService: new BloqueoService(logger),
     mesaService: new MesaService(mesas, users, logger),
+    chatService: new ChatService(mesas, users),
     archivoService: new ArchivoService(
       new MemoryArchivoRepository(),
       new MemoryAlmacen(),
       logger,
-      config.archivos.maxBytes
+      config.archivos.maxBytes,
+      mesas
     ),
     mesasNotifier: notifier
   };
@@ -351,5 +355,94 @@ describe("rutas de /api/mesas", () => {
     expect(despues.body.hostId).toBe(playerId);
     expect(despues.body.pendingHostId).toBeNull();
     expect(despues.body.players).toHaveLength(1);
+  });
+
+  it("solo el anfitrión fija la escena o proyecta imágenes y los jugadores de su mesa pueden verlas", async () => {
+    await aprobar("ajena@pocket.test");
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieInvitada = await sesionDe("invitada@pocket.test");
+    const cookieAjena = await sesionDe("ajena@pocket.test");
+
+    const creada = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieAnfitrion);
+    const mesaId = creada.body.id;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieInvitada);
+
+    const pngFake = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const subida = await request(app)
+      .post("/api/archivos?nombre=taberna.png")
+      .set("Cookie", cookieAnfitrion)
+      .set("Content-Type", "image/png")
+      .send(pngFake);
+    expect(subida.status).toBe(201);
+    const archivoId = subida.body.id;
+
+    const avisosAntes = notifier.avisos.length;
+
+    const escenaInvitada = await request(app)
+      .post(`/api/mesas/${mesaId}/escena`)
+      .set("Cookie", cookieInvitada)
+      .send({ archivoId, titulo: "Intento indebido" });
+    expect(escenaInvitada.status).toBe(403);
+    expect(escenaInvitada.body.error).toBe("FORBIDDEN");
+
+    const proyeccionInvitada = await request(app)
+      .post(`/api/mesas/${mesaId}/proyeccion`)
+      .set("Cookie", cookieInvitada)
+      .send({ archivoId, titulo: "Intento indebido" });
+    expect(proyeccionInvitada.status).toBe(403);
+    expect(proyeccionInvitada.body.error).toBe("FORBIDDEN");
+
+    const escenaMaster = await request(app)
+      .post(`/api/mesas/${mesaId}/escena`)
+      .set("Cookie", cookieAnfitrion)
+      .send({ archivoId, titulo: "La taberna del dragón" });
+    expect(escenaMaster.status).toBe(200);
+    expect(escenaMaster.body.imagenEscena).toEqual({
+      id: archivoId,
+      titulo: "La taberna del dragón"
+    });
+    expect(notifier.avisos.length).toBe(avisosAntes + 1);
+
+    const proyeccionMaster = await request(app)
+      .post(`/api/mesas/${mesaId}/proyeccion`)
+      .set("Cookie", cookieAnfitrion)
+      .send({ archivoId, titulo: "Un dragón despierta" });
+    expect(proyeccionMaster.status).toBe(200);
+    expect(proyeccionMaster.body.imagenProyectada).toEqual({
+      id: archivoId,
+      titulo: "Un dragón despierta"
+    });
+    expect(notifier.avisos.length).toBe(avisosAntes + 2);
+
+    const vistaInvitada = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieInvitada);
+    expect(vistaInvitada.status).toBe(200);
+    expect(vistaInvitada.body.imagenEscena.id).toBe(archivoId);
+    expect(vistaInvitada.body.imagenProyectada.id).toBe(archivoId);
+
+    const verArchivoInvitada = await request(app)
+      .get(`/api/archivos/${archivoId}`)
+      .set("Cookie", cookieInvitada);
+    expect(verArchivoInvitada.status).toBe(200);
+    expect(Buffer.from(verArchivoInvitada.body)).toEqual(pngFake);
+
+    const verArchivoAjena = await request(app)
+      .get(`/api/archivos/${archivoId}`)
+      .set("Cookie", cookieAjena);
+    expect(verArchivoAjena.status).toBe(403);
+    expect(verArchivoAjena.body.error).toBe("FORBIDDEN");
+
+    const retirarProyeccion = await request(app)
+      .post(`/api/mesas/${mesaId}/proyeccion`)
+      .set("Cookie", cookieAnfitrion)
+      .send({ archivoId: null });
+    expect(retirarProyeccion.status).toBe(200);
+    expect(retirarProyeccion.body.imagenProyectada).toBeNull();
   });
 });

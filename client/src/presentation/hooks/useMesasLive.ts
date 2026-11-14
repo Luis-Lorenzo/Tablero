@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ApiError } from "../../api/client";
 import { authApi } from "../../api/auth.api";
+import type { EventoTirada, MensajeChat } from "../../api/types";
 
 /** Ventana para agrupar ráfagas de avisos sin perder el último estado. */
 const VENTANA_MS = 200;
@@ -9,6 +10,14 @@ const ESPERA_MAX_MS = 15000;
 
 interface MensajeMesas {
   type?: unknown;
+  mesaId?: unknown;
+  message?: unknown;
+  roll?: unknown;
+}
+
+export interface EventosSalaLive {
+  onChatMessage?: (message: MensajeChat) => void;
+  onDiceRoll?: (roll: EventoTirada) => void;
 }
 
 /**
@@ -25,11 +34,24 @@ interface MensajeMesas {
 export function useMesasLive(
   onChange: () => void,
   onSessionExpired?: () => void,
+  eventosSalaOrOnMessage?:
+    | EventosSalaLive
+    | ((evento: Record<string, unknown>) => void),
   onMessage?: (evento: Record<string, unknown>) => void
 ): void {
+  const eventosSala =
+    typeof eventosSalaOrOnMessage === "function"
+      ? undefined
+      : eventosSalaOrOnMessage;
+  const onMessageFinal =
+    typeof eventosSalaOrOnMessage === "function"
+      ? eventosSalaOrOnMessage
+      : onMessage;
+
   const onChangeRef = useRef(onChange);
   const onSessionExpiredRef = useRef(onSessionExpired);
-  const onMessageRef = useRef(onMessage);
+  const eventosSalaRef = useRef(eventosSala);
+  const onMessageRef = useRef(onMessageFinal);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -40,8 +62,9 @@ export function useMesasLive(
   }, [onSessionExpired]);
 
   useEffect(() => {
-    onMessageRef.current = onMessage;
-  }, [onMessage]);
+    eventosSalaRef.current = eventosSala;
+    onMessageRef.current = onMessageFinal;
+  }, [eventosSala, onMessageFinal]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -124,6 +147,10 @@ export function useMesasLive(
         if (dato !== null && typeof dato === "object") {
           if (dato.type === "mesas:changed") {
             avisarCambio();
+          } else if (dato.type === "chat:message" && dato.message) {
+            eventosSalaRef.current?.onChatMessage?.(dato.message as MensajeChat);
+          } else if (dato.type === "dice:roll" && dato.roll) {
+            eventosSalaRef.current?.onDiceRoll?.(dato.roll as EventoTirada);
           }
           onMessageRef.current?.(dato as Record<string, unknown>);
         }
