@@ -29,6 +29,7 @@ import {
 } from "./compartir";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
 import { Posit } from "./Pizarra";
+import { reproducirSonidoNotificacion } from "./sonido";
 import { reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
@@ -469,6 +470,7 @@ export function Sala({
   const [dragSobreDropzone, setDragSobreDropzone] = useState(false);
   const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
   const [subiendoDrop, setSubiendoDrop] = useState(false);
+  const [subiendoBarra, setSubiendoBarra] = useState(false);
   const [nuevoPositTexto, setNuevoPositTexto] = useState("");
   const [nuevoPositColor, setNuevoPositColor] = useState<string>(COLORES_POSIT[3].valor);
   const [jugadorSeleccionadoId, setJugadorSeleccionadoId] = useState<string | null>(null);
@@ -499,6 +501,7 @@ export function Sala({
   const asientoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dropzoneRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const barraFileInputRef = useRef<HTMLInputElement>(null);
   const capaPosits = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
   const arrastreDocMovido = useRef(false);
@@ -530,6 +533,13 @@ export function Sala({
     positsMesa,
     documentosMesa
   ]);
+
+  const solicitudPendienteId = solicitudPendiente?.id ?? null;
+  useEffect(() => {
+    if (solicitudPendienteId) {
+      reproducirSonidoNotificacion();
+    }
+  }, [solicitudPendienteId]);
 
   useEffect(() => {
     if (!itemAbierto || itemAbierto.tipo !== "archivo" || itemAbierto.vista !== "docx") {
@@ -1284,6 +1294,77 @@ export function Sala({
     }
   }
 
+  async function subirArchivosDesdeBarra(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0) return;
+
+    setSubiendoBarra(true);
+    let subidos = 0;
+    try {
+      for (const file of Array.from(files)) {
+        const tipoLocal = file.type || "application/octet-stream";
+        const vistaLocal = tipoLocal.startsWith("image/")
+          ? "imagen"
+          : tipoLocal === "application/pdf" || file.name.endsWith(".pdf")
+            ? "pdf"
+            : file.name.endsWith(".docx")
+              ? "docx"
+              : tipoLocal.startsWith("text/") || file.name.endsWith(".txt")
+                ? "texto"
+                : "ninguna";
+
+        try {
+          const creado = await archivosApi.subir(file);
+          onSolicitarArchivos?.();
+          onDocumentosMesa?.(prev => {
+            const paso = prev.length % 5;
+            return [
+              ...prev,
+              {
+                id: creado.id,
+                nombre: creado.nombre,
+                tipo: creado.tipo,
+                vista: creado.vista,
+                tamano: creado.tamano,
+                x: 28 + paso * 4.5,
+                y: 66 - paso * 3
+              }
+            ];
+          });
+          subidos += 1;
+        } catch {
+          const url = URL.createObjectURL(file);
+          onDocumentosMesa?.(prev => {
+            const paso = prev.length % 5;
+            return [
+              ...prev,
+              {
+                id: nuevoId(),
+                nombre: file.name,
+                tipo: tipoLocal,
+                vista: vistaLocal,
+                tamano: file.size,
+                x: 28 + paso * 4.5,
+                y: 66 - paso * 3,
+                url
+              }
+            ];
+          });
+          subidos += 1;
+        }
+      }
+
+      if (subidos > 0) {
+        mostrarAviso(
+          subidos === 1
+            ? "Archivo subido y puesto en la mesa."
+            : `${subidos} archivos subidos y puestos en la mesa.`
+        );
+      }
+    } finally {
+      setSubiendoBarra(false);
+    }
+  }
+
   function iniciarMesaElemento(
     elemento: ElementoMesa,
     evento: ReactPointerEvent
@@ -1629,11 +1710,13 @@ export function Sala({
                   }
                 >
                   <div className="mesa-elemento-cabecera">
-                    <span className="mesa-elemento-badge">
-                      {elemento.tipo === "posit"
-                        ? "Nota"
-                        : tipoCortoArchivo(elemento.mime, elemento.nombre)}
-                    </span>
+                    {elemento.tipo === "posit" ? (
+                      <span />
+                    ) : (
+                      <span className="mesa-elemento-badge">
+                        {tipoCortoArchivo(elemento.mime, elemento.nombre)}
+                      </span>
+                    )}
                     <button
                       type="button"
                       className="mesa-elemento-quitar"
@@ -1728,6 +1811,28 @@ export function Sala({
                 onClick={() => setAjuste(valor => !valor)}
               >
                 {ajuste ? "Terminar ajuste" : "Ajustar"}
+              </button>
+
+              <input
+                ref={barraFileInputRef}
+                type="file"
+                accept=".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                multiple
+                hidden
+                onChange={e => {
+                  void subirArchivosDesdeBarra(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="sala-btn sala-btn-subir"
+                disabled={subiendoBarra}
+                onClick={() => barraFileInputRef.current?.click()}
+                title="Subir archivo desde tu equipo a la sala"
+              >
+                <Upload size={14} strokeWidth={2.2} aria-hidden="true" />
+                <span>{subiendoBarra ? "Subiendo…" : "Subir archivo"}</span>
               </button>
 
               {esMaster && imagenProyectada && (
@@ -1952,6 +2057,7 @@ export function Sala({
                 <Posit
                   key={posit.id}
                   posit={posit}
+                  enMesa
                   activo={positActivo === posit.id}
                   onActivar={setPositActivo}
                   onTexto={cambiarTextoPositMesa}

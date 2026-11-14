@@ -653,6 +653,26 @@
   pointer-events: auto;
 }
 
+.posit.posit-mesa-nota {
+  width: 158px;
+  min-height: 108px;
+  padding: 11px 12px 12px;
+  border-radius: 5px;
+  box-shadow:
+    0 12px 24px rgb(12 8 20 / 48%),
+    0 2px 0 rgb(0 0 0 / 12%);
+}
+
+.posit.posit-mesa-nota::after {
+  border-width: 0 0 18px 18px;
+}
+
+.posit.posit-mesa-nota textarea {
+  min-height: 76px;
+  font-size: 0.84rem;
+  line-height: 1.38;
+}
+
 .sala-dock {
   position: absolute;
   z-index: 24;

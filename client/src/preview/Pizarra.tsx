@@ -78,6 +78,7 @@ interface PositProps {
   posit: PositPreview;
   activo: boolean;
   bloqueado?: boolean;
+  enMesa?: boolean;
   onActivar: (id: string) => void;
   onTexto: (id: string, texto: string) => void;
   onColor: (id: string, color: string) => void;
@@ -179,6 +180,7 @@ export function Posit({
   posit,
   activo,
   bloqueado,
+  enMesa = false,
   onActivar,
   onTexto,
   onColor,
@@ -187,6 +189,8 @@ export function Posit({
   onArrastrar
 }: PositProps) {
   const area = useRef<HTMLTextAreaElement>(null);
+  const inicioPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const [editandoMesa, setEditandoMesa] = useState(false);
 
   useEffect(() => {
     const elemento = area.current;
@@ -213,6 +217,7 @@ export function Posit({
     <div
       className={[
         "posit",
+        enMesa ? "posit-mesa-nota" : "",
         activo && !bloqueado ? "activo" : "",
         esMasterPosit ? "posit-master" : "posit-jugador",
         bloqueado ? "bloqueado" : ""
@@ -221,10 +226,33 @@ export function Posit({
         .join(" ")}
       style={estilo}
       onPointerDown={
-        bloqueado ? undefined : evento => onArrastrar(evento, posit)
+        bloqueado
+          ? undefined
+          : evento => {
+              if (enMesa) {
+                inicioPointerRef.current = {
+                  x: evento.clientX,
+                  y: evento.clientY
+                };
+              }
+              onArrastrar(evento, posit);
+            }
       }
-      onClick={() => {
-        if (!bloqueado) onActivar(posit.id);
+      onClick={evento => {
+        if (bloqueado) return;
+        if (enMesa && inicioPointerRef.current) {
+          const dist = Math.hypot(
+            evento.clientX - inicioPointerRef.current.x,
+            evento.clientY - inicioPointerRef.current.y
+          );
+          inicioPointerRef.current = null;
+          if (dist > 5) return;
+          onActivar(posit.id);
+          setEditandoMesa(true);
+          window.requestAnimationFrame(() => area.current?.focus());
+          return;
+        }
+        onActivar(posit.id);
       }}
     >
       {(esMasterPosit || posit.autorNombre) && (
@@ -308,11 +336,17 @@ export function Posit({
         value={posit.texto}
         readOnly={bloqueado}
         placeholder={bloqueado ? "" : "Escribe una nota…"}
+        style={enMesa && !editandoMesa ? { pointerEvents: "none" } : undefined}
+        onBlur={() => {
+          if (enMesa) setEditandoMesa(false);
+        }}
         onChange={evento => {
           if (!bloqueado) onTexto(posit.id, evento.target.value);
         }}
         onPointerDown={evento => {
-          if (!bloqueado) evento.stopPropagation();
+          if (!bloqueado && (!enMesa || editandoMesa)) {
+            evento.stopPropagation();
+          }
         }}
         onClick={evento => {
           if (!bloqueado) {
