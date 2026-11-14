@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ListChecks, ShieldAlert } from "lucide-react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
 import { mesasApi } from "./api/mesas.api";
@@ -118,8 +119,8 @@ function App() {
   if (loading) {
     return (
       <main className="page">
-        <div className="card">
-          <p className="muted">Cargando…</p>
+        <div className="card loading-card">
+          <p className="muted">Cargando PocketRol…</p>
         </div>
       </main>
     );
@@ -130,53 +131,58 @@ function App() {
   }
 
   const esAdmin = user.role === "ADMIN";
-
   const ocultarMenusSuperiores = view === "sala" || view === "gestion";
 
   return (
     <main className="page">
       <div className="shell">
-        <header className={`topbar${ocultarMenusSuperiores ? " oculto" : ""}`}>
-          <div className="titulo-con-dados">
-            <Dado cara={5} clase="dado-izquierda" />
-            <LogoPocketRol onClick={() => setView("recepcion")} />
-            <Dado cara={2} clase="dado-derecha" />
-          </div>
+        {!ocultarMenusSuperiores && (
+          <header className="topbar">
+            <div className="topbar-nav">
+              <div className="topbar-izq">
+                <ArchivosMenu />
+              </div>
 
-          {(esAdmin || miMesa) && view !== "sala" && (
-            <div className="topbar-acciones">
-              {esAdmin && miMesa && (
-                <button
-                  type="button"
-                  className="primary verde small listar-mesa"
-                  onClick={() => abrirGestion(miMesa)}
-                >
-                  Listar mesa
-                </button>
-              )}
+              <div className="topbar-der">
+                {esAdmin && miMesa && (
+                  <button
+                    type="button"
+                    className="primary verde small listar-mesa"
+                    onClick={() => abrirGestion(miMesa)}
+                  >
+                    <ListChecks size={14} aria-hidden="true" />
+                    <span>Listar mesa</span>
+                  </button>
+                )}
 
-              {esAdmin && (
-                <button
-                  type="button"
-                  className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
-                  onClick={() => setView("moderar")}
-                >
-                  Moderar
-                </button>
-              )}
+                {esAdmin && (
+                  <button
+                    type="button"
+                    className={view === "moderar" ? "tab moderar activa" : "tab moderar"}
+                    onClick={() => setView(view === "moderar" ? "recepcion" : "moderar")}
+                  >
+                    <ShieldAlert size={14} aria-hidden="true" />
+                    <span>Moderar</span>
+                  </button>
+                )}
+
+                <AccountMenu
+                  label={nombreDeUsuario(user)}
+                  showHome={view !== "recepcion"}
+                  onGoHome={() => setView("recepcion")}
+                  onOpenAccount={() => setView("cuenta")}
+                  onLogout={handleLogout}
+                />
+              </div>
             </div>
-          )}
-        </header>
 
-        {view !== "sala" && view !== "gestion" && (
-          <AccountMenu
-            label={nombreDeUsuario(user)}
-            onOpenAccount={() => setView("cuenta")}
-            onLogout={handleLogout}
-          />
+            <div className="titulo-con-dados">
+              <Dado cara={5} clase="dado-izquierda" />
+              <LogoPocketRol onClick={() => setView("recepcion")} />
+              <Dado cara={2} clase="dado-derecha" />
+            </div>
+          </header>
         )}
-
-        {view !== "sala" && view !== "gestion" && <ArchivosMenu />}
 
         {view === "sala" && salaMesa ? (
           <SalaReal
@@ -195,13 +201,18 @@ function App() {
             onSessionExpired={handleLogout}
           />
         ) : view === "moderar" && esAdmin ? (
-          <AdminUsersPage currentUser={user} onSelfDeleted={handleLogout} />
+          <AdminUsersPage
+            currentUser={user}
+            onSelfDeleted={handleLogout}
+            onVolver={() => setView("recepcion")}
+          />
         ) : view === "cuenta" ? (
           <DashboardPage
             user={user}
             onUserUpdated={setUser}
             onAccountDeleted={handleLogout}
             onLogout={handleLogout}
+            onVolver={() => setView("recepcion")}
           />
         ) : (
           <RecepcionPage
