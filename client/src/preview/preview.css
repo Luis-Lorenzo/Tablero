@@ -4595,8 +4595,9 @@
 }
 
 .pizarra-page .pizarra-barra {
-  background: linear-gradient(180deg, #1b3b2a 0%, #142c20 100%);
-  border-bottom-color: #2f5e45;
+  background: linear-gradient(180deg, #f5ead0 0%, #e5d5b0 100%);
+  border-bottom-color: #b79c6e;
+  color: #1a1510;
 }
 
 .pizarra-page.vista-escena .pizarra-barra {
