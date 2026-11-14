@@ -7,6 +7,7 @@ import type { UserService } from "../services/user.service.js";
 
 import type { MesaRepository } from "../repositories/mesa.repository.js";
 import type { MesaService } from "../services/mesa.service.js";
+import type { ChatService } from "../services/chat.service.js";
 import type { MesasNotifier } from "../realtime/mesas-notifier.js";
 import type { ArchivoService } from "../services/archivo.service.js";
 
@@ -19,6 +20,7 @@ export interface AppContext {
   userService: UserService;
   bloqueoService: BloqueoService;
   mesaService: MesaService;
+  chatService: ChatService;
   archivoService: ArchivoService;
   /** Canal en vivo: avisa a las pestañas abiertas de que las mesas cambiaron. */
   mesasNotifier: MesasNotifier;

@@ -19,6 +19,7 @@ import { ArchivoService } from "../src/services/archivo.service.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
+import { ChatService } from "../src/services/chat.service.js";
 import { UserService } from "../src/services/user.service.js";
 import { MesasBroadcaster } from "../src/realtime/mesas-broadcaster.js";
 import type { AppContext } from "../src/api/context.js";
@@ -75,6 +76,7 @@ describe("canal en vivo /ws", () => {
       userService: new UserService(users, logger),
       bloqueoService: new BloqueoService(logger),
       mesaService: new MesaService(mesas, users, logger),
+      chatService: new ChatService(mesas, users),
       archivoService: new ArchivoService(
         new MemoryArchivoRepository(),
         new MemoryAlmacen(),

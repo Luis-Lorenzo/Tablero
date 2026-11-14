@@ -77,6 +77,8 @@ export default function PreviewApp() {
       onAbrirPizarra={() => setFase("pizarra")}
       onAbrirMapa={() => setFase("mapa")}
       onVolver={() => setFase("lobby")}
+      esMaster
+      miUsuarioId="master"
     />
   );
 }

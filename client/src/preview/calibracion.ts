@@ -97,6 +97,7 @@ export function cargarCalibracion(): Calibracion {
   return {
     asientos: { ...CALIBRACION_INICIAL.asientos, ...(guardada.asientos ?? {}) },
     pizarra: { ...CALIBRACION_INICIAL.pizarra, ...(guardada.pizarra ?? {}) },
+    chat: { ...CALIBRACION_INICIAL.chat, ...(guardada.chat ?? {}) },
     mapa: normalizarMapa(guardada.mapa),
     dock: { ...CALIBRACION_INICIAL.dock, ...(guardada.dock ?? {}) }
   };

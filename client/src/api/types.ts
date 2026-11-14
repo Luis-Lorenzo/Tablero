@@ -43,3 +43,26 @@ export interface PublicArchivo {
   tamano: number;
   createdAt: string;
 }
+
+export interface MensajeChat {
+  id: string;
+  mesaId: string;
+  autorId: string;
+  autorNombre: string;
+  texto: string;
+  destinatarioId: string | null;
+  destinatarioNombre: string | null;
+  createdAt: string;
+}
+
+export interface EventoTirada {
+  id: string;
+  mesaId: string;
+  jugadorId: string;
+  jugadorNombre: string;
+  total: number;
+  formula: string;
+  dados: number[];
+  bonificador: number;
+  createdAt: string;
+}
