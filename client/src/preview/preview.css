@@ -165,8 +165,8 @@
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 34%, #6a4d86 0%, #4e3768 58%, #342348 100%),
-    #432f5a;
+    radial-gradient(ellipse at 50% 50%, #241f2e 0%, #100d15 68%),
+    #0d0b11;
   color: #f5f0e8;
 }
 
