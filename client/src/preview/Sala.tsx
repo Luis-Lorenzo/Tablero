@@ -1,4 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Crown,
+  Eye,
+  Image as ImageIcon,
+  Minus,
+  Plus,
+  Sparkles,
+  X
+} from "lucide-react";
 import type {
   CSSProperties,
   Dispatch,
@@ -270,12 +280,12 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
       />
       <text
         x="12"
-        y="15.4"
+        y="14.5"
         textAnchor="middle"
-        fontSize="7"
+        fontSize="5.6"
         fill="currentColor"
         stroke="none"
-        fontFamily="Cinzel Decorative, serif"
+        fontFamily="'Press Start 2P', monospace"
       >
         {valor}
       </text>
@@ -1260,7 +1270,7 @@ export function Sala({
                     aria-label="Quitar escena de la pizarra"
                     onClick={() => onCambiarEscena(null)}
                   >
-                    ×
+                    <X size={12} strokeWidth={2.5} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -1472,7 +1482,7 @@ export function Sala({
                       aria-label="Quitar de la mesa"
                       title="Quitar de la mesa"
                     >
-                      ×
+                      <X size={12} strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   </div>
 
@@ -1535,13 +1545,17 @@ export function Sala({
           <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
             <div className="sala-barra-grupo">
               <button type="button" className="sala-btn" onClick={onVolver}>
-                ← Sala de espera
+                <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+                <span>Sala de espera</span>
               </button>
               <span className="sala-titulo-visible">
                 SALA DE {hostName ? hostName.toUpperCase() : "MESA"}
               </span>
               {esMaster && (
-                <span className="master-pill-badge">👑 MODO MÁSTER</span>
+                <span className="master-pill-badge">
+                  <Crown size={12} strokeWidth={2.2} aria-hidden="true" />
+                  <span>MODO MÁSTER</span>
+                </span>
               )}
               <button
                 type="button"
@@ -1554,7 +1568,10 @@ export function Sala({
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
                   <span className="master-proyeccion-texto">
-                    ✦ Proyectando: {imagenProyectada.titulo ?? "Imagen"}
+                    <Sparkles size={12} strokeWidth={2.2} aria-hidden="true" />
+                    <span>
+                      Proyectando: {imagenProyectada.titulo ?? "Imagen"}
+                    </span>
                   </span>
                   {proyeccionOculta && onReabrirProyeccion && (
                     <button
@@ -1583,7 +1600,8 @@ export function Sala({
                   className="sala-btn sala-btn-revelacion"
                   onClick={onReabrirProyeccion}
                 >
-                  👁 Ver imagen del Máster
+                  <Eye size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>Ver imagen del Máster</span>
                 </button>
               )}
             </div>
@@ -1628,7 +1646,7 @@ export function Sala({
                   onClick={() => setSelectorAbierto(false)}
                   aria-label="Cerrar selector de dados"
                 >
-                  ×
+                  <X size={13} strokeWidth={2.4} aria-hidden="true" />
                 </button>
               </div>
 
@@ -1640,7 +1658,7 @@ export function Sala({
                     onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
                     aria-label="Menos dados"
                   >
-                    −
+                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                   <input
                     type="number"
@@ -1658,7 +1676,7 @@ export function Sala({
                     onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
                     aria-label="Más dados"
                   >
-                    +
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1687,7 +1705,7 @@ export function Sala({
                     onClick={() => setBonificador(b => Math.max(-99, b - 1))}
                     aria-label="Reducir bonificador"
                   >
-                    −
+                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                   <input
                     type="number"
@@ -1705,7 +1723,7 @@ export function Sala({
                     onClick={() => setBonificador(b => Math.min(99, b + 1))}
                     aria-label="Aumentar bonificador"
                   >
-                    +
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1822,7 +1840,11 @@ export function Sala({
                             );
                           }}
                         >
-                          ✦
+                          <Sparkles
+                            size={13}
+                            strokeWidth={2.1}
+                            aria-hidden="true"
+                          />
                         </button>
                       )}
                       {esMaster && doc.vista === "imagen" && onCambiarEscena && (
@@ -1849,7 +1871,11 @@ export function Sala({
                             );
                           }}
                         >
-                          🖼
+                          <ImageIcon
+                            size={13}
+                            strokeWidth={2.1}
+                            aria-hidden="true"
+                          />
                         </button>
                       )}
                       <button
@@ -2016,7 +2042,10 @@ export function Sala({
                       </span>
                     )}
                   </button>
-                  <span className="dock-etiqueta master">Escena 👑</span>
+                  <span className="dock-etiqueta master">
+                    <Crown size={10} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Escena</span>
+                  </span>
                 </div>
               </>
             )}
@@ -2047,7 +2076,7 @@ export function Sala({
                 onClick={() => setCompartirAbierto(false)}
                 aria-label="Cerrar panel de compartir"
               >
-                ×
+                <X size={13} strokeWidth={2.4} aria-hidden="true" />
               </button>
             </div>
           </div>

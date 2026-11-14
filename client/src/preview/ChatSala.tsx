@@ -5,6 +5,7 @@ import type {
   KeyboardEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
+import { Crown, Lock, MessageSquare, Minus, Plus, Send, X } from "lucide-react";
 import type { JugadorPreview, MensajeSala, RectPizarra } from "./tipos";
 
 interface ChatSalaProps {
@@ -145,7 +146,10 @@ export function ChatSala({
       aria-label="Chat de la sala"
     >
       <header className="chat-cabecera" onPointerDown={onIniciarArrastre}>
-        <span className="chat-titulo">Chat</span>
+        <span className="chat-titulo">
+          <MessageSquare size={13} aria-hidden="true" />
+          <span>Chat</span>
+        </span>
         <button
           type="button"
           className="chat-plegar-btn"
@@ -155,7 +159,7 @@ export function ChatSala({
           aria-label={plegado ? "Expandir chat" : "Plegar chat"}
           title={plegado ? "Expandir chat" : "Plegar chat"}
         >
-          {plegado ? "+" : "−"}
+          {plegado ? <Plus size={13} aria-hidden="true" /> : <Minus size={13} aria-hidden="true" />}
         </button>
       </header>
 
@@ -183,9 +187,12 @@ export function ChatSala({
                     <div className="chat-msg-meta">
                       {esPrivado ? (
                         <span className="chat-msg-privado-etiqueta">
-                          {esMio
-                            ? `Susurro a @${msg.destinatarioNombre ?? "jugador"}`
-                            : `Susurro de ${msg.autorNombre}`}
+                          <Lock size={11} aria-hidden="true" />
+                          <span>
+                            {esMio
+                              ? `Susurro a @${msg.destinatarioNombre ?? "jugador"}`
+                              : `Susurro de ${msg.autorNombre}`}
+                          </span>
                         </span>
                       ) : (
                         <span className="chat-msg-autor">{msg.autorNombre}</span>
@@ -218,7 +225,10 @@ export function ChatSala({
                       />
                       <span className="chat-mencion-nombre">{jugador.nombre}</span>
                       {jugador.esMaster && (
-                        <span className="chat-mencion-rol">Máster</span>
+                        <span className="chat-mencion-rol">
+                          <Crown size={10} aria-hidden="true" />
+                          <span>Máster</span>
+                        </span>
                       )}
                     </button>
                   </li>
@@ -228,13 +238,14 @@ export function ChatSala({
 
             {destinatario && (
               <div className="chat-destinatario-chip">
+                <Lock size={11} aria-hidden="true" />
                 <span>Privado a @{destinatario.nombre}</span>
                 <button
                   type="button"
                   onClick={() => setDestinatario(null)}
                   aria-label="Cancelar mensaje privado"
                 >
-                  ×
+                  <X size={12} aria-hidden="true" />
                 </button>
               </div>
             )}
@@ -264,7 +275,7 @@ export function ChatSala({
                 disabled={enviando || !texto.trim()}
                 aria-label="Enviar mensaje"
               >
-                Enviar
+                <Send size={13} aria-hidden="true" />
               </button>
             </form>
           </div>

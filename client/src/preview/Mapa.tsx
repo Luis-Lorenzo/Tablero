@@ -1,3 +1,5 @@
+import { ArrowLeft, Map as MapIcon } from "lucide-react";
+
 interface MapaProps {
   onVolver: () => void;
 }
@@ -13,12 +15,16 @@ export function Mapa({ onVolver }: MapaProps) {
 
       <div className="pizarra-barra">
         <button type="button" className="pizarra-btn" onClick={onVolver}>
-          ← Volver
+          <ArrowLeft size={14} aria-hidden="true" />
+          <span>Volver</span>
         </button>
       </div>
 
       <div className="mapa-lienzo">
-        <p className="mapa-vacio">Aquí se cargará el mapa</p>
+        <p className="mapa-vacio">
+          <MapIcon size={18} aria-hidden="true" />
+          <span>Aquí se cargará el mapa</span>
+        </p>
       </div>
     </div>
   );

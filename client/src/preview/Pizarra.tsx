@@ -1,4 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Crown,
+  Eraser,
+  Hand,
+  Image as ImageIcon,
+  Lock,
+  Minus,
+  Paintbrush,
+  Pencil,
+  Plus,
+  Snowflake,
+  Sparkles,
+  Trash2
+} from "lucide-react";
 import type {
   CSSProperties,
   ChangeEvent,
@@ -154,18 +172,7 @@ function PergaminoPizarra() {
 }
 
 function IconoPapelera() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />;
 }
 
 export function Posit({
@@ -229,7 +236,14 @@ export function Posit({
               : `Nota de ${posit.autorNombre}`
           }
         >
-          {esMasterPosit ? "👑 Máster" : posit.autorNombre}
+          {esMasterPosit ? (
+            <>
+              <Crown size={12} strokeWidth={2.2} aria-hidden="true" />
+              <span>Máster</span>
+            </>
+          ) : (
+            posit.autorNombre
+          )}
         </span>
       )}
 
@@ -811,10 +825,14 @@ export function Pizarra({
       >
         <div className="pizarra-barra-izq">
           <button type="button" className="pizarra-btn" onClick={onVolver}>
-            ← Volver
+            <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+            <span>Volver</span>
           </button>
           {esMaster && (
-            <span className="master-pill-badge">👑 MODO MÁSTER</span>
+            <span className="master-pill-badge">
+              <Crown size={12} strokeWidth={2.2} aria-hidden="true" />
+              <span>MODO MÁSTER</span>
+            </span>
           )}
           <button
             type="button"
@@ -822,7 +840,8 @@ export function Pizarra({
             onClick={() => crearPosit(50, 50)}
             disabled={bloqueado}
           >
-            + Nuevo posit
+            <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+            <span>Nuevo posit</span>
           </button>
         </div>
 
@@ -840,7 +859,8 @@ export function Pizarra({
               onClick={() => setModoHerramienta("cursor")}
               title="Mover posits y fichas"
             >
-              🖐 Posits
+              <Hand size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Posits</span>
             </button>
             <button
               type="button"
@@ -851,7 +871,8 @@ export function Pizarra({
               onClick={() => setModoHerramienta("dibujar")}
               title="Dibujar sobre la pizarra"
             >
-              ✏️ Dibujar
+              <Pencil size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Dibujar</span>
             </button>
             <button
               type="button"
@@ -862,7 +883,8 @@ export function Pizarra({
               onClick={() => setModoHerramienta("borrar")}
               title="Borrar trazos dibujados"
             >
-              🧽 Borrador
+              <Eraser size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Borrador</span>
             </button>
           </div>
 
@@ -911,7 +933,8 @@ export function Pizarra({
                 onClick={() => setPizarraCongelada(valor => !valor)}
                 title="Impide a los jugadores dibujar, borrar o mover posits"
               >
-                {pizarraCongelada ? "❄️ Congelada" : "❄️ Congelar"}
+                <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
+                <span>{pizarraCongelada ? "Congelada" : "Congelar"}</span>
               </button>
 
               <button
@@ -921,7 +944,8 @@ export function Pizarra({
                 onClick={() => setListaTrazos([])}
                 title="Borrar solo los dibujos trazados"
               >
-                🧹 Dibujos
+                <Paintbrush size={14} strokeWidth={2.1} aria-hidden="true" />
+                <span>Dibujos</span>
               </button>
 
               {confirmarBorrarTodo ? (
@@ -948,7 +972,8 @@ export function Pizarra({
                   onClick={() => setConfirmarBorrarTodo(true)}
                   title="Vaciar dibujos, posits y fichas de la pizarra"
                 >
-                  🗑️ Borrar todo
+                  <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>Borrar todo</span>
                 </button>
               )}
 
@@ -958,7 +983,8 @@ export function Pizarra({
                   className="master-btn-dorado"
                   onClick={() => setPanelMasterAbierto(true)}
                 >
-                  🖼 Escena
+                  <ImageIcon size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>Escena</span>
                 </button>
               )}
             </>
@@ -982,7 +1008,11 @@ export function Pizarra({
               sidebarAbierta ? "Ocultar columna" : "Mostrar columna"
             }
           >
-            {sidebarAbierta ? "◀" : "▶"}
+            {sidebarAbierta ? (
+              <ChevronLeft size={14} strokeWidth={2.3} aria-hidden="true" />
+            ) : (
+              <ChevronRight size={14} strokeWidth={2.3} aria-hidden="true" />
+            )}
           </button>
 
           {sidebarAbierta && (
@@ -1096,7 +1126,15 @@ export function Pizarra({
                                   : "Sacar a la pizarra o arrastrar al tablero"
                               }
                             >
-                              {yaEnPizarra ? "✓" : "Sacar"}
+                              {yaEnPizarra ? (
+                                <Check
+                                  size={13}
+                                  strokeWidth={2.5}
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                "Sacar"
+                              )}
                             </button>
                             <button
                               type="button"
@@ -1167,9 +1205,22 @@ export function Pizarra({
 
           {pizarraCongelada && (
             <div className="pizarra-congelada-aviso">
-              {esMaster
-                ? "❄️ Pizarra congelada para los jugadores (tú sigues pudiendo editar)"
-                : "🔒 Pizarra congelada por el Máster · modo solo lectura"}
+              {esMaster ? (
+                <>
+                  <Snowflake size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>
+                    Pizarra congelada para los jugadores (tú sigues pudiendo
+                    editar)
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Lock size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>
+                    Pizarra congelada por el Máster · modo solo lectura
+                  </span>
+                </>
+              )}
             </div>
           )}
 
@@ -1187,12 +1238,22 @@ export function Pizarra({
                   className="pizarra-escena-mini-btn"
                   onClick={() => setEscenaMinimizada(false)}
                 >
-                  🖼 Escena: {imagenEscena.titulo ?? "Ver imagen del Máster"}
+                  <ImageIcon size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>
+                    Escena: {imagenEscena.titulo ?? "Ver imagen del Máster"}
+                  </span>
                 </button>
               ) : (
                 <>
                   <div className="pizarra-escena-cabecera">
-                    <span>🖼 Escena del Máster</span>
+                    <span className="pizarra-escena-titulo-label">
+                      <ImageIcon
+                        size={14}
+                        strokeWidth={2.1}
+                        aria-hidden="true"
+                      />
+                      <span>Escena del Máster</span>
+                    </span>
                     <div className="pizarra-escena-cabecera-btns">
                       <button
                         type="button"
@@ -1214,8 +1275,9 @@ export function Pizarra({
                         type="button"
                         onClick={() => setEscenaMinimizada(true)}
                         title="Minimizar"
+                        aria-label="Minimizar escena"
                       >
-                        —
+                        <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
                       </button>
                       {esMaster && onCambiarEscena && (
                         <button
@@ -1276,9 +1338,25 @@ export function Pizarra({
                             )
                           }
                         >
-                          {imagenProyectada?.id === imagenEscena.id
-                            ? "✦ Quitar proyección"
-                            : "✦ Mostrar a todos"}
+                          {imagenProyectada?.id === imagenEscena.id ? (
+                            <>
+                              <Sparkles
+                                size={13}
+                                strokeWidth={2.1}
+                                aria-hidden="true"
+                              />
+                              <span>Quitar proyección</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles
+                                size={13}
+                                strokeWidth={2.1}
+                                aria-hidden="true"
+                              />
+                              <span>Mostrar a todos</span>
+                            </>
+                          )}
                         </button>
                       )}
                       {onCambiarEscena && (
@@ -1345,7 +1423,11 @@ export function Pizarra({
                           );
                         }}
                       >
-                        ✦
+                        <Sparkles
+                          size={13}
+                          strokeWidth={2.1}
+                          aria-hidden="true"
+                        />
                       </button>
                     )}
                     {esMaster && esImg && onCambiarEscena && (
@@ -1372,7 +1454,11 @@ export function Pizarra({
                           );
                         }}
                       >
-                        🖼
+                        <ImageIcon
+                          size={13}
+                          strokeWidth={2.1}
+                          aria-hidden="true"
+                        />
                       </button>
                     )}
                     <button

@@ -688,40 +688,10 @@ function SalaRealContent({
       )}
 
       {estadoAviso && !error && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 30,
-            padding: "10px 18px",
-            borderRadius: "999px",
-            border: "1px solid #96fbc7",
-            background: "rgba(22, 18, 30, 0.94)",
-            color: "#96fbc7",
-            fontSize: "0.86rem"
-          }}
-        >
-          {estadoAviso}
-        </div>
+        <div className="sala-aviso sala-aviso-ok">{estadoAviso}</div>
       )}
       {error && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 40,
-            padding: "10px 18px",
-            borderRadius: 999,
-            background: "rgba(180, 60, 60, 0.9)",
-            color: "#fff"
-          }}
-        >
-          {error}
-        </div>
+        <div className="sala-aviso sala-aviso-error">{error}</div>
       )}
     </div>
   );

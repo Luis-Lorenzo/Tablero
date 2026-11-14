@@ -5,6 +5,16 @@ import type {
   Dispatch,
   SetStateAction
 } from "react";
+import {
+  ArrowLeft,
+  Crown,
+  Download,
+  Image as ImageIcon,
+  Plus,
+  Sparkles,
+  Trash2,
+  X
+} from "lucide-react";
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
@@ -176,7 +186,17 @@ return (
                 )
               }
             >
-              {enProyeccion ? "✦ Quitar proyección" : "✦ Mostrar a todos"}
+              {enProyeccion ? (
+                <>
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>Quitar proyección</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>Mostrar a todos</span>
+                </>
+              )}
             </button>
           )}
           {esMaster && esImagen && onCambiarEscena && (
@@ -195,7 +215,17 @@ return (
                 )
               }
             >
-              {enEscena ? "🖼 Quitar de pizarra" : "🖼 Fijar en pizarra"}
+              {enEscena ? (
+                <>
+                  <ImageIcon size={13} aria-hidden="true" />
+                  <span>Quitar de pizarra</span>
+                </>
+              ) : (
+                <>
+                  <ImageIcon size={13} aria-hidden="true" />
+                  <span>Fijar en pizarra</span>
+                </>
+              )}
             </button>
           )}
           <a
@@ -203,7 +233,8 @@ return (
             href={descargaUrl}
             download={archivo.nombre}
           >
-            Descargar
+            <Download size={13} aria-hidden="true" />
+            <span>Descargar</span>
           </a>
           <button
             type="button"
@@ -211,7 +242,8 @@ return (
             onClick={onCerrar}
             aria-label="Cerrar"
           >
-            Cerrar
+            <X size={13} aria-hidden="true" />
+            <span>Cerrar</span>
           </button>
         </div>
       </header>
@@ -279,7 +311,9 @@ export function ProyeccionMasterModal({
       >
         <div className="proyeccion-master-cabecera">
           <span className="proyeccion-master-sello">
-            ✦ REVELACIÓN DEL MÁSTER ✦
+            <Sparkles size={13} aria-hidden="true" />
+            <span>REVELACIÓN DEL MÁSTER</span>
+            <Sparkles size={13} aria-hidden="true" />
           </span>
           <button
             type="button"
@@ -288,7 +322,7 @@ export function ProyeccionMasterModal({
             title="Ocultar en mi vista"
             aria-label="Ocultar en mi vista"
           >
-            ×
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
 
@@ -466,7 +500,7 @@ export function PanelImagenesMasterModal({
         <header className="master-panel-cabecera">
           <div className="master-panel-titulo-wrap">
             <span className="master-corona" aria-hidden="true">
-              👑
+              <Crown size={20} />
             </span>
             <div>
               <h2>{tituloPanel}</h2>
@@ -482,14 +516,15 @@ export function PanelImagenesMasterModal({
             onClick={onCerrar}
             aria-label="Cerrar panel de Máster"
           >
-            ×
+            <X size={16} aria-hidden="true" />
           </button>
         </header>
 
         <div className="master-estado-grid">
           <div className="master-estado-caja">
             <span className="master-estado-etiqueta">
-              ✦ Opción A · Pantalla de todos
+              <Sparkles size={12} aria-hidden="true" />
+              <span>Opción A · Pantalla de todos</span>
             </span>
             {imagenProyectada ? (
               <div className="master-estado-activo">
@@ -517,7 +552,8 @@ export function PanelImagenesMasterModal({
 
           <div className="master-estado-caja">
             <span className="master-estado-etiqueta">
-              🖼 Opción B · Pizarra de la sala
+              <ImageIcon size={12} aria-hidden="true" />
+              <span>Opción B · Pizarra de la sala</span>
             </span>
             {imagenEscena ? (
               <div className="master-estado-activo">
@@ -559,7 +595,8 @@ export function PanelImagenesMasterModal({
             onClick={() => selector.current?.click()}
             disabled={subiendo}
           >
-            {subiendo ? "Subiendo…" : "+ Subir imagen"}
+            <Plus size={14} aria-hidden="true" />
+            <span>{subiendo ? "Subiendo…" : "Subir imagen"}</span>
           </button>
           <input
             ref={selector}
@@ -606,7 +643,8 @@ export function PanelImagenesMasterModal({
                             )
                           }
                         >
-                          {esProyectada ? "✦ Quitar" : "✦ Mostrar a todos"}
+                          <Sparkles size={12} aria-hidden="true" />
+                          <span>{esProyectada ? "Quitar" : "Mostrar a todos"}</span>
                         </button>
                       )}
                       {onCambiarEscena && (
@@ -619,7 +657,8 @@ export function PanelImagenesMasterModal({
                             )
                           }
                         >
-                          {esEscena ? "🖼 Quitar" : "🖼 Pizarra"}
+                          <ImageIcon size={12} aria-hidden="true" />
+                          <span>{esEscena ? "Quitar" : "Pizarra"}</span>
                         </button>
                       )}
                     </div>
@@ -780,11 +819,19 @@ export function Archivador({
           className={`archivador-barra${esMaster ? " archivador-barra-master" : ""}`}
         >
           <button type="button" className="archivador-btn" onClick={onVolver}>
-            ← Volver
+            <ArrowLeft size={14} aria-hidden="true" />
+            <span>Volver</span>
           </button>
 
           <h1 className="archivador-titulo">
-            {esMaster ? "👑 ARCHIVADOR DEL MÁSTER" : "ARCHIVADOR"}
+            {esMaster ? (
+              <>
+                <Crown size={15} aria-hidden="true" />
+                <span>ARCHIVADOR DEL MÁSTER</span>
+              </>
+            ) : (
+              "ARCHIVADOR"
+            )}
           </h1>
 
           <button
@@ -793,7 +840,8 @@ export function Archivador({
             onClick={() => selector.current?.click()}
             disabled={subiendo}
           >
-            {subiendo ? "Subiendo…" : "+ Añadir archivo"}
+            <Plus size={14} aria-hidden="true" />
+            <span>{subiendo ? "Subiendo…" : "Añadir archivo"}</span>
           </button>
         </header>
 
@@ -857,7 +905,7 @@ export function Archivador({
                         aria-label="Borrar posit"
                         onClick={() => borrarPosit(posit.id)}
                       >
-                        ×
+                        <Trash2 size={14} aria-hidden="true" />
                       </button>
                     </div>
                   </article>
@@ -939,9 +987,17 @@ export function Archivador({
                             )
                           }
                         >
-                          {imagenProyectada?.id === archivo.id
-                            ? "✦ Quitar proyección"
-                            : "✦ Mostrar a todos"}
+                          {imagenProyectada?.id === archivo.id ? (
+                            <>
+                              <Sparkles size={12} aria-hidden="true" />
+                              <span>Quitar proyección</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={12} aria-hidden="true" />
+                              <span>Mostrar a todos</span>
+                            </>
+                          )}
                         </button>
                       )}
                       {onCambiarEscena && (
@@ -959,9 +1015,17 @@ export function Archivador({
                             )
                           }
                         >
-                          {imagenEscena?.id === archivo.id
-                            ? "🖼 En pizarra (Quitar)"
-                            : "🖼 Fijar en pizarra"}
+                          {imagenEscena?.id === archivo.id ? (
+                            <>
+                              <ImageIcon size={12} aria-hidden="true" />
+                              <span>En pizarra (Quitar)</span>
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon size={12} aria-hidden="true" />
+                              <span>Fijar en pizarra</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
@@ -982,7 +1046,7 @@ export function Archivador({
                     aria-label={`Borrar ${archivo.nombre}`}
                     onClick={() => void borrarArchivo(archivo)}
                   >
-                    ×
+                    <Trash2 size={14} aria-hidden="true" />
                   </button>
                 </div>
               </article>
