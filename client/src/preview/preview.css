@@ -4688,3 +4688,62 @@
   color: rgb(226 234 255 / 80%);
   text-shadow: 0 1px 4px rgb(0 0 0 / 85%);
 }
+
+.pizarra-lienzo.vista-escena.modo-dibujar .pizarra-dibujo-svg,
+.pizarra-lienzo.vista-escena.modo-borrar .pizarra-dibujo-svg {
+  z-index: 9;
+}
+
+.pizarra-ficha-doc.escena-imagen-libre {
+  position: absolute;
+}
+
+.pizarra-ficha-imagen.escena-grande {
+  width: 420px;
+  height: 300px;
+  max-width: 82vw;
+  max-height: 76vh;
+  padding: 6px;
+  border: 1px solid rgb(186 230 253 / 35%);
+  border-radius: 10px;
+  background: rgb(8 12 26 / 84%);
+  box-shadow: 0 16px 38px rgb(0 0 0 / 58%);
+  transition: none;
+}
+
+.pizarra-ficha-imagen.escena-grande:hover {
+  transform: none;
+}
+
+.pizarra-ficha-imagen.escena-grande img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.pizarra-ficha-doc.escena-imagen-libre .ficha-doc-nombre {
+  color: #e6eeff;
+  background: rgb(6 9 22 / 76%);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.pizarra-escena-img-tirador {
+  position: absolute;
+  right: 2px;
+  bottom: 24px;
+  width: 16px;
+  height: 16px;
+  border-right: 3px solid #bae6fd;
+  border-bottom: 3px solid #bae6fd;
+  border-bottom-right-radius: 4px;
+  cursor: nwse-resize;
+  opacity: 0.78;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.pizarra-ficha-doc.escena-imagen-libre:hover .pizarra-escena-img-tirador {
+  opacity: 1;
+  transform: scale(1.1);
+}

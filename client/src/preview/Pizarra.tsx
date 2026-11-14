@@ -108,6 +108,14 @@ type AccionLienzo =
       rect: DOMRect;
     }
   | {
+      tipo: "doc-tam";
+      id: string;
+      inicioX: number;
+      inicioY: number;
+      baseW: number;
+      baseH: number;
+    }
+  | {
       tipo: "dibujar";
       trazo: TrazoPizarra;
       rect: DOMRect;
@@ -383,6 +391,9 @@ export function Pizarra({
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsInternos, setDocsInternos] = useState<DocumentoMesa[]>([]);
   const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
+    Record<string, { w: number; h: number }>
+  >({});
   const [congeladaInterna, setCongeladaInterna] = useState(false);
 
   const esVistaEscena = vistaPizarra === "escena";
@@ -491,6 +502,20 @@ export function Pizarra({
               : posit
           )
         );
+        return;
+      }
+
+      if (actual.tipo === "doc-tam") {
+        const w = Math.round(
+          limitar(actual.baseW + (evento.clientX - actual.inicioX), 80, 1400)
+        );
+        const h = Math.round(
+          limitar(actual.baseH + (evento.clientY - actual.inicioY), 60, 1000)
+        );
+        setTamanoImagenesEscena(prev => ({
+          ...prev,
+          [actual.id]: { w, h }
+        }));
         return;
       }
 
@@ -621,6 +646,25 @@ export function Pizarra({
       rect
     };
     setActivo(posit.id);
+  }
+
+  function iniciarRedimensionDoc(
+    evento: ReactPointerEvent,
+    docId: string,
+    actual: { w: number; h: number }
+  ): void {
+    if (bloqueado || herramientaEfectiva !== "cursor") return;
+    evento.preventDefault();
+    evento.stopPropagation();
+    arrastreDocMovido.current = true;
+    accionRef.current = {
+      tipo: "doc-tam",
+      id: docId,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      baseW: actual.w,
+      baseH: actual.h
+    };
   }
 
   function iniciarArrastreDoc(
@@ -1583,11 +1627,15 @@ export function Pizarra({
             const formato = infoFormatoArchivo(doc.vista);
             const esImg = doc.vista === "imagen";
             const imgSrc = esImg ? (doc.url ?? archivosApi.url(doc.id)) : null;
+            const esImgGrandeEscena = esVistaEscena && Boolean(imgSrc);
+            const tamImg = tamanoImagenesEscena[doc.id];
 
             return (
               <div
                 key={doc.id}
-                className={`pizarra-ficha-doc${bloqueado ? " bloqueado" : ""}`}
+                className={`pizarra-ficha-doc${bloqueado ? " bloqueado" : ""}${
+                  esImgGrandeEscena ? " escena-imagen-libre" : ""
+                }`}
                 style={
                   {
                     left: `${doc.x}%`,
@@ -1684,8 +1732,15 @@ export function Pizarra({
                   type="button"
                   className={
                     imgSrc
-                      ? "pizarra-ficha-imagen"
+                      ? esImgGrandeEscena
+                        ? "pizarra-ficha-imagen escena-grande"
+                        : "pizarra-ficha-imagen"
                       : `ficha-doc-hoja ${formato.clase}`
+                  }
+                  style={
+                    esImgGrandeEscena && tamImg
+                      ? { width: `${tamImg.w}px`, height: `${tamImg.h}px` }
+                      : undefined
                   }
                   title={`Abrir ${doc.nombre}`}
                   aria-label={`Abrir ${doc.nombre}`}
@@ -1695,11 +1750,52 @@ export function Pizarra({
                   }}
                 >
                   {imgSrc ? (
-                    <img src={imgSrc} alt={doc.nombre} draggable={false} />
+                    <img
+                      src={imgSrc}
+                      alt={doc.nombre}
+                      draggable={false}
+                      onLoad={
+                        esImgGrandeEscena
+                          ? evento => {
+                              if (tamanoImagenesEscena[doc.id]) return;
+                              const natW = evento.currentTarget.naturalWidth || 420;
+                              const natH = evento.currentTarget.naturalHeight || 300;
+                              const maxW = Math.min(window.innerWidth * 0.62, 760);
+                              const maxH = Math.min(window.innerHeight * 0.62, 560);
+                              const escala = Math.min(1, maxW / natW, maxH / natH);
+                              setTamanoImagenesEscena(prev =>
+                                prev[doc.id]
+                                  ? prev
+                                  : {
+                                      ...prev,
+                                      [doc.id]: {
+                                        w: Math.max(120, Math.round(natW * escala)),
+                                        h: Math.max(90, Math.round(natH * escala))
+                                      }
+                                    }
+                              );
+                            }
+                          : undefined
+                      }
+                    />
                   ) : (
                     <span className="ficha-doc-codigo">{formato.codigo}</span>
                   )}
                 </button>
+
+                {esImgGrandeEscena && !bloqueado && herramientaEfectiva === "cursor" && (
+                  <span
+                    className="pizarra-escena-img-tirador"
+                    title="Arrastra para redimensionar la imagen"
+                    onPointerDown={evento =>
+                      iniciarRedimensionDoc(
+                        evento,
+                        doc.id,
+                        tamImg ?? { w: 420, h: 300 }
+                      )
+                    }
+                  />
+                )}
 
                 <span className="ficha-doc-nombre" title={doc.nombre}>
                   {doc.nombre}
