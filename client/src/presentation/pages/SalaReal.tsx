@@ -746,35 +746,27 @@ function SalaRealContent({
           }
         ]);
       } else if (res.tipo === "objeto") {
-        setMochila(prev => {
-          const idx = prev.findIndex(
-            item =>
-              item.nombre === res.objeto.nombre &&
-              item.descripcion === res.objeto.descripcion &&
-              (item.emoji ?? "") === (res.objeto.emoji ?? "") &&
-              !item.archivoId &&
-              !res.objeto.archivoId
-          );
-          if (idx >= 0) {
-            return prev.map((item, i) =>
-              i === idx
-                ? { ...item, cantidad: item.cantidad + Math.max(1, res.objeto.cantidad) }
-                : item
-            );
+        const pasoObj = (recepcionesRef.current - 1) % 6;
+        const posObj = {
+          x: Number((50 + ((pasoObj % 3) - 1) * 5).toFixed(2)),
+          y: Number((28 + Math.floor(pasoObj / 3) * 5).toFixed(2))
+        };
+        setElementosMesa(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "objeto",
+            nombre: res.objeto.nombre,
+            descripcion: res.objeto.descripcion,
+            cantidad: Math.max(1, res.objeto.cantidad),
+            ...(res.objeto.emoji ? { emoji: res.objeto.emoji } : {}),
+            ...(res.objeto.archivoId ? { archivoId: res.objeto.archivoId } : {}),
+            ...(res.objeto.archivoNombre ? { archivoNombre: res.objeto.archivoNombre } : {}),
+            x: posObj.x,
+            y: posObj.y,
+            remitente: solicitud.emisorNombre
           }
-          return [
-            ...prev,
-            {
-              id: nuevoIdElemento(),
-              nombre: res.objeto.nombre,
-              descripcion: res.objeto.descripcion,
-              cantidad: Math.max(1, res.objeto.cantidad),
-              ...(res.objeto.emoji ? { emoji: res.objeto.emoji } : {}),
-              ...(res.objeto.archivoId ? { archivoId: res.objeto.archivoId } : {}),
-              ...(res.objeto.archivoNombre ? { archivoNombre: res.objeto.archivoNombre } : {})
-            }
-          ];
-        });
+        ]);
         if (res.objeto.archivoId) cargarArchivos();
       } else {
         setElementosMesa(prev => [
