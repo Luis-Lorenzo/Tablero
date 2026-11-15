@@ -5940,9 +5940,9 @@
   height: 18px;
   padding: 0 4px;
   border-radius: 5px;
-  background: #3d2413;
-  border: 1px solid #9d6d43;
-  color: #f9e8c8;
+  background: #000000;
+  border: 1px solid rgb(255 255 255 / 42%);
+  color: #ffffff;
   font-size: 10.5px;
   font-weight: 800;
   display: grid;
@@ -6085,19 +6085,21 @@
 }
 
 .mochila-eliminar-cruz {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
   border-radius: 7px;
-  border: 1px solid rgb(168 38 38 / 55%);
-  background: rgb(168 38 38 / 16%);
-  color: #8b1c1c;
+  border: 1px solid #8e1818;
+  background: #c62828;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
   cursor: pointer;
 }
 
 .mochila-eliminar-cruz:hover {
-  background: #a82626;
+  background: #a81e1e;
   color: #ffffff;
 }
 
@@ -6219,9 +6221,19 @@
 
 .mesa-objeto {
   position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.mesa-objeto-cuadro {
+  position: relative;
   width: 72px;
   height: 72px;
-  transform: translate(-50%, -50%);
   border-radius: 10px;
   border: 2px solid #e8c56a;
   background: rgb(16 12 24 / 90%);
@@ -6229,11 +6241,9 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  cursor: grab;
-  pointer-events: auto;
 }
 
-.mesa-objeto img {
+.mesa-objeto-cuadro img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -6244,8 +6254,39 @@
   line-height: 1;
 }
 
+.mesa-objeto-nombre {
+  max-width: 96px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgb(10 8 15 / 86%);
+  border: 1px solid rgb(232 197 106 / 40%);
+  color: #f9eed2;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 50%);
+}
+
 .mochila-mesa-visor {
-  width: min(360px, 92vw);
+  width: min(380px, 92vw);
+}
+
+.mochila-mesa-visor .mochila-accion-sec {
+  border-color: rgb(232 197 106 / 55%);
+  background: rgb(232 197 106 / 18%);
+  color: #fff3d1;
+}
+
+.mochila-mesa-visor .mochila-accion-sec:hover {
+  background: rgb(232 197 106 / 30%);
+}
+
+.mochila-mesa-visor .mochila-consumir-btn {
+  flex: 1 1 100%;
 }
 
 .mochila-mesa-cuerpo {

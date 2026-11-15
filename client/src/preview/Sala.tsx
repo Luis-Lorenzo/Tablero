@@ -2358,6 +2358,22 @@ export function Sala({
     setObjetoMesaActivo(null);
   }
 
+  function consumirObjetoMesa(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    const restante = obj.cantidad - 1;
+    if (restante <= 0) {
+      onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+      setObjetoMesaActivo(null);
+    } else {
+      const actualizado = { ...obj, cantidad: restante };
+      onElementosMesa?.(prev =>
+        prev.map(el => (el.id === obj.id ? actualizado : el))
+      );
+      setObjetoMesaActivo(actualizado);
+    }
+  }
+
   function iniciarObjetoMesa(
     evento: ReactPointerEvent,
     obj: { id: string; x: number; y: number }
@@ -3184,7 +3200,8 @@ export function Sala({
                         title="Eliminar objeto de la mochila"
                         aria-label="Eliminar objeto"
                       >
-                        <X size={15} strokeWidth={2.6} aria-hidden="true" />
+                        <X size={14} strokeWidth={2.6} aria-hidden="true" />
+                        <span>Eliminar</span>
                       </button>
                     </div>
 
@@ -4233,16 +4250,19 @@ export function Sala({
                     }
                   }}
                 >
-                  {obj.imagenLocal || obj.archivoId ? (
-                    <img
-                      src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
-                      alt={obj.nombre}
-                      draggable={false}
-                    />
-                  ) : (
-                    <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
-                  )}
-                  <span className="mochila-slot-cant">{obj.cantidad}</span>
+                  <div className="mesa-objeto-cuadro">
+                    {obj.imagenLocal || obj.archivoId ? (
+                      <img
+                        src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
+                        alt={obj.nombre}
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+                    )}
+                    <span className="mochila-slot-cant">{obj.cantidad}</span>
+                  </div>
+                  <span className="mesa-objeto-nombre">{obj.nombre}</span>
                 </div>
               ))}
             </div>
@@ -4737,6 +4757,13 @@ export function Sala({
                 <p className="mochila-mesa-desc">{objetoMesaActivo.descripcion}</p>
               )}
               <div className="mochila-detalle-acciones">
+                <button
+                  type="button"
+                  className="mochila-consumir-btn"
+                  onClick={() => consumirObjetoMesa(objetoMesaActivo)}
+                >
+                  Consumir (-1)
+                </button>
                 <button
                   type="button"
                   className="mochila-accion-sec"
