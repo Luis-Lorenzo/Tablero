@@ -462,12 +462,22 @@ function SalaRealContent({
           window.clearTimeout(prevTimer);
         }
 
+        const dados = Array.isArray(roll.dados) ? roll.dados : [];
+        const mod = roll.bonificador ?? 0;
+        const tieneDesglose = dados.length > 1 || mod !== 0;
+        const modTxt = mod > 0 ? ` + ${mod}` : mod < 0 ? ` - ${Math.abs(mod)}` : "";
+        const desglose = tieneDesglose
+          ? `${dados.join(" + ")}${modTxt} = ${roll.total}`
+          : undefined;
+
         setTiradasAsiento(prev => ({
           ...prev,
           [asientoId]: {
             id: roll.id,
             total: roll.total,
-            especial: roll.especial ?? null
+            especial: roll.especial ?? null,
+            caras: roll.caras ?? 20,
+            desglose
           }
         }));
 
@@ -688,40 +698,10 @@ function SalaRealContent({
       )}
 
       {estadoAviso && !error && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 30,
-            padding: "10px 18px",
-            borderRadius: "999px",
-            border: "1px solid #96fbc7",
-            background: "rgba(22, 18, 30, 0.94)",
-            color: "#96fbc7",
-            fontSize: "0.86rem"
-          }}
-        >
-          {estadoAviso}
-        </div>
+        <div className="sala-aviso sala-aviso-ok">{estadoAviso}</div>
       )}
       {error && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 40,
-            padding: "10px 18px",
-            borderRadius: 999,
-            background: "rgba(180, 60, 60, 0.9)",
-            color: "#fff"
-          }}
-        >
-          {error}
-        </div>
+        <div className="sala-aviso sala-aviso-error">{error}</div>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import type {
   KeyboardEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
+import { Crown, FolderUp, Lock, MessageSquare, Minus, Plus, Send, X } from "lucide-react";
 import type { JugadorPreview, MensajeSala, RectPizarra } from "./tipos";
 
 interface ChatSalaProps {
@@ -15,6 +16,8 @@ interface ChatSalaProps {
   onEnviarMensaje: (texto: string, destinatarioId: string | null) => void | Promise<void>;
   onIniciarArrastre?: (evento: ReactPointerEvent) => void;
   onIniciarRedimension?: (evento: ReactPointerEvent) => void;
+  compartirAbierto?: boolean;
+  onToggleCompartir?: (ancla?: { left: number; bottom: number }) => void;
 }
 
 interface Destinatario {
@@ -40,7 +43,9 @@ export function ChatSala({
   mensajes,
   onEnviarMensaje,
   onIniciarArrastre,
-  onIniciarRedimension
+  onIniciarRedimension,
+  compartirAbierto = false,
+  onToggleCompartir
 }: ChatSalaProps) {
   const [plegado, setPlegado] = useState(false);
   const [texto, setTexto] = useState("");
@@ -145,7 +150,28 @@ export function ChatSala({
       aria-label="Chat de la sala"
     >
       <header className="chat-cabecera" onPointerDown={onIniciarArrastre}>
-        <span className="chat-titulo">Chat</span>
+        <div className="chat-cabecera-izq">
+          <span className="chat-titulo">
+            <MessageSquare size={13} aria-hidden="true" />
+            <span>Chat</span>
+          </span>
+          {onToggleCompartir && (
+            <button
+              type="button"
+              className={`chat-compartir-btn${compartirAbierto ? " activo" : ""}`}
+              onPointerDown={e => e.stopPropagation()}
+              onClick={evento => {
+                const caja = evento.currentTarget.closest(".sala-chat")?.getBoundingClientRect();
+                onToggleCompartir(caja ? { left: caja.left, bottom: caja.bottom } : undefined);
+              }}
+              aria-expanded={compartirAbierto}
+              aria-label="Pasar notas y archivos"
+              title="Pasar notas y archivos"
+            >
+              <FolderUp size={13} aria-hidden="true" />
+            </button>
+          )}
+        </div>
         <button
           type="button"
           className="chat-plegar-btn"
@@ -155,7 +181,7 @@ export function ChatSala({
           aria-label={plegado ? "Expandir chat" : "Plegar chat"}
           title={plegado ? "Expandir chat" : "Plegar chat"}
         >
-          {plegado ? "+" : "−"}
+          {plegado ? <Plus size={13} aria-hidden="true" /> : <Minus size={13} aria-hidden="true" />}
         </button>
       </header>
 
@@ -183,9 +209,12 @@ export function ChatSala({
                     <div className="chat-msg-meta">
                       {esPrivado ? (
                         <span className="chat-msg-privado-etiqueta">
-                          {esMio
-                            ? `Susurro a @${msg.destinatarioNombre ?? "jugador"}`
-                            : `Susurro de ${msg.autorNombre}`}
+                          <Lock size={11} aria-hidden="true" />
+                          <span>
+                            {esMio
+                              ? `Susurro a @${msg.destinatarioNombre ?? "jugador"}`
+                              : `Susurro de ${msg.autorNombre}`}
+                          </span>
                         </span>
                       ) : (
                         <span className="chat-msg-autor">{msg.autorNombre}</span>
@@ -218,7 +247,10 @@ export function ChatSala({
                       />
                       <span className="chat-mencion-nombre">{jugador.nombre}</span>
                       {jugador.esMaster && (
-                        <span className="chat-mencion-rol">Máster</span>
+                        <span className="chat-mencion-rol">
+                          <Crown size={10} aria-hidden="true" />
+                          <span>Máster</span>
+                        </span>
                       )}
                     </button>
                   </li>
@@ -228,13 +260,14 @@ export function ChatSala({
 
             {destinatario && (
               <div className="chat-destinatario-chip">
+                <Lock size={11} aria-hidden="true" />
                 <span>Privado a @{destinatario.nombre}</span>
                 <button
                   type="button"
                   onClick={() => setDestinatario(null)}
                   aria-label="Cancelar mensaje privado"
                 >
-                  ×
+                  <X size={12} aria-hidden="true" />
                 </button>
               </div>
             )}
@@ -264,7 +297,7 @@ export function ChatSala({
                 disabled={enviando || !texto.trim()}
                 aria-label="Enviar mensaje"
               >
-                Enviar
+                <Send size={13} aria-hidden="true" />
               </button>
             </form>
           </div>

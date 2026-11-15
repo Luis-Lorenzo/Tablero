@@ -1,4 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Crown,
+  Eraser,
+  Hand,
+  Image as ImageIcon,
+  Lock,
+  Minus,
+  Paintbrush,
+  Pencil,
+  Plus,
+  Snowflake,
+  Sparkles,
+  Trash2
+} from "lucide-react";
 import type {
   CSSProperties,
   ChangeEvent,
@@ -60,6 +78,7 @@ interface PositProps {
   posit: PositPreview;
   activo: boolean;
   bloqueado?: boolean;
+  enMesa?: boolean;
   onActivar: (id: string) => void;
   onTexto: (id: string, texto: string) => void;
   onColor: (id: string, color: string) => void;
@@ -87,6 +106,14 @@ type AccionLienzo =
       movido: boolean;
       base: Punto;
       rect: DOMRect;
+    }
+  | {
+      tipo: "doc-tam";
+      id: string;
+      inicioX: number;
+      inicioY: number;
+      baseW: number;
+      baseH: number;
     }
   | {
       tipo: "dibujar";
@@ -154,24 +181,14 @@ function PergaminoPizarra() {
 }
 
 function IconoPapelera() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />;
 }
 
 export function Posit({
   posit,
   activo,
   bloqueado,
+  enMesa = false,
   onActivar,
   onTexto,
   onColor,
@@ -180,6 +197,8 @@ export function Posit({
   onArrastrar
 }: PositProps) {
   const area = useRef<HTMLTextAreaElement>(null);
+  const inicioPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const [editandoMesa, setEditandoMesa] = useState(false);
 
   useEffect(() => {
     const elemento = area.current;
@@ -206,6 +225,7 @@ export function Posit({
     <div
       className={[
         "posit",
+        enMesa ? "posit-mesa-nota" : "",
         activo && !bloqueado ? "activo" : "",
         esMasterPosit ? "posit-master" : "posit-jugador",
         bloqueado ? "bloqueado" : ""
@@ -214,10 +234,33 @@ export function Posit({
         .join(" ")}
       style={estilo}
       onPointerDown={
-        bloqueado ? undefined : evento => onArrastrar(evento, posit)
+        bloqueado
+          ? undefined
+          : evento => {
+              if (enMesa) {
+                inicioPointerRef.current = {
+                  x: evento.clientX,
+                  y: evento.clientY
+                };
+              }
+              onArrastrar(evento, posit);
+            }
       }
-      onClick={() => {
-        if (!bloqueado) onActivar(posit.id);
+      onClick={evento => {
+        if (bloqueado) return;
+        if (enMesa && inicioPointerRef.current) {
+          const dist = Math.hypot(
+            evento.clientX - inicioPointerRef.current.x,
+            evento.clientY - inicioPointerRef.current.y
+          );
+          inicioPointerRef.current = null;
+          if (dist > 5) return;
+          onActivar(posit.id);
+          setEditandoMesa(true);
+          window.requestAnimationFrame(() => area.current?.focus());
+          return;
+        }
+        onActivar(posit.id);
       }}
     >
       {(esMasterPosit || posit.autorNombre) && (
@@ -229,7 +272,14 @@ export function Posit({
               : `Nota de ${posit.autorNombre}`
           }
         >
-          {esMasterPosit ? "👑 Máster" : posit.autorNombre}
+          {esMasterPosit ? (
+            <>
+              <Crown size={12} strokeWidth={2.2} aria-hidden="true" />
+              <span>Máster</span>
+            </>
+          ) : (
+            posit.autorNombre
+          )}
         </span>
       )}
 
@@ -294,11 +344,17 @@ export function Posit({
         value={posit.texto}
         readOnly={bloqueado}
         placeholder={bloqueado ? "" : "Escribe una nota…"}
+        style={enMesa && !editandoMesa ? { pointerEvents: "none" } : undefined}
+        onBlur={() => {
+          if (enMesa) setEditandoMesa(false);
+        }}
         onChange={evento => {
           if (!bloqueado) onTexto(posit.id, evento.target.value);
         }}
         onPointerDown={evento => {
-          if (!bloqueado) evento.stopPropagation();
+          if (!bloqueado && (!enMesa || editandoMesa)) {
+            evento.stopPropagation();
+          }
         }}
         onClick={evento => {
           if (!bloqueado) {
@@ -329,14 +385,30 @@ export function Pizarra({
   onCambiarEscena,
   onProyectarImagen
 }: PizarraProps) {
+  const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
   const [trazosInternos, setTrazosInternos] = useState<TrazoPizarra[]>([]);
+  const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
+  const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsInternos, setDocsInternos] = useState<DocumentoMesa[]>([]);
+  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
+    Record<string, { w: number; h: number }>
+  >({});
   const [congeladaInterna, setCongeladaInterna] = useState(false);
 
-  const listaTrazos = trazos ?? trazosInternos;
-  const setListaTrazos = onTrazos ?? setTrazosInternos;
-  const listaDocs = documentosPizarra ?? docsInternos;
-  const setListaDocs = onDocumentosPizarra ?? setDocsInternos;
+  const esVistaEscena = vistaPizarra === "escena";
+  const listaTrazos = esVistaEscena ? trazosEscena : (trazos ?? trazosInternos);
+  const setListaTrazos = esVistaEscena
+    ? setTrazosEscena
+    : (onTrazos ?? setTrazosInternos);
+  const listaPositsActiva = esVistaEscena ? positsEscena : posits;
+  const setListaPositsActiva = esVistaEscena ? setPositsEscena : onPosits;
+  const listaDocs = esVistaEscena
+    ? docsEscena
+    : (documentosPizarra ?? docsInternos);
+  const setListaDocs = esVistaEscena
+    ? setDocsEscena
+    : (onDocumentosPizarra ?? setDocsInternos);
   const pizarraCongelada = congelada ?? congeladaInterna;
   const setPizarraCongelada = onCongelada ?? setCongeladaInterna;
 
@@ -419,7 +491,7 @@ export function Pizarra({
         const dx = ((evento.clientX - actual.inicioX) / actual.rect.width) * 100;
         const dy =
           ((evento.clientY - actual.inicioY) / actual.rect.height) * 100;
-        onPosits(prev =>
+        setListaPositsActiva(prev =>
           prev.map(posit =>
             posit.id === actual.id
               ? {
@@ -430,6 +502,20 @@ export function Pizarra({
               : posit
           )
         );
+        return;
+      }
+
+      if (actual.tipo === "doc-tam") {
+        const w = Math.round(
+          limitar(actual.baseW + (evento.clientX - actual.inicioX), 80, 1400)
+        );
+        const h = Math.round(
+          limitar(actual.baseH + (evento.clientY - actual.inicioY), 60, 1000)
+        );
+        setTamanoImagenesEscena(prev => ({
+          ...prev,
+          [actual.id]: { w, h }
+        }));
         return;
       }
 
@@ -520,7 +606,7 @@ export function Pizarra({
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
-  }, [onPosits, setListaDocs, setListaTrazos, borrarTrazosEnPunto]);
+  }, [setListaPositsActiva, setListaDocs, setListaTrazos, borrarTrazosEnPunto]);
 
   function crearPosit(x: number, y: number): void {
     if (bloqueado) return;
@@ -536,7 +622,7 @@ export function Pizarra({
       esMaster: Boolean(esMaster)
     };
 
-    onPosits(prev => [...prev, posit]);
+    setListaPositsActiva(prev => [...prev, posit]);
     setActivo(posit.id);
     setModoHerramienta("cursor");
   }
@@ -560,6 +646,25 @@ export function Pizarra({
       rect
     };
     setActivo(posit.id);
+  }
+
+  function iniciarRedimensionDoc(
+    evento: ReactPointerEvent,
+    docId: string,
+    actual: { w: number; h: number }
+  ): void {
+    if (bloqueado || herramientaEfectiva !== "cursor") return;
+    evento.preventDefault();
+    evento.stopPropagation();
+    arrastreDocMovido.current = true;
+    accionRef.current = {
+      tipo: "doc-tam",
+      id: docId,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      baseW: actual.w,
+      baseH: actual.h
+    };
   }
 
   function iniciarArrastreDoc(
@@ -624,21 +729,21 @@ export function Pizarra({
 
   function cambiarTexto(id: string, texto: string): void {
     if (bloqueado) return;
-    onPosits(prev =>
+    setListaPositsActiva(prev =>
       prev.map(posit => (posit.id === id ? { ...posit, texto } : posit))
     );
   }
 
   function cambiarColor(id: string, color: string): void {
     if (bloqueado) return;
-    onPosits(prev =>
+    setListaPositsActiva(prev =>
       prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
     );
   }
 
   function borrarPosit(id: string): void {
     if (bloqueado) return;
-    onPosits(prev => prev.filter(posit => posit.id !== id));
+    setListaPositsActiva(prev => prev.filter(posit => posit.id !== id));
     setActivo(actual => (actual === id ? null : actual));
   }
 
@@ -697,39 +802,16 @@ export function Pizarra({
     setListaDocs(prev => prev.filter(doc => doc.id !== id));
   }
 
-  function alSoltarEnLienzo(evento: ReactDragEvent<HTMLDivElement>): void {
-    if (bloqueado) return;
-    evento.preventDefault();
-    const rect = lienzo.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    let item: ArchivoPizarraItem | null = archivoDragRef.current;
-    const bruto = evento.dataTransfer.getData("application/x-pocketrol-doc");
-    if (bruto) {
-      try {
-        item = JSON.parse(bruto) as ArchivoPizarraItem;
-      } catch {
-        // Mantiene el fallback en memoria si el parse falla.
-      }
-    }
-    archivoDragRef.current = null;
-    if (!item) return;
-
-    const x = ((evento.clientX - rect.left) / rect.width) * 100;
-    const y = ((evento.clientY - rect.top) / rect.height) * 100;
-    colocarDocumentoEnLienzo(item, x, y);
-  }
-
-  async function alSubirArchivo(evento: ChangeEvent<HTMLInputElement>) {
-    const elegidos = Array.from(evento.target.files ?? []);
-    evento.target.value = "";
-    if (elegidos.length === 0) return;
+  async function subirArchivosLista(elegidos: File[]): Promise<ArchivoPizarraItem[]> {
+    if (elegidos.length === 0) return [];
 
     const esPreview =
       new URLSearchParams(window.location.search).get("preview") === "1";
 
     setSubiendoArchivo(true);
     setErrorArchivos(null);
+    const subidos: ArchivoPizarraItem[] = [];
+
     try {
       for (const archivo of elegidos) {
         if (esPreview) {
@@ -743,20 +825,21 @@ export function Pizarra({
                   lector.readAsDataURL(archivo);
                 })
               : undefined;
-          setArchivos(prev => [
-            {
-              id: nuevoId(),
-              nombre: archivo.name,
-              tipo: archivo.type || "application/octet-stream",
-              vista,
-              tamano: archivo.size,
-              url
-            },
-            ...prev
-          ]);
+          const nuevo: ArchivoPizarraItem = {
+            id: nuevoId(),
+            nombre: archivo.name,
+            tipo: archivo.type || "application/octet-stream",
+            vista,
+            tamano: archivo.size,
+            url
+          };
+          setArchivos(prev => [nuevo, ...prev]);
+          subidos.push(nuevo);
         } else {
           const creado = await archivosApi.subir(archivo);
-          setArchivos(prev => [archivoAItem(creado), ...prev]);
+          const nuevo = archivoAItem(creado);
+          setArchivos(prev => [nuevo, ...prev]);
+          subidos.push(nuevo);
         }
       }
     } catch (fallo) {
@@ -764,6 +847,47 @@ export function Pizarra({
     } finally {
       setSubiendoArchivo(false);
     }
+    return subidos;
+  }
+
+  function alSoltarEnLienzo(evento: ReactDragEvent<HTMLDivElement>): void {
+    if (bloqueado) return;
+    evento.preventDefault();
+    const rect = lienzo.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = ((evento.clientX - rect.left) / rect.width) * 100;
+    const y = ((evento.clientY - rect.top) / rect.height) * 100;
+
+    let item: ArchivoPizarraItem | null = archivoDragRef.current;
+    const bruto = evento.dataTransfer.getData("application/x-pocketrol-doc");
+    if (bruto) {
+      try {
+        item = JSON.parse(bruto) as ArchivoPizarraItem;
+      } catch {
+        // Mantiene el fallback en memoria si el parse falla.
+      }
+    }
+    archivoDragRef.current = null;
+    if (item) {
+      colocarDocumentoEnLienzo(item, x, y);
+      return;
+    }
+
+    const files = Array.from(evento.dataTransfer.files ?? []);
+    if (files.length > 0) {
+      void subirArchivosLista(files).then(subidos => {
+        subidos.forEach((subido, idx) => {
+          colocarDocumentoEnLienzo(subido, x + idx * 3, y + idx * 3);
+        });
+      });
+    }
+  }
+
+  async function alSubirArchivo(evento: ChangeEvent<HTMLInputElement>) {
+    const elegidos = Array.from(evento.target.files ?? []);
+    evento.target.value = "";
+    await subirArchivosLista(elegidos);
   }
 
   async function borrarArchivoPizarra(item: ArchivoPizarraItem): Promise<void> {
@@ -786,7 +910,7 @@ export function Pizarra({
 
   function borrarTodoPizarra(): void {
     setListaTrazos([]);
-    onPosits([]);
+    setListaPositsActiva([]);
     setListaDocs([]);
     setActivo(null);
     setConfirmarBorrarTodo(false);
@@ -797,24 +921,60 @@ export function Pizarra({
     : listaTrazos;
   const coloresPalette = Array.from(
     new Set([
+      ...(esVistaEscena ? ["#f4f7ff"] : []),
       ...(esMaster ? ["#d49b27"] : colorJugador ? [colorJugador] : []),
       ...COLORES_TINTA.map(c => c.valor)
     ])
   );
 
+  function cambiarVistaPizarra(nuevaVista: "pizarra" | "escena"): void {
+    setVistaPizarra(nuevaVista);
+    setActivo(null);
+    setConfirmarBorrarTodo(false);
+    setTrazoEnCurso(null);
+    if (nuevaVista === "escena" && colorTinta === "#2b2118") {
+      setColorTinta("#f4f7ff");
+    } else if (nuevaVista === "pizarra" && colorTinta === "#f4f7ff") {
+      setColorTinta(esMaster ? "#d49b27" : (colorJugador ?? "#2b2118"));
+    }
+  }
+
   return (
-    <div className="pizarra-page">
-      <PergaminoPizarra />
+    <div className={`pizarra-page${esVistaEscena ? " vista-escena" : ""}`}>
+      {!esVistaEscena && <PergaminoPizarra />}
+
+      <nav className="pizarra-vista-tabs" aria-label="Vistas de la pizarra">
+        <button
+          type="button"
+          className={`pizarra-vista-tab pizarra-vista-tab-pizarra${!esVistaEscena ? " activo" : ""}`}
+          onClick={() => cambiarVistaPizarra("pizarra")}
+          aria-pressed={!esVistaEscena}
+        >
+          Pizarra
+        </button>
+        <button
+          type="button"
+          className={`pizarra-vista-tab pizarra-vista-tab-escena${esVistaEscena ? " activo" : ""}`}
+          onClick={() => cambiarVistaPizarra("escena")}
+          aria-pressed={esVistaEscena}
+        >
+          Escena
+        </button>
+      </nav>
 
       <header
         className={`pizarra-barra${esMaster ? " pizarra-barra-master" : ""}`}
       >
         <div className="pizarra-barra-izq">
           <button type="button" className="pizarra-btn" onClick={onVolver}>
-            ← Volver
+            <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+            <span>Volver</span>
           </button>
           {esMaster && (
-            <span className="master-pill-badge">👑 MODO MÁSTER</span>
+            <span className="master-pill-badge">
+              <Crown size={12} strokeWidth={2.2} aria-hidden="true" />
+              <span>MODO MÁSTER</span>
+            </span>
           )}
           <button
             type="button"
@@ -822,7 +982,8 @@ export function Pizarra({
             onClick={() => crearPosit(50, 50)}
             disabled={bloqueado}
           >
-            + Nuevo posit
+            <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+            <span>Nuevo posit</span>
           </button>
         </div>
 
@@ -840,7 +1001,8 @@ export function Pizarra({
               onClick={() => setModoHerramienta("cursor")}
               title="Mover posits y fichas"
             >
-              🖐 Posits
+              <Hand size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Posits</span>
             </button>
             <button
               type="button"
@@ -851,7 +1013,8 @@ export function Pizarra({
               onClick={() => setModoHerramienta("dibujar")}
               title="Dibujar sobre la pizarra"
             >
-              ✏️ Dibujar
+              <Pencil size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Dibujar</span>
             </button>
             <button
               type="button"
@@ -862,7 +1025,8 @@ export function Pizarra({
               onClick={() => setModoHerramienta("borrar")}
               title="Borrar trazos dibujados"
             >
-              🧽 Borrador
+              <Eraser size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Borrador</span>
             </button>
           </div>
 
@@ -911,7 +1075,8 @@ export function Pizarra({
                 onClick={() => setPizarraCongelada(valor => !valor)}
                 title="Impide a los jugadores dibujar, borrar o mover posits"
               >
-                {pizarraCongelada ? "❄️ Congelada" : "❄️ Congelar"}
+                <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
+                <span>{pizarraCongelada ? "Congelada" : "Congelar"}</span>
               </button>
 
               <button
@@ -921,7 +1086,8 @@ export function Pizarra({
                 onClick={() => setListaTrazos([])}
                 title="Borrar solo los dibujos trazados"
               >
-                🧹 Dibujos
+                <Paintbrush size={14} strokeWidth={2.1} aria-hidden="true" />
+                <span>Dibujos</span>
               </button>
 
               {confirmarBorrarTodo ? (
@@ -948,7 +1114,8 @@ export function Pizarra({
                   onClick={() => setConfirmarBorrarTodo(true)}
                   title="Vaciar dibujos, posits y fichas de la pizarra"
                 >
-                  🗑️ Borrar todo
+                  <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>Borrar todo</span>
                 </button>
               )}
 
@@ -958,7 +1125,8 @@ export function Pizarra({
                   className="master-btn-dorado"
                   onClick={() => setPanelMasterAbierto(true)}
                 >
-                  🖼 Escena
+                  <ImageIcon size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>Escena</span>
                 </button>
               )}
             </>
@@ -982,7 +1150,11 @@ export function Pizarra({
               sidebarAbierta ? "Ocultar columna" : "Mostrar columna"
             }
           >
-            {sidebarAbierta ? "◀" : "▶"}
+            {sidebarAbierta ? (
+              <ChevronLeft size={14} strokeWidth={2.3} aria-hidden="true" />
+            ) : (
+              <ChevronRight size={14} strokeWidth={2.3} aria-hidden="true" />
+            )}
           </button>
 
           {sidebarAbierta && (
@@ -1096,7 +1268,15 @@ export function Pizarra({
                                   : "Sacar a la pizarra o arrastrar al tablero"
                               }
                             >
-                              {yaEnPizarra ? "✓" : "Sacar"}
+                              {yaEnPizarra ? (
+                                <Check
+                                  size={13}
+                                  strokeWidth={2.5}
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                "Sacar"
+                              )}
                             </button>
                             <button
                               type="button"
@@ -1123,7 +1303,7 @@ export function Pizarra({
         <div
           className={`pizarra-lienzo modo-${herramientaEfectiva}${
             bloqueado ? " congelada" : ""
-          }`}
+          }${esVistaEscena ? " vista-escena" : ""}`}
           ref={lienzo}
           onPointerDown={alPulsarLienzo}
           onDoubleClick={dobleClic}
@@ -1135,6 +1315,112 @@ export function Pizarra({
           }}
           onDrop={alSoltarEnLienzo}
         >
+          {esVistaEscena && (
+            <div className="pizarra-escena-cielo" aria-hidden="true">
+              <svg
+                className="pizarra-escena-estrellas-svg"
+                viewBox="0 0 1200 720"
+                preserveAspectRatio="xMidYMid slice"
+              >
+                {[
+                  { x: 68, y: 54, s: 5, c: "#ffffff", o: 0.9 },
+                  { x: 142, y: 128, s: 3.5, c: "#bae6fd", o: 0.78 },
+                  { x: 215, y: 42, s: 4, c: "#fef3c7", o: 0.85 },
+                  { x: 294, y: 164, s: 6, c: "#ffffff", o: 0.95 },
+                  { x: 378, y: 88, s: 3.2, c: "#e9d5ff", o: 0.72 },
+                  { x: 466, y: 52, s: 4.5, c: "#ffffff", o: 0.88 },
+                  { x: 548, y: 142, s: 3.5, c: "#bfdbfe", o: 0.75 },
+                  { x: 640, y: 66, s: 5.5, c: "#fef9c3", o: 0.9 },
+                  { x: 726, y: 124, s: 3, c: "#ffffff", o: 0.7 },
+                  { x: 814, y: 46, s: 4.5, c: "#ddd6fe", o: 0.86 },
+                  { x: 908, y: 152, s: 5, c: "#ffffff", o: 0.92 },
+                  { x: 1004, y: 74, s: 3.8, c: "#bae6fd", o: 0.8 },
+                  { x: 1112, y: 118, s: 5.5, c: "#ffffff", o: 0.9 },
+                  { x: 92, y: 248, s: 4, c: "#e0f2fe", o: 0.82 },
+                  { x: 186, y: 312, s: 5.5, c: "#ffffff", o: 0.9 },
+                  { x: 274, y: 266, s: 3, c: "#fef3c7", o: 0.72 },
+                  { x: 388, y: 342, s: 4.5, c: "#ffffff", o: 0.85 },
+                  { x: 492, y: 256, s: 3.6, c: "#e9d5ff", o: 0.78 },
+                  { x: 588, y: 318, s: 6, c: "#ffffff", o: 0.94 },
+                  { x: 696, y: 246, s: 3.5, c: "#bae6fd", o: 0.76 },
+                  { x: 794, y: 334, s: 4.2, c: "#ffffff", o: 0.86 },
+                  { x: 892, y: 272, s: 3.2, c: "#fef9c3", o: 0.74 },
+                  { x: 988, y: 326, s: 5.2, c: "#ffffff", o: 0.9 },
+                  { x: 1104, y: 252, s: 3.8, c: "#ddd6fe", o: 0.8 },
+                  { x: 64, y: 446, s: 3.5, c: "#ffffff", o: 0.78 },
+                  { x: 162, y: 518, s: 4.8, c: "#bae6fd", o: 0.86 },
+                  { x: 258, y: 432, s: 3.2, c: "#ffffff", o: 0.7 },
+                  { x: 346, y: 544, s: 5.5, c: "#fef3c7", o: 0.9 },
+                  { x: 454, y: 468, s: 4, c: "#ffffff", o: 0.84 },
+                  { x: 556, y: 562, s: 3.4, c: "#e9d5ff", o: 0.76 },
+                  { x: 668, y: 452, s: 5, c: "#ffffff", o: 0.9 },
+                  { x: 762, y: 534, s: 3.6, c: "#bfdbfe", o: 0.78 },
+                  { x: 868, y: 474, s: 5.8, c: "#ffffff", o: 0.92 },
+                  { x: 964, y: 556, s: 3.5, c: "#fef9c3", o: 0.76 },
+                  { x: 1068, y: 442, s: 4.4, c: "#ffffff", o: 0.86 },
+                  { x: 1146, y: 518, s: 3.6, c: "#e0f2fe", o: 0.8 },
+                  { x: 118, y: 638, s: 5, c: "#ffffff", o: 0.88 },
+                  { x: 244, y: 668, s: 3.5, c: "#ddd6fe", o: 0.76 },
+                  { x: 412, y: 646, s: 4.5, c: "#ffffff", o: 0.85 },
+                  { x: 534, y: 678, s: 3.8, c: "#bae6fd", o: 0.8 },
+                  { x: 718, y: 652, s: 5.5, c: "#ffffff", o: 0.92 },
+                  { x: 846, y: 672, s: 3.4, c: "#fef3c7", o: 0.74 },
+                  { x: 1018, y: 644, s: 4.8, c: "#ffffff", o: 0.88 },
+                  { x: 1134, y: 668, s: 3.6, c: "#e9d5ff", o: 0.78 }
+                ].map((st, idx) => (
+                  <polygon
+                    key={idx}
+                    points={`${st.x},${st.y - st.s} ${st.x + st.s * 0.68},${st.y} ${st.x},${st.y + st.s} ${st.x - st.s * 0.68},${st.y}`}
+                    fill={st.c}
+                    opacity={st.o}
+                  />
+                ))}
+              </svg>
+            </div>
+          )}
+
+          {esVistaEscena && imagenEscena && (
+            <img
+              className="pizarra-escena-fondo-img"
+              src={urlImagenEscena(imagenEscena)}
+              alt={imagenEscena.titulo ?? "Escena de la campaña"}
+              draggable={false}
+            />
+          )}
+
+          {esVistaEscena && (imagenEscena || esMaster) && (
+            <div
+              className="pizarra-escena-barra-flotante"
+              onPointerDown={evento => evento.stopPropagation()}
+              onDoubleClick={evento => evento.stopPropagation()}
+            >
+              {imagenEscena?.titulo && (
+                <span className="pizarra-escena-flotante-titulo">
+                  {imagenEscena.titulo}
+                </span>
+              )}
+              {esMaster && (
+                <button
+                  type="button"
+                  className="pizarra-escena-flotante-btn"
+                  onClick={() => setPanelMasterAbierto(true)}
+                >
+                  <ImageIcon size={13} strokeWidth={2.2} aria-hidden="true" />
+                  <span>{imagenEscena ? "Cambiar escena" : "Subir o elegir escena"}</span>
+                </button>
+              )}
+              {esMaster && imagenEscena && onCambiarEscena && (
+                <button
+                  type="button"
+                  className="pizarra-escena-flotante-btn quitar"
+                  onClick={() => onCambiarEscena(null)}
+                >
+                  Quitar
+                </button>
+              )}
+            </div>
+          )}
+
           <svg
             className="pizarra-dibujo-svg"
             viewBox="0 0 100 100"
@@ -1167,13 +1453,26 @@ export function Pizarra({
 
           {pizarraCongelada && (
             <div className="pizarra-congelada-aviso">
-              {esMaster
-                ? "❄️ Pizarra congelada para los jugadores (tú sigues pudiendo editar)"
-                : "🔒 Pizarra congelada por el Máster · modo solo lectura"}
+              {esMaster ? (
+                <>
+                  <Snowflake size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>
+                    Pizarra congelada para los jugadores (tú sigues pudiendo
+                    editar)
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Lock size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>
+                    Pizarra congelada por el Máster · modo solo lectura
+                  </span>
+                </>
+              )}
             </div>
           )}
 
-          {imagenEscena && (
+          {!esVistaEscena && imagenEscena && (
             <aside
               className={`pizarra-escena-tarjeta${
                 escenaMinimizada ? " minimizada" : ""
@@ -1187,12 +1486,22 @@ export function Pizarra({
                   className="pizarra-escena-mini-btn"
                   onClick={() => setEscenaMinimizada(false)}
                 >
-                  🖼 Escena: {imagenEscena.titulo ?? "Ver imagen del Máster"}
+                  <ImageIcon size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>
+                    Escena: {imagenEscena.titulo ?? "Ver imagen del Máster"}
+                  </span>
                 </button>
               ) : (
                 <>
                   <div className="pizarra-escena-cabecera">
-                    <span>🖼 Escena del Máster</span>
+                    <span className="pizarra-escena-titulo-label">
+                      <ImageIcon
+                        size={14}
+                        strokeWidth={2.1}
+                        aria-hidden="true"
+                      />
+                      <span>Escena del Máster</span>
+                    </span>
                     <div className="pizarra-escena-cabecera-btns">
                       <button
                         type="button"
@@ -1214,8 +1523,9 @@ export function Pizarra({
                         type="button"
                         onClick={() => setEscenaMinimizada(true)}
                         title="Minimizar"
+                        aria-label="Minimizar escena"
                       >
-                        —
+                        <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
                       </button>
                       {esMaster && onCambiarEscena && (
                         <button
@@ -1276,9 +1586,25 @@ export function Pizarra({
                             )
                           }
                         >
-                          {imagenProyectada?.id === imagenEscena.id
-                            ? "✦ Quitar proyección"
-                            : "✦ Mostrar a todos"}
+                          {imagenProyectada?.id === imagenEscena.id ? (
+                            <>
+                              <Sparkles
+                                size={13}
+                                strokeWidth={2.1}
+                                aria-hidden="true"
+                              />
+                              <span>Quitar proyección</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles
+                                size={13}
+                                strokeWidth={2.1}
+                                aria-hidden="true"
+                              />
+                              <span>Mostrar a todos</span>
+                            </>
+                          )}
                         </button>
                       )}
                       {onCambiarEscena && (
@@ -1301,11 +1627,15 @@ export function Pizarra({
             const formato = infoFormatoArchivo(doc.vista);
             const esImg = doc.vista === "imagen";
             const imgSrc = esImg ? (doc.url ?? archivosApi.url(doc.id)) : null;
+            const esImgGrandeEscena = esVistaEscena && Boolean(imgSrc);
+            const tamImg = tamanoImagenesEscena[doc.id];
 
             return (
               <div
                 key={doc.id}
-                className={`pizarra-ficha-doc${bloqueado ? " bloqueado" : ""}`}
+                className={`pizarra-ficha-doc${bloqueado ? " bloqueado" : ""}${
+                  esImgGrandeEscena ? " escena-imagen-libre" : ""
+                }`}
                 style={
                   {
                     left: `${doc.x}%`,
@@ -1345,7 +1675,11 @@ export function Pizarra({
                           );
                         }}
                       >
-                        ✦
+                        <Sparkles
+                          size={13}
+                          strokeWidth={2.1}
+                          aria-hidden="true"
+                        />
                       </button>
                     )}
                     {esMaster && esImg && onCambiarEscena && (
@@ -1372,7 +1706,11 @@ export function Pizarra({
                           );
                         }}
                       >
-                        🖼
+                        <ImageIcon
+                          size={13}
+                          strokeWidth={2.1}
+                          aria-hidden="true"
+                        />
                       </button>
                     )}
                     <button
@@ -1394,8 +1732,15 @@ export function Pizarra({
                   type="button"
                   className={
                     imgSrc
-                      ? "pizarra-ficha-imagen"
+                      ? esImgGrandeEscena
+                        ? "pizarra-ficha-imagen escena-grande"
+                        : "pizarra-ficha-imagen"
                       : `ficha-doc-hoja ${formato.clase}`
+                  }
+                  style={
+                    esImgGrandeEscena && tamImg
+                      ? { width: `${tamImg.w}px`, height: `${tamImg.h}px` }
+                      : undefined
                   }
                   title={`Abrir ${doc.nombre}`}
                   aria-label={`Abrir ${doc.nombre}`}
@@ -1405,11 +1750,52 @@ export function Pizarra({
                   }}
                 >
                   {imgSrc ? (
-                    <img src={imgSrc} alt={doc.nombre} draggable={false} />
+                    <img
+                      src={imgSrc}
+                      alt={doc.nombre}
+                      draggable={false}
+                      onLoad={
+                        esImgGrandeEscena
+                          ? evento => {
+                              if (tamanoImagenesEscena[doc.id]) return;
+                              const natW = evento.currentTarget.naturalWidth || 420;
+                              const natH = evento.currentTarget.naturalHeight || 300;
+                              const maxW = Math.min(window.innerWidth * 0.62, 760);
+                              const maxH = Math.min(window.innerHeight * 0.62, 560);
+                              const escala = Math.min(1, maxW / natW, maxH / natH);
+                              setTamanoImagenesEscena(prev =>
+                                prev[doc.id]
+                                  ? prev
+                                  : {
+                                      ...prev,
+                                      [doc.id]: {
+                                        w: Math.max(120, Math.round(natW * escala)),
+                                        h: Math.max(90, Math.round(natH * escala))
+                                      }
+                                    }
+                              );
+                            }
+                          : undefined
+                      }
+                    />
                   ) : (
                     <span className="ficha-doc-codigo">{formato.codigo}</span>
                   )}
                 </button>
+
+                {esImgGrandeEscena && !bloqueado && herramientaEfectiva === "cursor" && (
+                  <span
+                    className="pizarra-escena-img-tirador"
+                    title="Arrastra para redimensionar la imagen"
+                    onPointerDown={evento =>
+                      iniciarRedimensionDoc(
+                        evento,
+                        doc.id,
+                        tamImg ?? { w: 420, h: 300 }
+                      )
+                    }
+                  />
+                )}
 
                 <span className="ficha-doc-nombre" title={doc.nombre}>
                   {doc.nombre}
@@ -1418,7 +1804,7 @@ export function Pizarra({
             );
           })}
 
-          {posits.map(posit => (
+          {listaPositsActiva.map(posit => (
             <Posit
               key={posit.id}
               posit={posit}
@@ -1435,11 +1821,17 @@ export function Pizarra({
           <p className="pizarra-pista">
             {bloqueado
               ? "Pizarra en modo lectura · puedes consultar archivos e imágenes"
-              : herramientaEfectiva === "dibujar"
-                ? "Arrastra sobre el pergamino para dibujar · elige color y grosor arriba"
-                : herramientaEfectiva === "borrar"
-                  ? "Mantén pulsado y pasa sobre un trazo para borrarlo"
-                  : "Doble clic en el pergamino para crear un posit · arrastra archivos desde la columna izquierda"}
+              : esVistaEscena
+                ? herramientaEfectiva === "dibujar"
+                  ? "Pinta directamente sobre la escena · los trazos son independientes de la Pizarra"
+                  : herramientaEfectiva === "borrar"
+                    ? "Mantén pulsado y pasa sobre un trazo de la escena para borrarlo"
+                    : "Vista Escena · doble clic para crear un posit o usa Dibujar arriba"
+                : herramientaEfectiva === "dibujar"
+                  ? "Arrastra sobre el pergamino para dibujar · elige color y grosor arriba"
+                  : herramientaEfectiva === "borrar"
+                    ? "Mantén pulsado y pasa sobre un trazo para borrarlo"
+                    : "Doble clic en el pergamino para crear un posit · arrastra archivos desde la columna izquierda"}
           </p>
         </div>
       </div>

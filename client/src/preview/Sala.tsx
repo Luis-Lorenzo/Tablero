@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Crown,
+  Eye,
+  Image as ImageIcon,
+  Minus,
+  Plus,
+  Sparkles,
+  Upload,
+  X
+} from "lucide-react";
 import type {
   CSSProperties,
   Dispatch,
@@ -18,7 +29,8 @@ import {
 } from "./compartir";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
 import { Posit } from "./Pizarra";
-import { reproducirSonidoTirada } from "./sonidoDados";
+import { reproducirSonidoNotificacion } from "./sonido";
+import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
@@ -162,52 +174,215 @@ const DURACION_D20_ASIENTO = 3500;
 /** Tipos de dado habituales en juegos de rol. */
 const TIPOS_DADO = [4, 6, 8, 10, 12, 20, 100] as const;
 
+/** Dados rápidos en la esquina inferior izquierda (con su color distintivo). */
+const DADOS_RAPIDOS = [
+  { caras: 4, color: "#38d9a9", glow: "rgb(56 217 169 / 32%)" },
+  { caras: 6, color: "#4dabf7", glow: "rgb(77 171 247 / 32%)" },
+  { caras: 8, color: "#b197fc", glow: "rgb(177 151 252 / 34%)" },
+  { caras: 10, color: "#ffa94d", glow: "rgb(255 169 77 / 32%)" },
+  { caras: 20, color: "#e8c56a", glow: "rgb(232 197 106 / 34%)" }
+] as const;
+
+interface GrupoDado {
+  id: string;
+  cantidad: number;
+  caras: number;
+}
+
+interface DadoIndividual {
+  valor: number;
+  caras: number;
+  especial: TipoEspecialTirada;
+}
+
 interface ResultadoTirada {
   total: number;
   dados: number[];
+  desgloseDados: DadoIndividual[];
   bonificador: number;
   caras: number;
   especial: TipoEspecialTirada;
   formula: string;
   secreta?: boolean;
+  compuesta?: boolean;
 }
 
-function detectarEspecialTirada(caras: number, dados: number[]): TipoEspecialTirada {
-  if (caras !== 20 || dados.length === 0) return null;
-  if (dados.includes(20)) return "critico";
-  if (dados.includes(1)) return "pifia";
+function detectarEspecialDado(caras: number, valor: number): TipoEspecialTirada {
+  if (valor === caras) return "critico";
+  if (valor === 1) return "pifia";
   return null;
 }
 
-function formatearFormula(
-  cantidad: number,
-  caras: number,
+function detectarEspecialTirada(caras: number, dados: number[]): TipoEspecialTirada {
+  // Solo los lanzamientos de un único dado tienen estado/sonido global de crítico o pifia.
+  if (dados.length !== 1) return null;
+  return detectarEspecialDado(caras, dados[0]);
+}
+
+function formatearFormulaCompuesta(
+  grupos: GrupoDado[],
   bonificador: number
 ): string {
-  const base = `${cantidad}d${caras}`;
+  const base = grupos.map(g => `${g.cantidad}d${g.caras}`).join(" + ");
   if (bonificador > 0) return `${base} + ${bonificador}`;
   if (bonificador < 0) return `${base} - ${Math.abs(bonificador)}`;
   return base;
 }
 
-function lanzarDados(
-  cantidad: number,
-  caras: number,
+function lanzarGruposDados(
+  grupos: GrupoDado[],
   bonificador: number
 ): ResultadoTirada {
-  const dados = Array.from(
-    { length: cantidad },
-    () => 1 + Math.floor(Math.random() * caras)
-  );
+  const desgloseDados: DadoIndividual[] = [];
+  for (const grupo of grupos) {
+    const cantidad = Math.round(limitar(grupo.cantidad, 1, 20));
+    for (let i = 0; i < cantidad; i += 1) {
+      const valor = 1 + Math.floor(Math.random() * grupo.caras);
+      desgloseDados.push({
+        valor,
+        caras: grupo.caras,
+        especial: detectarEspecialDado(grupo.caras, valor)
+      });
+    }
+  }
+  const dados = desgloseDados.map(d => d.valor);
   const suma = dados.reduce((acc, valor) => acc + valor, 0);
+  const carasPrincipal = grupos[0]?.caras ?? 20;
   return {
     total: suma + bonificador,
     dados,
+    desgloseDados,
     bonificador,
-    caras,
-    especial: detectarEspecialTirada(caras, dados),
-    formula: formatearFormula(cantidad, caras, bonificador)
+    caras: carasPrincipal,
+    especial:
+      desgloseDados.length === 1
+        ? detectarEspecialTirada(carasPrincipal, dados)
+        : null,
+    formula: formatearFormulaCompuesta(grupos, bonificador),
+    compuesta: grupos.length > 1
   };
+}
+
+function IconoDadoPoligono({
+  caras,
+  valor
+}: {
+  caras: number;
+  valor?: number | string;
+}) {
+  const etiqueta =
+    valor !== undefined ? (
+      <text
+        x="12"
+        y={caras === 4 ? "16.8" : "14.5"}
+        textAnchor="middle"
+        fontSize="5.6"
+        fill="currentColor"
+        stroke="none"
+        fontFamily="'Press Start 2P', monospace"
+      >
+        {valor}
+      </text>
+    ) : null;
+
+  if (caras === 4) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <polygon
+          points="12,3 21.5,19.5 2.5,19.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        {etiqueta}
+      </svg>
+    );
+  }
+  if (caras === 6) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect
+          x="3.5"
+          y="3.5"
+          width="17"
+          height="17"
+          rx="3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        {etiqueta}
+      </svg>
+    );
+  }
+  if (caras === 8) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <polygon
+          points="12,2.2 21.5,12 12,21.8 2.5,12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        {etiqueta}
+      </svg>
+    );
+  }
+  if (caras === 10) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <polygon
+          points="12,2.5 20.5,10 17,20.5 7,20.5 3.5,10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        {etiqueta}
+      </svg>
+    );
+  }
+  if (caras === 12) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <polygon
+          points="12,2 19,5 22,12 19,19 12,22 5,19 2,12 5,5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        {etiqueta}
+      </svg>
+    );
+  }
+  if (caras === 100) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle
+          cx="12"
+          cy="12"
+          r="9.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <circle
+          cx="12"
+          cy="12"
+          r="7.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="0.9"
+          strokeDasharray="2 2"
+        />
+        {etiqueta}
+      </svg>
+    );
+  }
+  return <IconoD20 valor={valor} />;
 }
 
 function limitar(valor: number, min: number, max: number): number {
@@ -270,12 +445,12 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
       />
       <text
         x="12"
-        y="15.4"
+        y="14.5"
         textAnchor="middle"
-        fontSize="7"
+        fontSize="5.6"
         fill="currentColor"
         stroke="none"
-        fontFamily="Cinzel Decorative, serif"
+        fontFamily="'Press Start 2P', monospace"
       >
         {valor}
       </text>
@@ -298,28 +473,6 @@ function IconoPosit() {
         fill="none"
         stroke="currentColor"
         strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconoCompartir() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 15V10m0 0-2.5 2.5M12 10l2.5 2.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -443,7 +596,6 @@ export function Sala({
   onVolver,
   hostName,
   yoAsientoId = "master",
-  posits = [],
   elementosMesa = [],
   onElementosMesa,
   archivosDisponibles = [],
@@ -473,6 +625,15 @@ export function Sala({
   );
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
+  const [anclaCompartir, setAnclaCompartir] = useState<{
+    x: number;
+    y: number;
+    origen: "pelota" | "chat";
+  } | null>(null);
+  const [dragSobreDropzone, setDragSobreDropzone] = useState(false);
+  const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
+  const [subiendoDrop, setSubiendoDrop] = useState(false);
+  const [subiendoBarra, setSubiendoBarra] = useState(false);
   const [nuevoPositTexto, setNuevoPositTexto] = useState("");
   const [nuevoPositColor, setNuevoPositColor] = useState<string>(COLORES_POSIT[3].valor);
   const [jugadorSeleccionadoId, setJugadorSeleccionadoId] = useState<string | null>(null);
@@ -486,6 +647,11 @@ export function Sala({
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
+  const [compuestaAbierta, setCompuestaAbierta] = useState(false);
+  const [gruposCompuesta, setGruposCompuesta] = useState<GrupoDado[]>([
+    { id: "c-0", cantidad: 1, caras: 20 }
+  ]);
+  const [bonificadorCompuesta, setBonificadorCompuesta] = useState(0);
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -501,6 +667,9 @@ export function Sala({
 
   const plano = useRef<HTMLDivElement>(null);
   const asientoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dropzoneRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const barraFileInputRef = useRef<HTMLInputElement>(null);
   const capaPosits = useRef<HTMLDivElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
   const arrastreDocMovido = useRef(false);
@@ -513,13 +682,32 @@ export function Sala({
   const yoAsientoIdRef = useRef(yoAsientoId);
   const onElementosMesaRef = useRef(onElementosMesa);
   const onEnviarElementoRef = useRef(onEnviarElemento);
+  const positsMesaRef = useRef(positsMesa);
+  const documentosMesaRef = useRef(documentosMesa);
+  const jugadorSeleccionadoRef = useRef<JugadorPreview | null>(null);
 
   useEffect(() => {
     jugadoresRef.current = jugadores;
     yoAsientoIdRef.current = yoAsientoId;
     onElementosMesaRef.current = onElementosMesa;
     onEnviarElementoRef.current = onEnviarElemento;
-  }, [jugadores, yoAsientoId, onElementosMesa, onEnviarElemento]);
+    positsMesaRef.current = positsMesa;
+    documentosMesaRef.current = documentosMesa;
+  }, [
+    jugadores,
+    yoAsientoId,
+    onElementosMesa,
+    onEnviarElemento,
+    positsMesa,
+    documentosMesa
+  ]);
+
+  const solicitudPendienteId = solicitudPendiente?.id ?? null;
+  useEffect(() => {
+    if (solicitudPendienteId) {
+      reproducirSonidoNotificacion();
+    }
+  }, [solicitudPendienteId]);
 
   useEffect(() => {
     if (!itemAbierto || itemAbierto.tipo !== "archivo" || itemAbierto.vista !== "docx") {
@@ -573,6 +761,17 @@ export function Sala({
       return null;
     }
 
+    function estaSobreDropzone(clientX: number, clientY: number): boolean {
+      const rect = dropzoneRef.current?.getBoundingClientRect();
+      if (!rect) return false;
+      return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      );
+    }
+
     function mover(evento: PointerEvent) {
       const actual = arrastre.current;
       if (!actual) return;
@@ -590,6 +789,7 @@ export function Sala({
                 : actual.elemento.nombre
           });
           setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+          setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         }
         return;
       }
@@ -608,6 +808,7 @@ export function Sala({
             prev.map(item => (item.id === actual.id ? { ...item, x, y } : item))
           );
           setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+          setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         }
         return;
       }
@@ -654,6 +855,7 @@ export function Sala({
             posit.id === actual.id ? { ...posit, x, y } : posit
           )
         );
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
 
@@ -675,6 +877,7 @@ export function Sala({
         onDocumentosMesa?.(prev =>
           prev.map(doc => (doc.id === actual.id ? { ...doc, x, y } : doc))
         );
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
 
@@ -714,12 +917,16 @@ export function Sala({
       setArrastrandoItemId(null);
       setAsientoSobreId(null);
       setFantasma(null);
+      setPunteroSobreDropzone(false);
 
       if (!actual) return;
 
+      const enDropzone = estaSobreDropzone(evento.clientX, evento.clientY);
+
       if (actual.tipo === "mesa-elemento") {
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
-        if (actual.movido && destinoId) {
+        const destinoDrop = enDropzone ? jugadorSeleccionadoRef.current : null;
+        if (actual.movido && (destinoId || enDropzone)) {
           // Restauramos la posición original en nuestra mesa y disparamos la transferencia.
           onElementosMesaRef.current?.(prev =>
             prev.map(item =>
@@ -728,9 +935,13 @@ export function Sala({
                 : item
             )
           );
-          const destino = jugadoresRef.current.find(j => j.id === destinoId);
+          const destino =
+            destinoDrop ??
+            jugadoresRef.current.find(j => j.id === destinoId);
           if (destino) {
             void onEnviarElementoRef.current?.(destino, actual.elemento);
+          } else if (enDropzone) {
+            mostrarAviso("Elige primero un jugador para enviarle el elemento.");
           }
           return;
         }
@@ -743,12 +954,66 @@ export function Sala({
 
       if (actual.tipo === "bandeja-elemento") {
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
-        if (destinoId) {
-          const destino = jugadoresRef.current.find(j => j.id === destinoId);
-          if (destino) {
-            void onEnviarElementoRef.current?.(destino, actual.elemento);
-          }
+        const destino =
+          (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+          (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
+        if (destino) {
+          void onEnviarElementoRef.current?.(destino, actual.elemento);
+        } else if (enDropzone) {
+          mostrarAviso("Elige primero un jugador para enviarle el elemento.");
         }
+        return;
+      }
+
+      if (actual.tipo === "posit-mesa" && enDropzone) {
+        onPositsMesa?.(prev =>
+          prev.map(p =>
+            p.id === actual.id ? { ...p, x: actual.base.x, y: actual.base.y } : p
+          )
+        );
+        const posit = positsMesaRef.current?.find(p => p.id === actual.id);
+        const destino = jugadorSeleccionadoRef.current;
+        if (posit && destino && onEnviarElementoRef.current) {
+          void onEnviarElementoRef.current(destino, {
+            id: posit.id,
+            tipo: "posit",
+            texto: posit.texto,
+            color: posit.color,
+            giro: posit.giro,
+            x: actual.base.x,
+            y: actual.base.y
+          });
+        } else if (!destino) {
+          mostrarAviso("Elige primero un jugador para enviarle la nota.");
+        }
+        return;
+      }
+
+      if (actual.tipo === "doc-mesa" && actual.movido && enDropzone) {
+        onDocumentosMesa?.(prev =>
+          prev.map(d =>
+            d.id === actual.id ? { ...d, x: actual.base.x, y: actual.base.y } : d
+          )
+        );
+        const doc = documentosMesaRef.current?.find(d => d.id === actual.id);
+        const destino = jugadorSeleccionadoRef.current;
+        if (doc && destino && onEnviarElementoRef.current) {
+          void onEnviarElementoRef.current(destino, {
+            id: nuevoIdElemento(),
+            tipo: "archivo",
+            archivoId: doc.id,
+            nombre: doc.nombre,
+            mime: doc.tipo,
+            vista: doc.vista,
+            tamano: doc.tamano,
+            x: actual.base.x,
+            y: actual.base.y,
+            contenidoLocal: doc.url
+          });
+        } else if (!destino) {
+          mostrarAviso("Elige primero un jugador para enviarle el documento.");
+        }
+        arrastreDocMovido.current = false;
         return;
       }
 
@@ -889,7 +1154,9 @@ export function Sala({
   function mostrarD20Local(
     asientoId: string,
     total: number,
-    especial: TipoEspecialTirada = null
+    especial: TipoEspecialTirada = null,
+    caras = 20,
+    desglose?: string
   ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
@@ -898,7 +1165,7 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total, especial }
+      [asientoId]: { id: tiradaId, total, especial, caras, desglose }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -931,7 +1198,41 @@ export function Sala({
     ]);
   }
 
-  function tirarDado(): void {
+  function abrirTiradaCompuesta(): void {
+    setGruposCompuesta([
+      { id: `c-${Date.now()}-0`, cantidad: 1, caras: 20 },
+      { id: `c-${Date.now()}-1`, cantidad: 1, caras: 6 }
+    ]);
+    setBonificadorCompuesta(0);
+    setSelectorAbierto(false);
+    setCompuestaAbierta(true);
+  }
+
+  function agregarGrupoCompuesta(): void {
+    setGruposCompuesta(prev => {
+      if (prev.length >= 6) return prev;
+      return [...prev, { id: `c-${Date.now()}-${prev.length}`, cantidad: 1, caras: 6 }];
+    });
+  }
+
+  function actualizarGrupoCompuesta(
+    id: string,
+    patch: Partial<Pick<GrupoDado, "cantidad" | "caras">>
+  ): void {
+    setGruposCompuesta(prev =>
+      prev.map(g => (g.id === id ? { ...g, ...patch } : g))
+    );
+  }
+
+  function eliminarGrupoCompuesta(id: string): void {
+    setGruposCompuesta(prev => (prev.length > 1 ? prev.filter(g => g.id !== id) : prev));
+  }
+
+  function tirarDado(
+    gruposOverride?: GrupoDado[],
+    bonificadorOverride?: number,
+    opciones?: { rapido?: boolean; forzarPublica?: boolean }
+  ): void {
     if (tirando) return;
 
     if (ocultarResultado.current !== null) {
@@ -939,23 +1240,32 @@ export function Sala({
       ocultarResultado.current = null;
     }
 
-    const cantidad = Math.round(limitar(cantidadDados, 1, 20));
-    const caras = tipoDado;
-    const mod = Math.round(limitar(bonificador, -99, 99));
-    const esSecreta = esMaster && tiradaSecreta;
+    const gruposActivos = (
+      gruposOverride ?? [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }]
+    ).map(g => ({
+      ...g,
+      cantidad: Math.round(limitar(g.cantidad, 1, 20))
+    }));
+    const mod = Math.round(limitar(bonificadorOverride ?? bonificador, -99, 99));
+    const esSecreta = opciones?.forzarPublica ? false : esMaster && tiradaSecreta;
+    const totalPasos = opciones?.rapido ? 8 : 12;
+    const intervaloMs = opciones?.rapido ? 55 : 70;
+
+    reproducirSonidoRoll();
 
     setSelectorAbierto(false);
+    setCompuestaAbierta(false);
     setTirando(true);
     let pasos = 0;
 
     const tick = () => {
-      setTirada({ ...lanzarDados(cantidad, caras, mod), secreta: esSecreta });
+      setTirada({ ...lanzarGruposDados(gruposActivos, mod), secreta: esSecreta });
       pasos += 1;
 
-      if (pasos < 12) {
-        temporizador.current = window.setTimeout(tick, 70);
+      if (pasos < totalPasos) {
+        temporizador.current = window.setTimeout(tick, intervaloMs);
       } else {
-        const resultadoFinal = lanzarDados(cantidad, caras, mod);
+        const resultadoFinal = lanzarGruposDados(gruposActivos, mod);
         setTirada({ ...resultadoFinal, secreta: esSecreta });
         setTirando(false);
 
@@ -966,7 +1276,24 @@ export function Sala({
             const miAsiento =
               jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ??
               "master";
-            mostrarD20Local(miAsiento, resultadoFinal.total, resultadoFinal.especial);
+            const tieneDesglose =
+              resultadoFinal.dados.length > 1 || resultadoFinal.bonificador !== 0;
+            const modTxt =
+              resultadoFinal.bonificador > 0
+                ? ` + ${resultadoFinal.bonificador}`
+                : resultadoFinal.bonificador < 0
+                  ? ` - ${Math.abs(resultadoFinal.bonificador)}`
+                  : "";
+            const desglose = tieneDesglose
+              ? `${resultadoFinal.dados.join(" + ")}${modTxt} = ${resultadoFinal.total}`
+              : undefined;
+            mostrarD20Local(
+              miAsiento,
+              resultadoFinal.total,
+              resultadoFinal.especial,
+              resultadoFinal.caras,
+              desglose
+            );
             reproducirSonidoTirada(resultadoFinal.especial);
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
@@ -1105,6 +1432,168 @@ export function Sala({
   const jugadorSeleccionado =
     jugadores.find(j => j.activo && j.id === jugadorSeleccionadoId && j.id !== yoAsientoId) ??
     null;
+  jugadorSeleccionadoRef.current = jugadorSeleccionado;
+
+  function abrirCompartirDesdePelota(jugadorId: string): void {
+    if (compartirAbierto && jugadorSeleccionadoId === jugadorId) {
+      setCompartirAbierto(false);
+      setJugadorSeleccionadoId(null);
+      setAnclaCompartir(null);
+      return;
+    }
+
+    const nodo = asientoRefs.current.get(jugadorId);
+    if (nodo) {
+      const rect = nodo.getBoundingClientRect();
+      setAnclaCompartir({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 10,
+        origen: "pelota"
+      });
+    } else {
+      setAnclaCompartir(null);
+    }
+
+    setJugadorSeleccionadoId(jugadorId);
+    setSelectorAbierto(false);
+    setCompartirAbierto(true);
+    onSolicitarArchivos?.();
+  }
+
+  function alternarCompartirDesdeChat(ancla?: { left: number; bottom: number }): void {
+    setCompartirAbierto(abierto => {
+      const siguiente = !abierto;
+      if (siguiente) {
+        setAnclaCompartir(
+          ancla
+            ? { x: ancla.left, y: ancla.bottom + 8, origen: "chat" }
+            : null
+        );
+        setSelectorAbierto(false);
+        onSolicitarArchivos?.();
+      } else {
+        setAnclaCompartir(null);
+      }
+      return siguiente;
+    });
+  }
+
+  async function enviarArchivosEnDrop(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0) return;
+    if (!jugadorSeleccionado) {
+      mostrarAviso("Elige primero un jugador para enviarle el archivo.");
+      return;
+    }
+    if (!onEnviarElemento) return;
+
+    setSubiendoDrop(true);
+    try {
+      for (const file of Array.from(files)) {
+        try {
+          const subido = await archivosApi.subir(file);
+          onSolicitarArchivos?.();
+          await onEnviarElemento(
+            jugadorSeleccionado,
+            crearElementoDesdeArchivo(subido, { x: 78, y: 78 })
+          );
+        } catch {
+          const tipo = file.type || "application/octet-stream";
+          const vista = tipo.startsWith("image/")
+            ? "imagen"
+            : tipo === "application/pdf"
+              ? "pdf"
+              : tipo.startsWith("text/")
+                ? "texto"
+                : "descarga";
+          await onEnviarElemento(jugadorSeleccionado, {
+            id: nuevoIdElemento(),
+            tipo: "archivo",
+            archivoId: nuevoIdElemento(),
+            nombre: file.name,
+            mime: tipo,
+            vista,
+            tamano: file.size,
+            x: 78,
+            y: 78,
+            contenidoLocal: URL.createObjectURL(file)
+          });
+        }
+      }
+    } finally {
+      setSubiendoDrop(false);
+    }
+  }
+
+  async function subirArchivosDesdeBarra(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0) return;
+
+    setSubiendoBarra(true);
+    let subidos = 0;
+    try {
+      for (const file of Array.from(files)) {
+        const tipoLocal = file.type || "application/octet-stream";
+        const vistaLocal = tipoLocal.startsWith("image/")
+          ? "imagen"
+          : tipoLocal === "application/pdf" || file.name.endsWith(".pdf")
+            ? "pdf"
+            : file.name.endsWith(".docx")
+              ? "docx"
+              : tipoLocal.startsWith("text/") || file.name.endsWith(".txt")
+                ? "texto"
+                : "ninguna";
+
+        try {
+          const creado = await archivosApi.subir(file);
+          onSolicitarArchivos?.();
+          onDocumentosMesa?.(prev => {
+            const paso = prev.length % 5;
+            return [
+              ...prev,
+              {
+                id: creado.id,
+                nombre: creado.nombre,
+                tipo: creado.tipo,
+                vista: creado.vista,
+                tamano: creado.tamano,
+                x: 28 + paso * 4.5,
+                y: 66 - paso * 3
+              }
+            ];
+          });
+          subidos += 1;
+        } catch {
+          const url = URL.createObjectURL(file);
+          onDocumentosMesa?.(prev => {
+            const paso = prev.length % 5;
+            return [
+              ...prev,
+              {
+                id: nuevoId(),
+                nombre: file.name,
+                tipo: tipoLocal,
+                vista: vistaLocal,
+                tamano: file.size,
+                x: 28 + paso * 4.5,
+                y: 66 - paso * 3,
+                url
+              }
+            ];
+          });
+          subidos += 1;
+        }
+      }
+
+      if (subidos > 0) {
+        mostrarAviso(
+          subidos === 1
+            ? "Archivo subido y puesto en la mesa."
+            : `${subidos} archivos subidos y puestos en la mesa.`
+        );
+      }
+    } finally {
+      setSubiendoBarra(false);
+    }
+  }
 
   function iniciarMesaElemento(
     elemento: ElementoMesa,
@@ -1260,7 +1749,7 @@ export function Sala({
                     aria-label="Quitar escena de la pizarra"
                     onClick={() => onCambiarEscena(null)}
                   >
-                    ×
+                    <X size={12} strokeWidth={2.5} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -1387,10 +1876,7 @@ export function Sala({
                   onClick={
                     ajuste || esMio
                       ? undefined
-                      : () =>
-                          setJugadorSeleccionadoId(prev =>
-                            prev === jugador.id ? null : jugador.id
-                          )
+                      : () => abrirCompartirDesdePelota(jugador.id)
                   }
                   onKeyDown={
                     ajuste || esMio
@@ -1398,9 +1884,7 @@ export function Sala({
                       : evento => {
                           if (evento.key === "Enter" || evento.key === " ") {
                             evento.preventDefault();
-                            setJugadorSeleccionadoId(prev =>
-                              prev === jugador.id ? null : jugador.id
-                            );
+                            abrirCompartirDesdePelota(jugador.id);
                           }
                         }
                   }
@@ -1411,7 +1895,15 @@ export function Sala({
                       className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
                       aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
                     >
-                      <IconoD20 valor={tiradaSobreAsiento.total} />
+                      {tiradaSobreAsiento.desglose && (
+                        <span className="asiento-d20-suma">
+                          {tiradaSobreAsiento.desglose}
+                        </span>
+                      )}
+                      <IconoDadoPoligono
+                        caras={tiradaSobreAsiento.caras ?? 20}
+                        valor={tiradaSobreAsiento.total}
+                      />
                     </div>
                   )}
                   <span className="esfera" />
@@ -1456,11 +1948,13 @@ export function Sala({
                   }
                 >
                   <div className="mesa-elemento-cabecera">
-                    <span className="mesa-elemento-badge">
-                      {elemento.tipo === "posit"
-                        ? "Nota"
-                        : tipoCortoArchivo(elemento.mime, elemento.nombre)}
-                    </span>
+                    {elemento.tipo === "posit" ? (
+                      <span />
+                    ) : (
+                      <span className="mesa-elemento-badge">
+                        {tipoCortoArchivo(elemento.mime, elemento.nombre)}
+                      </span>
+                    )}
                     <button
                       type="button"
                       className="mesa-elemento-quitar"
@@ -1472,7 +1966,7 @@ export function Sala({
                       aria-label="Quitar de la mesa"
                       title="Quitar de la mesa"
                     >
-                      ×
+                      <X size={12} strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   </div>
 
@@ -1529,19 +2023,25 @@ export function Sala({
           onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
           onIniciarArrastre={iniciarChat}
           onIniciarRedimension={iniciarChatTam}
+          compartirAbierto={compartirAbierto && !ajuste}
+          onToggleCompartir={alternarCompartirDesdeChat}
         />
       )}
 
           <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
             <div className="sala-barra-grupo">
               <button type="button" className="sala-btn" onClick={onVolver}>
-                ← Sala de espera
+                <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+                <span>Sala de espera</span>
               </button>
               <span className="sala-titulo-visible">
                 SALA DE {hostName ? hostName.toUpperCase() : "MESA"}
               </span>
               {esMaster && (
-                <span className="master-pill-badge">👑 MODO MÁSTER</span>
+                <span className="master-pill-badge">
+                  <Crown size={12} strokeWidth={2.2} aria-hidden="true" />
+                  <span>MODO MÁSTER</span>
+                </span>
               )}
               <button
                 type="button"
@@ -1551,10 +2051,35 @@ export function Sala({
                 {ajuste ? "Terminar ajuste" : "Ajustar"}
               </button>
 
+              <input
+                ref={barraFileInputRef}
+                type="file"
+                accept=".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                multiple
+                hidden
+                onChange={e => {
+                  void subirArchivosDesdeBarra(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="sala-btn sala-btn-subir"
+                disabled={subiendoBarra}
+                onClick={() => barraFileInputRef.current?.click()}
+                title="Subir archivo desde tu equipo a la sala"
+              >
+                <Upload size={14} strokeWidth={2.2} aria-hidden="true" />
+                <span>{subiendoBarra ? "Subiendo…" : "Subir archivo"}</span>
+              </button>
+
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
                   <span className="master-proyeccion-texto">
-                    ✦ Proyectando: {imagenProyectada.titulo ?? "Imagen"}
+                    <Sparkles size={12} strokeWidth={2.2} aria-hidden="true" />
+                    <span>
+                      Proyectando: {imagenProyectada.titulo ?? "Imagen"}
+                    </span>
                   </span>
                   {proyeccionOculta && onReabrirProyeccion && (
                     <button
@@ -1583,7 +2108,8 @@ export function Sala({
                   className="sala-btn sala-btn-revelacion"
                   onClick={onReabrirProyeccion}
                 >
-                  👁 Ver imagen del Máster
+                  <Eye size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>Ver imagen del Máster</span>
                 </button>
               )}
             </div>
@@ -1628,7 +2154,7 @@ export function Sala({
                   onClick={() => setSelectorAbierto(false)}
                   aria-label="Cerrar selector de dados"
                 >
-                  ×
+                  <X size={13} strokeWidth={2.4} aria-hidden="true" />
                 </button>
               </div>
 
@@ -1640,7 +2166,7 @@ export function Sala({
                     onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
                     aria-label="Menos dados"
                   >
-                    −
+                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                   <input
                     type="number"
@@ -1658,7 +2184,7 @@ export function Sala({
                     onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
                     aria-label="Más dados"
                   >
-                    +
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1687,7 +2213,7 @@ export function Sala({
                     onClick={() => setBonificador(b => Math.max(-99, b - 1))}
                     aria-label="Reducir bonificador"
                   >
-                    −
+                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                   <input
                     type="number"
@@ -1705,10 +2231,19 @@ export function Sala({
                     onClick={() => setBonificador(b => Math.min(99, b + 1))}
                     aria-label="Aumentar bonificador"
                   >
-                    +
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 </div>
               </div>
+
+              <button
+                type="button"
+                className="dados-agregar-grupo"
+                onClick={abrirTiradaCompuesta}
+              >
+                <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                <span>Tirada compuesta</span>
+              </button>
 
               {esMaster && (
                 <button
@@ -1728,18 +2263,188 @@ export function Sala({
                 disabled={tirando}
               >
                 {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
-                {formatearFormula(cantidadDados, tipoDado, bonificador)}
+                {formatearFormulaCompuesta(
+                  [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
+                  bonificador
+                )}
               </button>
             </form>
           )}
 
-          {tirada !== null && !selectorAbierto && (
+          {compuestaAbierta && !ajuste && (
+            <div
+              className="dados-compuesta-backdrop"
+              onClick={() => setCompuestaAbierta(false)}
+            >
+              <form
+                className="dados-compuesta-modal"
+                role="dialog"
+                aria-label="Tirada compuesta"
+                onClick={evento => evento.stopPropagation()}
+                onSubmit={evento => {
+                  evento.preventDefault();
+                  tirarDado(gruposCompuesta, bonificadorCompuesta);
+                }}
+              >
+                <div className="dados-selector-cabecera">
+                  <span>Tirada compuesta</span>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setCompuestaAbierta(false)}
+                    aria-label="Cerrar tirada compuesta"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="dados-grupos-lista">
+                  {gruposCompuesta.map((grupo, idx) => (
+                    <div key={grupo.id} className="dados-grupo-card">
+                      <div className="dados-grupo-top">
+                        <span className="dados-campo-etiqueta">Dado {idx + 1}</span>
+                        {gruposCompuesta.length > 1 && (
+                          <button
+                            type="button"
+                            className="dados-grupo-quitar"
+                            onClick={() => eliminarGrupoCompuesta(grupo.id)}
+                            aria-label={`Quitar dado ${idx + 1}`}
+                            title="Quitar este dado"
+                          >
+                            <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="dados-stepper">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            actualizarGrupoCompuesta(grupo.id, {
+                              cantidad: Math.max(1, grupo.cantidad - 1)
+                            })
+                          }
+                          aria-label="Menos dados"
+                        >
+                          <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={grupo.cantidad}
+                          onChange={e => {
+                            const valor = parseInt(e.target.value, 10);
+                            actualizarGrupoCompuesta(grupo.id, {
+                              cantidad: Number.isNaN(valor) ? 1 : limitar(valor, 1, 20)
+                            });
+                          }}
+                          aria-label="Número de dados"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            actualizarGrupoCompuesta(grupo.id, {
+                              cantidad: Math.min(20, grupo.cantidad + 1)
+                            })
+                          }
+                          aria-label="Más dados"
+                        >
+                          <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                        {TIPOS_DADO.map(caras => (
+                          <button
+                            key={caras}
+                            type="button"
+                            className={`dado-tipo-btn${grupo.caras === caras ? " activo" : ""}`}
+                            onClick={() => actualizarGrupoCompuesta(grupo.id, { caras })}
+                          >
+                            d{caras}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {gruposCompuesta.length < 6 && (
+                  <button
+                    type="button"
+                    className="dados-agregar-grupo"
+                    onClick={agregarGrupoCompuesta}
+                  >
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    <span>Añadir otro dado</span>
+                  </button>
+                )}
+
+                <div className="dados-fila">
+                  <span className="dados-campo-etiqueta">Bonificador</span>
+                  <div className="dados-stepper">
+                    <button
+                      type="button"
+                      onClick={() => setBonificadorCompuesta(b => Math.max(-99, b - 1))}
+                      aria-label="Reducir bonificador"
+                    >
+                      <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                    <input
+                      type="number"
+                      min={-99}
+                      max={99}
+                      value={bonificadorCompuesta}
+                      onChange={e => {
+                        const valor = parseInt(e.target.value, 10);
+                        setBonificadorCompuesta(
+                          Number.isNaN(valor) ? 0 : limitar(valor, -99, 99)
+                        );
+                      }}
+                      aria-label="Bonificador"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBonificadorCompuesta(b => Math.min(99, b + 1))}
+                      aria-label="Aumentar bonificador"
+                    >
+                      <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {esMaster && (
+                  <button
+                    type="button"
+                    className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
+                    onClick={() => setTiradaSecreta(s => !s)}
+                    aria-pressed={tiradaSecreta}
+                  >
+                    <span className="dados-secreto-punto" aria-hidden="true" />
+                    <span>Dados negros (solo Máster)</span>
+                  </button>
+                )}
+
+                <button
+                  type="submit"
+                  className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                  disabled={tirando}
+                >
+                  {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                  {formatearFormulaCompuesta(gruposCompuesta, bonificadorCompuesta)}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {tirada !== null && !selectorAbierto && !compuestaAbierta && (
             <div
               className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
             >
               <span className="tirada-icono">
-                <IconoD20 />
+                <IconoDadoPoligono caras={tirada.caras} />
               </span>
               <span className={`tirada-num${tirando ? " girando" : ""}`}>
                 {tirada.total}
@@ -1749,15 +2454,29 @@ export function Sala({
                   {tirada.secreta ? "SECRETO · " : ""}
                   {tirando ? "tirando…" : tirada.formula}
                 </span>
-                {!tirando && (tirada.dados.length > 1 || tirada.bonificador !== 0) && (
-                  <span className="tirada-desglose">
-                    [{tirada.dados.join(", ")}]
-                    {tirada.bonificador > 0
-                      ? ` + ${tirada.bonificador}`
-                      : tirada.bonificador < 0
-                        ? ` − ${Math.abs(tirada.bonificador)}`
-                        : ""}
-                  </span>
+                {!tirando && (tirada.desgloseDados.length > 1 || tirada.bonificador !== 0) && (
+                  <div className="tirada-desglose-chips">
+                    {tirada.desgloseDados.map((dado, i) => (
+                      <span
+                        key={`${dado.caras}-${i}`}
+                        className={`tirada-dado-chip${dado.especial ? ` ${dado.especial}` : ""}`}
+                        title={`d${dado.caras}: ${dado.valor}`}
+                      >
+                        {tirada.compuesta && (
+                          <span className="tirada-dado-tipo">d{dado.caras}</span>
+                        )}
+                        <span>{dado.valor}</span>
+                      </span>
+                    ))}
+                    {tirada.bonificador !== 0 && (
+                      <span className="tirada-desglose-mod">
+                        {tirada.bonificador > 0
+                          ? `+ ${tirada.bonificador}`
+                          : `− ${Math.abs(tirada.bonificador)}`}
+                      </span>
+                    )}
+                    <span className="tirada-desglose-total">= {tirada.total}</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -1769,6 +2488,7 @@ export function Sala({
                 <Posit
                   key={posit.id}
                   posit={posit}
+                  enMesa
                   activo={positActivo === posit.id}
                   onActivar={setPositActivo}
                   onTexto={cambiarTextoPositMesa}
@@ -1822,7 +2542,11 @@ export function Sala({
                             );
                           }}
                         >
-                          ✦
+                          <Sparkles
+                            size={13}
+                            strokeWidth={2.1}
+                            aria-hidden="true"
+                          />
                         </button>
                       )}
                       {esMaster && doc.vista === "imagen" && onCambiarEscena && (
@@ -1849,7 +2573,11 @@ export function Sala({
                             );
                           }}
                         >
-                          🖼
+                          <ImageIcon
+                            size={13}
+                            strokeWidth={2.1}
+                            aria-hidden="true"
+                          />
                         </button>
                       )}
                       <button
@@ -1959,27 +2687,6 @@ export function Sala({
               <span className="dock-etiqueta">Posits</span>
             </div>
 
-            <div className="dock-item">
-              <button
-                type="button"
-                className={`dock-btn${compartirAbierto ? " activo" : ""}`}
-                onClick={() => {
-                  setCompartirAbierto(abierto => {
-                    const siguiente = !abierto;
-                    if (siguiente) onSolicitarArchivos?.();
-                    return siguiente;
-                  });
-                  setSelectorAbierto(false);
-                }}
-                aria-expanded={compartirAbierto}
-                title="Notas y archivos para pasar"
-                aria-label="Pasar"
-              >
-                <IconoCompartir />
-              </button>
-              <span className="dock-etiqueta">Pasar</span>
-            </div>
-
             {onAbrirArchivador && (
               <div className="dock-item">
                 <button
@@ -2016,20 +2723,75 @@ export function Sala({
                       </span>
                     )}
                   </button>
-                  <span className="dock-etiqueta master">Escena 👑</span>
+                  <span className="dock-etiqueta master">
+                    <Crown size={10} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Escena</span>
+                  </span>
                 </div>
               </>
             )}
           </div>
 
+          {!ajuste && (
+            <div className="dados-rapidos" role="group" aria-label="Dados rápidos">
+              {DADOS_RAPIDOS.map(dado => (
+                <button
+                  key={dado.caras}
+                  type="button"
+                  className="dado-rapido-btn"
+                  style={
+                    {
+                      "--dado-color": dado.color,
+                      "--dado-glow": dado.glow
+                    } as CSSProperties
+                  }
+                  onClick={() =>
+                    tirarDado([{ id: `rapido-${dado.caras}`, cantidad: 1, caras: dado.caras }], 0, {
+                      rapido: true,
+                      forzarPublica: true
+                    })
+                  }
+                  disabled={tirando}
+                  title={`Tirada rápida 1d${dado.caras}`}
+                  aria-label={`Tirar 1d${dado.caras}`}
+                >
+                  <span className="dado-rapido-icono">
+                    <IconoDadoPoligono caras={dado.caras} />
+                  </span>
+                  <span className="dado-rapido-etiqueta">d{dado.caras}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
       {compartirAbierto && !ajuste && (
         <div
-          className={`compartir-panel${calibracion.dock.y < 30 ? " debajo" : ""}`}
+          className={`compartir-panel${
+            anclaCompartir?.origen === "pelota" ? " anclado-pelota" : " desde-chat"
+          }`}
+          style={
+            anclaCompartir?.origen === "pelota"
+              ? {
+                  left: `clamp(190px, ${anclaCompartir.x}px, calc(100vw - 190px))`,
+                  top: `${Math.max(56, Math.min(anclaCompartir.y, window.innerHeight - 310))}px`
+                }
+              : anclaCompartir?.origen === "chat"
+                ? {
+                    left: `${Math.max(12, Math.min(anclaCompartir.x, window.innerWidth - 386))}px`,
+                    top: `${Math.max(56, Math.min(anclaCompartir.y, window.innerHeight - 340))}px`
+                  }
+                : {
+                    left: `${calibracion.chat.x}%`,
+                    top: `${Math.min(calibracion.chat.y + calibracion.chat.h + 1.5, 62)}%`
+                  }
+          }
           role="dialog"
           aria-label="Notas y archivos para pasar"
         >
           <div className="compartir-panel-cabecera">
-            <h3 className="compartir-panel-titulo">Pasar a jugadores</h3>
+            <h3 className="compartir-panel-titulo">
+              {jugadorSeleccionado ? `Pasar a ${jugadorSeleccionado.nombre}` : "Pasar a jugadores"}
+            </h3>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               {onSimularRecepcion && (
                 <button
@@ -2044,10 +2806,13 @@ export function Sala({
               <button
                 type="button"
                 className="dados-cerrar"
-                onClick={() => setCompartirAbierto(false)}
+                onClick={() => {
+                  setCompartirAbierto(false);
+                  setAnclaCompartir(null);
+                }}
                 aria-label="Cerrar panel de compartir"
               >
-                ×
+                <X size={13} strokeWidth={2.4} aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -2060,15 +2825,39 @@ export function Sala({
               <button
                 type="button"
                 className="compartir-btn-sec"
-                onClick={() => setJugadorSeleccionadoId(null)}
+                onClick={() => {
+                  setJugadorSeleccionadoId(null);
+                  setAnclaCompartir(null);
+                }}
               >
-                Quitar
+                Cambiar
               </button>
             </div>
           ) : (
-            <span className="compartir-subtitulo">
-              Arrastra un elemento a un círculo o clica un jugador primero.
-            </span>
+            <div className="compartir-destinos-bloque">
+              <span className="compartir-subtitulo">
+                Elige un jugador o arrastra un elemento hacia su círculo:
+              </span>
+              <div className="compartir-jugadores-rapidos">
+                {jugadores
+                  .filter(j => j.activo && j.id !== yoAsientoId)
+                  .map(j => (
+                    <button
+                      key={j.id}
+                      type="button"
+                      className="compartir-jugador-chip"
+                      onClick={() => setJugadorSeleccionadoId(j.id)}
+                    >
+                      <span
+                        className="compartir-jugador-punto"
+                        style={{ backgroundColor: j.color }}
+                        aria-hidden="true"
+                      />
+                      <span>{j.nombre}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
           )}
 
           {onElementosMesa && (
@@ -2098,59 +2887,50 @@ export function Sala({
             </form>
           )}
 
-          {posits.length > 0 && (
-            <div className="compartir-seccion">
-              <span className="compartir-subtitulo">Posits de pizarra</span>
-              <ul className="compartir-lista">
-                {posits.map(posit => {
-                  const elem: ElementoMesa = {
-                    id: `bandeja-posit-${posit.id}`,
-                    tipo: "posit",
-                    texto: posit.texto,
-                    color: posit.color,
-                    giro: posit.giro,
-                    x: 78,
-                    y: 78
-                  };
-                  return (
-                    <li key={posit.id} className="compartir-item">
-                      <div
-                        className="compartir-item-arrastre"
-                        onPointerDown={e => iniciarBandejaElemento(elem, e)}
-                        title="Arrastra hacia el círculo de un jugador"
-                      >
-                        <span
-                          className="compartir-color-dot"
-                          style={{ background: posit.color }}
-                        />
-                        <span className="compartir-item-nombre">
-                          {posit.texto || "Nota vacía"}
-                        </span>
-                      </div>
-                      {onElementosMesa && (
-                        <button
-                          type="button"
-                          className="compartir-btn-sec"
-                          onClick={() => colocarEnMesa(elem)}
-                        >
-                          En mesa
-                        </button>
-                      )}
-                      {jugadorSeleccionado && onEnviarElemento && (
-                        <button
-                          type="button"
-                          className="compartir-btn-sec"
-                          onClick={() => void onEnviarElemento(jugadorSeleccionado, elem)}
-                        >
-                          Enviar
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          <div
+            ref={dropzoneRef}
+            className={`compartir-dropzone${
+              dragSobreDropzone || punteroSobreDropzone ? " sobre" : ""
+            }${!jugadorSeleccionado ? " sin-destino" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragOver={e => {
+              e.preventDefault();
+              setDragSobreDropzone(true);
+            }}
+            onDragLeave={() => setDragSobreDropzone(false)}
+            onDrop={e => {
+              e.preventDefault();
+              setDragSobreDropzone(false);
+              void enviarArchivosEnDrop(e.dataTransfer.files);
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              onChange={e => {
+                void enviarArchivosEnDrop(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <Upload size={18} strokeWidth={2} aria-hidden="true" />
+            <span>
+              {subiendoDrop
+                ? "Enviando archivo…"
+                : jugadorSeleccionado
+                  ? `Arrastra aquí un posit, documento o archivo para ${jugadorSeleccionado.nombre}`
+                  : "Elige un jugador arriba y arrastra aquí un posit, documento o archivo"}
+            </span>
+          </div>
 
           <div className="compartir-seccion">
             <span className="compartir-subtitulo">Archivos</span>
