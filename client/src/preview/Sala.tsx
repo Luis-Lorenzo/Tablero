@@ -2767,7 +2767,7 @@ export function Sala({
                 }}
                 title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
               >
-                <IconoMonedasPixel size={16} />
+                <IconoMonedasPixel size={20} />
                 <span>{formatearDivisaCompacta(divisaActual)}</span>
               </button>
 
@@ -2780,7 +2780,7 @@ export function Sala({
                 }}
                 title="Abrir mochila"
               >
-                <IconoMochilaPixel size={16} />
+                <IconoMochilaPixel size={20} />
                 <span>{mochilaActual.length}</span>
               </button>
 
@@ -2850,7 +2850,7 @@ export function Sala({
                     title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
                     aria-expanded={divisaAbierta}
                   >
-                    <IconoMonedasPixel size={28} />
+                    <IconoMonedasPixel size={38} />
                     <span className="hud-divisa-valor">
                       {formatearDivisaCompacta(divisaActual)}
                     </span>
@@ -2877,7 +2877,7 @@ export function Sala({
                 aria-expanded={mochilaAbierta}
                 title="Abrir mochila"
               >
-                <IconoMochilaPixel size={30} />
+                <IconoMochilaPixel size={40} />
                 <span className="hud-mochila-texto">Mochila</span>
                 {mochilaActual.length > 0 && (
                   <span className="hud-mochila-badge">{mochilaActual.length}</span>
@@ -3311,31 +3311,35 @@ export function Sala({
                 ) : (
                   <div className="mochila-grid">
                     {mochilaActual.map(item => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className="mochila-slot"
-                        title={`${item.nombre} (x${item.cantidad}) — Arrastra a la mesa o pulsa para ver`}
-                        onPointerDown={e => iniciarMochilaObjeto(e, item)}
-                        onClick={() => {
-                          if (!arrastre.current) {
-                            setObjetoMochilaId(item.id);
-                          }
-                        }}
-                      >
-                        {item.imagenLocal || item.archivoId ? (
-                          <img
-                            src={
-                              item.imagenLocal ?? archivosApi.url(item.archivoId ?? "")
+                      <div key={item.id} className="mochila-item-celda">
+                        <button
+                          type="button"
+                          className="mochila-slot"
+                          title={`${item.nombre} (x${item.cantidad}) — Arrastra a la mesa o pulsa para ver`}
+                          onPointerDown={e => iniciarMochilaObjeto(e, item)}
+                          onClick={() => {
+                            if (!arrastre.current) {
+                              setObjetoMochilaId(item.id);
                             }
-                            alt={item.nombre}
-                            draggable={false}
-                          />
-                        ) : (
-                          <span className="mochila-slot-emoji">{item.emoji ?? "🎒"}</span>
-                        )}
-                        <span className="mochila-slot-cant">{item.cantidad}</span>
-                      </button>
+                          }}
+                        >
+                          {item.imagenLocal || item.archivoId ? (
+                            <img
+                              src={
+                                item.imagenLocal ?? archivosApi.url(item.archivoId ?? "")
+                              }
+                              alt={item.nombre}
+                              draggable={false}
+                            />
+                          ) : (
+                            <span className="mochila-slot-emoji">{item.emoji ?? "🎒"}</span>
+                          )}
+                          <span className="mochila-slot-cant">{item.cantidad}</span>
+                        </button>
+                        <span className="mochila-slot-nombre" title={item.nombre}>
+                          {item.nombre}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 )}
