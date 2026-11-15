@@ -134,5 +134,33 @@ export const mesasApi = {
 
   /** Guarda los elementos en mesa del jugador actual en esta mesa. */
   guardarEstado: (id: string, elementos: unknown[]) =>
-    http.patch<void>(`/api/mesas/${id}/estado`, { elementos })
+    http.patch<void>(`/api/mesas/${id}/estado`, { elementos }),
+
+  /** Carga el estado compartido de la pizarra y vista escena de la mesa. */
+  obtenerPizarra: (id: string) =>
+    http.get<{
+      posits: unknown[];
+      trazos: unknown[];
+      documentos: unknown[];
+      trazosEscena: unknown[];
+      positsEscena: unknown[];
+      docsEscena: unknown[];
+      tamanoImagenesEscena: Record<string, { w: number; h: number }>;
+      congelada: boolean;
+    }>(`/api/mesas/${id}/pizarra`),
+
+  /** Guarda y difunde el estado compartido de la pizarra y vista escena. */
+  guardarPizarra: (
+    id: string,
+    datos: {
+      posits: unknown[];
+      trazos: unknown[];
+      documentos: unknown[];
+      trazosEscena: unknown[];
+      positsEscena: unknown[];
+      docsEscena: unknown[];
+      tamanoImagenesEscena: Record<string, { w: number; h: number }>;
+      congelada: boolean;
+    }
+  ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos)
 };
