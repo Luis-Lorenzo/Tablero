@@ -749,7 +749,7 @@ function SalaRealContent({
         const pasoObj = (recepcionesRef.current - 1) % 6;
         const posObj = {
           x: Number((50 + ((pasoObj % 3) - 1) * 5).toFixed(2)),
-          y: Number((28 + Math.floor(pasoObj / 3) * 5).toFixed(2))
+          y: Number((70.5 + Math.floor(pasoObj / 3) * 3.5).toFixed(2))
         };
         setElementosMesa(prev => [
           ...prev,
