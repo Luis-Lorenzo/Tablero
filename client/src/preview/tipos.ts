@@ -59,6 +59,8 @@ export interface MensajeSala {
   createdAt: string;
   /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
   esSistema?: boolean;
+  /** Mensajes de cambio económico/divisa (aparecen en Todo y Chat, no en Dados). */
+  esDivisa?: boolean;
 }
 
 export type TipoEspecialTirada = "critico" | "pifia" | null;

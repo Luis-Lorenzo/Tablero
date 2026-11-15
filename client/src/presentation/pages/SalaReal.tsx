@@ -591,7 +591,8 @@ function SalaRealContent({
               destinatarioId: null,
               destinatarioNombre: null,
               createdAt: creado,
-              esSistema: true
+              esSistema: true,
+              esDivisa: true
             }
           ]);
         }

@@ -66,8 +66,8 @@ export function ChatSala({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mensajesFiltrados = mensajes.filter(msg => {
-    if (filtro === "chat") return !msg.esSistema;
-    if (filtro === "dados") return Boolean(msg.esSistema);
+    if (filtro === "chat") return !msg.esSistema || Boolean(msg.esDivisa);
+    if (filtro === "dados") return Boolean(msg.esSistema) && !msg.esDivisa;
     return true;
   });
 

@@ -59,6 +59,7 @@ import { Posit } from "./Pizarra";
 import {
   establecerSonidoSilenciado,
   estaSonidoSilenciado,
+  reproducirSonidoConsumir,
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion
 } from "./sonido";
@@ -2174,7 +2175,8 @@ export function Sala({
         destinatarioId: null,
         destinatarioNombre: null,
         createdAt: new Date().toISOString(),
-        esSistema: true
+        esSistema: true,
+        esDivisa: true
       }
     ]);
   }
@@ -2301,6 +2303,7 @@ export function Sala({
   }
 
   function consumirObjetoMochila(id: string): void {
+    reproducirSonidoConsumir();
     actualizarListaMochila(prev =>
       prev.flatMap(item => {
         if (item.id !== id) return [item];
@@ -2361,6 +2364,7 @@ export function Sala({
   function consumirObjetoMesa(
     obj: Extract<ElementoMesa, { tipo: "objeto" }>
   ): void {
+    reproducirSonidoConsumir();
     const restante = obj.cantidad - 1;
     if (restante <= 0) {
       onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
@@ -4753,9 +4757,6 @@ export function Sala({
                   </span>
                 )}
               </div>
-              {objetoMesaActivo.descripcion && (
-                <p className="mochila-mesa-desc">{objetoMesaActivo.descripcion}</p>
-              )}
               <div className="mochila-detalle-acciones">
                 <button
                   type="button"
@@ -4781,9 +4782,12 @@ export function Sala({
                     setObjetoMesaActivo(null);
                   }}
                 >
-                  Quitar de mesa
+                  Eliminar objeto
                 </button>
               </div>
+              {objetoMesaActivo.descripcion && (
+                <p className="mochila-mesa-desc">{objetoMesaActivo.descripcion}</p>
+              )}
             </div>
           </div>
         </div>

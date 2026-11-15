@@ -155,3 +155,43 @@ export function reproducirSonidoMonedas(): void {
     // Silencioso si el navegador bloquea el audio.
   }
 }
+
+/**
+ * Reproduce un sonido breve de "expirado / consumido" al gastar un objeto.
+ */
+export function reproducirSonidoConsumir(): void {
+  if (estaSonidoSilenciado()) return;
+
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const ahora = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const ganancia = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(523.25, ahora); // Do5
+    osc.frequency.exponentialRampToValueAtTime(329.63, ahora + 0.14); // Mi4
+    osc.frequency.exponentialRampToValueAtTime(196, ahora + 0.34); // Sol3
+
+    ganancia.gain.setValueAtTime(0.001, ahora);
+    ganancia.gain.exponentialRampToValueAtTime(0.06, ahora + 0.025);
+    ganancia.gain.exponentialRampToValueAtTime(0.0008, ahora + 0.36);
+
+    osc.connect(ganancia);
+    ganancia.connect(ctx.destination);
+    osc.start(ahora);
+    osc.stop(ahora + 0.38);
+
+    window.setTimeout(() => {
+      void ctx.close().catch(() => undefined);
+    }, 450);
+  } catch {
+    // Silencioso si el navegador bloquea el audio.
+  }
+}
