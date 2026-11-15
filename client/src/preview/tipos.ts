@@ -118,18 +118,58 @@ export type ElementoMesa =
       archivado?: boolean;
       remitente?: string;
       contenidoLocal?: string;
+    }
+  | {
+      id: string;
+      tipo: "objeto";
+      nombre: string;
+      descripcion: string;
+      cantidad: number;
+      emoji?: string;
+      archivoId?: string;
+      archivoNombre?: string;
+      imagenLocal?: string;
+      x: number;
+      y: number;
+      archivado?: boolean;
+      remitente?: string;
     };
+
+export interface ObjetoMochila {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  cantidad: number;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+  imagenLocal?: string;
+}
+
+export interface DivisaAsientoDelta {
+  id: string;
+  delta: number;
+}
 
 export interface SolicitudTransferencia {
   id: string;
   emisorNombre: string;
-  tipo: "posit" | "archivo";
+  tipo: "posit" | "archivo" | "objeto";
   nombreArchivo?: string;
   mimeArchivo?: string;
   vistaArchivo?: string;
   textoPosit?: string;
   colorPosit?: string;
   giroPosit?: number;
+  objeto?: {
+    idOrigen?: string;
+    nombre: string;
+    descripcion: string;
+    cantidad: number;
+    emoji?: string;
+    archivoId?: string;
+    archivoNombre?: string;
+  };
 }
 
 export interface DocumentoMesa {

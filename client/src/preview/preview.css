@@ -4146,6 +4146,16 @@
   cursor: pointer;
 }
 
+.dados-secreto-toggle.luna {
+  background: #09090b;
+  border-color: #3f3f46;
+  color: #e4e4e7;
+}
+
+.dados-secreto-toggle.luna:hover {
+  border-color: #71717a;
+}
+
 .dados-secreto-toggle.activo {
   border-color: #e4e4e7;
   background: rgb(0 0 0 / 90%);
@@ -5453,4 +5463,737 @@
   background: rgb(232 197 106 / 26%);
   border-color: #e8c56a;
   color: #ffe39a;
+}
+
+/* ==================== Divisa (Monedas) y Mochila ==================== */
+
+.hud-barra-movil {
+  display: none;
+}
+
+.sala-hud-derecha {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .sala-hud-derecha {
+    display: none;
+  }
+
+  .hud-barra-movil {
+    display: inline-flex;
+  }
+}
+
+.hud-divisa-caja {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 9px;
+  border: 2px solid rgb(232 197 106 / 45%);
+  border-radius: 10px;
+  background: rgb(14 11 20 / 92%);
+  box-shadow: 2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%);
+}
+
+.hud-divisa-titulo {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8c56a;
+}
+
+.hud-divisa-fila {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hud-divisa-paso {
+  width: 24px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 32%);
+  background: rgb(0 0 0 / 35%);
+  color: #f3e6c8;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.hud-divisa-paso:hover {
+  background: rgb(232 197 106 / 22%);
+  border-color: #e8c56a;
+}
+
+.hud-divisa-centro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: rgb(0 0 0 / 28%);
+  color: #fff4d2;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.hud-divisa-centro:hover,
+.hud-divisa-centro.activo {
+  background: rgb(232 197 106 / 16%);
+  border-color: rgb(232 197 106 / 55%);
+}
+
+.hud-divisa-valor {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffe39a;
+}
+
+.hud-mochila-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 2px solid rgb(232 197 106 / 45%);
+  border-radius: 10px;
+  background: rgb(14 11 20 / 92%);
+  color: #f3e6c8;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.12s ease;
+}
+
+.hud-mochila-btn:hover,
+.hud-mochila-btn.activo {
+  border-color: #e8c56a;
+  background: rgb(28 22 38 / 95%);
+  transform: translateY(-1px);
+}
+
+.hud-mochila-badge {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e8c56a;
+  color: #16101f;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.divisa-popover {
+  position: fixed;
+  top: 96px;
+  right: 16px;
+  z-index: 60;
+  width: min(300px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 2px solid #e8c56a;
+  border-radius: 12px;
+  background: rgb(14 11 20 / 96%);
+  color: #f3e6c8;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 75%);
+}
+
+@media (max-width: 900px) {
+  .divisa-popover {
+    top: 64px;
+    right: 10px;
+  }
+}
+
+.divisa-exacto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 35%);
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffe39a;
+  font-variant-numeric: tabular-nums;
+}
+
+.divisa-paso-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.divisa-paso-btns {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.divisa-atajos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.divisa-atajo-btn {
+  padding: 5px 4px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 28%);
+  background: rgb(0 0 0 / 32%);
+  color: #f3e6c8;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.divisa-atajo-btn.resta:hover {
+  background: rgb(224 90 90 / 22%);
+  border-color: #f08a8a;
+}
+
+.divisa-atajo-btn.suma:hover {
+  background: rgb(90 214 140 / 22%);
+  border-color: #6ee7a0;
+}
+
+.divisa-custom-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.divisa-custom-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 7px;
+  border: 1px solid rgb(232 197 106 / 30%);
+  background: rgb(0 0 0 / 38%);
+  color: #f3e6c8;
+  font-size: 13px;
+}
+
+.divisa-emoji-btn {
+  width: 34px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 1px solid rgb(232 197 106 / 32%);
+  background: rgb(0 0 0 / 38%);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.divisa-emoji-btn.resta:hover {
+  background: rgb(224 90 90 / 24%);
+  border-color: #f08a8a;
+}
+
+.divisa-emoji-btn.suma:hover {
+  background: rgb(90 214 140 / 24%);
+  border-color: #6ee7a0;
+}
+
+.divisa-master-nombre {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 6px;
+  border-top: 1px solid rgb(232 197 106 / 18%);
+}
+
+.divisa-master-nombre-fila {
+  display: flex;
+  gap: 6px;
+}
+
+.divisa-master-nombre-fila input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 28%);
+  background: rgb(0 0 0 / 38%);
+  color: #f3e6c8;
+  font-size: 12px;
+}
+
+.divisa-master-nombre-fila button {
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 45%);
+  background: rgb(232 197 106 / 18%);
+  color: #ffe39a;
+  cursor: pointer;
+}
+
+.asiento-divisa-delta {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 65%);
+  animation: divisa-flotar 3.2s ease-out forwards;
+}
+
+.asiento-divisa-delta.positivo {
+  background: #143622;
+  border: 1.5px solid #6ee7a0;
+  color: #9bf6be;
+}
+
+.asiento-divisa-delta.negativo {
+  background: #3b1418;
+  border: 1.5px solid #f28b8b;
+  color: #ffb8b8;
+}
+
+@keyframes divisa-flotar {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.9);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -8px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -14px);
+  }
+}
+
+/* ==================== Mochila (Modal cuadrado grande) ==================== */
+
+.mochila-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: grid;
+  place-items: center;
+  background: rgb(6 4 10 / 68%);
+  padding: 16px;
+}
+
+.mochila-modal {
+  width: min(520px, 94vw);
+  max-height: min(560px, 88vh);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid #e8c56a;
+  border-radius: 14px;
+  background: rgb(15 12 22 / 97%);
+  color: #f3e6c8;
+  box-shadow: 0 22px 54px rgb(0 0 0 / 82%);
+  overflow-y: auto;
+}
+
+.mochila-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mochila-titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffe39a;
+}
+
+.mochila-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 74px));
+  gap: 10px;
+  justify-content: start;
+}
+
+.mochila-slot {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  padding: 0;
+  border: 2px solid rgb(232 197 106 / 35%);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 38%);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: grab;
+  transition: border-color 0.14s ease, transform 0.12s ease;
+}
+
+.mochila-slot:hover {
+  border-color: #e8c56a;
+  transform: translateY(-1px);
+}
+
+.mochila-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mochila-slot-emoji {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.mochila-slot-cant {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: rgb(10 8 15 / 88%);
+  border: 1px solid rgb(232 197 106 / 55%);
+  color: #ffe39a;
+  font-size: 10.5px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.mochila-crear-form,
+.mochila-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mochila-crear-form textarea,
+.mochila-detalle textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(232 197 106 / 28%);
+  background: rgb(0 0 0 / 35%);
+  color: #f3e6c8;
+  font: inherit;
+  font-size: 12.5px;
+  resize: vertical;
+  outline: none;
+}
+
+.mochila-crear-form textarea:focus,
+.mochila-detalle textarea:focus {
+  border-color: #e8c56a;
+}
+
+.mochila-crear-fila {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+.mochila-img-subida {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mochila-subir-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid rgb(232 197 106 / 38%);
+  background: rgb(232 197 106 / 14%);
+  color: #f3e6c8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mochila-emojis-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+}
+
+.mochila-emoji-btn {
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 1px solid rgb(232 197 106 / 20%);
+  background: rgb(0 0 0 / 30%);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.mochila-emoji-btn.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 24%);
+}
+
+.mochila-preview-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mochila-preview-upload img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1.5px solid #e8c56a;
+}
+
+.mochila-quitar-img {
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 30%);
+  background: transparent;
+  color: #d6c5a3;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.mochila-detalle-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mochila-volver-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 28%);
+  background: rgb(0 0 0 / 28%);
+  color: #f3e6c8;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.mochila-eliminar-cruz {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 1px solid rgb(235 95 95 / 45%);
+  background: rgb(140 24 24 / 35%);
+  color: #ffb0b0;
+  cursor: pointer;
+}
+
+.mochila-eliminar-cruz:hover {
+  background: rgb(180 35 35 / 60%);
+  color: #ffffff;
+}
+
+.mochila-detalle-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mochila-detalle-cuadro {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  border: 2px solid #e8c56a;
+  background: rgb(0 0 0 / 38%);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.mochila-detalle-cuadro img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mochila-detalle-emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.mochila-detalle-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mochila-detalle-info h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #ffe39a;
+}
+
+.mochila-cantidad-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mochila-cantidad-edit input {
+  width: 72px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 30%);
+  background: rgb(0 0 0 / 38%);
+  color: #f3e6c8;
+  font-size: 13px;
+}
+
+.mochila-detalle-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mochila-accion-sec {
+  flex: 1;
+  min-width: 120px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid rgb(232 197 106 / 38%);
+  background: rgb(232 197 106 / 12%);
+  color: #f3e6c8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mochila-accion-sec:hover {
+  background: rgb(232 197 106 / 24%);
+}
+
+.mochila-destinos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mochila-destino-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(232 197 106 / 45%);
+  background: rgb(232 197 106 / 16%);
+  color: #ffe39a;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mochila-consumir-btn {
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #6ee7a0;
+  background: rgb(20 68 42 / 75%);
+  color: #c8ffe0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mochila-consumir-btn:hover {
+  background: rgb(28 96 58 / 90%);
+}
+
+.mesa-objeto {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  transform: translate(-50%, -50%);
+  border-radius: 10px;
+  border: 2px solid #e8c56a;
+  background: rgb(16 12 24 / 90%);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 55%);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.mesa-objeto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mesa-objeto-emoji {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.mochila-mesa-visor {
+  width: min(360px, 92vw);
+}
+
+.mochila-mesa-cuerpo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+}
+
+.mochila-mesa-desc {
+  margin: 0;
+  width: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e4d8bd;
+  white-space: pre-wrap;
 }

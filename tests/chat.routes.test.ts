@@ -291,6 +291,39 @@ describe("chat en vivo y tiradas de dados en /api/mesas/:id", () => {
     await new Promise(r => setTimeout(r, 80));
     expect(alguienRecibioSecreta).toBe(false);
 
+    // 5. Tirada solo para el Máster (luna): la reciben el jugador y el Máster, no otros jugadores
+    let borinRecibioSoloMaster = false;
+    wsBorin.on("message", raw => {
+      const p = JSON.parse(String(raw)) as { type?: string };
+      if (p.type === "dice:roll") {
+        borinRecibioSoloMaster = true;
+      }
+    });
+
+    const evSoloMaster = esperarEvento(wsMaster, "dice:roll");
+    const evSoloAria = esperarEvento(wsAria, "dice:roll");
+    await request(app)
+      .post(`/api/mesas/${mesaId}/tiradas`)
+      .set("Cookie", cookieAria)
+      .send({
+        total: 17,
+        formula: "1d20 + 4",
+        dados: [13],
+        bonificador: 4,
+        caras: 20,
+        secreta: false,
+        soloMaster: true
+      })
+      .expect(201);
+
+    const rollEnMaster = (await evSoloMaster).roll as Record<string, unknown>;
+    const rollEnAria = (await evSoloAria).roll as Record<string, unknown>;
+    expect(rollEnMaster.soloMaster).toBe(true);
+    expect(rollEnAria.soloMaster).toBe(true);
+
+    await new Promise(r => setTimeout(r, 80));
+    expect(borinRecibioSoloMaster).toBe(false);
+
     wsMaster.close();
     wsAria.close();
     wsBorin.close();

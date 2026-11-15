@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
+  Check,
   Copy,
   Crown,
   Eye,
   Image as ImageIcon,
   Minus,
+  Moon,
   Pencil,
   Plus,
   Search,
@@ -37,6 +39,17 @@ import {
 } from "./compartir";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
 import {
+  cargarDivisaLocal,
+  cargarMochilaLocal,
+  EMOJIS_OBJETO_SUGERIDOS,
+  formatearDivisaCompacta,
+  guardarDivisaLocal,
+  guardarMochilaLocal,
+  IconoMochilaPixel,
+  IconoMonedasPixel,
+  recortarImagenCuadrada
+} from "./inventario";
+import {
   cargarMacrosLocales,
   guardarMacrosLocales,
   ICONOS_MACROS,
@@ -46,18 +59,21 @@ import { Posit } from "./Pizarra";
 import {
   establecerSonidoSilenciado,
   estaSonidoSilenciado,
+  reproducirSonidoMonedas,
   reproducirSonidoNotificacion
 } from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
+  DivisaAsientoDelta,
   DocumentoMesa,
   ElementoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
   MacroTirada,
   MensajeSala,
+  ObjetoMochila,
   PositPreview,
   Punto,
   QuadMapa,
@@ -99,6 +115,7 @@ interface SalaProps {
     bonificador: number;
     caras: number;
     especial: TipoEspecialTirada;
+    soloMaster?: boolean;
   }) => void | Promise<void>;
   colorJugador?: string;
   nombreJugador?: string;
@@ -110,6 +127,18 @@ interface SalaProps {
   onReabrirProyeccion?: () => void;
   macros?: MacroTirada[];
   onMacros?: (macros: MacroTirada[]) => void;
+  divisa?: number;
+  divisaNombre?: string;
+  onCambiarDivisa?: (nueva: number, delta: number) => void | Promise<void>;
+  onCambiarDivisaNombre?: (nombre: string) => void | Promise<void>;
+  divisaAsiento?: Record<string, DivisaAsientoDelta>;
+  mochila?: ObjetoMochila[];
+  onMochila?: Dispatch<SetStateAction<ObjetoMochila[]>>;
+  onEnviarObjetoMochila?: (
+    destino: JugadorPreview,
+    objeto: ObjetoMochila,
+    cantidad?: number
+  ) => void | Promise<void>;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -181,6 +210,22 @@ type Arrastre =
     elemento: ElementoMesa;
     inicioX: number;
     inicioY: number;
+  }
+  | {
+    tipo: "objeto-mesa";
+    id: string;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
+    base: Punto;
+    medidas: Medidas;
+  }
+  | {
+    tipo: "mochila-objeto";
+    objeto: ObjetoMochila;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
   };
 
 /** Segundos que el resultado del dado sigue en pantalla antes de irse. */
@@ -633,7 +678,15 @@ export function Sala({
   proyeccionOculta,
   onReabrirProyeccion,
   macros,
-  onMacros
+  onMacros,
+  divisa,
+  divisaNombre = "Divisa",
+  onCambiarDivisa,
+  onCambiarDivisaNombre,
+  divisaAsiento,
+  mochila,
+  onMochila,
+  onEnviarObjetoMochila
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -705,6 +758,52 @@ export function Sala({
   ]);
   const [macroBonificador, setMacroBonificador] = useState(0);
   const macrosLista = macros ?? macrosLocales;
+
+  const [divisaLocal, setDivisaLocal] = useState<number>(cargarDivisaLocal);
+  const divisaActual = divisa ?? divisaLocal;
+  const [divisaAbierta, setDivisaAbierta] = useState(false);
+  const [divisaPaso, setDivisaPaso] = useState<1 | 10 | 100>(1);
+  const [divisaCustomTexto, setDivisaCustomTexto] = useState("");
+  const [divisaNombreEdit, setDivisaNombreEdit] = useState(divisaNombre);
+  const [divisaAsientoLocales, setDivisaAsientoLocales] = useState<
+    Record<string, DivisaAsientoDelta>
+  >({});
+
+  const [mochilaLocal, setMochilaLocal] = useState<ObjetoMochila[]>(cargarMochilaLocal);
+  const mochilaActual = mochila ?? mochilaLocal;
+  const [mochilaAbierta, setMochilaAbierta] = useState(false);
+  const [objetoMochilaId, setObjetoMochilaId] = useState<string | null>(null);
+  const [creandoObjeto, setCreandoObjeto] = useState(false);
+  const [nuevoObjNombre, setNuevoObjNombre] = useState("");
+  const [nuevoObjDesc, setNuevoObjDesc] = useState("");
+  const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
+  const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
+  const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
+    archivoId?: string;
+    archivoNombre?: string;
+    imagenLocal?: string;
+  } | null>(null);
+  const [subiendoObjetoImg, setSubiendoObjetoImg] = useState(false);
+  const [pasandoObjetoId, setPasandoObjetoId] = useState<string | null>(null);
+  const [objetoMesaActivo, setObjetoMesaActivo] = useState<
+    Extract<ElementoMesa, { tipo: "objeto" }> | null
+  >(null);
+
+  const divisaDebounceRef = useRef<{ timer: number | null; acumulado: number }>({
+    timer: null,
+    acumulado: 0
+  });
+  const divisaActualRef = useRef(divisaActual);
+  divisaActualRef.current = divisaActual;
+  const onCambiarDivisaRef = useRef(onCambiarDivisa);
+  onCambiarDivisaRef.current = onCambiarDivisa;
+  const onEnviarObjetoMochilaRef = useRef(onEnviarObjetoMochila);
+  onEnviarObjetoMochilaRef.current = onEnviarObjetoMochila;
+  const objetoImgInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDivisaNombreEdit(divisaNombre);
+  }, [divisaNombre]);
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -800,7 +899,10 @@ export function Sala({
       !compuestaAbierta &&
       !itemAbierto &&
       !macrosAbierto &&
-      !macroModalAbierto
+      !macroModalAbierto &&
+      !divisaAbierta &&
+      !mochilaAbierta &&
+      !objetoMesaActivo
     ) {
       return;
     }
@@ -808,10 +910,16 @@ export function Sala({
       if (evento.key !== "Escape") return;
       if (itemAbierto) {
         setItemAbierto(null);
+      } else if (objetoMesaActivo) {
+        setObjetoMesaActivo(null);
       } else if (macroModalAbierto) {
         setMacroModalAbierto(false);
       } else if (compuestaAbierta) {
         setCompuestaAbierta(false);
+      } else if (mochilaAbierta) {
+        setMochilaAbierta(false);
+      } else if (divisaAbierta) {
+        setDivisaAbierta(false);
       } else if (macrosAbierto) {
         setMacrosAbierto(false);
       } else if (selectorAbierto) {
@@ -820,7 +928,16 @@ export function Sala({
     }
     window.addEventListener("keydown", alPulsarEscape);
     return () => window.removeEventListener("keydown", alPulsarEscape);
-  }, [selectorAbierto, compuestaAbierta, itemAbierto, macrosAbierto, macroModalAbierto]);
+  }, [
+    selectorAbierto,
+    compuestaAbierta,
+    itemAbierto,
+    macrosAbierto,
+    macroModalAbierto,
+    divisaAbierta,
+    mochilaAbierta,
+    objetoMesaActivo
+  ]);
 
   useEffect(() => {
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
@@ -869,6 +986,25 @@ export function Sala({
           setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
           setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         }
+        return;
+      }
+
+      if (actual.tipo === "mochila-objeto") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 6
+        ) {
+          actual.movido = true;
+          setMochilaAbierta(false);
+        }
+        if (!actual.movido) return;
+
+        const etiqueta = `${actual.objeto.emoji ? `${actual.objeto.emoji} ` : ""}${actual.objeto.nombre}`;
+        setFantasma({ x: evento.clientX, y: evento.clientY, etiqueta });
+        setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
         return;
       }
 
@@ -938,6 +1074,30 @@ export function Sala({
       }
 
       if (actual.tipo === "doc-mesa") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 5
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+        }
+        if (!actual.movido) return;
+
+        setArrastrandoItemId(actual.id);
+        const x = limitar(actual.base.x + dx, 6, 94);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === actual.id ? { ...el, x, y } : el))
+        );
+        setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
+        return;
+      }
+
+      if (actual.tipo === "objeto-mesa") {
         if (
           !actual.movido &&
           Math.hypot(
@@ -1041,6 +1201,82 @@ export function Sala({
           void onEnviarElementoRef.current?.(destino, actual.elemento);
         } else if (enDropzone) {
           mostrarAviso("Elige primero un jugador para enviarle el elemento.");
+        }
+        return;
+      }
+
+      if (actual.tipo === "mochila-objeto") {
+        if (!actual.movido) return;
+        const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
+        const destino = destinoId
+          ? jugadoresRef.current.find(j => j.id === destinoId)
+          : null;
+        if (destino) {
+          if (onEnviarObjetoMochilaRef.current) {
+            void onEnviarObjetoMochilaRef.current(destino, actual.objeto, 1);
+          } else {
+            mostrarAviso(`Objeto ${actual.objeto.nombre} pasado a ${destino.nombre}.`);
+          }
+          return;
+        }
+
+        const rectMesa = capaPosits.current?.getBoundingClientRect();
+        const x = rectMesa
+          ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
+          : 50;
+        const y = rectMesa
+          ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
+          : 55;
+        onElementosMesaRef.current?.(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "objeto",
+            nombre: actual.objeto.nombre,
+            descripcion: actual.objeto.descripcion,
+            cantidad: actual.objeto.cantidad,
+            ...(actual.objeto.emoji ? { emoji: actual.objeto.emoji } : {}),
+            ...(actual.objeto.archivoId ? { archivoId: actual.objeto.archivoId } : {}),
+            ...(actual.objeto.archivoNombre
+              ? { archivoNombre: actual.objeto.archivoNombre }
+              : {}),
+            ...(actual.objeto.imagenLocal
+              ? { imagenLocal: actual.objeto.imagenLocal }
+              : {}),
+            x,
+            y
+          }
+        ]);
+        const quitarId = actual.objeto.id;
+        if (onMochila) {
+          onMochila(prev => prev.filter(item => item.id !== quitarId));
+        } else {
+          setMochilaLocal(prev => {
+            const next = prev.filter(item => item.id !== quitarId);
+            guardarMochilaLocal(next);
+            return next;
+          });
+        }
+        mostrarAviso(`${actual.objeto.nombre} colocado en la mesa.`);
+        return;
+      }
+
+      if (actual.tipo === "objeto-mesa") {
+        if (!actual.movido) return;
+        const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
+        if (destinoId) {
+          const destino = jugadoresRef.current.find(j => j.id === destinoId);
+          const item = elementosMesaRef.current.find(el => el.id === actual.id);
+          if (destino && item && item.tipo === "objeto") {
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === actual.id
+                  ? { ...el, x: actual.base.x, y: actual.base.y }
+                  : el
+              )
+            );
+            void onEnviarElementoRef.current?.(destino, item);
+          }
         }
         return;
       }
@@ -1427,10 +1663,9 @@ export function Sala({
       cantidad: g.cantidad,
       caras: g.caras
     }));
-    const secreta = esMaster && macroSecreta;
     tirarDado(gruposMacro, macro.bonificador, {
-      forzarPublica: !secreta,
-      forzarSecreta: secreta,
+      forzarPublica: !macroSecreta,
+      forzarSecreta: macroSecreta,
       nombreMacro: macro.nombre
     });
   }
@@ -1459,11 +1694,13 @@ export function Sala({
       cantidad: Math.round(limitar(g.cantidad, 1, 20))
     }));
     const mod = Math.round(limitar(bonificadorOverride ?? bonificador, -99, 99));
-    const esSecreta = opciones?.forzarPublica
+    const oculta = opciones?.forzarPublica
       ? false
       : opciones?.forzarSecreta
         ? true
-        : esMaster && tiradaSecreta;
+        : tiradaSecreta;
+    const esSecretaMaster = esMaster && oculta;
+    const esSoloMaster = !esMaster && oculta;
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
@@ -1476,7 +1713,10 @@ export function Sala({
     let pasos = 0;
 
     const tick = () => {
-      setTirada({ ...lanzarGruposDados(gruposActivos, mod), secreta: esSecreta });
+      setTirada({
+        ...lanzarGruposDados(gruposActivos, mod),
+        secreta: esSecretaMaster || esSoloMaster
+      });
       pasos += 1;
 
       if (pasos < totalPasos) {
@@ -1489,12 +1729,18 @@ export function Sala({
               formula: `${opciones.nombreMacro} · ${resultadoBruto.formula}`
             }
           : resultadoBruto;
-        setTirada({ ...resultadoFinal, secreta: esSecreta });
+        setTirada({
+          ...resultadoFinal,
+          secreta: esSecretaMaster || esSoloMaster
+        });
         setTirando(false);
 
-        if (!esSecreta) {
+        if (!esSecretaMaster) {
           if (onTiradaPublica) {
-            void onTiradaPublica(resultadoFinal);
+            void onTiradaPublica({
+              ...resultadoFinal,
+              ...(esSoloMaster ? { soloMaster: true } : {})
+            });
           } else {
             const miAsiento =
               jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ??
@@ -1526,8 +1772,8 @@ export function Sala({
                 autorId: miUsuarioId,
                 autorNombre: autor?.nombre ?? "Máster",
                 texto: `Tiró ${resultadoFinal.formula} → ${resultadoFinal.total}`,
-                destinatarioId: null,
-                destinatarioNombre: null,
+                destinatarioId: esSoloMaster ? "master" : null,
+                destinatarioNombre: esSoloMaster ? (hostName ?? "Máster") : null,
                 createdAt: new Date().toISOString(),
                 esSistema: true
               }
@@ -1898,8 +2144,257 @@ export function Sala({
     setNuevoPositTexto("");
   }
 
+  function emitirDivisaLocal(delta: number, total: number): void {
+    if (delta === 0) return;
+    reproducirSonidoMonedas();
+    const miAsiento =
+      jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ?? "master";
+    const idDelta = `${Date.now()}-${Math.random()}`;
+    setDivisaAsientoLocales(prev => ({
+      ...prev,
+      [miAsiento]: { id: idDelta, delta }
+    }));
+    window.setTimeout(() => {
+      setDivisaAsientoLocales(prev => {
+        if (prev[miAsiento]?.id !== idDelta) return prev;
+        const copia = { ...prev };
+        delete copia[miAsiento];
+        return copia;
+      });
+    }, 3200);
+    const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
+    const signo = delta > 0 ? `+${delta}` : String(delta);
+    setMensajesLocales(prev => [
+      ...prev,
+      {
+        id: `divisa-${Date.now()}-${Math.random()}`,
+        autorId: miUsuarioId,
+        autorNombre: autor?.nombre ?? "Máster",
+        texto: `${signo} ${divisaNombre} (Total: ${total})`,
+        destinatarioId: null,
+        destinatarioNombre: null,
+        createdAt: new Date().toISOString(),
+        esSistema: true
+      }
+    ]);
+  }
+
+  function modificarDivisa(deltaBruto: number, inmediato = false): void {
+    const actual = divisaActualRef.current;
+    const nuevo = Math.max(0, Math.min(999_999_999_999, Math.trunc(actual + deltaBruto)));
+    const deltaReal = nuevo - actual;
+    if (deltaReal === 0) return;
+
+    if (divisa === undefined) {
+      setDivisaLocal(nuevo);
+      guardarDivisaLocal(nuevo);
+    }
+
+    if (inmediato) {
+      if (divisaDebounceRef.current.timer !== null) {
+        window.clearTimeout(divisaDebounceRef.current.timer);
+        divisaDebounceRef.current.timer = null;
+      }
+      const deltaTotal = divisaDebounceRef.current.acumulado + deltaReal;
+      divisaDebounceRef.current.acumulado = 0;
+      if (onCambiarDivisaRef.current) {
+        void onCambiarDivisaRef.current(nuevo, deltaTotal);
+      } else {
+        emitirDivisaLocal(deltaTotal, nuevo);
+      }
+      return;
+    }
+
+    if (onCambiarDivisaRef.current && divisa !== undefined) {
+      // Actualización optimista pasando delta 0 hasta que venza el debounce
+      void onCambiarDivisaRef.current(nuevo, 0);
+    }
+
+    divisaDebounceRef.current.acumulado += deltaReal;
+    if (divisaDebounceRef.current.timer !== null) {
+      window.clearTimeout(divisaDebounceRef.current.timer);
+    }
+    divisaDebounceRef.current.timer = window.setTimeout(() => {
+      const deltaAcum = divisaDebounceRef.current.acumulado;
+      divisaDebounceRef.current.acumulado = 0;
+      divisaDebounceRef.current.timer = null;
+      if (deltaAcum === 0) return;
+      if (onCambiarDivisaRef.current) {
+        void onCambiarDivisaRef.current(divisaActualRef.current, deltaAcum);
+      } else {
+        emitirDivisaLocal(deltaAcum, divisaActualRef.current);
+      }
+    }, 750);
+  }
+
+  function actualizarListaMochila(updater: (prev: ObjetoMochila[]) => ObjetoMochila[]): void {
+    if (onMochila) {
+      onMochila(updater);
+    } else {
+      setMochilaLocal(prev => {
+        const next = updater(prev);
+        guardarMochilaLocal(next);
+        return next;
+      });
+    }
+  }
+
+  async function subirImagenObjeto(file: File): Promise<void> {
+    setSubiendoObjetoImg(true);
+    try {
+      const cuadrada = await recortarImagenCuadrada(file);
+      if (onCambiarDivisa) {
+        const subido = await archivosApi.subir(cuadrada);
+        setNuevoObjArchivo({
+          archivoId: subido.id,
+          archivoNombre: subido.nombre
+        });
+        onSolicitarArchivos?.();
+      } else {
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error("Error leyendo imagen"));
+          reader.readAsDataURL(cuadrada);
+        });
+        setNuevoObjArchivo({
+          archivoNombre: cuadrada.name,
+          imagenLocal: dataUrl
+        });
+      }
+    } catch (e) {
+      mostrarAviso(describeError(e));
+    } finally {
+      setSubiendoObjetoImg(false);
+    }
+  }
+
+  function crearObjetoMochila(evento: React.FormEvent): void {
+    evento.preventDefault();
+    const nombre = nuevoObjNombre.trim().slice(0, 60);
+    if (!nombre) return;
+    const cantidad = Math.max(1, Math.min(9999, Math.trunc(nuevoObjCantidad || 1)));
+    const nuevo: ObjetoMochila = {
+      id: nuevoIdElemento(),
+      nombre,
+      descripcion: nuevoObjDesc.trim().slice(0, 1000),
+      cantidad,
+      ...(nuevoObjArchivo?.archivoId
+        ? {
+            archivoId: nuevoObjArchivo.archivoId,
+            archivoNombre: nuevoObjArchivo.archivoNombre
+          }
+        : nuevoObjArchivo?.imagenLocal
+          ? {
+              imagenLocal: nuevoObjArchivo.imagenLocal,
+              archivoNombre: nuevoObjArchivo.archivoNombre
+            }
+          : { emoji: nuevoObjEmoji })
+    };
+    actualizarListaMochila(prev => [...prev, nuevo]);
+    setNuevoObjNombre("");
+    setNuevoObjDesc("");
+    setNuevoObjCantidad(1);
+    setNuevoObjArchivo(null);
+    setCreandoObjeto(false);
+    setObjetoMochilaId(nuevo.id);
+  }
+
+  function consumirObjetoMochila(id: string): void {
+    actualizarListaMochila(prev =>
+      prev.flatMap(item => {
+        if (item.id !== id) return [item];
+        const restante = item.cantidad - 1;
+        if (restante <= 0) {
+          setObjetoMochilaId(null);
+          return [];
+        }
+        return [{ ...item, cantidad: restante }];
+      })
+    );
+  }
+
+  function eliminarObjetoMochila(id: string): void {
+    actualizarListaMochila(prev => prev.filter(item => item.id !== id));
+    setObjetoMochilaId(actual => (actual === id ? null : actual));
+    setPasandoObjetoId(actual => (actual === id ? null : actual));
+  }
+
+  function ponerObjetoEnMesa(objeto: ObjetoMochila): void {
+    colocarEnMesa({
+      id: nuevoIdElemento(),
+      tipo: "objeto",
+      nombre: objeto.nombre,
+      descripcion: objeto.descripcion,
+      cantidad: objeto.cantidad,
+      ...(objeto.emoji ? { emoji: objeto.emoji } : {}),
+      ...(objeto.archivoId ? { archivoId: objeto.archivoId } : {}),
+      ...(objeto.archivoNombre ? { archivoNombre: objeto.archivoNombre } : {}),
+      ...(objeto.imagenLocal ? { imagenLocal: objeto.imagenLocal } : {}),
+      x: 78,
+      y: 78
+    });
+    eliminarObjetoMochila(objeto.id);
+    setMochilaAbierta(false);
+  }
+
+  function guardarObjetoMesaEnMochila(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    actualizarListaMochila(prev => [
+      ...prev,
+      {
+        id: nuevoIdElemento(),
+        nombre: obj.nombre,
+        descripcion: obj.descripcion,
+        cantidad: obj.cantidad,
+        ...(obj.emoji ? { emoji: obj.emoji } : {}),
+        ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
+        ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
+        ...(obj.imagenLocal ? { imagenLocal: obj.imagenLocal } : {})
+      }
+    ]);
+    onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+    setObjetoMesaActivo(null);
+  }
+
+  function iniciarObjetoMesa(
+    evento: ReactPointerEvent,
+    obj: { id: string; x: number; y: number }
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+    evento.stopPropagation();
+    setPositActivo(null);
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "objeto-mesa",
+      id: obj.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false,
+      base: { x: obj.x, y: obj.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+  }
+
+  function iniciarMochilaObjeto(
+    evento: ReactPointerEvent,
+    objeto: ObjetoMochila
+  ): void {
+    if (evento.button !== 0) return;
+    arrastre.current = {
+      tipo: "mochila-objeto",
+      objeto,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false
+    };
+  }
+
   const mensajesVisibles = mensajesChat ?? mensajesLocales;
   const tiradasVisibles = tiradasAsiento ?? tiradasAsientoLocales;
+  const divisaAsientoVisibles = divisaAsiento ?? divisaAsientoLocales;
   const positsVisibles = elementosMesa.filter(
     (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
       el.tipo === "posit" && !el.archivado
@@ -1911,6 +2406,12 @@ export function Sala({
     (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
       el.tipo === "archivo" && !el.archivado
   );
+  const objetosVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "objeto" }> =>
+      el.tipo === "objeto" && !el.archivado
+  );
+  const objetoSeleccionado =
+    mochilaActual.find(item => item.id === objetoMochilaId) ?? null;
 
   return (
     <div
@@ -2070,6 +2571,7 @@ export function Sala({
               const destinoValido = !ajuste && arrastrandoItemId !== null && !esMio;
               const destinoActivo = destinoValido && asientoSobreId === jugador.id;
               const tiradaSobreAsiento = tiradasVisibles[jugador.id];
+              const divisaDeltaSobreAsiento = divisaAsientoVisibles[jugador.id];
               const estilo = {
                 left: `${asiento.x}%`,
                 top: `${asiento.y}%`,
@@ -2141,6 +2643,17 @@ export function Sala({
                         caras={tiradaSobreAsiento.caras ?? 20}
                         valor={tiradaSobreAsiento.total}
                       />
+                    </div>
+                  )}
+                  {divisaDeltaSobreAsiento && !ajuste && (
+                    <div
+                      key={divisaDeltaSobreAsiento.id}
+                      className={`asiento-divisa-delta${divisaDeltaSobreAsiento.delta > 0 ? " positivo" : " negativo"}`}
+                      aria-label={`Cambio de divisa de ${jugador.nombre}: ${divisaDeltaSobreAsiento.delta}`}
+                    >
+                      {divisaDeltaSobreAsiento.delta > 0
+                        ? `+${divisaDeltaSobreAsiento.delta}`
+                        : divisaDeltaSobreAsiento.delta}
                     </div>
                   )}
                   <span className="esfera" />
@@ -2245,6 +2758,32 @@ export function Sala({
                 )}
               </button>
 
+              <button
+                type="button"
+                className={`sala-btn hud-barra-movil${divisaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setMochilaAbierta(false);
+                  setDivisaAbierta(v => !v);
+                }}
+                title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
+              >
+                <IconoMonedasPixel size={16} />
+                <span>{formatearDivisaCompacta(divisaActual)}</span>
+              </button>
+
+              <button
+                type="button"
+                className={`sala-btn hud-barra-movil${mochilaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setDivisaAbierta(false);
+                  setMochilaAbierta(v => !v);
+                }}
+                title="Abrir mochila"
+              >
+                <IconoMochilaPixel size={16} />
+                <span>{mochilaActual.length}</span>
+              </button>
+
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
                   <span className="master-proyeccion-texto">
@@ -2287,6 +2826,523 @@ export function Sala({
             </div>
           </div>
 
+          {!ajuste && (
+            <div className="sala-hud-derecha" aria-label="Divisa y mochila">
+              <div className="hud-divisa-caja">
+                <span className="hud-divisa-titulo">{divisaNombre}</span>
+                <div className="hud-divisa-fila">
+                  <button
+                    type="button"
+                    className="hud-divisa-paso"
+                    onClick={() => modificarDivisa(-divisaPaso)}
+                    aria-label={`Restar ${divisaPaso} ${divisaNombre}`}
+                    title={`Restar ${divisaPaso}`}
+                  >
+                    <Minus size={13} strokeWidth={2.6} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`hud-divisa-centro${divisaAbierta ? " activo" : ""}`}
+                    onClick={() => {
+                      setMochilaAbierta(false);
+                      setDivisaAbierta(v => !v);
+                    }}
+                    title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
+                    aria-expanded={divisaAbierta}
+                  >
+                    <IconoMonedasPixel size={28} />
+                    <span className="hud-divisa-valor">
+                      {formatearDivisaCompacta(divisaActual)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="hud-divisa-paso"
+                    onClick={() => modificarDivisa(divisaPaso)}
+                    aria-label={`Sumar ${divisaPaso} ${divisaNombre}`}
+                    title={`Sumar ${divisaPaso}`}
+                  >
+                    <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`hud-mochila-btn${mochilaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setDivisaAbierta(false);
+                  setMochilaAbierta(v => !v);
+                }}
+                aria-expanded={mochilaAbierta}
+                title="Abrir mochila"
+              >
+                <IconoMochilaPixel size={30} />
+                <span className="hud-mochila-texto">Mochila</span>
+                {mochilaActual.length > 0 && (
+                  <span className="hud-mochila-badge">{mochilaActual.length}</span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {divisaAbierta && !ajuste && (
+            <div
+              className="divisa-popover"
+              role="dialog"
+              aria-label={`Gestionar ${divisaNombre}`}
+            >
+              <div className="dados-selector-cabecera">
+                <span>{divisaNombre}</span>
+                <button
+                  type="button"
+                  className="dados-cerrar"
+                  onClick={() => setDivisaAbierta(false)}
+                  aria-label="Cerrar panel de divisa"
+                >
+                  <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="divisa-exacto">
+                <IconoMonedasPixel size={22} />
+                <span>{divisaActual.toLocaleString("es-ES")}</span>
+              </div>
+
+              <div className="divisa-paso-row">
+                <span className="dados-campo-etiqueta">Paso +/-</span>
+                <div className="divisa-paso-btns">
+                  {([1, 10, 100] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`dado-tipo-btn${divisaPaso === p ? " activo" : ""}`}
+                      onClick={() => setDivisaPaso(p)}
+                    >
+                      x{p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="divisa-atajos">
+                {[-100, -10, 10, 100].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`divisa-atajo-btn${d < 0 ? " resta" : " suma"}`}
+                    onClick={() => modificarDivisa(d, true)}
+                  >
+                    {d > 0 ? `+${d}` : d}
+                  </button>
+                ))}
+              </div>
+
+              <form
+                className="divisa-custom-form"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const n = parseInt(divisaCustomTexto, 10);
+                  if (!Number.isNaN(n) && n > 0) {
+                    modificarDivisa(n, true);
+                    setDivisaCustomTexto("");
+                  }
+                }}
+              >
+                <input
+                  type="number"
+                  min={1}
+                  max={999_999_999}
+                  value={divisaCustomTexto}
+                  onChange={e => setDivisaCustomTexto(e.target.value)}
+                  placeholder="Cantidad..."
+                  aria-label="Cantidad personalizada"
+                />
+                <button
+                  type="button"
+                  className="divisa-emoji-btn resta"
+                  title="Restar cantidad"
+                  aria-label="Restar cantidad personalizada"
+                  onClick={() => {
+                    const n = parseInt(divisaCustomTexto, 10);
+                    if (!Number.isNaN(n) && n > 0) {
+                      modificarDivisa(-n, true);
+                      setDivisaCustomTexto("");
+                    }
+                  }}
+                >
+                  ➖
+                </button>
+                <button
+                  type="button"
+                  className="divisa-emoji-btn suma"
+                  title="Sumar cantidad"
+                  aria-label="Sumar cantidad personalizada"
+                  onClick={() => {
+                    const n = parseInt(divisaCustomTexto, 10);
+                    if (!Number.isNaN(n) && n > 0) {
+                      modificarDivisa(n, true);
+                      setDivisaCustomTexto("");
+                    }
+                  }}
+                >
+                  ➕
+                </button>
+              </form>
+
+              {esMaster && onCambiarDivisaNombre && (
+                <form
+                  className="divisa-master-nombre"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    void onCambiarDivisaNombre(divisaNombreEdit);
+                  }}
+                >
+                  <span className="dados-campo-etiqueta">Nombre (Máster)</span>
+                  <div className="divisa-master-nombre-fila">
+                    <input
+                      type="text"
+                      maxLength={24}
+                      value={divisaNombreEdit}
+                      onChange={e => setDivisaNombreEdit(e.target.value)}
+                      placeholder="Divisa, Oro, Créditos..."
+                    />
+                    <button type="submit" title="Guardar nombre" aria-label="Guardar nombre">
+                      <Check size={13} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
+          {mochilaAbierta && !ajuste && (
+            <div
+              className="mochila-backdrop"
+              onClick={() => setMochilaAbierta(false)}
+            >
+              <div
+                className="mochila-modal"
+                role="dialog"
+                aria-label="Mochila"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mochila-cabecera">
+                  <div className="mochila-titulo">
+                    <IconoMochilaPixel size={22} />
+                    <span>Mochila</span>
+                  </div>
+                  <div className="macros-cabecera-acciones">
+                    <button
+                      type="button"
+                      className="macros-crear-btn"
+                      onClick={() => {
+                        setCreandoObjeto(v => !v);
+                        setObjetoMochilaId(null);
+                      }}
+                    >
+                      <Plus size={12} strokeWidth={2.6} aria-hidden="true" />
+                      <span>{creandoObjeto ? "Volver" : "Nuevo"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dados-cerrar"
+                      onClick={() => setMochilaAbierta(false)}
+                      aria-label="Cerrar mochila"
+                    >
+                      <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {creandoObjeto ? (
+                  <form className="mochila-crear-form" onSubmit={crearObjetoMochila}>
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Nombre del objeto</span>
+                      <input
+                        type="text"
+                        maxLength={60}
+                        required
+                        value={nuevoObjNombre}
+                        onChange={e => setNuevoObjNombre(e.target.value)}
+                        placeholder="Ej. Poción curativa, Llave de hierro..."
+                        autoFocus
+                      />
+                    </label>
+
+                    <div className="mochila-crear-fila">
+                      <label className="macro-campo-nombre">
+                        <span className="dados-campo-etiqueta">Cantidad</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={9999}
+                          value={nuevoObjCantidad}
+                          onChange={e => {
+                            const v = parseInt(e.target.value, 10);
+                            setNuevoObjCantidad(Number.isNaN(v) ? 1 : limitar(v, 1, 9999));
+                          }}
+                        />
+                      </label>
+
+                      <div className="mochila-img-subida">
+                        <span className="dados-campo-etiqueta">Imagen (cuadrada)</span>
+                        <input
+                          ref={objetoImgInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/gif,image/webp"
+                          hidden
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) void subirImagenObjeto(f);
+                            e.target.value = "";
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="mochila-subir-btn"
+                          disabled={subiendoObjetoImg}
+                          onClick={() => objetoImgInputRef.current?.click()}
+                        >
+                          <Upload size={13} aria-hidden="true" />
+                          <span>
+                            {subiendoObjetoImg
+                              ? "Recortando..."
+                              : nuevoObjArchivo
+                                ? "Cambiar foto"
+                                : "Subir foto"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {!nuevoObjArchivo ? (
+                      <div className="mochila-emojis-grid" role="radiogroup" aria-label="Emoji del objeto">
+                        {EMOJIS_OBJETO_SUGERIDOS.map(em => (
+                          <button
+                            key={em}
+                            type="button"
+                            className={`mochila-emoji-btn${nuevoObjEmoji === em ? " activo" : ""}`}
+                            onClick={() => setNuevoObjEmoji(em)}
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mochila-preview-upload">
+                        <img
+                          src={
+                            nuevoObjArchivo.imagenLocal ??
+                            archivosApi.url(nuevoObjArchivo.archivoId ?? "")
+                          }
+                          alt="Vista previa"
+                        />
+                        <button
+                          type="button"
+                          className="mochila-quitar-img"
+                          onClick={() => setNuevoObjArchivo(null)}
+                        >
+                          Usar emoji en su lugar
+                        </button>
+                      </div>
+                    )}
+
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Descripción</span>
+                      <textarea
+                        rows={3}
+                        maxLength={1000}
+                        value={nuevoObjDesc}
+                        onChange={e => setNuevoObjDesc(e.target.value)}
+                        placeholder="Efecto, peso, notas..."
+                      />
+                    </label>
+
+                    <button type="submit" className="dados-lanzar">
+                      Guardar en mochila
+                    </button>
+                  </form>
+                ) : objetoSeleccionado ? (
+                  <div className="mochila-detalle">
+                    <div className="mochila-detalle-top">
+                      <button
+                        type="button"
+                        className="mochila-volver-btn"
+                        onClick={() => {
+                          setObjetoMochilaId(null);
+                          setPasandoObjetoId(null);
+                        }}
+                      >
+                        <ArrowLeft size={13} aria-hidden="true" />
+                        <span>Todos los objetos</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="mochila-eliminar-cruz"
+                        onClick={() => eliminarObjetoMochila(objetoSeleccionado.id)}
+                        title="Eliminar objeto de la mochila"
+                        aria-label="Eliminar objeto"
+                      >
+                        <X size={15} strokeWidth={2.6} aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <div className="mochila-detalle-cabecera">
+                      <div className="mochila-detalle-cuadro">
+                        {objetoSeleccionado.imagenLocal || objetoSeleccionado.archivoId ? (
+                          <img
+                            src={
+                              objetoSeleccionado.imagenLocal ??
+                              archivosApi.url(objetoSeleccionado.archivoId ?? "")
+                            }
+                            alt={objetoSeleccionado.nombre}
+                          />
+                        ) : (
+                          <span className="mochila-detalle-emoji">
+                            {objetoSeleccionado.emoji ?? "🎒"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mochila-detalle-info">
+                        <h3>{objetoSeleccionado.nombre}</h3>
+                        <label className="mochila-cantidad-edit">
+                          <span className="dados-campo-etiqueta">Cantidad</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={9999}
+                            value={objetoSeleccionado.cantidad}
+                            onChange={e => {
+                              const v = parseInt(e.target.value, 10);
+                              const cant = Number.isNaN(v) ? 1 : limitar(v, 1, 9999);
+                              actualizarListaMochila(prev =>
+                                prev.map(it =>
+                                  it.id === objetoSeleccionado.id
+                                    ? { ...it, cantidad: cant }
+                                    : it
+                                )
+                              );
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Descripción</span>
+                      <textarea
+                        rows={4}
+                        maxLength={1000}
+                        value={objetoSeleccionado.descripcion}
+                        onChange={e => {
+                          const desc = e.target.value;
+                          actualizarListaMochila(prev =>
+                            prev.map(it =>
+                              it.id === objetoSeleccionado.id
+                                ? { ...it, descripcion: desc }
+                                : it
+                            )
+                          );
+                        }}
+                        placeholder="Añade una descripción..."
+                      />
+                    </label>
+
+                    <div className="mochila-detalle-acciones">
+                      <button
+                        type="button"
+                        className="mochila-accion-sec"
+                        onClick={() => ponerObjetoEnMesa(objetoSeleccionado)}
+                      >
+                        Poner en mesa
+                      </button>
+                      <button
+                        type="button"
+                        className="mochila-accion-sec"
+                        onClick={() =>
+                          setPasandoObjetoId(p =>
+                            p === objetoSeleccionado.id ? null : objetoSeleccionado.id
+                          )
+                        }
+                      >
+                        Pasar a jugador
+                      </button>
+                    </div>
+
+                    {pasandoObjetoId === objetoSeleccionado.id && (
+                      <div className="mochila-destinos">
+                        {jugadores
+                          .filter(j => j.activo && j.id !== yoAsientoId)
+                          .map(j => (
+                            <button
+                              key={j.id}
+                              type="button"
+                              className="mochila-destino-chip"
+                              onClick={() => {
+                                if (onEnviarObjetoMochila) {
+                                  void onEnviarObjetoMochila(j, objetoSeleccionado, 1);
+                                } else {
+                                  mostrarAviso(
+                                    `${objetoSeleccionado.nombre} enviado a ${j.nombre}.`
+                                  );
+                                }
+                                setPasandoObjetoId(null);
+                              }}
+                            >
+                              {j.nombre}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="mochila-consumir-btn"
+                      onClick={() => consumirObjetoMochila(objetoSeleccionado.id)}
+                    >
+                      Consumir (-1)
+                    </button>
+                  </div>
+                ) : mochilaActual.length === 0 ? (
+                  <p className="macros-vacio">
+                    Tu mochila está vacía. Pulsa <strong>+ Nuevo</strong> para añadir objetos o sube una imagen cuadrada.
+                  </p>
+                ) : (
+                  <div className="mochila-grid">
+                    {mochilaActual.map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="mochila-slot"
+                        title={`${item.nombre} (x${item.cantidad}) — Arrastra a la mesa o pulsa para ver`}
+                        onPointerDown={e => iniciarMochilaObjeto(e, item)}
+                        onClick={() => {
+                          if (!arrastre.current) {
+                            setObjetoMochilaId(item.id);
+                          }
+                        }}
+                      >
+                        {item.imagenLocal || item.archivoId ? (
+                          <img
+                            src={
+                              item.imagenLocal ?? archivosApi.url(item.archivoId ?? "")
+                            }
+                            alt={item.nombre}
+                            draggable={false}
+                          />
+                        ) : (
+                          <span className="mochila-slot-emoji">{item.emoji ?? "🎒"}</span>
+                        )}
+                        <span className="mochila-slot-cant">{item.cantidad}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {ajuste && (
             <div className="ajuste-panel">
               <p>
@@ -2311,7 +3367,7 @@ export function Sala({
 
           {selectorAbierto && !ajuste && (
             <form
-              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}`}
+              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}${tiradaSecreta ? " secreta" : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
               onSubmit={evento => {
                 evento.preventDefault();
@@ -2417,24 +3473,35 @@ export function Sala({
                 <span>Tirada compuesta</span>
               </button>
 
-              {esMaster && (
-                <button
-                  type="button"
-                  className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => setTiradaSecreta(s => !s)}
-                  aria-pressed={tiradaSecreta}
-                >
-                  <span className="dados-secreto-punto" aria-hidden="true" />
-                  <span>Dados negros (solo Máster)</span>
-                </button>
-              )}
+              <button
+                type="button"
+                className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
+                onClick={() => setTiradaSecreta(s => !s)}
+                aria-pressed={tiradaSecreta}
+              >
+                {esMaster ? (
+                  <>
+                    <span className="dados-secreto-punto" aria-hidden="true" />
+                    <span>Dados negros (solo Máster)</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Solo para el Máster (susurro)</span>
+                  </>
+                )}
+              </button>
 
               <button
                 type="submit"
-                className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
                 disabled={tirando}
               >
-                {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                {tiradaSecreta
+                  ? esMaster
+                    ? "Tirar en secreto "
+                    : "Tirar al Máster "
+                  : "Tirar "}
                 {formatearFormulaCompuesta(
                   [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
                   bonificador
@@ -2586,24 +3653,35 @@ export function Sala({
                   </div>
                 </div>
 
-                {esMaster && (
-                  <button
-                    type="button"
-                    className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
-                    onClick={() => setTiradaSecreta(s => !s)}
-                    aria-pressed={tiradaSecreta}
-                  >
-                    <span className="dados-secreto-punto" aria-hidden="true" />
-                    <span>Dados negros (solo Máster)</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => setTiradaSecreta(s => !s)}
+                  aria-pressed={tiradaSecreta}
+                >
+                  {esMaster ? (
+                    <>
+                      <span className="dados-secreto-punto" aria-hidden="true" />
+                      <span>Dados negros (solo Máster)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                      <span>Solo para el Máster (susurro)</span>
+                    </>
+                  )}
+                </button>
 
                 <button
                   type="submit"
-                  className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                  className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
                   disabled={tirando}
                 >
-                  {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                  {tiradaSecreta
+                    ? esMaster
+                      ? "Tirar en secreto "
+                      : "Tirar al Máster "
+                    : "Tirar "}
                   {formatearFormulaCompuesta(gruposCompuesta, bonificadorCompuesta)}
                 </button>
               </form>
@@ -2612,7 +3690,7 @@ export function Sala({
 
           {macrosAbierto && !ajuste && (
             <div
-              className={`dados-selector macros-selector${calibracion.dock.y < 30 ? " debajo" : ""}${esMaster && macroSecreta ? " secreto" : ""}`}
+              className={`dados-selector macros-selector${calibracion.dock.y < 30 ? " debajo" : ""}${macroSecreta ? " secreta" : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
               role="dialog"
               aria-label="Macros de tirada"
@@ -2639,17 +3717,24 @@ export function Sala({
                 </div>
               </div>
 
-              {esMaster && (
-                <button
-                  type="button"
-                  className={`dados-secreto-toggle${macroSecreta ? " activo" : ""}`}
-                  onClick={() => setMacroSecreta(s => !s)}
-                  aria-pressed={macroSecreta}
-                >
-                  <span className="dados-secreto-punto" aria-hidden="true" />
-                  <span>Tirada secreta (solo Máster)</span>
-                </button>
-              )}
+              <button
+                type="button"
+                className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${macroSecreta ? " activo" : ""}`}
+                onClick={() => setMacroSecreta(s => !s)}
+                aria-pressed={macroSecreta}
+              >
+                {esMaster ? (
+                  <>
+                    <span className="dados-secreto-punto" aria-hidden="true" />
+                    <span>Tirada secreta (solo Máster)</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Solo para el Máster (susurro)</span>
+                  </>
+                )}
+              </button>
 
               {macrosLista.length > 6 && (
                 <div className="macros-buscador">
@@ -3130,6 +4215,32 @@ export function Sala({
                   </div>
                 );
               })}
+
+              {objetosVisibles.map(obj => (
+                <div
+                  key={obj.id}
+                  className="mesa-objeto"
+                  style={{ left: `${obj.x}%`, top: `${obj.y}%` }}
+                  title={`${obj.nombre} (x${obj.cantidad})`}
+                  onPointerDown={evento => iniciarObjetoMesa(evento, obj)}
+                  onClick={() => {
+                    if (!arrastreDocMovido.current) {
+                      setObjetoMesaActivo(obj);
+                    }
+                  }}
+                >
+                  {obj.imagenLocal || obj.archivoId ? (
+                    <img
+                      src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
+                      alt={obj.nombre}
+                      draggable={false}
+                    />
+                  ) : (
+                    <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+                  )}
+                  <span className="mochila-slot-cant">{obj.cantidad}</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -3178,7 +4289,7 @@ export function Sala({
               <span className="dock-etiqueta">Macros</span>
             </div>
 
-            {esMaster && (
+            {esMaster ? (
               <div className="dock-item">
                 <button
                   type="button"
@@ -3199,6 +4310,28 @@ export function Sala({
                   <IconoD20 />
                 </button>
                 <span className="dock-etiqueta">Secreto</span>
+              </div>
+            ) : (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => {
+                    setMacrosAbierto(false);
+                    if (selectorAbierto && tiradaSecreta) {
+                      setSelectorAbierto(false);
+                    } else {
+                      setTiradaSecreta(true);
+                      setSelectorAbierto(true);
+                    }
+                  }}
+                  aria-expanded={selectorAbierto && tiradaSecreta}
+                  title="Tirada solo para el Máster (susurro privado)"
+                  aria-label="Tirada solo para el Máster"
+                >
+                  <Moon size={18} strokeWidth={2.1} aria-hidden="true" />
+                </button>
+                <span className="dock-etiqueta">Al Máster</span>
               </div>
             )}
 
@@ -3533,6 +4666,15 @@ export function Sala({
               «{solicitudPendiente.textoPosit}»
             </p>
           )}
+          {solicitudPendiente.tipo === "objeto" && solicitudPendiente.objeto && (
+            <p className="transferencia-preview-posit">
+              {solicitudPendiente.objeto.emoji ? `${solicitudPendiente.objeto.emoji} ` : ""}
+              {solicitudPendiente.objeto.nombre}
+              {solicitudPendiente.objeto.cantidad > 1
+                ? ` (x${solicitudPendiente.objeto.cantidad})`
+                : ""}
+            </p>
+          )}
           <div className="transferencia-acciones">
             <button
               type="button"
@@ -3548,6 +4690,70 @@ export function Sala({
             >
               Aceptar
             </button>
+          </div>
+        </div>
+      )}
+
+      {objetoMesaActivo && (
+        <div className="archivo-visor" onClick={() => setObjetoMesaActivo(null)}>
+          <div
+            className="archivo-visor-caja mochila-mesa-visor"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="archivo-visor-cabecera">
+              <span className="archivo-visor-nombre">
+                {objetoMesaActivo.nombre} (x{objetoMesaActivo.cantidad})
+              </span>
+              <button
+                type="button"
+                className="archivo-visor-cerrar"
+                onClick={() => setObjetoMesaActivo(null)}
+                aria-label="Cerrar objeto"
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
+            </header>
+            <div className="mochila-mesa-cuerpo">
+              <div className="mochila-detalle-cuadro">
+                {objetoMesaActivo.imagenLocal || objetoMesaActivo.archivoId ? (
+                  <img
+                    src={
+                      objetoMesaActivo.imagenLocal ??
+                      archivosApi.url(objetoMesaActivo.archivoId ?? "")
+                    }
+                    alt={objetoMesaActivo.nombre}
+                  />
+                ) : (
+                  <span className="mochila-detalle-emoji">
+                    {objetoMesaActivo.emoji ?? "🎒"}
+                  </span>
+                )}
+              </div>
+              {objetoMesaActivo.descripcion && (
+                <p className="mochila-mesa-desc">{objetoMesaActivo.descripcion}</p>
+              )}
+              <div className="mochila-detalle-acciones">
+                <button
+                  type="button"
+                  className="mochila-accion-sec"
+                  onClick={() => guardarObjetoMesaEnMochila(objetoMesaActivo)}
+                >
+                  Guardar en mochila
+                </button>
+                <button
+                  type="button"
+                  className="transferencia-btn-rechazar"
+                  onClick={() => {
+                    onElementosMesa?.(prev =>
+                      prev.filter(el => el.id !== objetoMesaActivo.id)
+                    );
+                    setObjetoMesaActivo(null);
+                  }}
+                >
+                  Quitar de mesa
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -3614,6 +4820,12 @@ export function Sala({
                     );
                   }}
                 />
+              ) : itemAbierto.tipo === "objeto" ? (
+                <div className="mochila-mesa-cuerpo">
+                  <p className="mochila-mesa-desc">
+                    {itemAbierto.descripcion || itemAbierto.nombre}
+                  </p>
+                </div>
               ) : itemAbierto.vista === "imagen" ? (
                 <img
                   src={

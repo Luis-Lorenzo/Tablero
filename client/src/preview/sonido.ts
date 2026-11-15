@@ -109,3 +109,49 @@ export function reproducirSonidoPing(): void {
     // Ignorar si el navegador bloquea audio.
   }
 }
+
+/**
+ * Reproduce un sonido breve de monedas metálicas amontonándose al cambiar la divisa.
+ */
+export function reproducirSonidoMonedas(): void {
+  if (estaSonidoSilenciado()) return;
+
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const ahora = ctx.currentTime;
+    const golpes = [
+      { t: 0, f1: 1960, f2: 2637 },
+      { t: 0.055, f1: 2217, f2: 2960 },
+      { t: 0.115, f1: 2489, f2: 3322 }
+    ];
+
+    for (const g of golpes) {
+      const osc = ctx.createOscillator();
+      const ganancia = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(g.f1, ahora + g.t);
+      osc.frequency.exponentialRampToValueAtTime(g.f2, ahora + g.t + 0.045);
+
+      ganancia.gain.setValueAtTime(0.001, ahora + g.t);
+      ganancia.gain.exponentialRampToValueAtTime(0.055, ahora + g.t + 0.01);
+      ganancia.gain.exponentialRampToValueAtTime(0.001, ahora + g.t + 0.09);
+
+      osc.connect(ganancia);
+      ganancia.connect(ctx.destination);
+      osc.start(ahora + g.t);
+      osc.stop(ahora + g.t + 0.11);
+    }
+
+    window.setTimeout(() => {
+      void ctx.close().catch(() => undefined);
+    }, 360);
+  } catch {
+    // Silencioso si el navegador bloquea el audio.
+  }
+}

@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type {
   ArchivoTransferidoMeta,
+  ObjetoTransferido,
   PositTransferido,
   Transferencia,
   TransferenciaRepository
@@ -37,6 +38,14 @@ function rowToTransferencia(row: TransferenciaRow): Transferencia {
     };
   }
 
+  if (row.tipo === "objeto") {
+    return {
+      ...base,
+      tipo: "objeto",
+      objeto: row.payload as ObjetoTransferido
+    };
+  }
+
   return {
     ...base,
     tipo: "posit",
@@ -49,7 +58,11 @@ export class PgTransferenciaRepository implements TransferenciaRepository {
 
   async create(transferencia: Transferencia): Promise<void> {
     const payload =
-      transferencia.tipo === "archivo" ? transferencia.archivo : transferencia.posit;
+      transferencia.tipo === "archivo"
+        ? transferencia.archivo
+        : transferencia.tipo === "objeto"
+          ? transferencia.objeto
+          : transferencia.posit;
 
     await this.pool.query(
       `INSERT INTO transferencias (

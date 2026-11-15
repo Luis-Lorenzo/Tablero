@@ -7,6 +7,7 @@ import type { Mesa, MesaRepository } from "../repositories/mesa.repository.js";
 import {
   MemoryTransferenciaRepository,
   type ArchivoTransferidoMeta,
+  type ObjetoTransferido,
   type PositTransferido,
   type Transferencia,
   type TransferenciaRepository
@@ -14,7 +15,12 @@ import {
 import { nombreDeUsuario, type User } from "../repositories/user.repository.js";
 import type { ArchivoService } from "./archivo.service.js";
 
-export type { ArchivoTransferidoMeta, PositTransferido, Transferencia };
+export type {
+  ArchivoTransferidoMeta,
+  ObjetoTransferido,
+  PositTransferido,
+  Transferencia
+};
 
 export type EntradaTransferencia =
   | {
@@ -26,6 +32,11 @@ export type EntradaTransferencia =
       receptorId: string;
       tipo: "archivo";
       archivoId: string;
+    }
+  | {
+      receptorId: string;
+      tipo: "objeto";
+      objeto: ObjetoTransferido;
     };
 
 export type ResultadoAceptacion =
@@ -38,6 +49,11 @@ export type ResultadoAceptacion =
       transferencia: Transferencia;
       tipo: "archivo";
       archivo: Archivo;
+    }
+  | {
+      transferencia: Transferencia;
+      tipo: "objeto";
+      objeto: ObjetoTransferido;
     };
 
 function esMiembroDeMesa(mesa: Mesa, userId: string): boolean {
@@ -119,6 +135,48 @@ export class TransferenciaService {
         },
         createdAt
       };
+    } else if (entrada.tipo === "objeto") {
+      const nombre = String(entrada.objeto?.nombre ?? "").trim().slice(0, 60);
+      if (!nombre) throw errors.invalidRequest();
+      const descripcion = String(entrada.objeto?.descripcion ?? "").slice(0, 1000);
+      const cantidadBruta =
+        typeof entrada.objeto?.cantidad === "number" && Number.isFinite(entrada.objeto.cantidad)
+          ? Math.trunc(entrada.objeto.cantidad)
+          : 1;
+      const cantidad = Math.max(1, Math.min(9999, cantidadBruta));
+      const emoji =
+        typeof entrada.objeto?.emoji === "string" && entrada.objeto.emoji.trim()
+          ? entrada.objeto.emoji.trim().slice(0, 16)
+          : undefined;
+      const idOrigen =
+        typeof entrada.objeto?.idOrigen === "string" && entrada.objeto.idOrigen.trim()
+          ? entrada.objeto.idOrigen.trim().slice(0, 80)
+          : undefined;
+      let archivoId: string | undefined;
+      let archivoNombre: string | undefined;
+      if (typeof entrada.objeto?.archivoId === "string" && entrada.objeto.archivoId.trim()) {
+        const archivo = await this.archivos.obtenerMetadatos(emisor, entrada.objeto.archivoId);
+        archivoId = archivo.id;
+        archivoNombre = archivo.nombre;
+      }
+      transferencia = {
+        id,
+        mesaId,
+        emisorId: emisor.id,
+        emisorNombre,
+        receptorId: entrada.receptorId,
+        tipo: "objeto",
+        objeto: {
+          ...(idOrigen ? { idOrigen } : {}),
+          nombre,
+          descripcion,
+          cantidad,
+          ...(emoji ? { emoji } : {}),
+          ...(archivoId ? { archivoId } : {}),
+          ...(archivoNombre ? { archivoNombre } : {})
+        },
+        createdAt
+      };
     } else {
       throw errors.invalidRequest();
     }
@@ -181,6 +239,34 @@ export class TransferenciaService {
         archivoCopiaId: archivo.id
       });
       return { transferencia, tipo: "archivo", archivo };
+    }
+
+    if (transferencia.tipo === "objeto") {
+      let objetoFinal = { ...transferencia.objeto };
+      if (transferencia.objeto.archivoId) {
+        try {
+          const archivo = await this.archivos.clonarPara(
+            transferencia.emisorId,
+            transferencia.objeto.archivoId,
+            actor
+          );
+          objetoFinal = {
+            ...objetoFinal,
+            archivoId: archivo.id,
+            archivoNombre: archivo.nombre
+          };
+        } catch {
+          // Si el archivo origen ya no existiera, conserva los datos básicos del objeto.
+        }
+      }
+      await this.transferencias.deleteById(transferenciaId);
+      this.logger.info("Transferencia de objeto aceptada", {
+        transferenciaId,
+        mesaId,
+        receptorId: actor.id,
+        nombre: objetoFinal.nombre
+      });
+      return { transferencia, tipo: "objeto", objeto: objetoFinal };
     }
 
     await this.transferencias.deleteById(transferenciaId);

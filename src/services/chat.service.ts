@@ -29,6 +29,7 @@ export interface EventoTirada {
   bonificador: number;
   caras?: number;
   especial: TipoEspecialTirada;
+  soloMaster?: boolean;
   createdAt: string;
 }
 
@@ -40,6 +41,7 @@ export interface DatosTirada {
   caras?: number;
   especial?: TipoEspecialTirada;
   secreta?: boolean;
+  soloMaster?: boolean;
 }
 
 function resolverEspecial(datos: DatosTirada): TipoEspecialTirada {
@@ -175,10 +177,15 @@ export class ChatService {
         ? { caras: datos.caras }
         : {}),
       especial: resolverEspecial(datos),
+      ...(datos.soloMaster ? { soloMaster: true } : {}),
       createdAt: new Date().toISOString()
     };
 
-    return { tirada, destinatarios: miembrosDe(mesa) };
+    const destinatarios = datos.soloMaster
+      ? Array.from(new Set([actor.id, mesa.hostId]))
+      : miembrosDe(mesa);
+
+    return { tirada, destinatarios };
   }
 
   private async obtenerMesaComoMiembro(actor: User, mesaId: string): Promise<Mesa> {

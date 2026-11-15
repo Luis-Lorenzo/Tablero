@@ -38,6 +38,12 @@ export function mensajeSolicitudTransferencia(
     return `${solicitud.emisorNombre} quiere pasarte nota`;
   }
 
+  if (solicitud.tipo === "objeto") {
+    const obj = solicitud.objeto;
+    const cant = obj && obj.cantidad > 1 ? ` x${obj.cantidad}` : "";
+    return `${solicitud.emisorNombre} quiere pasarte ${obj?.nombre ?? "un objeto"}${cant}`;
+  }
+
   const nombre = solicitud.nombreArchivo ?? "archivo";
   const corto = tipoCortoArchivo(solicitud.mimeArchivo ?? "", nombre);
   return `${solicitud.emisorNombre} quiere pasarte ${nombre} (${corto})`;
