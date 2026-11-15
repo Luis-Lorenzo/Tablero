@@ -2609,7 +2609,7 @@
 
 .transferencia-dialogo {
   position: fixed;
-  z-index: 35;
+  z-index: 80;
   left: 50%;
   top: 76px;
   transform: translateX(-50%);

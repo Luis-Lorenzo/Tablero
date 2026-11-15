@@ -1006,6 +1006,7 @@ export function Sala({
         const etiqueta = `${actual.objeto.emoji ? `${actual.objeto.emoji} ` : ""}${actual.objeto.nombre}`;
         setFantasma({ x: evento.clientX, y: evento.clientY, etiqueta });
         setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
 
@@ -1209,15 +1210,19 @@ export function Sala({
       if (actual.tipo === "mochila-objeto") {
         if (!actual.movido) return;
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
-        const destino = destinoId
-          ? jugadoresRef.current.find(j => j.id === destinoId)
-          : null;
+        const destino =
+          (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+          (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
         if (destino) {
           if (onEnviarObjetoMochilaRef.current) {
             void onEnviarObjetoMochilaRef.current(destino, actual.objeto, 1);
           } else {
             mostrarAviso(`Objeto ${actual.objeto.nombre} pasado a ${destino.nombre}.`);
           }
+          return;
+        }
+        if (enDropzone) {
+          mostrarAviso("Elige primero un jugador para enviarle el objeto.");
           return;
         }
 
@@ -1265,8 +1270,10 @@ export function Sala({
       if (actual.tipo === "objeto-mesa") {
         if (!actual.movido) return;
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
-        if (destinoId) {
-          const destino = jugadoresRef.current.find(j => j.id === destinoId);
+        if (destinoId || enDropzone) {
+          const destino =
+            (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+            (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
           const item = elementosMesaRef.current.find(el => el.id === actual.id);
           if (destino && item && item.tipo === "objeto") {
             onElementosMesaRef.current?.(prev =>
@@ -1277,6 +1284,8 @@ export function Sala({
               )
             );
             void onEnviarElementoRef.current?.(destino, item);
+          } else if (enDropzone && !destino) {
+            mostrarAviso("Elige primero un jugador para enviarle el objeto.");
           }
         }
         return;
@@ -4619,6 +4628,52 @@ export function Sala({
                   ? `Arrastra aquí un posit, documento o archivo para ${jugadorSeleccionado.nombre}`
                   : "Elige un jugador arriba y arrastra aquí un posit, documento o archivo"}
             </span>
+          </div>
+
+          <div className="compartir-seccion">
+            <span className="compartir-subtitulo">Objetos de tu mochila</span>
+            {mochilaActual.length === 0 ? (
+              <span className="compartir-subtitulo">
+                No tienes objetos en tu mochila todavía.
+              </span>
+            ) : (
+              <ul className="compartir-lista">
+                {mochilaActual.map(obj => (
+                  <li key={obj.id} className="compartir-item">
+                    <div
+                      className="compartir-item-arrastre"
+                      onPointerDown={e => iniciarMochilaObjeto(e, obj)}
+                      title="Arrastra hacia el círculo de un jugador o al recuadro"
+                    >
+                      <span className="mesa-elemento-badge">
+                        {obj.emoji ?? "🎒"}
+                      </span>
+                      <span className="compartir-item-nombre">
+                        {obj.nombre}
+                        {obj.cantidad > 1 ? ` (x${obj.cantidad})` : ""}
+                      </span>
+                    </div>
+                    {jugadorSeleccionado && (
+                      <button
+                        type="button"
+                        className="compartir-btn-sec"
+                        onClick={() => {
+                          if (onEnviarObjetoMochila) {
+                            void onEnviarObjetoMochila(jugadorSeleccionado, obj, 1);
+                          } else {
+                            mostrarAviso(
+                              `${obj.nombre} enviado a ${jugadorSeleccionado.nombre}.`
+                            );
+                          }
+                        }}
+                      >
+                        Enviar
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="compartir-seccion">

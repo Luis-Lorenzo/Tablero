@@ -492,19 +492,34 @@ function SalaRealContent({
 
   useEffect(() => {
     let activo = true;
-    void mesasApi
-      .pendientesCompartir(mesa.id)
-      .then(lista => {
-        if (!activo || lista.length === 0) return;
-        setColaSolicitudes(prev => {
-          const existentes = new Set(prev.map(s => s.id));
-          const nuevas = lista
-            .filter(t => !existentes.has(t.id))
-            .map(aSolicitudCliente);
-          return nuevas.length > 0 ? [...prev, ...nuevas] : prev;
-        });
-      })
-      .catch(() => undefined);
+    const sincronizarPendientes = () => {
+      void mesasApi
+        .pendientesCompartir(mesa.id)
+        .then(lista => {
+          if (!activo) return;
+          setColaSolicitudes(prev => {
+            const idsActivos = new Set(lista.map(t => t.id));
+            const filtrada = prev.filter(s => idsActivos.has(s.id));
+            const existentes = new Set(filtrada.map(s => s.id));
+            const nuevas = lista
+              .filter(t => !existentes.has(t.id))
+              .map(aSolicitudCliente);
+            if (nuevas.length === 0 && filtrada.length === prev.length) return prev;
+            return [...filtrada, ...nuevas];
+          });
+        })
+        .catch(() => undefined);
+    };
+
+    sincronizarPendientes();
+    const intervalo = window.setInterval(sincronizarPendientes, 4000);
+    const alEnfocar = () => {
+      if (document.visibilityState !== "hidden") {
+        sincronizarPendientes();
+      }
+    };
+    window.addEventListener("focus", alEnfocar);
+    document.addEventListener("visibilitychange", alEnfocar);
 
     void archivosApi
       .listar()
@@ -515,6 +530,9 @@ function SalaRealContent({
 
     return () => {
       activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", alEnfocar);
+      document.removeEventListener("visibilitychange", alEnfocar);
     };
   }, [mesa.id]);
 
