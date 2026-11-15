@@ -126,5 +126,13 @@ export const mesasApi = {
     http.post<PublicMesa>(`/api/mesas/${id}/proyeccion`, {
       archivoId,
       titulo: titulo ?? null
-    })
+    }),
+
+  /** Carga los elementos en mesa del jugador actual en esta mesa. */
+  obtenerEstado: (id: string) =>
+    http.get<{ elementos: unknown[] }>(`/api/mesas/${id}/estado`),
+
+  /** Guarda los elementos en mesa del jugador actual en esta mesa. */
+  guardarEstado: (id: string, elementos: unknown[]) =>
+    http.patch<void>(`/api/mesas/${id}/estado`, { elementos })
 };

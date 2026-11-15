@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ListChecks, ShieldAlert } from "lucide-react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
@@ -36,6 +36,8 @@ function App() {
   const [miMesa, setMiMesa] = useState<PublicMesa | null>(null);
   /** Mesa abierta en la sala real (la partida empezada). */
   const [salaMesa, setSalaMesa] = useState<PublicMesa | null>(null);
+  /** Mesa de la que el usuario salió manualmente para no forzarle a volver. */
+  const salidaManualMesaIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     authApi
@@ -50,20 +52,24 @@ function App() {
     try {
       const mesa = await mesasApi.mia();
       if (mesa && mesa.estado === "EN_CURSO") {
-        setSalaMesa(mesa);
-        setView("sala");
         setMiMesa(mesa);
+        if (mesa.id !== salidaManualMesaIdRef.current) {
+          setSalaMesa(mesa);
+          setView("sala");
+        }
         return;
       }
 
       const pendiente = await mesasApi.pendiente();
       const candidatos = [mesa, pendiente].filter(Boolean) as PublicMesa[];
-      for (const candidata of candidatos) {
-        if (candidata.estado === "EN_CURSO") {
-          setSalaMesa(candidata);
+      const enCurso = candidatos.find(candidata => candidata.estado === "EN_CURSO");
+      if (enCurso) {
+        if (enCurso.id !== salidaManualMesaIdRef.current) {
+          setSalaMesa(enCurso);
           setView("sala");
-          break;
         }
+      } else {
+        salidaManualMesaIdRef.current = null;
       }
     } catch {
       // Ignorar: la vista de recepción seguirá funcionando.
@@ -88,6 +94,7 @@ function App() {
     } catch {
       // Ignoramos el error: la sesión local se descarta igualmente.
     }
+    salidaManualMesaIdRef.current = null;
     setUser(null);
     setView("recepcion");
     setSalaMesa(null);
@@ -100,18 +107,24 @@ function App() {
   }, []);
 
   const abrirSala = useCallback((mesa: PublicMesa) => {
+    salidaManualMesaIdRef.current = null;
     setSalaMesa(mesa);
     setView("sala");
   }, []);
 
   const volverRecpcion = useCallback(() => {
+    salidaManualMesaIdRef.current = salaMesa?.id ?? null;
+    setSalaMesa(null);
     setView("recepcion");
     void refrescarMiSala();
-  }, [refrescarMiSala]);
+  }, [refrescarMiSala, salaMesa]);
 
   const handleMiMesa = useCallback((mesa: PublicMesa | null) => {
     setMiMesa(mesa);
-    if (mesa?.estado === "EN_CURSO") {
+    if (
+      mesa?.estado === "EN_CURSO" &&
+      mesa.id !== salidaManualMesaIdRef.current
+    ) {
       setSalaMesa(mesa);
       setView("sala");
     }

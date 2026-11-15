@@ -26,15 +26,13 @@ import {
 } from "./calibracion";
 import type {
   DocumentoMesa,
-  ImagenEscenaPreview,
-  PositPreview
+  ElementoMesa,
+  ImagenEscenaPreview
 } from "./tipos";
 
 interface ArchivadorProps {
-  posits: PositPreview[];
-  onPosits: Dispatch<SetStateAction<PositPreview[]>>;
-  documentosMesa: DocumentoMesa[];
-  onDocumentosMesa: Dispatch<SetStateAction<DocumentoMesa[]>>;
+  elementosMesa: ElementoMesa[];
+  onElementosMesa: Dispatch<SetStateAction<ElementoMesa[]>>;
   onVolver: () => void;
   esMaster?: boolean;
   imagenEscena?: ImagenEscenaPreview | null;
@@ -674,10 +672,8 @@ export function PanelImagenesMasterModal({
 }
 
 export function Archivador({
-  posits,
-  onPosits,
-  documentosMesa,
-  onDocumentosMesa,
+  elementosMesa,
+  onElementosMesa,
   onVolver,
   esMaster,
   imagenEscena,
@@ -698,12 +694,14 @@ export function Archivador({
       setArchivos(lista);
       setError(null);
       const ids = new Set(lista.map(archivo => archivo.id));
-      onDocumentosMesa(prev => {
-        const filtrados = prev.filter(doc => ids.has(doc.id));
+      onElementosMesa(prev => {
+        const filtrados = prev.filter(
+          el => el.tipo !== "archivo" || ids.has(el.archivoId)
+        );
         return filtrados.length === prev.length ? prev : filtrados;
       });
     },
-    [onDocumentosMesa]
+    [onElementosMesa]
   );
 
   const cargarArchivos = useCallback(async () => {
@@ -767,48 +765,75 @@ export function Archivador({
   }
 
   function desarchivarPosit(id: string): void {
-    onPosits(prev =>
-      prev.map(posit =>
-        posit.id === id ? { ...posit, archivado: false } : posit
+    onElementosMesa(prev =>
+      prev.map(el =>
+        el.id === id ? { ...el, archivado: false } : el
       )
     );
   }
 
   function borrarPosit(id: string): void {
-    onPosits(prev => prev.filter(posit => posit.id !== id));
+    onElementosMesa(prev => prev.filter(el => el.id !== id));
   }
 
-  function desarchivarDocumento(archivo: PublicArchivo): void {
-    const desplazamiento = (documentosMesa.length % 5) * 3;
-    const docMesa: DocumentoMesa = {
-      id: archivo.id,
-      nombre: archivo.nombre,
-      tipo: archivo.tipo,
-      vista: archivo.vista,
-      tamano: archivo.tamano,
-      x: Math.min(90, Math.max(10, 74 - desplazamiento)),
-      y: Math.min(86, Math.max(14, 34 + desplazamiento))
-    };
+  const archivosEnMesa = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
+      el.tipo === "archivo" && !el.archivado
+  );
 
-    onDocumentosMesa(prev =>
-      prev.some(doc => doc.id === archivo.id) ? prev : [...prev, docMesa]
-    );
+  function desarchivarDocumento(archivo: PublicArchivo): void {
+    const desplazamiento = (archivosEnMesa.length % 5) * 3;
+    const x = Math.min(90, Math.max(10, 74 - desplazamiento));
+    const y = Math.min(86, Math.max(14, 34 + desplazamiento));
+
+    onElementosMesa(prev => {
+      const existente = prev.find(
+        el => el.tipo === "archivo" && el.archivoId === archivo.id
+      );
+      if (existente) {
+        if (!existente.archivado) return prev;
+        return prev.map(el =>
+          el.id === existente.id ? { ...el, archivado: false, x, y } : el
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: archivo.id,
+          tipo: "archivo",
+          archivoId: archivo.id,
+          nombre: archivo.nombre,
+          mime: archivo.tipo,
+          vista: archivo.vista,
+          tamano: archivo.tamano,
+          x,
+          y
+        }
+      ];
+    });
   }
 
   async function borrarArchivo(archivo: PublicArchivo): Promise<void> {
     try {
       await archivosApi.borrar(archivo.id);
       if (visor?.id === archivo.id) setVisor(null);
-      onDocumentosMesa(prev => prev.filter(doc => doc.id !== archivo.id));
+      onElementosMesa(prev =>
+        prev.filter(
+          el => !(el.tipo === "archivo" && el.archivoId === archivo.id)
+        )
+      );
       await cargarArchivos();
     } catch (fallo) {
       setError(describeError(fallo));
     }
   }
 
-  const positsArchivados = posits.filter(posit => posit.archivado);
+  const positsArchivados = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+      el.tipo === "posit" && Boolean(el.archivado)
+  );
   const archivosArchivados = archivos.filter(
-    archivo => !documentosMesa.some(doc => doc.id === archivo.id)
+    archivo => !archivosEnMesa.some(doc => doc.archivoId === archivo.id)
   );
 
   return (

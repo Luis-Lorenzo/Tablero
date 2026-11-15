@@ -7,6 +7,10 @@ import {
 } from "./serializers.js";
 import { errors } from "../lib/errors.js";
 import { nombreDeUsuario } from "../repositories/user.repository.js";
+import {
+  MemoryMesaEstadoRepository,
+  sanitizarElementosMesa
+} from "../repositories/mesa-estado.repository.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
 
 function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
@@ -24,6 +28,8 @@ function leerImagenBody(body: unknown): { id: string; titulo: string | null } | 
 
 export function createMesaRouter(context: AppContext, requireAuth: RequestHandler): Router {
   const router = Router();
+  const mesaEstado =
+    context.mesaEstadoRepository ?? new MemoryMesaEstadoRepository();
   const transferencias =
     context.transferenciaService ??
     new TransferenciaService(
@@ -438,6 +444,51 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         roll: resultado.tirada
       });
       res.status(201).json(resultado.tirada);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:id/estado", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actorId = req.currentUser!.id;
+      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+        throw errors.forbidden();
+      }
+
+      const elementos = await mesaEstado.getElementos(mesaId, actorId);
+      res.json({ elementos });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/estado", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actorId = req.currentUser!.id;
+      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as { elementos?: unknown };
+      if (!Array.isArray(body.elementos)) {
+        throw errors.invalidRequest();
+      }
+
+      await mesaEstado.saveElementos(
+        mesaId,
+        actorId,
+        sanitizarElementosMesa(body.elementos)
+      );
+      res.status(204).end();
     } catch (error) {
       next(error);
     }

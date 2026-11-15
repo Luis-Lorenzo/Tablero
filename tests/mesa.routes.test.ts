@@ -445,4 +445,42 @@ describe("rutas de /api/mesas", () => {
     expect(retirarProyeccion.status).toBe(200);
     expect(retirarProyeccion.body.imagenProyectada).toBeNull();
   });
+
+  it("persiste elementos en mesa por usuario y sanea contenidoLocal", async () => {
+    await aprobar("ajena-estado@pocket.test");
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieAjena = await sesionDe("ajena-estado@pocket.test");
+
+    const creada = await request(app).post("/api/mesas").set("Cookie", cookieAnfitrion);
+    const mesaId = creada.body.id as string;
+
+    const guardar = await request(app)
+      .patch(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieAnfitrion)
+      .send({
+        elementos: [
+          {
+            id: "el-1",
+            tipo: "archivo",
+            archivoId: "abc",
+            nombre: "mapa.png",
+            contenidoLocal: "data:image/png;base64,SECRET"
+          }
+        ]
+      });
+    expect(guardar.status).toBe(204);
+
+    const obtener = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieAnfitrion);
+    expect(obtener.status).toBe(200);
+    expect(obtener.body.elementos).toEqual([
+      { id: "el-1", tipo: "archivo", archivoId: "abc", nombre: "mapa.png" }
+    ]);
+
+    const ajena = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieAjena);
+    expect(ajena.status).toBe(403);
+  });
 });

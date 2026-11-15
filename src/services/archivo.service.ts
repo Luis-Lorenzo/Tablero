@@ -98,11 +98,38 @@ export class ArchivoService {
     return { archivo, datos };
   }
 
+  async obtenerStream(
+    actor: User,
+    id: string
+  ): Promise<
+    | { archivo: Archivo; stream: ReadableStream<Uint8Array> }
+    | { archivo: Archivo; datos: Uint8Array }
+  > {
+    const archivo = await this.autorizadoLectura(actor, id);
+
+    if (this.almacen.leerStream) {
+      const stream = await this.almacen.leerStream(archivo.clave);
+      if (!stream) {
+        throw errors.archivoNotFound();
+      }
+      return { archivo, stream };
+    }
+
+    const datos = await this.almacen.leer(archivo.clave);
+    if (!datos) {
+      throw errors.archivoNotFound();
+    }
+    return { archivo, datos };
+  }
+
   async obtenerMetadatos(actor: User, id: string): Promise<Archivo> {
     return this.autorizado(actor, id);
   }
 
-  /** Copia un archivo existente del emisor a la biblioteca personal del receptor. */
+  /**
+   * Comparte un archivo existente del emisor con el receptor creando una nueva
+   * entrada de metadatos que apunta a la misma clave en R2 (sin duplicar bytes).
+   */
   async clonarPara(
     emisorId: string,
     archivoId: string,
@@ -117,25 +144,41 @@ export class ArchivoService {
       throw errors.archivoNotFound();
     }
 
-    const datos = await this.almacen.leer(origen.clave);
-    if (!datos) {
-      throw errors.archivoNotFound();
-    }
-
-    return this.subir(receptor, {
+    const clon: Archivo = {
+      id: randomUUID(),
+      ownerId: receptor.id,
       nombre: origen.nombre,
+      clave: origen.clave,
       tipo: origen.tipo,
-      datos
+      tamano: origen.tamano,
+      createdAt: new Date()
+    };
+
+    await this.archivos.save(clon);
+
+    this.logger.info("Archivo compartido por referencia", {
+      origenId: origen.id,
+      nuevoId: clon.id,
+      ownerId: receptor.id
     });
+
+    return clon;
   }
 
   async borrar(actor: User, id: string): Promise<void> {
     const archivo = await this.autorizado(actor, id);
 
-    await this.almacen.borrar(archivo.clave);
     await this.archivos.delete(id);
+    const restantes = await this.archivos.countByClave(archivo.clave);
+    if (restantes === 0) {
+      await this.almacen.borrar(archivo.clave);
+    }
 
-    this.logger.info("Archivo borrado", { id, ownerId: actor.id });
+    this.logger.info("Archivo borrado", {
+      id,
+      ownerId: actor.id,
+      objetoBorrado: restantes === 0
+    });
   }
 
   private async autorizadoLectura(actor: User, id: string): Promise<Archivo> {

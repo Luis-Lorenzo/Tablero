@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import express, { Router, type RequestHandler } from "express";
 import type { AppContext } from "./context.js";
 import { toPublicArchivo } from "./serializers.js";
@@ -51,25 +53,38 @@ export function createArchivoRouter(
 
   router.get("/:id", requireAuth, async (req, res, next) => {
     try {
-      const { archivo, datos } = await context.archivoService.obtener(
+      const resultado = await context.archivoService.obtenerStream(
         req.currentUser!,
         String(req.params.id)
       );
+      const { archivo } = resultado;
 
       const ascii = archivo.nombre.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
       const disposicion = req.query.descarga ? "attachment" : "inline";
 
       res.setHeader("Content-Type", archivo.tipo);
-      res.setHeader("Content-Length", String(datos.length));
+      res.setHeader(
+        "Content-Length",
+        String("datos" in resultado ? resultado.datos.length : archivo.tamano)
+      );
       res.setHeader(
         "Content-Disposition",
         `${disposicion}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(archivo.nombre)}`
       );
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Cache-Control", "private, max-age=300");
-      res.end(Buffer.from(datos));
+
+      if ("stream" in resultado) {
+        const nodeStream = Readable.fromWeb(resultado.stream as never);
+        await pipeline(nodeStream, res);
+        return;
+      }
+
+      res.end(Buffer.from(resultado.datos));
     } catch (error) {
-      next(error);
+      if (!res.headersSent) {
+        next(error);
+      }
     }
   });
 
