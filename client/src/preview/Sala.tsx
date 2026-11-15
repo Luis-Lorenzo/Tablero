@@ -627,6 +627,22 @@ export function Sala({
   const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
   const [subiendoDrop, setSubiendoDrop] = useState(false);
   const [subiendoBarra, setSubiendoBarra] = useState(false);
+  const [archivosSubidosLocal, setArchivosSubidosLocal] = useState<
+    Array<PublicArchivo & { contenidoLocal?: string }>
+  >([]);
+  const onSolicitarArchivosRef = useRef(onSolicitarArchivos);
+  onSolicitarArchivosRef.current = onSolicitarArchivos;
+
+  useEffect(() => {
+    onSolicitarArchivosRef.current?.();
+  }, []);
+
+  const archivosLista = [
+    ...archivosSubidosLocal.filter(
+      a => !archivosDisponibles.some(disp => disp.id === a.id)
+    ),
+    ...archivosDisponibles
+  ];
   const [nuevoPositTexto, setNuevoPositTexto] = useState("");
   const [nuevoPositColor, setNuevoPositColor] = useState<string>(COLORES_POSIT[3].valor);
   const [jugadorSeleccionadoId, setJugadorSeleccionadoId] = useState<string | null>(null);
@@ -1514,6 +1530,9 @@ export function Sala({
       for (const file of Array.from(files)) {
         try {
           const subido = await archivosApi.subir(file);
+          setArchivosSubidosLocal(prev =>
+            prev.some(a => a.id === subido.id) ? prev : [subido, ...prev]
+          );
           onSolicitarArchivos?.();
           await onEnviarElemento(
             jugadorSeleccionado,
@@ -1575,6 +1594,9 @@ export function Sala({
 
         try {
           const creado = await archivosApi.subir(file);
+          setArchivosSubidosLocal(prev =>
+            prev.some(a => a.id === creado.id) ? prev : [creado, ...prev]
+          );
           onSolicitarArchivos?.();
           onElementosMesa?.(prev => {
             const paso = prev.filter(el => el.tipo === "archivo" && !el.archivado).length % 5;
@@ -2879,13 +2901,13 @@ export function Sala({
 
           <div className="compartir-seccion">
             <span className="compartir-subtitulo">Archivos</span>
-            {archivosDisponibles.length === 0 ? (
+            {archivosLista.length === 0 ? (
               <span className="compartir-subtitulo">
                 No hay archivos subidos todavía.
               </span>
             ) : (
               <ul className="compartir-lista">
-                {archivosDisponibles.map(archivo => {
+                {archivosLista.map(archivo => {
                   const elem = crearElementoDesdeArchivo(archivo, { x: 78, y: 78 });
                   return (
                     <li key={archivo.id} className="compartir-item">

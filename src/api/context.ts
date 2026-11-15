@@ -11,6 +11,7 @@ import type { ChatService } from "../services/chat.service.js";
 import type { MesasNotifier } from "../realtime/mesas-notifier.js";
 import type { ArchivoService } from "../services/archivo.service.js";
 import type { MesaEstadoRepository } from "../repositories/mesa-estado.repository.js";
+import type { PizarraEstadoRepository } from "../repositories/pizarra-estado.repository.js";
 import type { TransferenciaService } from "../services/transferencia.service.js";
 
 export interface AppContext {
@@ -19,6 +20,7 @@ export interface AppContext {
   userRepository: UserRepository;
   mesaRepository: MesaRepository;
   mesaEstadoRepository?: MesaEstadoRepository;
+  pizarraEstadoRepository?: PizarraEstadoRepository;
   authService: AuthService;
   userService: UserService;
   bloqueoService: BloqueoService;

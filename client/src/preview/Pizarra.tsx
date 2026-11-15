@@ -62,6 +62,16 @@ interface PizarraProps {
   onTrazos?: Dispatch<SetStateAction<TrazoPizarra[]>>;
   documentosPizarra?: DocumentoMesa[];
   onDocumentosPizarra?: Dispatch<SetStateAction<DocumentoMesa[]>>;
+  trazosEscena?: TrazoPizarra[];
+  onTrazosEscena?: Dispatch<SetStateAction<TrazoPizarra[]>>;
+  positsEscena?: PositPreview[];
+  onPositsEscena?: Dispatch<SetStateAction<PositPreview[]>>;
+  docsEscena?: DocumentoMesa[];
+  onDocsEscena?: Dispatch<SetStateAction<DocumentoMesa[]>>;
+  tamanoImagenesEscena?: Record<string, { w: number; h: number }>;
+  onTamanoImagenesEscena?: Dispatch<
+    SetStateAction<Record<string, { w: number; h: number }>>
+  >;
   congelada?: boolean;
   onCongelada?: Dispatch<SetStateAction<boolean>>;
   onVolver: () => void;
@@ -72,6 +82,18 @@ interface PizarraProps {
   imagenProyectada?: ImagenEscenaPreview | null;
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
+  onArchivosCambiados?: () => void;
+}
+
+function esColorOscuro(hex: string): boolean {
+  const limpio = hex.trim().replace("#", "");
+  if (limpio.length !== 6) return false;
+  const r = Number.parseInt(limpio.slice(0, 2), 16) / 255;
+  const g = Number.parseInt(limpio.slice(2, 4), 16) / 255;
+  const b = Number.parseInt(limpio.slice(4, 6), 16) / 255;
+  if ([r, g, b].some(Number.isNaN)) return false;
+  const luminancia = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminancia < 0.35;
 }
 
 interface PositProps {
@@ -374,6 +396,14 @@ export function Pizarra({
   onTrazos,
   documentosPizarra,
   onDocumentosPizarra,
+  trazosEscena: trazosEscenaProp,
+  onTrazosEscena,
+  positsEscena: positsEscenaProp,
+  onPositsEscena,
+  docsEscena: docsEscenaProp,
+  onDocsEscena,
+  tamanoImagenesEscena: tamanoImagenesEscenaProp,
+  onTamanoImagenesEscena,
   congelada,
   onCongelada,
   onVolver,
@@ -383,18 +413,30 @@ export function Pizarra({
   imagenEscena,
   imagenProyectada,
   onCambiarEscena,
-  onProyectarImagen
+  onProyectarImagen,
+  onArchivosCambiados
 }: PizarraProps) {
   const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
   const [trazosInternos, setTrazosInternos] = useState<TrazoPizarra[]>([]);
-  const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
-  const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
+  const [trazosEscenaInternos, setTrazosEscenaInternos] = useState<TrazoPizarra[]>([]);
+  const [positsEscenaInternos, setPositsEscenaInternos] = useState<PositPreview[]>([]);
   const [docsInternos, setDocsInternos] = useState<DocumentoMesa[]>([]);
-  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
-  const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
+  const [docsEscenaInternos, setDocsEscenaInternos] = useState<DocumentoMesa[]>([]);
+  const [tamanoImagenesEscenaInterno, setTamanoImagenesEscenaInterno] = useState<
     Record<string, { w: number; h: number }>
   >({});
   const [congeladaInterna, setCongeladaInterna] = useState(false);
+
+  const trazosEscena = trazosEscenaProp ?? trazosEscenaInternos;
+  const setTrazosEscena = onTrazosEscena ?? setTrazosEscenaInternos;
+  const positsEscena = positsEscenaProp ?? positsEscenaInternos;
+  const setPositsEscena = onPositsEscena ?? setPositsEscenaInternos;
+  const docsEscena = docsEscenaProp ?? docsEscenaInternos;
+  const setDocsEscena = onDocsEscena ?? setDocsEscenaInternos;
+  const tamanoImagenesEscena =
+    tamanoImagenesEscenaProp ?? tamanoImagenesEscenaInterno;
+  const setTamanoImagenesEscena =
+    onTamanoImagenesEscena ?? setTamanoImagenesEscenaInterno;
 
   const esVistaEscena = vistaPizarra === "escena";
   const listaTrazos = esVistaEscena ? trazosEscena : (trazos ?? trazosInternos);
@@ -842,6 +884,9 @@ export function Pizarra({
           subidos.push(nuevo);
         }
       }
+      if (!esPreview && subidos.length > 0) {
+        onArchivosCambiados?.();
+      }
     } catch (fallo) {
       setErrorArchivos(describeError(fallo));
     } finally {
@@ -899,6 +944,7 @@ export function Pizarra({
     try {
       if (!esPreview) {
         await archivosApi.borrar(item.id);
+        onArchivosCambiados?.();
       }
       setArchivos(prev => prev.filter(archivo => archivo.id !== item.id));
       setListaDocs(prev => prev.filter(doc => doc.id !== item.id));
@@ -932,7 +978,7 @@ export function Pizarra({
     setActivo(null);
     setConfirmarBorrarTodo(false);
     setTrazoEnCurso(null);
-    if (nuevaVista === "escena" && colorTinta === "#2b2118") {
+    if (nuevaVista === "escena" && esColorOscuro(colorTinta)) {
       setColorTinta("#f4f7ff");
     } else if (nuevaVista === "pizarra" && colorTinta === "#f4f7ff") {
       setColorTinta(esMaster ? "#d49b27" : (colorJugador ?? "#2b2118"));

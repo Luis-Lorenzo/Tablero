@@ -24,6 +24,11 @@ import {
 } from "./repositories/mesa-estado.repository.js";
 import { PgMesaEstadoRepository } from "./repositories/pg-mesa-estado.repository.js";
 import {
+  MemoryPizarraEstadoRepository,
+  type PizarraEstadoRepository
+} from "./repositories/pizarra-estado.repository.js";
+import { PgPizarraEstadoRepository } from "./repositories/pg-pizarra-estado.repository.js";
+import {
   MemoryChatRepository,
   type ChatRepository
 } from "./repositories/chat.repository.js";
@@ -57,6 +62,7 @@ export async function createContainer(): Promise<Container> {
   let mesaRepository: MemoryMesaRepository | PgMesaRepository;
   let archivoRepository: ArchivoRepository;
   let mesaEstadoRepository: MesaEstadoRepository;
+  let pizarraEstadoRepository: PizarraEstadoRepository;
   let chatRepository: ChatRepository;
   let transferenciaRepository: TransferenciaRepository;
 
@@ -67,6 +73,7 @@ export async function createContainer(): Promise<Container> {
     mesaRepository = new PgMesaRepository(pool);
     archivoRepository = new PgArchivoRepository(pool);
     mesaEstadoRepository = new PgMesaEstadoRepository(pool);
+    pizarraEstadoRepository = new PgPizarraEstadoRepository(pool);
     chatRepository = new PgChatRepository(pool);
     transferenciaRepository = new PgTransferenciaRepository(pool);
     logger.info("Persistencia habilitada en PostgreSQL");
@@ -75,6 +82,7 @@ export async function createContainer(): Promise<Container> {
     mesaRepository = new MemoryMesaRepository();
     archivoRepository = new MemoryArchivoRepository();
     mesaEstadoRepository = new MemoryMesaEstadoRepository();
+    pizarraEstadoRepository = new MemoryPizarraEstadoRepository();
     chatRepository = new MemoryChatRepository();
     transferenciaRepository = new MemoryTransferenciaRepository();
     logger.warn(
@@ -139,6 +147,7 @@ export async function createContainer(): Promise<Container> {
     userRepository,
     mesaRepository,
     mesaEstadoRepository,
+    pizarraEstadoRepository,
     authService,
     userService,
     bloqueoService,

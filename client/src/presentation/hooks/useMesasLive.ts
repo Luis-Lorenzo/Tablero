@@ -145,7 +145,10 @@ export function useMesasLive(
         }
 
         if (dato !== null && typeof dato === "object") {
-          if (dato.type === "mesas:changed") {
+          if (
+            dato.type === "mesas:changed" ||
+            dato.type === "mesa:actualizada"
+          ) {
             avisarCambio();
           } else if (dato.type === "chat:message" && dato.message) {
             eventosSalaRef.current?.onChatMessage?.(dato.message as MensajeChat);

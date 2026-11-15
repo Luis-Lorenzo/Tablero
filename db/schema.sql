@@ -144,3 +144,10 @@ CREATE TABLE IF NOT EXISTS transferencias (
 
 CREATE INDEX IF NOT EXISTS transferencias_mesa_receptor_idx
   ON transferencias (mesa_id, receptor_id, created_at ASC);
+
+-- Estado compartido de la Pizarra y vista Escena por mesa.
+CREATE TABLE IF NOT EXISTS mesa_pizarra_estado (
+  mesa_id    UUID PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
+  datos      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -11,6 +11,10 @@ import {
   MemoryMesaEstadoRepository,
   sanitizarElementosMesa
 } from "../repositories/mesa-estado.repository.js";
+import {
+  MemoryPizarraEstadoRepository,
+  sanitizarPizarraEstado
+} from "../repositories/pizarra-estado.repository.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
 
 function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
@@ -30,6 +34,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   const router = Router();
   const mesaEstado =
     context.mesaEstadoRepository ?? new MemoryMesaEstadoRepository();
+  const pizarraEstado =
+    context.pizarraEstadoRepository ?? new MemoryPizarraEstadoRepository();
   const transferencias =
     context.transferenciaService ??
     new TransferenciaService(
@@ -488,6 +494,57 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         actorId,
         sanitizarElementosMesa(body.elementos)
       );
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:id/pizarra", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actorId = req.currentUser!.id;
+      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+        throw errors.forbidden();
+      }
+
+      const estado = await pizarraEstado.getEstado(mesaId);
+      res.json(estado);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/pizarra", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actorId = req.currentUser!.id;
+      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+        throw errors.forbidden();
+      }
+
+      const actual = await pizarraEstado.getEstado(mesaId);
+      const esMaster = mesa.hostId === actorId;
+      const limpio = sanitizarPizarraEstado(req.body);
+
+      if (!esMaster && (actual.congelada || limpio.congelada !== actual.congelada)) {
+        throw errors.forbidden();
+      }
+
+      await pizarraEstado.saveEstado(mesaId, limpio);
+      const miembros = [mesa.hostId, ...mesa.players];
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "pizarra:actualizada",
+        mesaId,
+        estado: limpio,
+        autorId: actorId
+      });
       res.status(204).end();
     } catch (error) {
       next(error);

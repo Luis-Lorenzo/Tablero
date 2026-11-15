@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ListChecks, ShieldAlert } from "lucide-react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
+import { ApiError } from "./api/client";
 import { mesasApi } from "./api/mesas.api";
 import type { PublicMesa, PublicUser } from "./api/types";
 import { AuthPage } from "./presentation/pages/AuthPage";
@@ -27,6 +28,33 @@ function nombreDeUsuario(user: PublicUser): string {
   return corte === -1 ? user.email : user.email.slice(0, corte);
 }
 
+/** Determina el motivo por el que el usuario ha salido de una sala activa. */
+async function resolverMotivoSalidaMesa(
+  mesaId: string,
+  userId: string
+): Promise<string> {
+  try {
+    const actualizada = await mesasApi.obtener(mesaId);
+    const expulsado =
+      actualizada.expulsados?.includes(userId) ||
+      (actualizada.hostId !== userId &&
+        !actualizada.players.some(p => p.id === userId));
+    if (expulsado) {
+      return "Has sido expulsado de la mesa.";
+    }
+    if (actualizada.estado !== "EN_CURSO") {
+      return "La partida ha terminado y la mesa ha vuelto a espera.";
+    }
+    return "Has salido de la sala.";
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 404) return "La mesa se ha cerrado.";
+      if (error.status === 403) return "Ya no tienes acceso a esta mesa.";
+    }
+    return "La mesa ya no está disponible.";
+  }
+}
+
 function App() {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,8 +64,20 @@ function App() {
   const [miMesa, setMiMesa] = useState<PublicMesa | null>(null);
   /** Mesa abierta en la sala real (la partida empezada). */
   const [salaMesa, setSalaMesa] = useState<PublicMesa | null>(null);
+  /** Aviso mostrado en recepción tras un cierre de mesa o expulsión en caliente. */
+  const [avisoSala, setAvisoSala] = useState<string | null>(null);
   /** Mesa de la que el usuario salió manualmente para no forzarle a volver. */
   const salidaManualMesaIdRef = useRef<string | null>(null);
+  const viewRef = useRef<View>(view);
+  const salaMesaRef = useRef<PublicMesa | null>(salaMesa);
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    salaMesaRef.current = salaMesa;
+  }, [salaMesa]);
 
   useEffect(() => {
     authApi
@@ -51,26 +91,43 @@ function App() {
     if (!user) return;
     try {
       const mesa = await mesasApi.mia();
-      if (mesa && mesa.estado === "EN_CURSO") {
+      const pendiente = await mesasApi.pendiente();
+      const candidatos = [mesa, pendiente].filter(Boolean) as PublicMesa[];
+      const enCurso = candidatos.find(
+        candidata =>
+          candidata.estado === "EN_CURSO" &&
+          !candidata.expulsados?.includes(user.id)
+      );
+
+      if (mesa && mesa.estado !== "EN_CURSO") {
         setMiMesa(mesa);
-        if (mesa.id !== salidaManualMesaIdRef.current) {
-          setSalaMesa(mesa);
+      } else if (!mesa) {
+        setMiMesa(null);
+      }
+
+      if (enCurso) {
+        if (mesa && mesa.id === enCurso.id) {
+          setMiMesa(mesa);
+        }
+        if (enCurso.id !== salidaManualMesaIdRef.current) {
+          setAvisoSala(null);
+          setSalaMesa(enCurso);
           setView("sala");
         }
         return;
       }
 
-      const pendiente = await mesasApi.pendiente();
-      const candidatos = [mesa, pendiente].filter(Boolean) as PublicMesa[];
-      const enCurso = candidatos.find(candidata => candidata.estado === "EN_CURSO");
-      if (enCurso) {
-        if (enCurso.id !== salidaManualMesaIdRef.current) {
-          setSalaMesa(enCurso);
-          setView("sala");
-        }
-      } else {
+      const salaActual = salaMesaRef.current;
+      if (viewRef.current === "sala" && salaActual) {
         salidaManualMesaIdRef.current = null;
+        setSalaMesa(null);
+        setView("recepcion");
+        const motivo = await resolverMotivoSalidaMesa(salaActual.id, user.id);
+        setAvisoSala(motivo);
+        return;
       }
+
+      salidaManualMesaIdRef.current = null;
     } catch {
       // Ignorar: la vista de recepción seguirá funcionando.
     }
@@ -99,6 +156,7 @@ function App() {
     setView("recepcion");
     setSalaMesa(null);
     setMiMesa(null);
+    setAvisoSala(null);
   }, []);
 
   const abrirGestion = useCallback((mesa: PublicMesa) => {
@@ -108,16 +166,26 @@ function App() {
 
   const abrirSala = useCallback((mesa: PublicMesa) => {
     salidaManualMesaIdRef.current = null;
+    setAvisoSala(null);
     setSalaMesa(mesa);
     setView("sala");
   }, []);
 
-  const volverRecpcion = useCallback(() => {
-    salidaManualMesaIdRef.current = salaMesa?.id ?? null;
-    setSalaMesa(null);
-    setView("recepcion");
-    void refrescarMiSala();
-  }, [refrescarMiSala, salaMesa]);
+  const volverRecpcion = useCallback(
+    (motivo?: string) => {
+      if (typeof motivo === "string" && motivo.trim()) {
+        salidaManualMesaIdRef.current = null;
+        setAvisoSala(motivo);
+      } else {
+        salidaManualMesaIdRef.current = salaMesa?.id ?? null;
+        setAvisoSala(null);
+      }
+      setSalaMesa(null);
+      setView("recepcion");
+      void refrescarMiSala();
+    },
+    [refrescarMiSala, salaMesa]
+  );
 
   const handleMiMesa = useCallback((mesa: PublicMesa | null) => {
     setMiMesa(mesa);
@@ -241,12 +309,36 @@ function App() {
                 onVolver={() => setView("recepcion")}
               />
             ) : (
-              <RecepcionPage
-                user={user}
-                onGestionar={abrirGestion}
-                onMiMesa={handleMiMesa}
-                onSessionExpired={handleLogout}
-              />
+              <>
+                {avisoSala && (
+                  <div
+                    className="feedback aviso"
+                    role="alert"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      marginBottom: "14px"
+                    }}
+                  >
+                    <span>{avisoSala}</span>
+                    <button
+                      type="button"
+                      className="secondary small"
+                      onClick={() => setAvisoSala(null)}
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                )}
+                <RecepcionPage
+                  user={user}
+                  onGestionar={abrirGestion}
+                  onMiMesa={handleMiMesa}
+                  onSessionExpired={handleLogout}
+                />
+              </>
             )}
           </div>
 

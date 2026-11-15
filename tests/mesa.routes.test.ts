@@ -483,4 +483,57 @@ describe("rutas de /api/mesas", () => {
       .set("Cookie", cookieAjena);
     expect(ajena.status).toBe(403);
   });
+
+  it("persiste y sincroniza pizarra y vista escena y respeta congelada del máster", async () => {
+    await aprobar("jugadora-piz@pocket.test");
+    const cookieMaster = await sesionDe("anfitrion@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-piz@pocket.test");
+
+    const creada = await request(app).post("/api/mesas").set("Cookie", cookieMaster);
+    const mesaId = creada.body.id as string;
+
+    const unirse = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora);
+    expect(unirse.status).toBe(200);
+
+    const guardar = await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .send({
+        posits: [{ id: "p1", texto: "Pista", color: "#fff", x: 10, y: 20, giro: 0 }],
+        trazos: [],
+        documentos: [{ id: "d1", nombre: "nota.txt", url: "blob:secret" }],
+        trazosEscena: [{ id: "t1", color: "#f4f7ff", grosor: 4, puntos: [] }],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: { d1: { w: 40, h: 30 } },
+        congelada: true
+      });
+    expect(guardar.status).toBe(204);
+
+    const obtener = await request(app)
+      .get(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieJugadora);
+    expect(obtener.status).toBe(200);
+    expect(obtener.body.congelada).toBe(true);
+    expect(obtener.body.documentos).toEqual([{ id: "d1", nombre: "nota.txt" }]);
+    expect(obtener.body.trazosEscena).toHaveLength(1);
+    expect(obtener.body.tamanoImagenesEscena).toEqual({ d1: { w: 40, h: 30 } });
+
+    const edicionBloqueada = await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieJugadora)
+      .send({
+        posits: [],
+        trazos: [],
+        documentos: [],
+        trazosEscena: [],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: {},
+        congelada: false
+      });
+    expect(edicionBloqueada.status).toBe(403);
+  });
 });

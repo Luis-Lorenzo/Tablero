@@ -25,20 +25,8 @@ import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
-  CLAVE_DOCS_PIZARRA,
-  CLAVE_PIZARRA_CONGELADA,
-  CLAVE_POSITS,
-  CLAVE_TRAZOS_PIZARRA,
   cargarCalibracion,
-  cargarDocumentosPizarra,
-  cargarPizarraCongelada,
-  cargarPosits,
-  cargarTrazosPizarra,
-  guardarCalibracion,
-  guardarDocumentosPizarra,
-  guardarPizarraCongelada,
-  guardarPosits,
-  guardarTrazosPizarra
+  guardarCalibracion
 } from "../../preview/calibracion";
 import {
   calcularPosicionRecepcion,
@@ -65,7 +53,7 @@ interface SalaRealProps {
   mesa: PublicMesa;
   user: PublicUser;
   onActualizarMesa: (mesa: PublicMesa) => void;
-  onVolver: () => void;
+  onVolver: (motivo?: string) => void;
   onSessionExpired?: () => void;
 }
 
@@ -144,19 +132,20 @@ function SalaRealContent({
 }: SalaRealProps) {
   const [fase, setFase] = useState<Fase>("sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
-  const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
+  const [posits, setPosits] = useState<PositPreview[]>([]);
   const [elementosMesa, setElementosMesa] = useState<ElementoMesa[]>([]);
   const [archivosDisponibles, setArchivosDisponibles] = useState<PublicArchivo[]>([]);
   const [colaSolicitudes, setColaSolicitudes] = useState<SolicitudTransferencia[]>([]);
   const [estadoAviso, setEstadoAviso] = useState<string | null>(null);
-  const [trazosPizarra, setTrazosPizarra] =
-    useState<TrazoPizarra[]>(cargarTrazosPizarra);
-  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
-    cargarDocumentosPizarra
-  );
-  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
-    cargarPizarraCongelada
-  );
+  const [trazosPizarra, setTrazosPizarra] = useState<TrazoPizarra[]>([]);
+  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>([]);
+  const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
+  const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
+  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
+    Record<string, { w: number; h: number }>
+  >({});
+  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(false);
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
   >(null);
@@ -168,6 +157,8 @@ function SalaRealContent({
   const avisoTimerRef = useRef<number | null>(null);
   const timersAsiento = useRef<Record<string, number>>({});
   const estadoCargadoRef = useRef(false);
+  const pizarraCargadaRef = useRef(false);
+  const ignorarGuardadoPizarraRef = useRef(false);
   const esMaster = mesa.hostId === user.id;
   const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
   const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
@@ -220,9 +211,47 @@ function SalaRealContent({
     guardarCalibracion(calibracion);
   }, [calibracion]);
 
-  useEffect(() => {
-    guardarPosits(posits);
-  }, [posits]);
+  const aplicarEstadoPizarraRemoto = useCallback(
+    (datos: {
+      posits?: unknown[];
+      trazos?: unknown[];
+      documentos?: unknown[];
+      trazosEscena?: unknown[];
+      positsEscena?: unknown[];
+      docsEscena?: unknown[];
+      tamanoImagenesEscena?: Record<string, { w: number; h: number }>;
+      congelada?: boolean;
+    }) => {
+      ignorarGuardadoPizarraRef.current = true;
+      setPosits(Array.isArray(datos.posits) ? (datos.posits as PositPreview[]) : []);
+      setTrazosPizarra(
+        Array.isArray(datos.trazos) ? (datos.trazos as TrazoPizarra[]) : []
+      );
+      setDocumentosPizarra(
+        Array.isArray(datos.documentos)
+          ? (datos.documentos as DocumentoMesa[])
+          : []
+      );
+      setTrazosEscena(
+        Array.isArray(datos.trazosEscena)
+          ? (datos.trazosEscena as TrazoPizarra[])
+          : []
+      );
+      setPositsEscena(
+        Array.isArray(datos.positsEscena)
+          ? (datos.positsEscena as PositPreview[])
+          : []
+      );
+      setDocsEscena(
+        Array.isArray(datos.docsEscena)
+          ? (datos.docsEscena as DocumentoMesa[])
+          : []
+      );
+      setTamanoImagenesEscena(datos.tamanoImagenesEscena ?? {});
+      setPizarraCongelada(Boolean(datos.congelada));
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelado = false;
@@ -254,33 +283,61 @@ function SalaRealContent({
   }, []);
 
   useEffect(() => {
-    guardarTrazosPizarra(trazosPizarra);
-  }, [trazosPizarra]);
+    let activo = true;
+    pizarraCargadaRef.current = false;
+    void mesasApi
+      .obtenerPizarra(mesa.id)
+      .then(datos => {
+        if (!activo) return;
+        aplicarEstadoPizarraRemoto(datos);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (activo) pizarraCargadaRef.current = true;
+      });
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id, aplicarEstadoPizarraRemoto]);
 
   useEffect(() => {
-    guardarDocumentosPizarra(documentosPizarra);
-  }, [documentosPizarra]);
-
-  useEffect(() => {
-    guardarPizarraCongelada(pizarraCongelada);
-  }, [pizarraCongelada]);
-
-  useEffect(() => {
-    function alCambiarStorage(evento: StorageEvent) {
-      if (evento.key === CLAVE_POSITS) setPosits(cargarPosits());
-      if (evento.key === CLAVE_TRAZOS_PIZARRA) {
-        setTrazosPizarra(cargarTrazosPizarra());
-      }
-      if (evento.key === CLAVE_DOCS_PIZARRA) {
-        setDocumentosPizarra(cargarDocumentosPizarra());
-      }
-      if (evento.key === CLAVE_PIZARRA_CONGELADA) {
-        setPizarraCongelada(cargarPizarraCongelada());
-      }
+    if (!pizarraCargadaRef.current) return;
+    if (ignorarGuardadoPizarraRef.current) {
+      ignorarGuardadoPizarraRef.current = false;
+      return;
     }
-    window.addEventListener("storage", alCambiarStorage);
-    return () => window.removeEventListener("storage", alCambiarStorage);
-  }, []);
+    if (pizarraCongelada && !esMaster) return;
+
+    const timer = window.setTimeout(() => {
+      const limpiarDocs = (lista: DocumentoMesa[]) =>
+        lista.map(({ url: _url, ...resto }) => resto);
+      void mesasApi
+        .guardarPizarra(mesa.id, {
+          posits,
+          trazos: trazosPizarra,
+          documentos: limpiarDocs(documentosPizarra),
+          trazosEscena,
+          positsEscena,
+          docsEscena: limpiarDocs(docsEscena),
+          tamanoImagenesEscena,
+          congelada: pizarraCongelada
+        })
+        .catch(() => undefined);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    mesa.id,
+    esMaster,
+    posits,
+    trazosPizarra,
+    documentosPizarra,
+    trazosEscena,
+    positsEscena,
+    docsEscena,
+    tamanoImagenesEscena,
+    pizarraCongelada
+  ]);
 
   useEffect(() => {
     let activo = true;
@@ -334,7 +391,12 @@ function SalaRealContent({
         actualizada.hostId === user.id ||
         actualizada.players.some(p => p.id === user.id);
       if (!sigueEnMesa) {
-        onVolver();
+        onVolver("Has sido expulsado de la mesa.");
+        return;
+      }
+      if (actualizada.estado !== "EN_CURSO") {
+        onActualizarMesa(actualizada);
+        onVolver("La partida ha terminado y la mesa ha vuelto a espera.");
         return;
       }
       onActualizarMesa(actualizada);
@@ -343,7 +405,7 @@ function SalaRealContent({
         refrescoError instanceof ApiError &&
         (refrescoError.status === 403 || refrescoError.status === 404)
       ) {
-        onVolver();
+        onVolver("La mesa se ha cerrado.");
         return;
       }
       setError(describeError(refrescoError));
@@ -387,6 +449,15 @@ function SalaRealContent({
 
   const alMensajeEnVivo = useCallback(
     (evento: Record<string, unknown>) => {
+      if (evento.type === "pizarra:actualizada" && evento.mesaId === mesa.id) {
+        if (evento.autorId !== user.id && evento.estado && typeof evento.estado === "object") {
+          aplicarEstadoPizarraRemoto(
+            evento.estado as Parameters<typeof aplicarEstadoPizarraRemoto>[0]
+          );
+        }
+        return;
+      }
+
       if (evento.type === "transferencia:recibida" && evento.transferencia) {
         const transferencia = evento.transferencia as PublicTransferencia;
         if (transferencia.mesaId !== mesa.id) return;
@@ -408,7 +479,7 @@ function SalaRealContent({
         }
       }
     },
-    [mesa.id, mostrarAvisoBreve]
+    [mesa.id, user.id, aplicarEstadoPizarraRemoto, mostrarAvisoBreve]
   );
 
   async function enviarElemento(destino: JugadorPreview, elemento: ElementoMesa) {
@@ -654,6 +725,14 @@ function SalaRealContent({
         onTrazos={setTrazosPizarra}
         documentosPizarra={documentosPizarra}
         onDocumentosPizarra={setDocumentosPizarra}
+        trazosEscena={trazosEscena}
+        onTrazosEscena={setTrazosEscena}
+        positsEscena={positsEscena}
+        onPositsEscena={setPositsEscena}
+        docsEscena={docsEscena}
+        onDocsEscena={setDocsEscena}
+        tamanoImagenesEscena={tamanoImagenesEscena}
+        onTamanoImagenesEscena={setTamanoImagenesEscena}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={() => setFase("sala")}
@@ -664,6 +743,7 @@ function SalaRealContent({
         imagenProyectada={imagenProyectada}
         onCambiarEscena={cambiarEscena}
         onProyectarImagen={proyectarImagen}
+        onArchivosCambiados={cargarArchivos}
       />
     );
   } else if (fase === "mapa") {
@@ -679,6 +759,9 @@ function SalaRealContent({
         imagenProyectada={imagenProyectada}
         onCambiarEscena={cambiarEscena}
         onProyectarImagen={proyectarImagen}
+        onArchivosCambio={setArchivosDisponibles}
+        proyeccionOculta={proyeccionOculta}
+        onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
       />
     );
   } else {
@@ -731,6 +814,16 @@ function SalaRealContent({
           onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
           onRetirarTodos={esMaster ? () => void proyectarImagen(null) : undefined}
         />
+      )}
+
+      {fase !== "sala" && imagenProyectada && proyeccionOculta && (
+        <button
+          type="button"
+          className="proyeccion-reabrir-flotante"
+          onClick={() => setProyeccionOcultadaId(null)}
+        >
+          Ver imagen del Máster
+        </button>
       )}
 
       {estadoAviso && !error && (

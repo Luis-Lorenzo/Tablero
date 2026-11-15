@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Crown,
   Download,
+  Eye,
   Image as ImageIcon,
   Plus,
   Sparkles,
@@ -39,6 +40,9 @@ interface ArchivadorProps {
   imagenProyectada?: ImagenEscenaPreview | null;
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
+  proyeccionOculta?: boolean;
+  onReabrirProyeccion?: () => void;
+  onArchivosCambio?: (archivos: PublicArchivo[]) => void;
 }
 
 /** Formatos aceptados por el servidor (coinciden con `TIPOS_PERMITIDOS`). */
@@ -100,6 +104,9 @@ export function DocumentoVisorModal({
   imagenProyectada?: ImagenEscenaPreview | null;
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
+  proyeccionOculta?: boolean;
+  onReabrirProyeccion?: () => void;
+  onArchivosCambio?: (archivos: PublicArchivo[]) => void;
 }) {
   const docxRef = useRef<HTMLDivElement>(null);
   const urlPersonalizada = "url" in archivo ? archivo.url : undefined;
@@ -679,7 +686,10 @@ export function Archivador({
   imagenEscena,
   imagenProyectada,
   onCambiarEscena,
-  onProyectarImagen
+  onProyectarImagen,
+  proyeccionOculta,
+  onReabrirProyeccion,
+  onArchivosCambio
 }: ArchivadorProps) {
   const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -688,11 +698,14 @@ export function Archivador({
   const [error, setError] = useState<string | null>(null);
 
   const selector = useRef<HTMLInputElement>(null);
+  const onArchivosCambioRef = useRef(onArchivosCambio);
+  onArchivosCambioRef.current = onArchivosCambio;
 
   const sincronizarLista = useCallback(
     (lista: PublicArchivo[]) => {
       setArchivos(lista);
       setError(null);
+      onArchivosCambioRef.current?.(lista);
       const ids = new Set(lista.map(archivo => archivo.id));
       onElementosMesa(prev => {
         const filtrados = prev.filter(
@@ -859,15 +872,29 @@ export function Archivador({
             )}
           </h1>
 
-          <button
-            type="button"
-            className="archivador-btn archivador-btn-subir"
-            onClick={() => selector.current?.click()}
-            disabled={subiendo}
-          >
-            <Plus size={14} aria-hidden="true" />
-            <span>{subiendo ? "Subiendo…" : "Añadir archivo"}</span>
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {proyeccionOculta && onReabrirProyeccion && (
+              <button
+                type="button"
+                className="archivador-btn"
+                onClick={onReabrirProyeccion}
+                title="Volver a mostrar la imagen proyectada por el Máster"
+              >
+                <Eye size={14} aria-hidden="true" />
+                <span>Ver proyección</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="archivador-btn archivador-btn-subir"
+              onClick={() => selector.current?.click()}
+              disabled={subiendo}
+            >
+              <Plus size={14} aria-hidden="true" />
+              <span>{subiendo ? "Subiendo…" : "Añadir archivo"}</span>
+            </button>
+          </div>
         </header>
 
         <input
