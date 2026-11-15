@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Bookmark,
+  Copy,
   Crown,
   Eye,
   Image as ImageIcon,
   Minus,
+  Pencil,
   Plus,
+  Search,
   Sparkles,
+  Trash2,
   Upload,
+  Volume2,
+  VolumeX,
   X
 } from "lucide-react";
 import type {
@@ -29,8 +36,18 @@ import {
   tipoCortoArchivo
 } from "./compartir";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
+import {
+  cargarMacrosLocales,
+  guardarMacrosLocales,
+  ICONOS_MACROS,
+  IconoMacro
+} from "./macros";
 import { Posit } from "./Pizarra";
-import { reproducirSonidoNotificacion } from "./sonido";
+import {
+  establecerSonidoSilenciado,
+  estaSonidoSilenciado,
+  reproducirSonidoNotificacion
+} from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
@@ -39,6 +56,7 @@ import type {
   ElementoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
+  MacroTirada,
   MensajeSala,
   PositPreview,
   Punto,
@@ -90,6 +108,8 @@ interface SalaProps {
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
   proyeccionOculta?: boolean;
   onReabrirProyeccion?: () => void;
+  macros?: MacroTirada[];
+  onMacros?: (macros: MacroTirada[]) => void;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -611,7 +631,9 @@ export function Sala({
   onCambiarEscena,
   onProyectarImagen,
   proyeccionOculta,
-  onReabrirProyeccion
+  onReabrirProyeccion,
+  macros,
+  onMacros
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -653,6 +675,15 @@ export function Sala({
   );
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
+  const [sonidoSilenciado, setSonidoSilenciado] = useState<boolean>(
+    estaSonidoSilenciado
+  );
+
+  function alternarSilencio(): void {
+    const siguiente = !sonidoSilenciado;
+    setSonidoSilenciado(siguiente);
+    establecerSonidoSilenciado(siguiente);
+  }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
@@ -661,6 +692,19 @@ export function Sala({
     { id: "c-0", cantidad: 1, caras: 20 }
   ]);
   const [bonificadorCompuesta, setBonificadorCompuesta] = useState(0);
+  const [macrosLocales, setMacrosLocales] = useState<MacroTirada[]>(cargarMacrosLocales);
+  const [macrosAbierto, setMacrosAbierto] = useState(false);
+  const [macroSecreta, setMacroSecreta] = useState(false);
+  const [macroFiltro, setMacroFiltro] = useState("");
+  const [macroModalAbierto, setMacroModalAbierto] = useState(false);
+  const [macroEditandoId, setMacroEditandoId] = useState<string | null>(null);
+  const [macroNombre, setMacroNombre] = useState("");
+  const [macroIcono, setMacroIcono] = useState("sword");
+  const [macroGrupos, setMacroGrupos] = useState<GrupoDado[]>([
+    { id: "m-0", cantidad: 1, caras: 20 }
+  ]);
+  const [macroBonificador, setMacroBonificador] = useState(0);
+  const macrosLista = macros ?? macrosLocales;
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -751,20 +795,32 @@ export function Sala({
   }, [itemAbierto]);
 
   useEffect(() => {
-    if (!selectorAbierto && !compuestaAbierta && !itemAbierto) return;
+    if (
+      !selectorAbierto &&
+      !compuestaAbierta &&
+      !itemAbierto &&
+      !macrosAbierto &&
+      !macroModalAbierto
+    ) {
+      return;
+    }
     function alPulsarEscape(evento: KeyboardEvent) {
       if (evento.key !== "Escape") return;
       if (itemAbierto) {
         setItemAbierto(null);
+      } else if (macroModalAbierto) {
+        setMacroModalAbierto(false);
       } else if (compuestaAbierta) {
         setCompuestaAbierta(false);
+      } else if (macrosAbierto) {
+        setMacrosAbierto(false);
       } else if (selectorAbierto) {
         setSelectorAbierto(false);
       }
     }
     window.addEventListener("keydown", alPulsarEscape);
     return () => window.removeEventListener("keydown", alPulsarEscape);
-  }, [selectorAbierto, compuestaAbierta, itemAbierto]);
+  }, [selectorAbierto, compuestaAbierta, itemAbierto, macrosAbierto, macroModalAbierto]);
 
   useEffect(() => {
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
@@ -1258,10 +1314,136 @@ export function Sala({
     setGruposCompuesta(prev => (prev.length > 1 ? prev.filter(g => g.id !== id) : prev));
   }
 
+  function actualizarMacrosLista(nuevas: MacroTirada[]): void {
+    if (onMacros) {
+      onMacros(nuevas);
+    } else {
+      setMacrosLocales(nuevas);
+      guardarMacrosLocales(nuevas);
+    }
+  }
+
+  function abrirNuevaMacro(): void {
+    setMacroEditandoId(null);
+    setMacroNombre("");
+    setMacroIcono("sword");
+    setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
+    setMacroBonificador(0);
+    setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function abrirEditarMacro(macro: MacroTirada): void {
+    setMacroEditandoId(macro.id);
+    setMacroNombre(macro.nombre);
+    setMacroIcono(macro.icono);
+    setMacroGrupos(
+      macro.grupos.map((g, idx) => ({
+        id: `m-${Date.now()}-${idx}`,
+        cantidad: g.cantidad,
+        caras: g.caras
+      }))
+    );
+    setMacroBonificador(macro.bonificador);
+    setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function duplicarMacro(macro: MacroTirada): void {
+    const copia: MacroTirada = {
+      ...macro,
+      id: nuevoId(),
+      nombre: `${macro.nombre} (copia)`.slice(0, 40),
+      grupos: macro.grupos.map(g => ({ ...g }))
+    };
+    actualizarMacrosLista([...macrosLista, copia]);
+  }
+
+  function eliminarMacro(id: string): void {
+    actualizarMacrosLista(macrosLista.filter(m => m.id !== id));
+  }
+
+  function agregarGrupoMacro(): void {
+    setMacroGrupos(prev => {
+      if (prev.length >= 6) return prev;
+      return [...prev, { id: `m-${Date.now()}-${prev.length}`, cantidad: 1, caras: 6 }];
+    });
+  }
+
+  function actualizarGrupoMacro(
+    id: string,
+    patch: Partial<Pick<GrupoDado, "cantidad" | "caras">>
+  ): void {
+    setMacroGrupos(prev =>
+      prev.map(g => (g.id === id ? { ...g, ...patch } : g))
+    );
+  }
+
+  function eliminarGrupoMacro(id: string): void {
+    setMacroGrupos(prev => (prev.length > 1 ? prev.filter(g => g.id !== id) : prev));
+  }
+
+  function guardarMacroFormulario(): void {
+    const formula = formatearFormulaCompuesta(macroGrupos, macroBonificador);
+    const nombreLimpio = (macroNombre.trim() || formula).slice(0, 40);
+    const gruposLimpios = macroGrupos.map(g => ({
+      cantidad: Math.round(limitar(g.cantidad, 1, 20)),
+      caras: g.caras
+    }));
+    const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
+
+    if (macroEditandoId) {
+      actualizarMacrosLista(
+        macrosLista.map(m =>
+          m.id === macroEditandoId
+            ? {
+                ...m,
+                nombre: nombreLimpio,
+                icono: macroIcono,
+                grupos: gruposLimpios,
+                bonificador: modLimpio
+              }
+            : m
+        )
+      );
+    } else {
+      const nueva: MacroTirada = {
+        id: nuevoId(),
+        nombre: nombreLimpio,
+        icono: macroIcono,
+        grupos: gruposLimpios,
+        bonificador: modLimpio
+      };
+      actualizarMacrosLista([...macrosLista, nueva]);
+    }
+    setMacroModalAbierto(false);
+    setMacrosAbierto(true);
+  }
+
+  function lanzarMacro(macro: MacroTirada): void {
+    setMacrosAbierto(false);
+    const gruposMacro: GrupoDado[] = macro.grupos.map((g, idx) => ({
+      id: `m-roll-${idx}`,
+      cantidad: g.cantidad,
+      caras: g.caras
+    }));
+    const secreta = esMaster && macroSecreta;
+    tirarDado(gruposMacro, macro.bonificador, {
+      forzarPublica: !secreta,
+      forzarSecreta: secreta,
+      nombreMacro: macro.nombre
+    });
+  }
+
   function tirarDado(
     gruposOverride?: GrupoDado[],
     bonificadorOverride?: number,
-    opciones?: { rapido?: boolean; forzarPublica?: boolean }
+    opciones?: {
+      rapido?: boolean;
+      forzarPublica?: boolean;
+      forzarSecreta?: boolean;
+      nombreMacro?: string;
+    }
   ): void {
     if (tirando) return;
 
@@ -1277,7 +1459,11 @@ export function Sala({
       cantidad: Math.round(limitar(g.cantidad, 1, 20))
     }));
     const mod = Math.round(limitar(bonificadorOverride ?? bonificador, -99, 99));
-    const esSecreta = opciones?.forzarPublica ? false : esMaster && tiradaSecreta;
+    const esSecreta = opciones?.forzarPublica
+      ? false
+      : opciones?.forzarSecreta
+        ? true
+        : esMaster && tiradaSecreta;
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
@@ -1285,6 +1471,7 @@ export function Sala({
 
     setSelectorAbierto(false);
     setCompuestaAbierta(false);
+    setMacrosAbierto(false);
     setTirando(true);
     let pasos = 0;
 
@@ -1295,7 +1482,13 @@ export function Sala({
       if (pasos < totalPasos) {
         temporizador.current = window.setTimeout(tick, intervaloMs);
       } else {
-        const resultadoFinal = lanzarGruposDados(gruposActivos, mod);
+        const resultadoBruto = lanzarGruposDados(gruposActivos, mod);
+        const resultadoFinal: ResultadoTirada = opciones?.nombreMacro
+          ? {
+              ...resultadoBruto,
+              formula: `${opciones.nombreMacro} · ${resultadoBruto.formula}`
+            }
+          : resultadoBruto;
         setTirada({ ...resultadoFinal, secreta: esSecreta });
         setTirando(false);
 
@@ -2031,6 +2224,27 @@ export function Sala({
                 <span>{subiendoBarra ? "Subiendo…" : "Subir archivo"}</span>
               </button>
 
+              <button
+                type="button"
+                className={`sala-btn${sonidoSilenciado ? " activo" : ""}`}
+                onClick={alternarSilencio}
+                title={
+                  sonidoSilenciado
+                    ? "Sonidos silenciados (pulsa para activar)"
+                    : "Silenciar sonidos"
+                }
+                aria-label={
+                  sonidoSilenciado ? "Activar sonidos" : "Silenciar sonidos"
+                }
+                aria-pressed={sonidoSilenciado}
+              >
+                {sonidoSilenciado ? (
+                  <VolumeX size={14} strokeWidth={2.2} aria-hidden="true" />
+                ) : (
+                  <Volume2 size={14} strokeWidth={2.2} aria-hidden="true" />
+                )}
+              </button>
+
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
                   <span className="master-proyeccion-texto">
@@ -2396,7 +2610,334 @@ export function Sala({
             </div>
           )}
 
-          {tirada !== null && !selectorAbierto && !compuestaAbierta && (
+          {macrosAbierto && !ajuste && (
+            <div
+              className={`dados-selector macros-selector${calibracion.dock.y < 30 ? " debajo" : ""}${esMaster && macroSecreta ? " secreto" : ""}`}
+              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+              role="dialog"
+              aria-label="Macros de tirada"
+            >
+              <div className="dados-selector-cabecera">
+                <span>Macros</span>
+                <div className="macros-cabecera-acciones">
+                  <button
+                    type="button"
+                    className="macros-crear-btn"
+                    onClick={abrirNuevaMacro}
+                  >
+                    <Plus size={12} strokeWidth={2.6} aria-hidden="true" />
+                    <span>Crear</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setMacrosAbierto(false)}
+                    aria-label="Cerrar macros"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              {esMaster && (
+                <button
+                  type="button"
+                  className={`dados-secreto-toggle${macroSecreta ? " activo" : ""}`}
+                  onClick={() => setMacroSecreta(s => !s)}
+                  aria-pressed={macroSecreta}
+                >
+                  <span className="dados-secreto-punto" aria-hidden="true" />
+                  <span>Tirada secreta (solo Máster)</span>
+                </button>
+              )}
+
+              {macrosLista.length > 6 && (
+                <div className="macros-buscador">
+                  <Search size={13} strokeWidth={2.2} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={macroFiltro}
+                    onChange={e => setMacroFiltro(e.target.value)}
+                    placeholder="Buscar macro..."
+                    aria-label="Buscar macro"
+                  />
+                </div>
+              )}
+
+              <div className="macros-lista">
+                {macrosLista.length === 0 ? (
+                  <p className="macros-vacio">
+                    Aún no tienes macros guardadas. Pulsa Crear para configurar una tirada rápida.
+                  </p>
+                ) : (
+                  (() => {
+                    const filtro = macroFiltro.trim().toLowerCase();
+                    const visibles = filtro
+                      ? macrosLista.filter(m => m.nombre.toLowerCase().includes(filtro))
+                      : macrosLista;
+                    if (visibles.length === 0) {
+                      return (
+                        <p className="macros-vacio">
+                          Ninguna macro coincide con «{macroFiltro}».
+                        </p>
+                      );
+                    }
+                    return visibles.map(macro => {
+                      const formula = formatearFormulaCompuesta(
+                        macro.grupos.map((g, idx) => ({
+                          id: `${macro.id}-${idx}`,
+                          cantidad: g.cantidad,
+                          caras: g.caras
+                        })),
+                        macro.bonificador
+                      );
+                      return (
+                        <div key={macro.id} className="macro-fila">
+                          <button
+                            type="button"
+                            className="macro-lanzar-btn"
+                            onClick={() => lanzarMacro(macro)}
+                            disabled={tirando}
+                            title={`Lanzar ${macro.nombre} (${formula})`}
+                          >
+                            <span className="macro-icono-badge">
+                              <IconoMacro id={macro.icono} size={15} />
+                            </span>
+                            <span className="macro-texto">
+                              <span className="macro-nombre">{macro.nombre}</span>
+                              <span className="macro-formula">{formula}</span>
+                            </span>
+                          </button>
+                          <div className="macro-acciones">
+                            <button
+                              type="button"
+                              className="macro-accion-btn"
+                              onClick={() => abrirEditarMacro(macro)}
+                              title="Editar macro"
+                              aria-label={`Editar ${macro.nombre}`}
+                            >
+                              <Pencil size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="macro-accion-btn"
+                              onClick={() => duplicarMacro(macro)}
+                              title="Duplicar macro"
+                              aria-label={`Duplicar ${macro.nombre}`}
+                            >
+                              <Copy size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="macro-accion-btn borrar"
+                              onClick={() => eliminarMacro(macro.id)}
+                              title="Eliminar macro"
+                              aria-label={`Eliminar ${macro.nombre}`}
+                            >
+                              <Trash2 size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+            </div>
+          )}
+
+          {macroModalAbierto && !ajuste && (
+            <div
+              className="dados-compuesta-backdrop"
+              onClick={() => setMacroModalAbierto(false)}
+            >
+              <form
+                className="dados-compuesta-modal macros-modal"
+                role="dialog"
+                aria-label={macroEditandoId ? "Editar macro" : "Crear macro"}
+                onClick={evento => evento.stopPropagation()}
+                onSubmit={evento => {
+                  evento.preventDefault();
+                  guardarMacroFormulario();
+                }}
+              >
+                <div className="dados-selector-cabecera">
+                  <span>{macroEditandoId ? "Editar macro" : "Nueva macro"}</span>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setMacroModalAbierto(false)}
+                    aria-label="Cerrar editor de macro"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <label className="macro-campo-nombre">
+                  <span className="dados-campo-etiqueta">Nombre</span>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    value={macroNombre}
+                    onChange={e => setMacroNombre(e.target.value)}
+                    placeholder="Ej. Espada larga, Bola de fuego..."
+                    autoFocus
+                  />
+                </label>
+
+                <div className="macro-campo-icono">
+                  <span className="dados-campo-etiqueta">Icono</span>
+                  <div className="macro-icono-grid" role="radiogroup" aria-label="Icono de la macro">
+                    {ICONOS_MACROS.map(item => {
+                      const seleccionado = macroIcono === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`macro-icono-opcion${seleccionado ? " activo" : ""}`}
+                          onClick={() => setMacroIcono(item.id)}
+                          title={item.label}
+                          aria-label={item.label}
+                          aria-checked={seleccionado}
+                          role="radio"
+                        >
+                          <IconoMacro id={item.id} size={15} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="dados-grupos-lista">
+                  {macroGrupos.map((grupo, idx) => (
+                    <div key={grupo.id} className="dados-grupo-card">
+                      <div className="dados-grupo-top">
+                        <span className="dados-campo-etiqueta">Dado {idx + 1}</span>
+                        {macroGrupos.length > 1 && (
+                          <button
+                            type="button"
+                            className="dados-grupo-quitar"
+                            onClick={() => eliminarGrupoMacro(grupo.id)}
+                            aria-label={`Quitar dado ${idx + 1}`}
+                            title="Quitar este dado"
+                          >
+                            <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="dados-stepper">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            actualizarGrupoMacro(grupo.id, {
+                              cantidad: Math.max(1, grupo.cantidad - 1)
+                            })
+                          }
+                          aria-label="Menos dados"
+                        >
+                          <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={grupo.cantidad}
+                          onChange={e => {
+                            const valor = parseInt(e.target.value, 10);
+                            actualizarGrupoMacro(grupo.id, {
+                              cantidad: Number.isNaN(valor) ? 1 : limitar(valor, 1, 20)
+                            });
+                          }}
+                          aria-label="Número de dados"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            actualizarGrupoMacro(grupo.id, {
+                              cantidad: Math.min(20, grupo.cantidad + 1)
+                            })
+                          }
+                          aria-label="Más dados"
+                        >
+                          <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                        {TIPOS_DADO.map(caras => (
+                          <button
+                            key={caras}
+                            type="button"
+                            className={`dado-tipo-btn${grupo.caras === caras ? " activo" : ""}`}
+                            onClick={() => actualizarGrupoMacro(grupo.id, { caras })}
+                          >
+                            d{caras}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {macroGrupos.length < 6 && (
+                  <button
+                    type="button"
+                    className="dados-agregar-grupo"
+                    onClick={agregarGrupoMacro}
+                  >
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    <span>Añadir otro dado</span>
+                  </button>
+                )}
+
+                <div className="dados-fila">
+                  <span className="dados-campo-etiqueta">Bonificador</span>
+                  <div className="dados-stepper">
+                    <button
+                      type="button"
+                      onClick={() => setMacroBonificador(b => Math.max(-99, b - 1))}
+                      aria-label="Reducir bonificador"
+                    >
+                      <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                    <input
+                      type="number"
+                      min={-99}
+                      max={99}
+                      value={macroBonificador}
+                      onChange={e => {
+                        const valor = parseInt(e.target.value, 10);
+                        setMacroBonificador(
+                          Number.isNaN(valor) ? 0 : limitar(valor, -99, 99)
+                        );
+                      }}
+                      aria-label="Bonificador"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMacroBonificador(b => Math.min(99, b + 1))}
+                      aria-label="Aumentar bonificador"
+                    >
+                      <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="dados-lanzar">
+                  {macroEditandoId ? "Guardar macro (" : "Guardar "}
+                  {formatearFormulaCompuesta(macroGrupos, macroBonificador)}
+                  {macroEditandoId ? ")" : ""}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {tirada !== null &&
+            !selectorAbierto &&
+            !compuestaAbierta &&
+            !macrosAbierto &&
+            !macroModalAbierto && (
             <div
               className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
@@ -2602,6 +3143,7 @@ export function Sala({
                 type="button"
                 className={`dock-btn${selectorAbierto && !tiradaSecreta ? " activo" : ""}`}
                 onClick={() => {
+                  setMacrosAbierto(false);
                   if (selectorAbierto && !tiradaSecreta) {
                     setSelectorAbierto(false);
                   } else {
@@ -2618,12 +3160,31 @@ export function Sala({
               <span className="dock-etiqueta">Dados</span>
             </div>
 
+            <div className="dock-item">
+              <button
+                type="button"
+                className={`dock-btn${macrosAbierto ? " activo" : ""}`}
+                onClick={() => {
+                  setSelectorAbierto(false);
+                  setCompuestaAbierta(false);
+                  setMacrosAbierto(abierto => !abierto);
+                }}
+                aria-expanded={macrosAbierto}
+                title="Macros de tirada personalizadas"
+                aria-label="Macros"
+              >
+                <Bookmark size={18} strokeWidth={2.1} aria-hidden="true" />
+              </button>
+              <span className="dock-etiqueta">Macros</span>
+            </div>
+
             {esMaster && (
               <div className="dock-item">
                 <button
                   type="button"
                   className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
                   onClick={() => {
+                    setMacrosAbierto(false);
                     if (selectorAbierto && tiradaSecreta) {
                       setSelectorAbierto(false);
                     } else {

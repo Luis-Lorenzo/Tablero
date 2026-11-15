@@ -9,6 +9,7 @@ import {
 import { ApiError } from "../../api/client";
 import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
+import { usersApi } from "../../api/users.api";
 import type {
   EventoTirada,
   MensajeChat,
@@ -33,7 +34,10 @@ import {
   crearElementoDesdeArchivo,
   nuevoIdElemento
 } from "../../preview/compartir";
-import { reproducirSonidoNotificacion } from "../../preview/sonido";
+import {
+  reproducirSonidoNotificacion,
+  reproducirSonidoPing
+} from "../../preview/sonido";
 import type {
   Calibracion,
   DocumentoMesa,
@@ -41,6 +45,7 @@ import type {
   ImagenEscenaPreview,
   JugadorPreview,
   MensajeSala,
+  PingVisual,
   PositPreview,
   SolicitudTransferencia,
   TipoEspecialTirada,
@@ -152,6 +157,8 @@ function SalaRealContent({
   const [error, setError] = useState<string | null>(null);
   const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
   const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
+  const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
+  const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
 
   const recepcionesRef = useRef(0);
   const avisoTimerRef = useRef<number | null>(null);
@@ -186,6 +193,14 @@ function SalaRealContent({
       window.clearTimeout(avisoTimerRef.current);
     }
     avisoTimerRef.current = window.setTimeout(() => setEstadoAviso(null), 3200);
+  }, []);
+
+  const agregarPingVisual = useCallback((ping: PingVisual) => {
+    reproducirSonidoPing();
+    setPingsActivos(prev => [...prev, ping]);
+    window.setTimeout(() => {
+      setPingsActivos(prev => prev.filter(item => item.id !== ping.id));
+    }, 2400);
   }, []);
 
   useEffect(
@@ -280,6 +295,26 @@ function SalaRealContent({
         window.clearTimeout(timerId);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
+    void usersApi
+      .obtenerMacros()
+      .then(({ macros: remotas }) => {
+        if (activo && Array.isArray(remotas)) setMacros(remotas);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [user.id]);
+
+  const actualizarMacros = useCallback((nuevas: import("../../preview/tipos").MacroTirada[]) => {
+    setMacros(nuevas);
+    void usersApi.guardarMacros(nuevas).catch(() => {
+      setError("No se pudieron guardar las macros en tu perfil.");
+    });
   }, []);
 
   useEffect(() => {
@@ -449,6 +484,14 @@ function SalaRealContent({
 
   const alMensajeEnVivo = useCallback(
     (evento: Record<string, unknown>) => {
+      if (evento.type === "mesa:ping" && evento.mesaId === mesa.id && evento.ping) {
+        const bruto = evento.ping as PingVisual & { autorId?: string };
+        if (bruto.autorId !== user.id) {
+          agregarPingVisual(bruto);
+        }
+        return;
+      }
+
       if (evento.type === "pizarra:actualizada" && evento.mesaId === mesa.id) {
         if (evento.autorId !== user.id && evento.estado && typeof evento.estado === "object") {
           aplicarEstadoPizarraRemoto(
@@ -479,7 +522,7 @@ function SalaRealContent({
         }
       }
     },
-    [mesa.id, user.id, aplicarEstadoPizarraRemoto, mostrarAvisoBreve]
+    [mesa.id, user.id, aplicarEstadoPizarraRemoto, agregarPingVisual, mostrarAvisoBreve]
   );
 
   async function enviarElemento(destino: JugadorPreview, elemento: ElementoMesa) {
@@ -715,6 +758,30 @@ function SalaRealContent({
     }
   }
 
+  function enviarPing(datos: {
+    x: number;
+    y: number;
+    vista: "pizarra" | "escena" | "mapa";
+  }): void {
+    const ping: PingVisual = {
+      id: crypto.randomUUID(),
+      x: datos.x,
+      y: datos.y,
+      color: colorJugadorActual,
+      vista: datos.vista,
+      autorNombre: nombreJugadorActual
+    };
+    agregarPingVisual(ping);
+    void mesasApi
+      .enviarPing(mesa.id, {
+        x: datos.x,
+        y: datos.y,
+        vista: datos.vista,
+        color: colorJugadorActual
+      })
+      .catch(() => undefined);
+  }
+
   let contenido: ReactNode;
   if (fase === "pizarra") {
     contenido = (
@@ -744,10 +811,20 @@ function SalaRealContent({
         onCambiarEscena={cambiarEscena}
         onProyectarImagen={proyectarImagen}
         onArchivosCambiados={cargarArchivos}
+        pingsActivos={pingsActivos}
+        onEnviarPing={enviarPing}
       />
     );
   } else if (fase === "mapa") {
-    contenido = <Mapa onVolver={() => setFase("sala")} />;
+    contenido = (
+      <Mapa
+        onVolver={() => setFase("sala")}
+        pingsActivos={pingsActivos}
+        onEnviarPing={enviarPing}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+      />
+    );
   } else if (fase === "archivador") {
     contenido = (
       <Archivador
@@ -799,6 +876,8 @@ function SalaRealContent({
         solicitudPendiente={colaSolicitudes[0] ?? null}
         onAceptarSolicitud={s => void aceptarSolicitud(s)}
         onRechazarSolicitud={s => void rechazarSolicitud(s)}
+        macros={macros}
+        onMacros={actualizarMacros}
       />
     );
   }

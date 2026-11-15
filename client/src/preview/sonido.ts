@@ -1,10 +1,33 @@
+const CLAVE_SILENCIO = "pocketrol.sonido.silenciado";
 let ultimoAvisoMs = 0;
+
+export function estaSonidoSilenciado(): boolean {
+  try {
+    return window.localStorage.getItem(CLAVE_SILENCIO) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function establecerSonidoSilenciado(silenciado: boolean): void {
+  try {
+    if (silenciado) {
+      window.localStorage.setItem(CLAVE_SILENCIO, "1");
+    } else {
+      window.localStorage.removeItem(CLAVE_SILENCIO);
+    }
+  } catch {
+    // Ignorar errores de almacenamiento en modo privado.
+  }
+}
 
 /**
  * Sintetiza un breve tono leve de notificación con Web Audio API, sin depender
  * de archivos de audio externos.
  */
 export function reproducirSonidoNotificacion(): void {
+  if (estaSonidoSilenciado()) return;
+
   const ahoraMs = Date.now();
   if (ahoraMs - ultimoAvisoMs < 400) return;
   ultimoAvisoMs = ahoraMs;
@@ -44,5 +67,45 @@ export function reproducirSonidoNotificacion(): void {
     }, 450);
   } catch {
     // Si el navegador bloquea el audio antes de la interacción, no interrumpimos la UI.
+  }
+}
+
+/**
+ * Reproduce un ping muy suave y breve para señalar un punto en pizarra o mapa.
+ */
+export function reproducirSonidoPing(): void {
+  if (estaSonidoSilenciado()) return;
+
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const ahora = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const ganancia = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(987.77, ahora);
+    osc.frequency.exponentialRampToValueAtTime(1174.66, ahora + 0.09);
+
+    ganancia.gain.setValueAtTime(0.0008, ahora);
+    ganancia.gain.exponentialRampToValueAtTime(0.032, ahora + 0.018);
+    ganancia.gain.exponentialRampToValueAtTime(0.0008, ahora + 0.22);
+
+    osc.connect(ganancia);
+    ganancia.connect(ctx.destination);
+
+    osc.start(ahora);
+    osc.stop(ahora + 0.24);
+
+    window.setTimeout(() => {
+      void ctx.close().catch(() => undefined);
+    }, 320);
+  } catch {
+    // Ignorar si el navegador bloquea audio.
   }
 }

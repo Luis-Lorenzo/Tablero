@@ -156,3 +156,25 @@ export interface ImagenEscenaPreview {
   titulo: string | null;
   url?: string;
 }
+
+export interface PingVisual {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  vista: "pizarra" | "escena" | "mapa";
+  autorNombre?: string;
+}
+
+export interface GrupoDadoMacro {
+  caras: number;
+  cantidad: number;
+}
+
+export interface MacroTirada {
+  id: string;
+  nombre: string;
+  icono: string;
+  grupos: GrupoDadoMacro[];
+  bonificador: number;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type {
   CSSProperties,
   FormEvent,
@@ -25,6 +25,14 @@ interface Destinatario {
   nombre: string;
 }
 
+type FiltroChat = "todo" | "chat" | "dados";
+
+const FILTROS_CHAT: ReadonlyArray<{ id: FiltroChat; etiqueta: string }> = [
+  { id: "todo", etiqueta: "Todo" },
+  { id: "chat", etiqueta: "Chat" },
+  { id: "dados", etiqueta: "Dados" }
+];
+
 function formatearHora(iso: string): string {
   const fecha = new Date(iso);
   if (Number.isNaN(fecha.getTime())) return "";
@@ -48,6 +56,7 @@ export function ChatSala({
   onToggleCompartir
 }: ChatSalaProps) {
   const [plegado, setPlegado] = useState(false);
+  const [filtro, setFiltro] = useState<FiltroChat>("todo");
   const [texto, setTexto] = useState("");
   const [destinatario, setDestinatario] = useState<Destinatario | null>(null);
   const [indiceMencion, setIndiceMencion] = useState(0);
@@ -56,10 +65,16 @@ export function ChatSala({
   const listaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const mensajesFiltrados = mensajes.filter(msg => {
+    if (filtro === "chat") return !msg.esSistema;
+    if (filtro === "dados") return Boolean(msg.esSistema);
+    return true;
+  });
+
   useEffect(() => {
     if (plegado || !listaRef.current) return;
     listaRef.current.scrollTop = listaRef.current.scrollHeight;
-  }, [mensajes.length, plegado]);
+  }, [mensajesFiltrados.length, filtro, plegado]);
 
   const filtroMencion = extraerFiltroMencion(texto);
   const candidatos =
@@ -172,6 +187,31 @@ export function ChatSala({
             </button>
           )}
         </div>
+        <div
+          className="chat-filtros"
+          role="tablist"
+          aria-label="Filtrar mensajes"
+          onPointerDown={e => e.stopPropagation()}
+        >
+          {FILTROS_CHAT.map((item, idx) => (
+            <Fragment key={item.id}>
+              {idx > 0 && (
+                <span className="chat-filtro-sep" aria-hidden="true">
+                  |
+                </span>
+              )}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filtro === item.id}
+                className={`chat-filtro-btn${filtro === item.id ? " activo" : ""}`}
+                onClick={() => setFiltro(item.id)}
+              >
+                {item.etiqueta}
+              </button>
+            </Fragment>
+          ))}
+        </div>
         <button
           type="button"
           className="chat-plegar-btn"
@@ -188,12 +228,18 @@ export function ChatSala({
       {!plegado && (
         <>
           <div ref={listaRef} className="chat-mensajes">
-            {mensajes.length === 0 ? (
+            {mensajesFiltrados.length === 0 ? (
               <p className="chat-vacio">
-                Escribe un mensaje o usa <code>@</code> para susurrar en privado.
+                {filtro === "dados" ? (
+                  "No hay tiradas de dados todavía."
+                ) : (
+                  <>
+                    Escribe un mensaje o usa <code>@</code> para susurrar en privado.
+                  </>
+                )}
               </p>
             ) : (
-              mensajes.map(msg => {
+              mensajesFiltrados.map(msg => {
                 const esPrivado = msg.destinatarioId !== null;
                 const esMio = msg.autorId === miUsuarioId;
                 const clase = [

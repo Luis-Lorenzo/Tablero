@@ -151,3 +151,10 @@ CREATE TABLE IF NOT EXISTS mesa_pizarra_estado (
   datos      JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Macros de tiradas personales de cada usuario.
+CREATE TABLE IF NOT EXISTS user_macros (
+  user_id    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  macros     JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

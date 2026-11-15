@@ -162,5 +162,16 @@ export const mesasApi = {
       tamanoImagenesEscena: Record<string, { w: number; h: number }>;
       congelada: boolean;
     }
-  ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos)
+  ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos),
+
+  /** Envía un ping visual temporal en pizarra, escena o mapa. */
+  enviarPing: (
+    id: string,
+    datos: {
+      x: number;
+      y: number;
+      vista: "pizarra" | "escena" | "mapa";
+      color: string;
+    }
+  ) => http.post<void>(`/api/mesas/${id}/ping`, datos)
 };

@@ -13,9 +13,11 @@ import {
   Paintbrush,
   Pencil,
   Plus,
+  Radio,
   Snowflake,
   Sparkles,
-  Trash2
+  Trash2,
+  Undo2
 } from "lucide-react";
 import type {
   CSSProperties,
@@ -38,9 +40,11 @@ import {
   urlImagenEscena
 } from "./calibracion";
 import { COLORES_POSIT } from "./datos";
+import { reproducirSonidoPing } from "./sonido";
 import type {
   DocumentoMesa,
   ImagenEscenaPreview,
+  PingVisual,
   PositPreview,
   Punto,
   TrazoPizarra
@@ -83,6 +87,8 @@ interface PizarraProps {
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
   onArchivosCambiados?: () => void;
+  pingsActivos?: PingVisual[];
+  onEnviarPing?: (datos: { x: number; y: number; vista: "pizarra" | "escena" }) => void;
 }
 
 function esColorOscuro(hex: string): boolean {
@@ -109,7 +115,13 @@ interface PositProps {
   onArrastrar: (evento: ReactPointerEvent, posit: PositPreview) => void;
 }
 
-type ModoHerramienta = "cursor" | "dibujar" | "borrar";
+type ModoHerramienta = "cursor" | "dibujar" | "borrar" | "ping";
+
+interface InstantaneaPizarra {
+  trazos: TrazoPizarra[];
+  posits: PositPreview[];
+  documentos: DocumentoMesa[];
+}
 
 type AccionLienzo =
   | {
@@ -414,7 +426,9 @@ export function Pizarra({
   imagenProyectada,
   onCambiarEscena,
   onProyectarImagen,
-  onArchivosCambiados
+  onArchivosCambiados,
+  pingsActivos,
+  onEnviarPing
 }: PizarraProps) {
   const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
   const [trazosInternos, setTrazosInternos] = useState<TrazoPizarra[]>([]);
@@ -483,10 +497,94 @@ export function Pizarra({
   const accionRef = useRef<AccionLienzo | null>(null);
   const arrastreDocMovido = useRef(false);
   const archivoDragRef = useRef<ArchivoPizarraItem | null>(null);
+  const historialPizarraRef = useRef<InstantaneaPizarra[]>([]);
+  const historialEscenaRef = useRef<InstantaneaPizarra[]>([]);
+  const [puedeDeshacerPizarra, setPuedeDeshacerPizarra] = useState(false);
+  const [puedeDeshacerEscena, setPuedeDeshacerEscena] = useState(false);
+  const [pingsLocales, setPingsLocales] = useState<PingVisual[]>([]);
 
-  const herramientaEfectiva: ModoHerramienta = bloqueado
-    ? "cursor"
-    : modoHerramienta;
+  const herramientaEfectiva: ModoHerramienta =
+    modoHerramienta === "ping"
+      ? "ping"
+      : bloqueado
+        ? "cursor"
+        : modoHerramienta;
+
+  const guardarInstantanea = useCallback(() => {
+    const pila = esVistaEscena
+      ? historialEscenaRef.current
+      : historialPizarraRef.current;
+    pila.push({
+      trazos: listaTrazos,
+      posits: listaPositsActiva,
+      documentos: listaDocs
+    });
+    if (pila.length > 30) {
+      pila.shift();
+    }
+    if (esVistaEscena) {
+      setPuedeDeshacerEscena(true);
+    } else {
+      setPuedeDeshacerPizarra(true);
+    }
+  }, [esVistaEscena, listaTrazos, listaPositsActiva, listaDocs]);
+
+  const deshacer = useCallback(() => {
+    if (bloqueado) return;
+    const pila = esVistaEscena
+      ? historialEscenaRef.current
+      : historialPizarraRef.current;
+    const anterior = pila.pop();
+    if (!anterior) return;
+    setListaTrazos(anterior.trazos);
+    setListaPositsActiva(anterior.posits);
+    setListaDocs(anterior.documentos);
+    setActivo(null);
+    if (esVistaEscena) {
+      setPuedeDeshacerEscena(pila.length > 0);
+    } else {
+      setPuedeDeshacerPizarra(pila.length > 0);
+    }
+  }, [
+    bloqueado,
+    esVistaEscena,
+    setListaTrazos,
+    setListaPositsActiva,
+    setListaDocs
+  ]);
+
+  useEffect(() => {
+    function alTecla(evento: KeyboardEvent) {
+      if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === "z" && !evento.shiftKey) {
+        const tag = (evento.target as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        evento.preventDefault();
+        deshacer();
+      }
+    }
+    window.addEventListener("keydown", alTecla);
+    return () => window.removeEventListener("keydown", alTecla);
+  }, [deshacer]);
+
+  const lanzarPing = useCallback(
+    (x: number, y: number) => {
+      if (onEnviarPing) {
+        onEnviarPing({ x, y, vista: vistaPizarra });
+        return;
+      }
+      const id = nuevoId();
+      const color = esMaster ? "#e8c56a" : (colorJugador ?? "#74569b");
+      reproducirSonidoPing();
+      setPingsLocales(prev => [
+        ...prev,
+        { id, x, y, color, vista: vistaPizarra, autorNombre: nombreJugador }
+      ]);
+      window.setTimeout(() => {
+        setPingsLocales(prev => prev.filter(p => p.id !== id));
+      }, 2400);
+    },
+    [onEnviarPing, vistaPizarra, esMaster, colorJugador, nombreJugador]
+  );
 
   useEffect(() => {
     let activoComponente = true;
@@ -628,6 +726,7 @@ export function Pizarra({
       if (actual?.tipo === "dibujar") {
         setTrazoEnCurso(null);
         if (actual.trazo.puntos.length >= 1) {
+          guardarInstantanea();
           setListaTrazos(prev => [...prev, actual.trazo]);
         }
       }
@@ -648,10 +747,17 @@ export function Pizarra({
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
-  }, [setListaPositsActiva, setListaDocs, setListaTrazos, borrarTrazosEnPunto]);
+  }, [
+    setListaPositsActiva,
+    setListaDocs,
+    setListaTrazos,
+    borrarTrazosEnPunto,
+    guardarInstantanea
+  ]);
 
   function crearPosit(x: number, y: number): void {
     if (bloqueado) return;
+    guardarInstantanea();
     const posit: PositPreview = {
       id: nuevoId(),
       texto: "",
@@ -732,6 +838,19 @@ export function Pizarra({
   }
 
   function alPulsarLienzo(evento: ReactPointerEvent<HTMLDivElement>): void {
+    if (herramientaEfectiva === "ping") {
+      if ((evento.target as HTMLElement).closest(".pizarra-escena-tarjeta")) {
+        return;
+      }
+      const rect = lienzo.current?.getBoundingClientRect();
+      if (!rect) return;
+      evento.preventDefault();
+      const x = limitar(((evento.clientX - rect.left) / rect.width) * 100, 0, 100);
+      const y = limitar(((evento.clientY - rect.top) / rect.height) * 100, 0, 100);
+      lanzarPing(x, y);
+      return;
+    }
+
     if (bloqueado) return;
     if (herramientaEfectiva === "cursor") {
       if (!(evento.target as HTMLElement).closest(".posit")) {
@@ -764,6 +883,7 @@ export function Pizarra({
     }
 
     if (herramientaEfectiva === "borrar") {
+      guardarInstantanea();
       accionRef.current = { tipo: "borrar", rect };
       borrarTrazosEnPunto({ x, y });
     }
@@ -785,6 +905,7 @@ export function Pizarra({
 
   function borrarPosit(id: string): void {
     if (bloqueado) return;
+    guardarInstantanea();
     setListaPositsActiva(prev => prev.filter(posit => posit.id !== id));
     setActivo(actual => (actual === id ? null : actual));
   }
@@ -955,12 +1076,18 @@ export function Pizarra({
   }
 
   function borrarTodoPizarra(): void {
+    guardarInstantanea();
     setListaTrazos([]);
     setListaPositsActiva([]);
     setListaDocs([]);
     setActivo(null);
     setConfirmarBorrarTodo(false);
   }
+
+  const puedeDeshacer = esVistaEscena ? puedeDeshacerEscena : puedeDeshacerPizarra;
+  const pingsVisibles = (pingsActivos ?? pingsLocales).filter(
+    p => p.vista === vistaPizarra
+  );
 
   const todosTrazos = trazoEnCurso
     ? [...listaTrazos, trazoEnCurso]
@@ -1074,6 +1201,17 @@ export function Pizarra({
               <Eraser size={14} strokeWidth={2.1} aria-hidden="true" />
               <span>Borrador</span>
             </button>
+            <button
+              type="button"
+              className={`pizarra-tool-btn${
+                herramientaEfectiva === "ping" ? " activo" : ""
+              }`}
+              onClick={() => setModoHerramienta("ping")}
+              title="Señalar un punto temporalmente con un ping"
+            >
+              <Radio size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Ping</span>
+            </button>
           </div>
 
           {herramientaEfectiva === "dibujar" && !bloqueado && (
@@ -1111,6 +1249,18 @@ export function Pizarra({
         </div>
 
         <div className="pizarra-barra-der">
+          {!bloqueado && (
+            <button
+              type="button"
+              className="pizarra-btn"
+              disabled={!puedeDeshacer}
+              onClick={deshacer}
+              title="Deshacer último cambio (Ctrl+Z)"
+            >
+              <Undo2 size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Deshacer</span>
+            </button>
+          )}
           {esMaster && (
             <>
               <button
@@ -1129,7 +1279,10 @@ export function Pizarra({
                 type="button"
                 className="pizarra-btn"
                 disabled={listaTrazos.length === 0}
-                onClick={() => setListaTrazos([])}
+                onClick={() => {
+                  guardarInstantanea();
+                  setListaTrazos([]);
+                }}
                 title="Borrar solo los dibujos trazados"
               >
                 <Paintbrush size={14} strokeWidth={2.1} aria-hidden="true" />
@@ -1862,6 +2015,24 @@ export function Pizarra({
               onBorrar={borrarPosit}
               onArrastrar={iniciarArrastrePosit}
             />
+          ))}
+
+          {pingsVisibles.map(ping => (
+            <div
+              key={ping.id}
+              className="ping-onda"
+              style={
+                {
+                  left: `${ping.x}%`,
+                  top: `${ping.y}%`,
+                  "--ping-color": ping.color
+                } as CSSProperties
+              }
+              aria-hidden="true"
+            >
+              <span className="ping-onda-anillo" />
+              <span className="ping-onda-centro" />
+            </div>
           ))}
 
           <p className="pizarra-pista">

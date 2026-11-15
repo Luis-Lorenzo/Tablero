@@ -1,3 +1,4 @@
+import { estaSonidoSilenciado } from "./sonido";
 import type { TipoEspecialTirada } from "./tipos";
 
 let audioCtx: AudioContext | null = null;
@@ -49,6 +50,7 @@ function tocarNota(
  * pensado para las tiradas rápidas.
  */
 export function reproducirSonidoRoll(): void {
+  if (estaSonidoSilenciado()) return;
   try {
     const ctx = obtenerContexto();
     if (!ctx) return;
@@ -76,7 +78,7 @@ export function reproducirSonidoRoll(): void {
  * saca su máximo natural (crítico) o 1 natural (pifia).
  */
 export function reproducirSonidoTirada(especial: TipoEspecialTirada | undefined): void {
-  if (!especial) return;
+  if (!especial || estaSonidoSilenciado()) return;
 
   try {
     const ctx = obtenerContexto();

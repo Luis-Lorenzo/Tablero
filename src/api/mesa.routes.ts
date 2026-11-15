@@ -551,5 +551,59 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.post("/:id/ping", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as {
+        x?: unknown;
+        y?: unknown;
+        vista?: unknown;
+        color?: unknown;
+      };
+      if (
+        typeof body.x !== "number" ||
+        !Number.isFinite(body.x) ||
+        typeof body.y !== "number" ||
+        !Number.isFinite(body.y) ||
+        (body.vista !== "pizarra" && body.vista !== "escena" && body.vista !== "mapa")
+      ) {
+        throw errors.invalidRequest();
+      }
+
+      const x = Math.max(0, Math.min(100, body.x));
+      const y = Math.max(0, Math.min(100, body.y));
+      const color =
+        typeof body.color === "string" && body.color.trim()
+          ? body.color.trim().slice(0, 32)
+          : "#e8c56a";
+
+      const miembros = [mesa.hostId, ...mesa.players];
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:ping",
+        mesaId,
+        ping: {
+          id: crypto.randomUUID(),
+          autorId: actor.id,
+          autorNombre: nombreDeUsuario(actor),
+          color,
+          x,
+          y,
+          vista: body.vista
+        }
+      });
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

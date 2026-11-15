@@ -13,11 +13,13 @@ import type { ArchivoService } from "../services/archivo.service.js";
 import type { MesaEstadoRepository } from "../repositories/mesa-estado.repository.js";
 import type { PizarraEstadoRepository } from "../repositories/pizarra-estado.repository.js";
 import type { TransferenciaService } from "../services/transferencia.service.js";
+import type { UserMacrosRepository } from "../repositories/user-macros.repository.js";
 
 export interface AppContext {
   config: AppConfig;
   logger: Logger;
   userRepository: UserRepository;
+  userMacrosRepository?: UserMacrosRepository;
   mesaRepository: MesaRepository;
   mesaEstadoRepository?: MesaEstadoRepository;
   pizarraEstadoRepository?: PizarraEstadoRepository;
