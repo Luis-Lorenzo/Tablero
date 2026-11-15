@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode
 } from "react";
+import { ApiError } from "../../api/client";
 import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
 import type {
@@ -29,18 +30,14 @@ import {
   CLAVE_POSITS,
   CLAVE_TRAZOS_PIZARRA,
   cargarCalibracion,
-  cargarDocumentosMesa,
   cargarDocumentosPizarra,
   cargarPizarraCongelada,
   cargarPosits,
-  cargarPositsMesa,
   cargarTrazosPizarra,
   guardarCalibracion,
-  guardarDocumentosMesa,
   guardarDocumentosPizarra,
   guardarPizarraCongelada,
   guardarPosits,
-  guardarPositsMesa,
   guardarTrazosPizarra
 } from "../../preview/calibracion";
 import {
@@ -160,12 +157,6 @@ function SalaRealContent({
   const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
     cargarPizarraCongelada
   );
-  const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
-    cargarPositsMesa(user.id)
-  );
-  const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
-    cargarDocumentosMesa(user.id)
-  );
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
   >(null);
@@ -176,6 +167,7 @@ function SalaRealContent({
   const recepcionesRef = useRef(0);
   const avisoTimerRef = useRef<number | null>(null);
   const timersAsiento = useRef<Record<string, number>>({});
+  const estadoCargadoRef = useRef(false);
   const esMaster = mesa.hostId === user.id;
   const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
   const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
@@ -291,20 +283,72 @@ function SalaRealContent({
   }, []);
 
   useEffect(() => {
-    guardarPositsMesa(positsMesa, user.id);
-  }, [positsMesa, user.id]);
+    let activo = true;
+    estadoCargadoRef.current = false;
+    void mesasApi
+      .obtenerEstado(mesa.id)
+      .then(res => {
+        if (!activo) return;
+        const cargados = Array.isArray(res.elementos)
+          ? (res.elementos as ElementoMesa[])
+          : [];
+        setElementosMesa(cargados);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (activo) estadoCargadoRef.current = true;
+      });
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id]);
 
   useEffect(() => {
-    guardarDocumentosMesa(documentosMesa, user.id);
-  }, [documentosMesa, user.id]);
+    if (!estadoCargadoRef.current) return;
+    const timer = window.setTimeout(() => {
+      const limpios = elementosMesa.map(el =>
+        el.tipo === "archivo"
+          ? {
+              id: el.id,
+              tipo: el.tipo,
+              archivoId: el.archivoId,
+              nombre: el.nombre,
+              mime: el.mime,
+              vista: el.vista,
+              tamano: el.tamano,
+              x: el.x,
+              y: el.y,
+              archivado: el.archivado,
+              remitente: el.remitente
+            }
+          : el
+      );
+      void mesasApi.guardarEstado(mesa.id, limpios).catch(() => undefined);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [mesa.id, elementosMesa]);
   const refrescar = useCallback(async () => {
     try {
       const actualizada = await mesasApi.obtener(mesa.id);
+      const sigueEnMesa =
+        actualizada.hostId === user.id ||
+        actualizada.players.some(p => p.id === user.id);
+      if (!sigueEnMesa) {
+        onVolver();
+        return;
+      }
       onActualizarMesa(actualizada);
     } catch (refrescoError) {
+      if (
+        refrescoError instanceof ApiError &&
+        (refrescoError.status === 403 || refrescoError.status === 404)
+      ) {
+        onVolver();
+        return;
+      }
       setError(describeError(refrescoError));
     }
-  }, [mesa.id, onActualizarMesa]);
+  }, [mesa.id, user.id, onActualizarMesa, onVolver]);
 
   const cargarArchivos = useCallback(() => {
     void archivosApi
@@ -366,8 +410,6 @@ function SalaRealContent({
     },
     [mesa.id, mostrarAvisoBreve]
   );
-
-  useMesasLive(refrescar, onSessionExpired, alMensajeEnVivo);
 
   async function enviarElemento(destino: JugadorPreview, elemento: ElementoMesa) {
     if (!destino.usuarioId) return;
@@ -629,10 +671,8 @@ function SalaRealContent({
   } else if (fase === "archivador") {
     contenido = (
       <Archivador
-        posits={positsMesa}
-        onPosits={setPositsMesa}
-        documentosMesa={documentosMesa}
-        onDocumentosMesa={setDocumentosMesa}
+        elementosMesa={elementosMesa}
+        onElementosMesa={setElementosMesa}
         onVolver={() => setFase("sala")}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
@@ -647,10 +687,6 @@ function SalaRealContent({
         jugadores={jugadores}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
-        positsMesa={positsMesa}
-        onPositsMesa={setPositsMesa}
-        documentosMesa={documentosMesa}
-        onDocumentosMesa={setDocumentosMesa}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
         onAbrirArchivador={() => setFase("archivador")}

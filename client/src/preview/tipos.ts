@@ -99,7 +99,11 @@ export type ElementoMesa =
       giro: number;
       x: number;
       y: number;
+      archivado?: boolean;
       remitente?: string;
+      autorNombre?: string;
+      autorColor?: string;
+      esMaster?: boolean;
     }
   | {
       id: string;
@@ -111,6 +115,7 @@ export type ElementoMesa =
       tamano: number;
       x: number;
       y: number;
+      archivado?: boolean;
       remitente?: string;
       contenidoLocal?: string;
     };

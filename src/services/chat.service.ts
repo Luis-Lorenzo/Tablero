@@ -1,4 +1,9 @@
 import { errors } from "../lib/errors.js";
+import {
+  MemoryChatRepository,
+  type ChatRepository,
+  type MensajeChat
+} from "../repositories/chat.repository.js";
 import type { Mesa, MesaRepository } from "../repositories/mesa.repository.js";
 import {
   nombreDeUsuario,
@@ -6,19 +11,10 @@ import {
   type UserRepository
 } from "../repositories/user.repository.js";
 
+export type { MensajeChat };
+
 const MAX_HISTORIAL_POR_MESA = 100;
 const MAX_LONGITUD_MENSAJE = 500;
-
-export interface MensajeChat {
-  id: string;
-  mesaId: string;
-  autorId: string;
-  autorNombre: string;
-  texto: string;
-  destinatarioId: string | null;
-  destinatarioNombre: string | null;
-  createdAt: string;
-}
 
 export type TipoEspecialTirada = "critico" | "pifia" | null;
 
@@ -67,16 +63,15 @@ function miembrosDe(mesa: Mesa): string[] {
 }
 
 export class ChatService {
-  private readonly historial = new Map<string, MensajeChat[]>();
-
   constructor(
     private readonly mesas: MesaRepository,
-    private readonly users: UserRepository
+    private readonly users: UserRepository,
+    private readonly chatRepo: ChatRepository = new MemoryChatRepository()
   ) {}
 
   async listar(actor: User, mesaId: string): Promise<MensajeChat[]> {
     const mesa = await this.obtenerMesaComoMiembro(actor, mesaId);
-    const mensajes = this.historial.get(mesa.id) ?? [];
+    const mensajes = await this.chatRepo.listByMesa(mesa.id, MAX_HISTORIAL_POR_MESA);
 
     return mensajes.filter(
       msg =>
@@ -129,12 +124,7 @@ export class ChatService {
       createdAt: new Date().toISOString()
     };
 
-    const lista = this.historial.get(mesa.id) ?? [];
-    lista.push(mensaje);
-    if (lista.length > MAX_HISTORIAL_POR_MESA) {
-      lista.splice(0, lista.length - MAX_HISTORIAL_POR_MESA);
-    }
-    this.historial.set(mesa.id, lista);
+    await this.chatRepo.save(mensaje, MAX_HISTORIAL_POR_MESA);
 
     const destinatarios =
       destinatarioId === null

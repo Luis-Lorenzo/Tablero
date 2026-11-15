@@ -6,23 +6,19 @@ import { Pizarra } from "./Pizarra";
 import { Sala } from "./Sala";
 import {
   cargarCalibracion,
-  cargarDocumentosMesa,
   cargarDocumentosPizarra,
   cargarEscenaPreview,
   cargarJugadores,
   cargarPizarraCongelada,
   cargarPosits,
-  cargarPositsMesa,
   cargarProyeccionPreview,
   cargarTrazosPizarra,
   guardarCalibracion,
-  guardarDocumentosMesa,
   guardarDocumentosPizarra,
   guardarEscenaPreview,
   guardarJugadores,
   guardarPizarraCongelada,
   guardarPosits,
-  guardarPositsMesa,
   guardarProyeccionPreview,
   guardarTrazosPizarra
 } from "./calibracion";
@@ -175,12 +171,6 @@ export default function PreviewApp() {
   const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
     cargarPizarraCongelada
   );
-  const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
-    cargarPositsMesa("preview")
-  );
-  const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
-    cargarDocumentosMesa("preview")
-  );
   const [imagenEscena, setImagenEscena] = useState<ImagenEscenaPreview | null>(
     cargarEscenaPreview
   );
@@ -213,14 +203,6 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarPizarraCongelada(pizarraCongelada);
   }, [pizarraCongelada]);
-
-  useEffect(() => {
-    guardarPositsMesa(positsMesa, "preview");
-  }, [positsMesa]);
-
-  useEffect(() => {
-    guardarDocumentosMesa(documentosMesa, "preview");
-  }, [documentosMesa]);
 
   useEffect(() => {
     guardarEscenaPreview(imagenEscena);
@@ -275,10 +257,8 @@ export default function PreviewApp() {
   } else if (fase === "archivador") {
     contenido = (
       <Archivador
-        posits={positsMesa}
-        onPosits={setPositsMesa}
-        documentosMesa={documentosMesa}
-        onDocumentosMesa={setDocumentosMesa}
+        elementosMesa={elementosMesa}
+        onElementosMesa={setElementosMesa}
         onVolver={volverASala}
         esMaster
         imagenEscena={imagenEscena}
@@ -293,10 +273,6 @@ export default function PreviewApp() {
         jugadores={jugadores}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
-        positsMesa={positsMesa}
-        onPositsMesa={setPositsMesa}
-        documentosMesa={documentosMesa}
-        onDocumentosMesa={setDocumentosMesa}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
         onAbrirArchivador={() => setFase("archivador")}

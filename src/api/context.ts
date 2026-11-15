@@ -10,6 +10,7 @@ import type { MesaService } from "../services/mesa.service.js";
 import type { ChatService } from "../services/chat.service.js";
 import type { MesasNotifier } from "../realtime/mesas-notifier.js";
 import type { ArchivoService } from "../services/archivo.service.js";
+import type { MesaEstadoRepository } from "../repositories/mesa-estado.repository.js";
 import type { TransferenciaService } from "../services/transferencia.service.js";
 
 export interface AppContext {
@@ -17,6 +18,7 @@ export interface AppContext {
   logger: Logger;
   userRepository: UserRepository;
   mesaRepository: MesaRepository;
+  mesaEstadoRepository?: MesaEstadoRepository;
   authService: AuthService;
   userService: UserService;
   bloqueoService: BloqueoService;

@@ -8,6 +8,7 @@ import type { R2Config } from "./config.js";
 export interface AlmacenArchivos {
   guardar(clave: string, datos: Uint8Array, tipo: string): Promise<void>;
   leer(clave: string): Promise<Uint8Array | undefined>;
+  leerStream?(clave: string): Promise<ReadableStream<Uint8Array> | undefined>;
   borrar(clave: string): Promise<void>;
 }
 
@@ -75,6 +76,22 @@ export class R2Almacen implements AlmacenArchivos {
     }
 
     return new Uint8Array(await respuesta.arrayBuffer());
+  }
+
+  async leerStream(clave: string): Promise<ReadableStream<Uint8Array> | undefined> {
+    const respuesta = await this.cliente.fetch(this.url(clave), {
+      method: "GET"
+    });
+
+    if (respuesta.status === 404) {
+      return undefined;
+    }
+
+    if (!respuesta.ok) {
+      throw new Error(`R2_GET_${respuesta.status}`);
+    }
+
+    return respuesta.body ?? undefined;
   }
 
   async borrar(clave: string): Promise<void> {

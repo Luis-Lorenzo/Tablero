@@ -18,6 +18,21 @@ import {
   type ArchivoRepository
 } from "./repositories/archivo.repository.js";
 import { PgArchivoRepository } from "./repositories/pg-archivo.repository.js";
+import {
+  MemoryMesaEstadoRepository,
+  type MesaEstadoRepository
+} from "./repositories/mesa-estado.repository.js";
+import { PgMesaEstadoRepository } from "./repositories/pg-mesa-estado.repository.js";
+import {
+  MemoryChatRepository,
+  type ChatRepository
+} from "./repositories/chat.repository.js";
+import { PgChatRepository } from "./repositories/pg-chat.repository.js";
+import {
+  MemoryTransferenciaRepository,
+  type TransferenciaRepository
+} from "./repositories/transferencia.repository.js";
+import { PgTransferenciaRepository } from "./repositories/pg-transferencia.repository.js";
 import { MemoryAlmacen, R2Almacen, type AlmacenArchivos } from "./lib/almacen.js";
 import { r2Configurado } from "./lib/config.js";
 import { ArchivoService } from "./services/archivo.service.js";
@@ -41,6 +56,9 @@ export async function createContainer(): Promise<Container> {
   let userRepository: UserRepository;
   let mesaRepository: MemoryMesaRepository | PgMesaRepository;
   let archivoRepository: ArchivoRepository;
+  let mesaEstadoRepository: MesaEstadoRepository;
+  let chatRepository: ChatRepository;
+  let transferenciaRepository: TransferenciaRepository;
 
   if (config.databaseUrl) {
     pool = createPool(config.databaseUrl);
@@ -48,11 +66,17 @@ export async function createContainer(): Promise<Container> {
     userRepository = new PgUserRepository(pool);
     mesaRepository = new PgMesaRepository(pool);
     archivoRepository = new PgArchivoRepository(pool);
+    mesaEstadoRepository = new PgMesaEstadoRepository(pool);
+    chatRepository = new PgChatRepository(pool);
+    transferenciaRepository = new PgTransferenciaRepository(pool);
     logger.info("Persistencia habilitada en PostgreSQL");
   } else {
     userRepository = new MemoryUserRepository();
     mesaRepository = new MemoryMesaRepository();
     archivoRepository = new MemoryArchivoRepository();
+    mesaEstadoRepository = new MemoryMesaEstadoRepository();
+    chatRepository = new MemoryChatRepository();
+    transferenciaRepository = new MemoryTransferenciaRepository();
     logger.warn(
       "DATABASE_URL no definido: usando repositorio en memoria (solo desarrollo)"
     );
@@ -83,7 +107,7 @@ export async function createContainer(): Promise<Container> {
   const userService = new UserService(userRepository, logger);
   const bloqueoService = new BloqueoService(logger);
   const mesaService = new MesaService(mesaRepository, userRepository, logger);
-  const chatService = new ChatService(mesaRepository, userRepository);
+  const chatService = new ChatService(mesaRepository, userRepository, chatRepository);
   const archivoService = new ArchivoService(
     archivoRepository,
     almacen,
@@ -94,7 +118,8 @@ export async function createContainer(): Promise<Container> {
   const transferenciaService = new TransferenciaService(
     mesaRepository,
     archivoService,
-    logger
+    logger,
+    transferenciaRepository
   );
 
   // Un único almacén de sesiones para Express y para el canal en vivo.
@@ -113,6 +138,7 @@ export async function createContainer(): Promise<Container> {
     logger,
     userRepository,
     mesaRepository,
+    mesaEstadoRepository,
     authService,
     userService,
     bloqueoService,

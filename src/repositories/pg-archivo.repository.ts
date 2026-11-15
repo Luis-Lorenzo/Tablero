@@ -48,6 +48,15 @@ export class PgArchivoRepository implements ArchivoRepository {
     return rows[0] ? toArchivo(rows[0]) : undefined;
   }
 
+  async countByClave(clave: string): Promise<number> {
+    const { rows } = await this.pool.query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total FROM archivos WHERE clave = $1`,
+      [clave]
+    );
+
+    return rows[0]?.total ?? 0;
+  }
+
   async save(archivo: Archivo): Promise<void> {
     await this.pool.query(
       `INSERT INTO archivos (id, owner_id, nombre, clave, tipo, tamano, created_at)

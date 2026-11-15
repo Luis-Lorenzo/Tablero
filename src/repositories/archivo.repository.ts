@@ -23,6 +23,7 @@ export interface ArchivoRepository {
   /** Archivos de un usuario, los más recientes primero. */
   listByOwner(ownerId: string): Promise<Archivo[]>;
   findById(id: string): Promise<Archivo | undefined>;
+  countByClave(clave: string): Promise<number>;
   save(archivo: Archivo): Promise<void>;
   delete(id: string): Promise<void>;
 }
@@ -61,6 +62,14 @@ export class MemoryArchivoRepository implements ArchivoRepository {
   async findById(id: string): Promise<Archivo | undefined> {
     const archivo = this.archivos.get(id);
     return archivo ? clonar(archivo) : undefined;
+  }
+
+  async countByClave(clave: string): Promise<number> {
+    let total = 0;
+    for (const archivo of this.archivos.values()) {
+      if (archivo.clave === clave) total += 1;
+    }
+    return total;
   }
 
   async save(archivo: Archivo): Promise<void> {

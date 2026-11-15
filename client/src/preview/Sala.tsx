@@ -18,6 +18,7 @@ import type {
 } from "react";
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
+import { describeError } from "../presentation/errorMessages";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
 import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
 import { ChatSala } from "./ChatSala";
@@ -52,10 +53,6 @@ interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
   onCalibracion: Dispatch<SetStateAction<Calibracion>>;
-  positsMesa?: PositPreview[];
-  onPositsMesa?: Dispatch<SetStateAction<PositPreview[]>>;
-  documentosMesa?: DocumentoMesa[];
-  onDocumentosMesa?: Dispatch<SetStateAction<DocumentoMesa[]>>;
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
   onAbrirArchivador?: () => void;
@@ -586,10 +583,6 @@ export function Sala({
   jugadores,
   calibracion,
   onCalibracion,
-  positsMesa,
-  onPositsMesa,
-  documentosMesa,
-  onDocumentosMesa,
   onAbrirPizarra,
   onAbrirMapa,
   onAbrirArchivador,
@@ -682,8 +675,7 @@ export function Sala({
   const yoAsientoIdRef = useRef(yoAsientoId);
   const onElementosMesaRef = useRef(onElementosMesa);
   const onEnviarElementoRef = useRef(onEnviarElemento);
-  const positsMesaRef = useRef(positsMesa);
-  const documentosMesaRef = useRef(documentosMesa);
+  const elementosMesaRef = useRef(elementosMesa);
   const jugadorSeleccionadoRef = useRef<JugadorPreview | null>(null);
 
   useEffect(() => {
@@ -691,15 +683,13 @@ export function Sala({
     yoAsientoIdRef.current = yoAsientoId;
     onElementosMesaRef.current = onElementosMesa;
     onEnviarElementoRef.current = onEnviarElemento;
-    positsMesaRef.current = positsMesa;
-    documentosMesaRef.current = documentosMesa;
+    elementosMesaRef.current = elementosMesa;
   }, [
     jugadores,
     yoAsientoId,
     onElementosMesa,
     onEnviarElemento,
-    positsMesa,
-    documentosMesa
+    elementosMesa
   ]);
 
   const solicitudPendienteId = solicitudPendiente?.id ?? null;
@@ -743,6 +733,22 @@ export function Sala({
       desmontado = true;
     };
   }, [itemAbierto]);
+
+  useEffect(() => {
+    if (!selectorAbierto && !compuestaAbierta && !itemAbierto) return;
+    function alPulsarEscape(evento: KeyboardEvent) {
+      if (evento.key !== "Escape") return;
+      if (itemAbierto) {
+        setItemAbierto(null);
+      } else if (compuestaAbierta) {
+        setCompuestaAbierta(false);
+      } else if (selectorAbierto) {
+        setSelectorAbierto(false);
+      }
+    }
+    window.addEventListener("keydown", alPulsarEscape);
+    return () => window.removeEventListener("keydown", alPulsarEscape);
+  }, [selectorAbierto, compuestaAbierta, itemAbierto]);
 
   useEffect(() => {
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
@@ -848,13 +854,13 @@ export function Sala({
       }
 
       if (actual.tipo === "posit-mesa") {
+        setArrastrandoItemId(actual.id);
         const x = limitar(actual.base.x + dx, 8, 92);
         const y = limitar(actual.base.y + dy, 12, 88);
-        onPositsMesa?.(prev =>
-          prev.map(posit =>
-            posit.id === actual.id ? { ...posit, x, y } : posit
-          )
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === actual.id ? { ...el, x, y } : el))
         );
+        setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
         setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
@@ -872,11 +878,13 @@ export function Sala({
         }
         if (!actual.movido) return;
 
+        setArrastrandoItemId(actual.id);
         const x = limitar(actual.base.x + dx, 6, 94);
         const y = limitar(actual.base.y + dy, 12, 88);
-        onDocumentosMesa?.(prev =>
-          prev.map(doc => (doc.id === actual.id ? { ...doc, x, y } : doc))
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === actual.id ? { ...el, x, y } : el))
         );
+        setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
         setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
@@ -965,56 +973,62 @@ export function Sala({
         return;
       }
 
-      if (actual.tipo === "posit-mesa" && enDropzone) {
-        onPositsMesa?.(prev =>
-          prev.map(p =>
-            p.id === actual.id ? { ...p, x: actual.base.x, y: actual.base.y } : p
-          )
-        );
-        const posit = positsMesaRef.current?.find(p => p.id === actual.id);
-        const destino = jugadorSeleccionadoRef.current;
-        if (posit && destino && onEnviarElementoRef.current) {
-          void onEnviarElementoRef.current(destino, {
-            id: posit.id,
-            tipo: "posit",
-            texto: posit.texto,
-            color: posit.color,
-            giro: posit.giro,
-            x: actual.base.x,
-            y: actual.base.y
-          });
-        } else if (!destino) {
-          mostrarAviso("Elige primero un jugador para enviarle la nota.");
+      if (actual.tipo === "posit-mesa") {
+        const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
+        if (destinoId || enDropzone) {
+          onElementosMesaRef.current?.(prev =>
+            prev.map(el =>
+              el.id === actual.id ? { ...el, x: actual.base.x, y: actual.base.y } : el
+            )
+          );
+          const posit = elementosMesaRef.current.find(
+            (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+              el.id === actual.id && el.tipo === "posit"
+          );
+          const destino =
+            (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+            (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
+          if (posit && destino && onEnviarElementoRef.current) {
+            void onEnviarElementoRef.current(destino, {
+              ...posit,
+              x: actual.base.x,
+              y: actual.base.y
+            });
+          } else if (enDropzone && !destino) {
+            mostrarAviso("Elige primero un jugador para enviarle la nota.");
+          }
         }
         return;
       }
 
-      if (actual.tipo === "doc-mesa" && actual.movido && enDropzone) {
-        onDocumentosMesa?.(prev =>
-          prev.map(d =>
-            d.id === actual.id ? { ...d, x: actual.base.x, y: actual.base.y } : d
-          )
-        );
-        const doc = documentosMesaRef.current?.find(d => d.id === actual.id);
-        const destino = jugadorSeleccionadoRef.current;
-        if (doc && destino && onEnviarElementoRef.current) {
-          void onEnviarElementoRef.current(destino, {
-            id: nuevoIdElemento(),
-            tipo: "archivo",
-            archivoId: doc.id,
-            nombre: doc.nombre,
-            mime: doc.tipo,
-            vista: doc.vista,
-            tamano: doc.tamano,
-            x: actual.base.x,
-            y: actual.base.y,
-            contenidoLocal: doc.url
-          });
-        } else if (!destino) {
-          mostrarAviso("Elige primero un jugador para enviarle el documento.");
+      if (actual.tipo === "doc-mesa") {
+        const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
+        if (actual.movido && (destinoId || enDropzone)) {
+          onElementosMesaRef.current?.(prev =>
+            prev.map(el =>
+              el.id === actual.id ? { ...el, x: actual.base.x, y: actual.base.y } : el
+            )
+          );
+          const doc = elementosMesaRef.current.find(
+            (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
+              el.id === actual.id && el.tipo === "archivo"
+          );
+          const destino =
+            (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+            (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
+          if (doc && destino && onEnviarElementoRef.current) {
+            void onEnviarElementoRef.current(destino, {
+              ...doc,
+              id: nuevoIdElemento(),
+              x: actual.base.x,
+              y: actual.base.y
+            });
+          } else if (enDropzone && !destino) {
+            mostrarAviso("Elige primero un jugador para enviarle el documento.");
+          }
+          arrastreDocMovido.current = false;
+          return;
         }
-        arrastreDocMovido.current = false;
-        return;
       }
 
       if (arrastreDocMovido.current) {
@@ -1033,7 +1047,7 @@ export function Sala({
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
-  }, [onCalibracion, onPositsMesa, onDocumentosMesa]);
+  }, [onCalibracion]);
 
   useEffect(() => {
     const timersMap = timersAsiento.current;
@@ -1335,11 +1349,12 @@ export function Sala({
   }
 
   function crearPositMesa(): void {
-    if (!onPositsMesa) return;
+    if (!onElementosMesa) return;
     setSelectorAbierto(false);
     const desplazamiento = (positsVisibles.length % 5) * 3;
-    const posit: PositPreview = {
+    const posit: ElementoMesa = {
       id: nuevoId(),
+      tipo: "posit",
       texto: "",
       color: COLORES_POSIT[3].valor,
       x: limitar(24 + desplazamiento, 8, 92),
@@ -1350,7 +1365,7 @@ export function Sala({
       autorColor: esMaster ? "#e8c56a" : colorJugador,
       esMaster: Boolean(esMaster)
     };
-    onPositsMesa(prev => [...prev, posit]);
+    onElementosMesa(prev => [...prev, posit]);
     setPositActivo(posit.id);
   }
 
@@ -1375,21 +1390,25 @@ export function Sala({
   }
 
   function cambiarTextoPositMesa(id: string, texto: string): void {
-    onPositsMesa?.(prev =>
-      prev.map(posit => (posit.id === id ? { ...posit, texto } : posit))
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id && el.tipo === "posit" ? { ...el, texto } : el
+      )
     );
   }
 
   function cambiarColorPositMesa(id: string, color: string): void {
-    onPositsMesa?.(prev =>
-      prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id && el.tipo === "posit" ? { ...el, color } : el
+      )
     );
   }
 
   function archivarPositMesa(id: string): void {
-    onPositsMesa?.(prev =>
-      prev.map(posit =>
-        posit.id === id ? { ...posit, archivado: true } : posit
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id ? { ...el, archivado: true } : el
       )
     );
     setPositActivo(actual => (actual === id ? null : actual));
@@ -1397,13 +1416,13 @@ export function Sala({
   }
 
   function borrarPositMesa(id: string): void {
-    onPositsMesa?.(prev => prev.filter(posit => posit.id !== id));
+    onElementosMesa?.(prev => prev.filter(el => el.id !== id));
     setPositActivo(actual => (actual === id ? null : actual));
   }
 
   function iniciarDocMesa(
     evento: ReactPointerEvent,
-    doc: DocumentoMesa
+    doc: { id: string; x: number; y: number }
   ): void {
     const rect = capaPosits.current?.getBoundingClientRect();
     if (!rect) return;
@@ -1423,7 +1442,9 @@ export function Sala({
   }
 
   function archivarDocMesa(id: string): void {
-    onDocumentosMesa?.(prev => prev.filter(doc => doc.id !== id));
+    onElementosMesa?.(prev =>
+      prev.map(el => (el.id === id ? { ...el, archivado: true } : el))
+    );
     setVisorDoc(actual => (actual?.id === id ? null : actual));
     mostrarAviso("Documento archivado.");
   }
@@ -1486,6 +1507,8 @@ export function Sala({
     }
     if (!onEnviarElemento) return;
 
+    const esPreview =
+      new URLSearchParams(window.location.search).get("preview") === "1";
     setSubiendoDrop(true);
     try {
       for (const file of Array.from(files)) {
@@ -1496,7 +1519,13 @@ export function Sala({
             jugadorSeleccionado,
             crearElementoDesdeArchivo(subido, { x: 78, y: 78 })
           );
-        } catch {
+        } catch (subidaError) {
+          if (!esPreview) {
+            mostrarAviso(
+              `No se pudo subir "${file.name}": ${describeError(subidaError)}`
+            );
+            continue;
+          }
           const tipo = file.type || "application/octet-stream";
           const vista = tipo.startsWith("image/")
             ? "imagen"
@@ -1527,6 +1556,8 @@ export function Sala({
   async function subirArchivosDesdeBarra(files: FileList | null): Promise<void> {
     if (!files || files.length === 0) return;
 
+    const esPreview =
+      new URLSearchParams(window.location.search).get("preview") === "1";
     setSubiendoBarra(true);
     let subidos = 0;
     try {
@@ -1545,14 +1576,16 @@ export function Sala({
         try {
           const creado = await archivosApi.subir(file);
           onSolicitarArchivos?.();
-          onDocumentosMesa?.(prev => {
-            const paso = prev.length % 5;
+          onElementosMesa?.(prev => {
+            const paso = prev.filter(el => el.tipo === "archivo" && !el.archivado).length % 5;
             return [
               ...prev,
               {
                 id: creado.id,
+                tipo: "archivo",
+                archivoId: creado.id,
                 nombre: creado.nombre,
-                tipo: creado.tipo,
+                mime: creado.tipo,
                 vista: creado.vista,
                 tamano: creado.tamano,
                 x: 28 + paso * 4.5,
@@ -1561,21 +1594,30 @@ export function Sala({
             ];
           });
           subidos += 1;
-        } catch {
+        } catch (subidaError) {
+          if (!esPreview) {
+            mostrarAviso(
+              `No se pudo subir "${file.name}": ${describeError(subidaError)}`
+            );
+            continue;
+          }
           const url = URL.createObjectURL(file);
-          onDocumentosMesa?.(prev => {
-            const paso = prev.length % 5;
+          onElementosMesa?.(prev => {
+            const paso = prev.filter(el => el.tipo === "archivo" && !el.archivado).length % 5;
+            const idLocal = nuevoId();
             return [
               ...prev,
               {
-                id: nuevoId(),
+                id: idLocal,
+                tipo: "archivo",
+                archivoId: idLocal,
                 nombre: file.name,
-                tipo: tipoLocal,
+                mime: tipoLocal,
                 vista: vistaLocal,
                 tamano: file.size,
                 x: 28 + paso * 4.5,
                 y: 66 - paso * 3,
-                url
+                contenidoLocal: url
               }
             ];
           });
@@ -1593,27 +1635,6 @@ export function Sala({
     } finally {
       setSubiendoBarra(false);
     }
-  }
-
-  function iniciarMesaElemento(
-    elemento: ElementoMesa,
-    evento: ReactPointerEvent
-  ): void {
-    if (ajuste) return;
-    const medidas = medidasPlano();
-    if (!medidas) return;
-
-    evento.stopPropagation();
-    arrastre.current = {
-      tipo: "mesa-elemento",
-      id: elemento.id,
-      elemento,
-      inicioX: evento.clientX,
-      inicioY: evento.clientY,
-      base: { x: elemento.x, y: elemento.y },
-      medidas,
-      movido: false
-    };
   }
 
   function iniciarBandejaElemento(
@@ -1662,18 +1683,19 @@ export function Sala({
     setNuevoPositTexto("");
   }
 
-  function quitarElementoMesa(id: string): void {
-    onElementosMesa?.(prev => prev.filter(item => item.id !== id));
-    if (itemAbierto?.id === id) setItemAbierto(null);
-  }
-
   const mensajesVisibles = mensajesChat ?? mensajesLocales;
   const tiradasVisibles = tiradasAsiento ?? tiradasAsientoLocales;
-  const positsVisibles = (positsMesa ?? []).filter(posit => !posit.archivado);
-  const positsArchivadosCount = (positsMesa ?? []).filter(
-    posit => posit.archivado
+  const positsVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+      el.tipo === "posit" && !el.archivado
+  );
+  const positsArchivadosCount = elementosMesa.filter(
+    el => el.tipo === "posit" && Boolean(el.archivado)
   ).length;
-  const docsVisibles = documentosMesa ?? [];
+  const docsVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
+      el.tipo === "archivo" && !el.archivado
+  );
 
   return (
     <div
@@ -1911,92 +1933,6 @@ export function Sala({
                     {jugador.nombre}
                     {esMio ? " (tú)" : ""}
                   </span>
-                </div>
-              );
-            })}
-
-          {!ajuste &&
-            elementosMesa.map(elemento => {
-              const estiloElemento = {
-                left: `${elemento.x}%`,
-                top: `${elemento.y}%`,
-                ...(elemento.tipo === "posit"
-                  ? {
-                      background: elemento.color,
-                      color: textoLegible(elemento.color),
-                      "--giro": `${elemento.giro}deg`
-                    }
-                  : {})
-              } as CSSProperties;
-
-              return (
-                <div
-                  key={elemento.id}
-                  className={[
-                    "mesa-elemento",
-                    elemento.tipo === "posit" ? "mesa-posit" : "mesa-archivo",
-                    arrastrandoItemId === elemento.id ? "arrastrando" : ""
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  style={estiloElemento}
-                  onPointerDown={evento => iniciarMesaElemento(elemento, evento)}
-                  title={
-                    elemento.tipo === "posit"
-                      ? "Arrastra a un jugador o pulsa para abrir"
-                      : `${elemento.nombre} — arrastra a un jugador o pulsa para abrir`
-                  }
-                >
-                  <div className="mesa-elemento-cabecera">
-                    {elemento.tipo === "posit" ? (
-                      <span />
-                    ) : (
-                      <span className="mesa-elemento-badge">
-                        {tipoCortoArchivo(elemento.mime, elemento.nombre)}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="mesa-elemento-quitar"
-                      onPointerDown={e => e.stopPropagation()}
-                      onClick={e => {
-                        e.stopPropagation();
-                        quitarElementoMesa(elemento.id);
-                      }}
-                      aria-label="Quitar de la mesa"
-                      title="Quitar de la mesa"
-                    >
-                      <X size={12} strokeWidth={2.5} aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  {elemento.tipo === "posit" ? (
-                    <p className="mesa-posit-texto">
-                      {elemento.texto || "Nota vacía"}
-                    </p>
-                  ) : (
-                    <span className="mesa-archivo-nombre">{elemento.nombre}</span>
-                  )}
-
-                  {elemento.remitente && (
-                    <span className="mesa-elemento-remitente">
-                      De {elemento.remitente}
-                    </span>
-                  )}
-
-                  {jugadorSeleccionado && onEnviarElemento && (
-                    <button
-                      type="button"
-                      className="mesa-elemento-enviar"
-                      onPointerDown={e => e.stopPropagation()}
-                      onClick={e => {
-                        e.stopPropagation();
-                        void onEnviarElemento(jugadorSeleccionado, elemento);
-                      }}
-                    >
-                      Pasar a {jugadorSeleccionado.nombre}
-                    </button>
-                  )}
                 </div>
               );
             })}
@@ -2521,24 +2457,24 @@ export function Sala({
                       {esMaster && doc.vista === "imagen" && onProyectarImagen && (
                         <button
                           type="button"
-                          className={`doc-master-icono${imagenProyectada?.id === doc.id ? " activo" : ""
+                          className={`doc-master-icono${imagenProyectada?.id === doc.archivoId ? " activo" : ""
                             }`}
                           title={
-                            imagenProyectada?.id === doc.id
+                            imagenProyectada?.id === doc.archivoId
                               ? "Retirar proyección para todos"
                               : "Mostrar a todos (Opción A)"
                           }
                           aria-label={
-                            imagenProyectada?.id === doc.id
+                            imagenProyectada?.id === doc.archivoId
                               ? "Retirar proyección"
                               : "Mostrar a todos"
                           }
                           onClick={evento => {
                             evento.stopPropagation();
                             onProyectarImagen(
-                              imagenProyectada?.id === doc.id
+                              imagenProyectada?.id === doc.archivoId
                                 ? null
-                                : { id: doc.id, titulo: doc.nombre }
+                                : { id: doc.archivoId, titulo: doc.nombre }
                             );
                           }}
                         >
@@ -2552,24 +2488,24 @@ export function Sala({
                       {esMaster && doc.vista === "imagen" && onCambiarEscena && (
                         <button
                           type="button"
-                          className={`doc-master-icono${imagenEscena?.id === doc.id ? " activo" : ""
+                          className={`doc-master-icono${imagenEscena?.id === doc.archivoId ? " activo" : ""
                             }`}
                           title={
-                            imagenEscena?.id === doc.id
+                            imagenEscena?.id === doc.archivoId
                               ? "Quitar de la pizarra de la sala"
                               : "Fijar en la pizarra de la sala (Opción B)"
                           }
                           aria-label={
-                            imagenEscena?.id === doc.id
+                            imagenEscena?.id === doc.archivoId
                               ? "Quitar de pizarra"
                               : "Fijar en pizarra"
                           }
                           onClick={evento => {
                             evento.stopPropagation();
                             onCambiarEscena(
-                              imagenEscena?.id === doc.id
+                              imagenEscena?.id === doc.archivoId
                                 ? null
-                                : { id: doc.id, titulo: doc.nombre }
+                                : { id: doc.archivoId, titulo: doc.nombre }
                             );
                           }}
                         >
@@ -2610,7 +2546,16 @@ export function Sala({
                       aria-label={`Abrir ${doc.nombre}`}
                       onClick={() => {
                         if (arrastreDocMovido.current) return;
-                        setVisorDoc(doc);
+                        setVisorDoc({
+                          id: doc.archivoId,
+                          nombre: doc.nombre,
+                          tipo: doc.mime,
+                          vista: doc.vista,
+                          tamano: doc.tamano,
+                          x: doc.x,
+                          y: doc.y,
+                          url: doc.contenidoLocal
+                        });
                       }}
                     >
                       <span className="ficha-doc-codigo">{formato.codigo}</span>

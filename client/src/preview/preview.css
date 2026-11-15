@@ -4795,3 +4795,144 @@
   flex-direction: column;
   gap: 12px;
 }
+
+/* --------------------------------------------------------------- Responsive */
+
+@media (max-width: 900px) {
+  .sala-barra {
+    top: 8px;
+    max-width: calc(100vw - 16px);
+    padding: 6px 10px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .sala-barra-grupo {
+    gap: 6px;
+  }
+
+  .sala-btn {
+    padding: 6px 9px;
+    font-size: 0.72rem;
+  }
+
+  .sala-dock {
+    gap: 10px;
+  }
+
+  .dock-btn {
+    width: 50px;
+    height: 50px;
+  }
+
+  .dock-btn svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .dados-rapidos {
+    left: 10px;
+    bottom: 10px;
+    gap: 4px;
+    padding: 5px 6px;
+    max-width: calc(100vw - 20px);
+    flex-wrap: wrap;
+  }
+
+  .dado-rapido-btn {
+    min-width: 38px;
+    height: 40px;
+    padding: 3px 5px;
+  }
+
+  .transferencia-dialogo {
+    top: auto;
+    bottom: 76px;
+    width: min(380px, calc(100vw - 20px));
+  }
+
+  .pizarra-barra {
+    padding: 8px 12px;
+    gap: 8px 10px;
+  }
+
+  .pizarra-barra-izq,
+  .pizarra-barra-centro,
+  .pizarra-barra-der {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 640px) {
+  .sala-barra {
+    top: 6px;
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    padding: 5px 8px;
+    gap: 5px;
+  }
+
+  .sala-titulo-visible {
+    display: none;
+  }
+
+  .sala-btn {
+    padding: 5px 8px;
+    font-size: 0.68rem;
+  }
+
+  .sala-dock {
+    gap: 8px;
+  }
+
+  .dock-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  .dock-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .dados-rapidos {
+    left: 50%;
+    bottom: 8px;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 16px);
+    justify-content: center;
+  }
+
+  .dado-rapido-btn {
+    min-width: 34px;
+    height: 36px;
+    padding: 2px 4px;
+  }
+
+  .transferencia-dialogo {
+    top: auto;
+    bottom: 68px;
+    width: calc(100vw - 16px);
+    padding: 12px 14px;
+  }
+
+  .pizarra-barra {
+    padding: 6px 10px;
+    gap: 6px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pizarra-barra-izq,
+  .pizarra-barra-centro,
+  .pizarra-barra-der {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .pizarra-btn {
+    padding: 5px 8px;
+    font-size: 0.7rem;
+  }
+}

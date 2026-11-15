@@ -101,3 +101,46 @@ CREATE TABLE IF NOT EXISTS archivos (
 
 CREATE INDEX IF NOT EXISTS archivos_owner_idx
   ON archivos (owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS archivos_clave_idx
+  ON archivos (clave);
+
+-- Estado personal en mesa de cada jugador (notas/archivos colocados o archivados),
+-- aislado por (mesa_id, user_id). Los binarios viven en R2, aquí solo metadatos.
+CREATE TABLE IF NOT EXISTS mesa_jugador_estado (
+  mesa_id    UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
+  user_id    UUID NOT NULL,
+  elementos  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (mesa_id, user_id)
+);
+
+-- Historial de mensajes de chat por mesa (públicos o susurros).
+CREATE TABLE IF NOT EXISTS chat_mensajes (
+  id                  UUID PRIMARY KEY,
+  mesa_id             UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
+  autor_id            UUID NOT NULL,
+  autor_nombre        TEXT NOT NULL,
+  texto               TEXT NOT NULL,
+  destinatario_id     UUID,
+  destinatario_nombre TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS chat_mensajes_mesa_created_idx
+  ON chat_mensajes (mesa_id, created_at DESC);
+
+-- Transferencias pendientes (posits o archivos compartidos) entre jugadores de una mesa.
+CREATE TABLE IF NOT EXISTS transferencias (
+  id            UUID PRIMARY KEY,
+  mesa_id       UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
+  emisor_id     UUID NOT NULL,
+  emisor_nombre TEXT NOT NULL,
+  receptor_id   UUID NOT NULL,
+  tipo          TEXT NOT NULL,
+  payload       JSONB NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS transferencias_mesa_receptor_idx
+  ON transferencias (mesa_id, receptor_id, created_at ASC);

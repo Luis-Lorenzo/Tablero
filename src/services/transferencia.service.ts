@@ -1,47 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { vistaDe, type VistaArchivo } from "../lib/archivos.js";
+import { vistaDe } from "../lib/archivos.js";
 import { errors } from "../lib/errors.js";
 import type { Logger } from "../lib/logger.js";
 import type { Archivo } from "../repositories/archivo.repository.js";
 import type { Mesa, MesaRepository } from "../repositories/mesa.repository.js";
+import {
+  MemoryTransferenciaRepository,
+  type ArchivoTransferidoMeta,
+  type PositTransferido,
+  type Transferencia,
+  type TransferenciaRepository
+} from "../repositories/transferencia.repository.js";
 import { nombreDeUsuario, type User } from "../repositories/user.repository.js";
 import type { ArchivoService } from "./archivo.service.js";
 
-export interface PositTransferido {
-  texto: string;
-  color: string;
-  giro: number;
-}
-
-export interface ArchivoTransferidoMeta {
-  id: string;
-  nombre: string;
-  tipo: string;
-  vista: VistaArchivo;
-  tamano: number;
-}
-
-export type Transferencia =
-  | {
-      id: string;
-      mesaId: string;
-      emisorId: string;
-      emisorNombre: string;
-      receptorId: string;
-      tipo: "posit";
-      posit: PositTransferido;
-      createdAt: Date;
-    }
-  | {
-      id: string;
-      mesaId: string;
-      emisorId: string;
-      emisorNombre: string;
-      receptorId: string;
-      tipo: "archivo";
-      archivo: ArchivoTransferidoMeta;
-      createdAt: Date;
-    };
+export type { ArchivoTransferidoMeta, PositTransferido, Transferencia };
 
 export type EntradaTransferencia =
   | {
@@ -76,12 +49,11 @@ function esMiembroDeMesa(mesa: Mesa, userId: string): boolean {
  * jugadores sentados en la misma mesa.
  */
 export class TransferenciaService {
-  private readonly pendientes = new Map<string, Transferencia>();
-
   constructor(
     private readonly mesas: MesaRepository,
     private readonly archivos: ArchivoService,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly transferencias: TransferenciaRepository = new MemoryTransferenciaRepository()
   ) {}
 
   async crear(
@@ -151,7 +123,7 @@ export class TransferenciaService {
       throw errors.invalidRequest();
     }
 
-    this.pendientes.set(id, transferencia);
+    await this.transferencias.create(transferencia);
     this.logger.info("Transferencia solicitada", {
       transferenciaId: id,
       mesaId,
@@ -171,9 +143,7 @@ export class TransferenciaService {
       throw errors.mesaForbidden();
     }
 
-    return Array.from(this.pendientes.values())
-      .filter(t => t.mesaId === mesaId && t.receptorId === actor.id)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return this.transferencias.listPendientes(mesaId, actor.id);
   }
 
   async aceptar(
@@ -181,7 +151,7 @@ export class TransferenciaService {
     mesaId: string,
     transferenciaId: string
   ): Promise<ResultadoAceptacion> {
-    const transferencia = this.pendientes.get(transferenciaId);
+    const transferencia = await this.transferencias.findById(transferenciaId);
     if (!transferencia || transferencia.mesaId !== mesaId) {
       throw errors.transferenciaNotFound();
     }
@@ -203,7 +173,7 @@ export class TransferenciaService {
         transferencia.archivo.id,
         actor
       );
-      this.pendientes.delete(transferenciaId);
+      await this.transferencias.deleteById(transferenciaId);
       this.logger.info("Transferencia de archivo aceptada", {
         transferenciaId,
         mesaId,
@@ -213,7 +183,7 @@ export class TransferenciaService {
       return { transferencia, tipo: "archivo", archivo };
     }
 
-    this.pendientes.delete(transferenciaId);
+    await this.transferencias.deleteById(transferenciaId);
     this.logger.info("Transferencia de posit aceptada", {
       transferenciaId,
       mesaId,
@@ -227,7 +197,7 @@ export class TransferenciaService {
     mesaId: string,
     transferenciaId: string
   ): Promise<Transferencia> {
-    const transferencia = this.pendientes.get(transferenciaId);
+    const transferencia = await this.transferencias.findById(transferenciaId);
     if (!transferencia || transferencia.mesaId !== mesaId) {
       throw errors.transferenciaNotFound();
     }
@@ -236,7 +206,7 @@ export class TransferenciaService {
       throw errors.mesaForbidden();
     }
 
-    this.pendientes.delete(transferenciaId);
+    await this.transferencias.deleteById(transferenciaId);
     this.logger.info("Transferencia rechazada", {
       transferenciaId,
       mesaId,
