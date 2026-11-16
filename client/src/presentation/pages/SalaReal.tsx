@@ -54,6 +54,7 @@ import type {
   MensajeSala,
   ObjetoMochila,
   PingVisual,
+  PlantillaTokenMapa,
   PositPreview,
   SolicitudTransferencia,
   TipoEspecialTirada,
@@ -1069,10 +1070,15 @@ function SalaRealContent({
 
   async function crearTokenMapa(
     token: Omit<TokenMapa, "id" | "autorId" | "autorNombre" | "autorColor">,
-    guardarPlantilla = false
+    guardarPlantilla = false,
+    categoria?: string
   ): Promise<void> {
     try {
-      const actualizado = await mesasApi.crearTokenMapa(mesa.id, { ...token, guardarPlantilla });
+      const actualizado = await mesasApi.crearTokenMapa(mesa.id, {
+        ...token,
+        guardarPlantilla,
+        ...(categoria !== undefined ? { categoria } : {})
+      });
       if (actualizado) setEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
@@ -1102,6 +1108,41 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarTokenMapa(mesa.id, tokenId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarPlantillaMapa(
+    plantillaId: string,
+    patch: { categoria?: string; nombre?: string }
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.map(p => {
+        if (p.id !== plantillaId) return p;
+        const siguiente = { ...p } as PlantillaTokenMapa & { categoria?: string };
+        if (patch.nombre !== undefined && patch.nombre.trim()) {
+          siguiente.nombre = patch.nombre.trim().slice(0, 120);
+        }
+        if (patch.categoria !== undefined) {
+          const cat = patch.categoria.trim().slice(0, 40);
+          if (cat) {
+            siguiente.categoria = cat;
+          } else {
+            delete siguiente.categoria;
+          }
+        }
+        return siguiente;
+      })
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarPlantillaMapa(
+        mesa.id,
+        plantillaId,
+        patch
+      );
       if (actualizado) setEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
@@ -1204,6 +1245,7 @@ function SalaRealContent({
           onCrearToken={crearTokenMapa}
           onActualizarToken={actualizarTokenMapa}
           onEliminarToken={eliminarTokenMapa}
+          onActualizarPlantilla={actualizarPlantillaMapa}
           onEliminarPlantilla={eliminarPlantillaMapa}
           onCambiarIniciativa={cambiarIniciativaMapa}
           onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}

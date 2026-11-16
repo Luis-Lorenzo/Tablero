@@ -1,5 +1,6 @@
 import { ApiError, http } from "./client";
 import type {
+  ActualizarPlantillaMapaPayload,
   ActualizarTokenMapaPayload,
   CrearTokenMapaPayload,
   EstadoMapaCompartido,
@@ -303,6 +304,17 @@ export const mesasApi = {
   eliminarTokenMapa: (mesaId: string, tokenId: string) =>
     http.delete<EstadoMapaCompartido>(
       `/api/mesas/${mesaId}/mapa/tokens/${encodeURIComponent(tokenId)}`
+    ),
+
+  /** Actualiza la categoría o el nombre de una plantilla de token del mapa. */
+  actualizarPlantillaMapa: (
+    mesaId: string,
+    plantillaId: string,
+    patch: ActualizarPlantillaMapaPayload
+  ) =>
+    http.patch<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/plantillas/${encodeURIComponent(plantillaId)}`,
+      patch
     ),
 
   /** Elimina una plantilla de token del mapa táctico. */

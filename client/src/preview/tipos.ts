@@ -269,6 +269,7 @@ export interface PlantillaTokenMapa {
   escala: number;
   autorId: string;
   esMonstruo?: boolean;
+  categoria?: string;
 }
 
 export interface IniciativaEntrada {
@@ -278,6 +279,7 @@ export interface IniciativaEntrada {
   color?: string;
   esMonstruo?: boolean;
   jugadorId?: string;
+  tokenId?: string;
 }
 
 export interface MapaIniciativaEstado {

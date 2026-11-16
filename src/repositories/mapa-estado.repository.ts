@@ -44,6 +44,7 @@ export interface PlantillaTokenMapa {
   escala: number;
   autorId: string;
   esMonstruo?: boolean;
+  categoria?: string;
 }
 
 export interface IniciativaEntrada {
@@ -53,6 +54,7 @@ export interface IniciativaEntrada {
   color?: string;
   esMonstruo?: boolean;
   jugadorId?: string;
+  tokenId?: string;
 }
 
 export interface MapaIniciativaEstado {
@@ -269,6 +271,9 @@ function sanitizarPlantilla(raw: unknown): PlantillaTokenMapa | null {
   if (obj.esMonstruo === true) {
     plantilla.esMonstruo = true;
   }
+  if (typeof obj.categoria === "string" && obj.categoria.trim()) {
+    plantilla.categoria = obj.categoria.trim().slice(0, 40);
+  }
   return plantilla;
 }
 
@@ -297,6 +302,9 @@ function sanitizarIniciativaEntrada(raw: unknown): IniciativaEntrada | null {
   }
   if (typeof obj.jugadorId === "string" && obj.jugadorId.trim()) {
     entrada.jugadorId = obj.jugadorId.trim().slice(0, 120);
+  }
+  if (typeof obj.tokenId === "string" && obj.tokenId.trim()) {
+    entrada.tokenId = obj.tokenId.trim().slice(0, 120);
   }
 
   return entrada;

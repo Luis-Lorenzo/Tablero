@@ -865,11 +865,13 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const guardarPlantilla = body.guardarPlantilla === true;
+      const categoria = typeof body.categoria === "string" ? body.categoria : undefined;
       const mapa = await mapaEstadoService.crearToken(
         req.currentUser!,
         String(req.params.id),
         body,
-        guardarPlantilla
+        guardarPlantilla,
+        categoria
       );
       res.status(201).json(mapa);
     } catch (error) {
@@ -904,6 +906,25 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       next(error);
     }
   });
+
+  router.patch(
+    "/:id/mapa/plantillas/:plantillaId",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const mapa = await mapaEstadoService.actualizarPlantilla(
+          req.currentUser!,
+          String(req.params.id),
+          String(req.params.plantillaId),
+          body
+        );
+        res.json(mapa);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.delete(
     "/:id/mapa/plantillas/:plantillaId",

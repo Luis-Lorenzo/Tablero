@@ -276,7 +276,8 @@ export default function PreviewApp() {
   const crearTokenPreview = useCallback(
     (
       token: Omit<TokenMapa, "id" | "autorId" | "autorNombre" | "autorColor">,
-      guardarPlantilla = false
+      guardarPlantilla = false,
+      categoria?: string
     ) => {
       const nuevoToken: TokenMapa = {
         ...token,
@@ -285,6 +286,10 @@ export default function PreviewApp() {
         autorNombre: "Máster",
         autorColor: "#e8c56a"
       };
+      const categoriaLimpia =
+        typeof categoria === "string" && categoria.trim()
+          ? categoria.trim().slice(0, 40)
+          : undefined;
       setEstadoMapa(prev => {
         const plantillas: PlantillaTokenMapa[] = guardarPlantilla
           ? [
@@ -298,8 +303,9 @@ export default function PreviewApp() {
                 celdasAlto: token.celdasAlto,
                 escala: token.escala,
                 autorId: "master",
-                esMonstruo: token.esMonstruo
-              }
+                esMonstruo: token.esMonstruo,
+                ...(categoriaLimpia ? { categoria: categoriaLimpia } : {})
+              } as PlantillaTokenMapa
             ]
           : prev.plantillas;
         return {
@@ -326,11 +332,86 @@ export default function PreviewApp() {
   );
 
   const eliminarTokenPreview = useCallback((tokenId: string) => {
-    setEstadoMapa(prev => ({
-      ...prev,
-      tokens: prev.tokens.filter(t => t.id !== tokenId)
-    }));
+    setEstadoMapa(prev => {
+      const token = prev.tokens.find(t => t.id === tokenId);
+      const tokens = prev.tokens.filter(t => t.id !== tokenId);
+
+      let plantillas = prev.plantillas;
+      if (
+        token &&
+        !prev.plantillas.some(
+          p =>
+            p.autorId === token.autorId &&
+            p.nombre === token.nombre &&
+            p.imagenUrl === token.imagenUrl
+        )
+      ) {
+        plantillas = [
+          ...prev.plantillas,
+          {
+            id: nuevoIdElemento(),
+            nombre: token.nombre,
+            ...(token.archivoId ? { archivoId: token.archivoId } : {}),
+            imagenUrl: token.imagenUrl,
+            celdasAncho: token.celdasAncho,
+            celdasAlto: token.celdasAlto,
+            escala: token.escala,
+            autorId: token.autorId,
+            ...(token.esMonstruo ? { esMonstruo: true } : {})
+          }
+        ];
+      }
+
+      let iniciativa = prev.iniciativa;
+      if (iniciativa) {
+        const nuevasEntradas = iniciativa.entradas.filter(
+          e => (e as { tokenId?: string }).tokenId !== tokenId
+        );
+        if (nuevasEntradas.length !== iniciativa.entradas.length) {
+          iniciativa = {
+            ...iniciativa,
+            entradas: nuevasEntradas,
+            turnoIndice: Math.min(
+              iniciativa.turnoIndice,
+              Math.max(0, nuevasEntradas.length - 1)
+            )
+          };
+        }
+      }
+
+      return {
+        ...prev,
+        tokens,
+        plantillas,
+        ...(iniciativa !== undefined ? { iniciativa } : {})
+      };
+    });
   }, []);
+
+  const actualizarPlantillaPreview = useCallback(
+    (plantillaId: string, patch: { categoria?: string; nombre?: string }) => {
+      setEstadoMapa(prev => ({
+        ...prev,
+        plantillas: prev.plantillas.map(p => {
+          if (p.id !== plantillaId) return p;
+          const siguiente = { ...p } as PlantillaTokenMapa & { categoria?: string };
+          if (patch.nombre !== undefined && patch.nombre.trim()) {
+            siguiente.nombre = patch.nombre.trim().slice(0, 120);
+          }
+          if (patch.categoria !== undefined) {
+            const cat = patch.categoria.trim().slice(0, 40);
+            if (cat) {
+              siguiente.categoria = cat;
+            } else {
+              delete siguiente.categoria;
+            }
+          }
+          return siguiente;
+        })
+      }));
+    },
+    []
+  );
 
   const eliminarPlantillaPreview = useCallback((plantillaId: string) => {
     setEstadoMapa(prev => ({
@@ -445,6 +526,7 @@ export default function PreviewApp() {
           onCrearToken={crearTokenPreview}
           onActualizarToken={actualizarTokenPreview}
           onEliminarToken={eliminarTokenPreview}
+          onActualizarPlantilla={actualizarPlantillaPreview}
           onEliminarPlantilla={eliminarPlantillaPreview}
           onCambiarIniciativa={cambiarIniciativaPreview}
           onTerminarTurnoIniciativa={terminarTurnoIniciativaPreview}

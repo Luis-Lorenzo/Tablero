@@ -27,6 +27,7 @@ export interface CrearTokenMapaInput {
   escala?: unknown;
   esMonstruo?: unknown;
   guardarPlantilla?: unknown;
+  categoria?: unknown;
 }
 
 export interface ActualizarTokenMapaInput {
@@ -37,6 +38,11 @@ export interface ActualizarTokenMapaInput {
   celdasAlto?: unknown;
   escala?: unknown;
   esMonstruo?: unknown;
+}
+
+export interface ActualizarPlantillaMapaInput {
+  categoria?: unknown;
+  nombre?: unknown;
 }
 
 export class MapaEstadoService {
@@ -137,7 +143,8 @@ export class MapaEstadoService {
     actor: User,
     mesaId: string,
     datos: CrearTokenMapaInput,
-    guardarPlantilla = false
+    guardarPlantilla = false,
+    categoria?: string
   ): Promise<EstadoMapaCompartido> {
     const mesa = await this.obtenerMesaParticipante(actor, mesaId);
     const esMaster = this.esMaster(actor, mesa);
@@ -187,8 +194,17 @@ export class MapaEstadoService {
 
     const actual = await this.mapaEstado.getEstado(mesaId);
     const plantillas = [...actual.plantillas];
+    const debeGuardarPlantilla =
+      typeof datos.guardarPlantilla === "boolean"
+        ? datos.guardarPlantilla
+        : guardarPlantilla;
+    const categoriaRaw = categoria !== undefined ? categoria : datos.categoria;
+    const categoriaLimpia =
+      typeof categoriaRaw === "string" && categoriaRaw.trim()
+        ? categoriaRaw.trim().slice(0, 40)
+        : undefined;
 
-    if (guardarPlantilla) {
+    if (debeGuardarPlantilla) {
       const plantilla: PlantillaTokenMapa = {
         id: crypto.randomUUID(),
         nombre,
@@ -198,7 +214,8 @@ export class MapaEstadoService {
         celdasAlto,
         escala,
         autorId: actor.id,
-        ...(esMonstruo ? { esMonstruo: true } : {})
+        ...(esMonstruo ? { esMonstruo: true } : {}),
+        ...(categoriaLimpia ? { categoria: categoriaLimpia } : {})
       };
       plantillas.push(plantilla);
     }
@@ -300,11 +317,90 @@ export class MapaEstadoService {
       throw errors.forbidden();
     }
 
+    const plantillas = [...actual.plantillas];
+    const yaTienePlantilla = plantillas.some(
+      p =>
+        p.autorId === token.autorId &&
+        p.nombre === token.nombre &&
+        p.imagenUrl === token.imagenUrl
+    );
+    if (!yaTienePlantilla) {
+      plantillas.push({
+        id: crypto.randomUUID(),
+        nombre: token.nombre,
+        ...(token.archivoId ? { archivoId: token.archivoId } : {}),
+        imagenUrl: token.imagenUrl,
+        celdasAncho: token.celdasAncho,
+        celdasAlto: token.celdasAlto,
+        escala: token.escala,
+        autorId: token.autorId,
+        ...(token.esMonstruo ? { esMonstruo: true } : {})
+      });
+    }
+
+    let iniciativa = actual.iniciativa;
+    if (iniciativa) {
+      const nuevasEntradas = iniciativa.entradas.filter(e => e.tokenId !== tokenId);
+      if (nuevasEntradas.length !== iniciativa.entradas.length) {
+        iniciativa = {
+          ...iniciativa,
+          entradas: nuevasEntradas,
+          turnoIndice: Math.min(
+            iniciativa.turnoIndice,
+            Math.max(0, nuevasEntradas.length - 1)
+          )
+        };
+      }
+    }
+
     const siguiente = sanitizarMapaEstado({
       ...actual,
-      tokens: actual.tokens.filter(t => t.id !== tokenId)
+      tokens: actual.tokens.filter(t => t.id !== tokenId),
+      plantillas,
+      ...(iniciativa !== undefined ? { iniciativa } : {})
     });
 
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async actualizarPlantilla(
+    actor: User,
+    mesaId: string,
+    plantillaId: string,
+    patch: ActualizarPlantillaMapaInput
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+
+    const idx = actual.plantillas.findIndex(p => p.id === plantillaId);
+    if (idx === -1) {
+      throw new AppError("PLANTILLA_NOT_FOUND", 404);
+    }
+
+    const plantillaActual = actual.plantillas[idx]!;
+    if (plantillaActual.autorId !== actor.id && !this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
+
+    const actualizada: PlantillaTokenMapa = { ...plantillaActual };
+    if (typeof patch.nombre === "string" && patch.nombre.trim()) {
+      actualizada.nombre = patch.nombre.trim().slice(0, 120);
+    }
+    if (patch.categoria !== undefined && typeof patch.categoria === "string") {
+      const categoriaLimpia = patch.categoria.trim().slice(0, 40);
+      if (categoriaLimpia) {
+        actualizada.categoria = categoriaLimpia;
+      } else {
+        delete actualizada.categoria;
+      }
+    }
+
+    const plantillas = [...actual.plantillas];
+    plantillas[idx] = actualizada;
+
+    const siguiente = sanitizarMapaEstado({ ...actual, plantillas });
     await this.mapaEstado.saveEstado(mesaId, siguiente);
     this.difundir(mesa, siguiente);
     return siguiente;

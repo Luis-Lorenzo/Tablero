@@ -364,6 +364,119 @@ describe("rutas de /api/mesas/:id/mapa", () => {
     expect(resJ2.body.iniciativa.turnoIndice).toBe(0);
     expect(resJ2.body.iniciativa.ronda).toBe(2);
   });
+
+  it("eliminar un token lo retira de iniciativa.entradas, conserva su plantilla y PATCH plantilla actualiza categoria", async () => {
+    const { app, aprobar, sesionDe, notifier } = montar();
+    const master = await aprobar("master-plantilla@pocket.test");
+    const jugador = await aprobar("jugador-plantilla@pocket.test");
+
+    const cookieMaster = await sesionDe("master-plantilla@pocket.test");
+    const cookieJugador = await sesionDe("jugador-plantilla@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugador)
+      .send()
+      .expect(200);
+
+    // 1. Crear token sin plantilla previa y añadirlo a iniciativa con tokenId
+    const crearSinPlantilla = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/tokens`)
+      .set("Cookie", cookieMaster)
+      .send({
+        nombre: "Orco",
+        imagenUrl: "/assets/orco.png",
+        esMonstruo: true,
+        guardarPlantilla: false
+      })
+      .expect(201);
+
+    const tokenOrcoId = crearSinPlantilla.body.tokens[0].id as string;
+    expect(crearSinPlantilla.body.plantillas).toHaveLength(0);
+
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+      .set("Cookie", cookieMaster)
+      .send({
+        iniciativa: {
+          activa: true,
+          ronda: 1,
+          turnoIndice: 1,
+          entradas: [
+            { id: "init-a", nombre: "Lyra", valor: 18, jugadorId: jugador.id },
+            { id: "init-b", nombre: "Orco", valor: 12, esMonstruo: true, tokenId: tokenOrcoId }
+          ]
+        }
+      })
+      .expect(200);
+
+    // Al eliminar el token, se quita de iniciativa.entradas, turnoIndice se ajusta a 0 y se conserva la plantilla
+    const delRes = await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/tokens/${tokenOrcoId}`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+
+    expect(delRes.body.tokens).toHaveLength(0);
+    expect(delRes.body.iniciativa.entradas).toHaveLength(1);
+    expect(delRes.body.iniciativa.entradas[0].id).toBe("init-a");
+    expect(delRes.body.iniciativa.turnoIndice).toBe(0);
+    expect(delRes.body.plantillas).toHaveLength(1);
+    expect(delRes.body.plantillas[0]).toMatchObject({
+      nombre: "Orco",
+      imagenUrl: "/assets/orco.png",
+      autorId: master.id,
+      esMonstruo: true
+    });
+
+    // 2. Crear token con guardarPlantilla + categoria y actualizar la plantilla via PATCH
+    const crearConCategoria = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/tokens`)
+      .set("Cookie", cookieMaster)
+      .send({
+        nombre: "Dragón Rojo",
+        imagenUrl: "/assets/dragon.png",
+        esMonstruo: true,
+        guardarPlantilla: true,
+        categoria: "  Jefes  "
+      })
+      .expect(201);
+
+    const plantillaDragon = crearConCategoria.body.plantillas.find(
+      (p: { nombre: string }) => p.nombre === "Dragón Rojo"
+    );
+    expect(plantillaDragon).toBeDefined();
+    expect(plantillaDragon.categoria).toBe("Jefes");
+
+    // Otro jugador no puede modificar una plantilla que no es suya
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/mapa/plantillas/${plantillaDragon.id}`)
+      .set("Cookie", cookieJugador)
+      .send({ categoria: "Aliados" })
+      .expect(403);
+
+    // El autor/máster actualiza la categoría y el nombre, y se difunde por WS
+    const patchRes = await request(app)
+      .patch(`/api/mesas/${mesaId}/mapa/plantillas/${plantillaDragon.id}`)
+      .set("Cookie", cookieMaster)
+      .send({ categoria: "Dragones", nombre: "Dragón Anciano" })
+      .expect(200);
+
+    const plantillaActualizada = patchRes.body.plantillas.find(
+      (p: { id: string }) => p.id === plantillaDragon.id
+    );
+    expect(plantillaActualizada.categoria).toBe("Dragones");
+    expect(plantillaActualizada.nombre).toBe("Dragón Anciano");
+    expect(notifier.mapasDifundidos.at(-1)?.mapa.plantillas).toEqual(
+      patchRes.body.plantillas
+    );
+  });
 });
 
 describe("PgMapaEstadoRepository", () => {
