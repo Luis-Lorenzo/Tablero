@@ -144,6 +144,7 @@ export type ElementoMesa =
       macroId: string;
       nombre: string;
       icono: string;
+      color?: string;
       grupos: GrupoDadoMacro[];
       bonificador: number;
       x: number;
@@ -246,10 +247,23 @@ export interface GrupoDadoMacro {
   cantidad: number;
 }
 
+export const COLORES_MACRO = [
+  { id: "defecto", nombre: "Oscuro", hex: "" },
+  { id: "rojo", nombre: "Rojo", hex: "#7f1d1d" },
+  { id: "azul", nombre: "Azul", hex: "#1e3a8a" },
+  { id: "verde", nombre: "Verde", hex: "#14532d" },
+  { id: "morado", nombre: "Morado", hex: "#581c87" },
+  { id: "naranja", nombre: "Naranja", hex: "#9a3412" },
+  { id: "dorado", nombre: "Dorado", hex: "#854d0e" },
+  { id: "cyan", nombre: "Cian", hex: "#155e75" },
+  { id: "magenta", nombre: "Magenta", hex: "#831843" }
+] as const;
+
 export interface MacroTirada {
   id: string;
   nombre: string;
   icono: string;
+  color?: string;
   grupos: GrupoDadoMacro[];
   bonificador: number;
 }

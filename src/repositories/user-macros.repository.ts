@@ -10,6 +10,7 @@ export interface MacroTiradaPersistida {
   id: string;
   nombre: string;
   icono: string;
+  color?: string;
   grupos: GrupoDadoMacro[];
   bonificador: number;
 }
@@ -56,11 +57,16 @@ export function sanitizarMacros(raw: unknown): MacroTiradaPersistida[] {
       typeof obj.icono === "string" && obj.icono.trim()
         ? obj.icono.trim().slice(0, 32)
         : "Swords";
+    const color =
+      typeof obj.color === "string" && /^#[0-9a-fA-F]{6}$/.test(obj.color.trim())
+        ? obj.color.trim()
+        : undefined;
 
     resultado.push({
       id: obj.id.trim().slice(0, 64),
       nombre: nombre || "Macro",
       icono,
+      ...(color ? { color } : {}),
       grupos,
       bonificador
     });

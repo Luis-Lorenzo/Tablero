@@ -53,6 +53,7 @@ import {
   IconoLupaPixel,
   IconoMochilaPixel,
   IconoMonedasPixel,
+  IconoPaloma,
   recortarImagenCuadrada
 } from "./inventario";
 import {
@@ -70,7 +71,7 @@ import {
   reproducirSonidoNotificacion
 } from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
-import { COLORES_DIVISA } from "./tipos";
+import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   Asiento,
   Calibracion,
@@ -802,6 +803,9 @@ export function Sala({
   const [macroEditandoId, setMacroEditandoId] = useState<string | null>(null);
   const [macroNombre, setMacroNombre] = useState("");
   const [macroIcono, setMacroIcono] = useState("sword");
+  const [macroColor, setMacroColor] = useState("");
+  const [enviarPopoverAbierto, setEnviarPopoverAbierto] = useState(false);
+  const [enviarDestinoId, setEnviarDestinoId] = useState<string | null>(null);
   const [macroGrupos, setMacroGrupos] = useState<GrupoDado[]>([
     { id: "m-0", cantidad: 1, caras: 20 }
   ]);
@@ -1498,6 +1502,7 @@ export function Sala({
               macroId: actual.macro.id,
               nombre: actual.macro.nombre,
               icono: actual.macro.icono,
+              ...(actual.macro.color ? { color: actual.macro.color } : {}),
               grupos: actual.macro.grupos,
               bonificador: actual.macro.bonificador,
               x,
@@ -1879,6 +1884,7 @@ export function Sala({
     setMacroEditandoId(null);
     setMacroNombre("");
     setMacroIcono("sword");
+    setMacroColor("");
     setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
     setMacroBonificador(0);
     setMacrosAbierto(false);
@@ -1889,6 +1895,7 @@ export function Sala({
     setMacroEditandoId(macro.id);
     setMacroNombre(macro.nombre);
     setMacroIcono(macro.icono);
+    setMacroColor(macro.color ?? "");
     setMacroGrupos(
       macro.grupos.map((g, idx) => ({
         id: `m-${Date.now()}-${idx}`,
@@ -1952,6 +1959,7 @@ export function Sala({
                 ...m,
                 nombre: nombreLimpio,
                 icono: macroIcono,
+                ...(macroColor ? { color: macroColor } : { color: undefined }),
                 grupos: gruposLimpios,
                 bonificador: modLimpio
               }
@@ -1963,6 +1971,7 @@ export function Sala({
         id: nuevoId(),
         nombre: nombreLimpio,
         icono: macroIcono,
+        ...(macroColor ? { color: macroColor } : {}),
         grupos: gruposLimpios,
         bonificador: modLimpio
       };
@@ -3470,7 +3479,8 @@ export function Sala({
                     title={`Ver ${divisaNombre} de jugadores conectados`}
                     aria-label={`Ver ${divisaNombre} de jugadores conectados`}
                   >
-                    <IconoBilletePixel size={26} />
+                    <IconoBilletePixel size={24} />
+                    <span className="hud-master-label">Dinero mesa</span>
                   </button>
                   <button
                     type="button"
@@ -3480,12 +3490,236 @@ export function Sala({
                     title="Inspeccionar mochila y objetos de jugadores conectados"
                     aria-label="Inspeccionar mochila y objetos de jugadores conectados"
                   >
-                    <IconoLupaPixel size={26} />
+                    <IconoLupaPixel size={24} />
+                    <span className="hud-master-label">Objetos mesa</span>
                   </button>
                 </div>
               )}
+
+              <button
+                type="button"
+                className={`hud-enviar-btn${enviarPopoverAbierto ? " activo" : ""}`}
+                onClick={() => {
+                  setDivisaAbierta(false);
+                  setHuchaAbierta(false);
+                  setMochilaAbierta(false);
+                  setMasterDivisasAbierto(false);
+                  setMasterMochilasAbierto(false);
+                  setEnviarPopoverAbierto(v => {
+                    const siguiente = !v;
+                    const destinos = jugadores.filter(
+                      j => j.activo && j.id !== yoAsientoId && j.usuarioId !== miUsuarioId
+                    );
+                    if (siguiente && !enviarDestinoId && destinos.length > 0) {
+                      setEnviarDestinoId(destinos[0].id);
+                    }
+                    return siguiente;
+                  });
+                }}
+                aria-expanded={enviarPopoverAbierto}
+                title="Enviar objeto, nota o documento a otro jugador"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  padding: "7px 12px",
+                  border: enviarPopoverAbierto
+                    ? "2px solid #e8c56a"
+                    : "2px solid rgb(232 197 106 / 45%)",
+                  borderRadius: 10,
+                  background: enviarPopoverAbierto
+                    ? "rgb(28 22 38 / 95%)"
+                    : "rgb(14 11 20 / 92%)",
+                  color: "#f3e6c8",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  boxShadow: "2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%)",
+                  cursor: "pointer"
+                }}
+              >
+                <IconoPaloma size={20} />
+                <span>Enviar</span>
+              </button>
             </div>
           )}
+
+          {enviarPopoverAbierto && !ajuste && (() => {
+            const destinos = jugadores.filter(
+              j => j.activo && j.id !== yoAsientoId && j.usuarioId !== miUsuarioId
+            );
+            const enviables = elementosMesa.filter(
+              el => el.tipo !== "macro" && !el.archivado
+            );
+            return (
+              <div
+                className="divisa-popover hud-enviar-popover"
+                role="dialog"
+                aria-label="Enviar a jugador"
+                style={{
+                  top: 184,
+                  maxHeight: "65vh",
+                  overflowY: "auto"
+                }}
+              >
+                <div className="dados-selector-cabecera">
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <IconoPaloma size={16} />
+                    <span>Enviar a jugador</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setEnviarPopoverAbierto(false)}
+                    aria-label="Cerrar panel de envío"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+
+                {destinos.length === 0 ? (
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                    No hay otros jugadores activos en la mesa.
+                  </p>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                        1. Destinatario
+                      </span>
+                      <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {destinos.map(j => {
+                          const seleccionado = (enviarDestinoId ?? destinos[0]?.id) === j.id;
+                          return (
+                            <button
+                              key={j.id}
+                              type="button"
+                              className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
+                              onClick={() => setEnviarDestinoId(j.id)}
+                              style={{
+                                borderColor: seleccionado ? j.color : undefined,
+                                boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
+                              }}
+                            >
+                              {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                        2. Elemento o item
+                      </span>
+                      {mochilaActual.length === 0 && enviables.length === 0 ? (
+                        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                          No tienes objetos en la mochila ni elementos en la mesa para enviar.
+                        </p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                          {mochilaActual.map(item => (
+                            <button
+                              key={`mochila-${item.id}`}
+                              type="button"
+                              className="macro-lanzar-btn"
+                              style={{ width: "100%", justifyContent: "space-between" }}
+                              onClick={() => {
+                                const destino =
+                                  destinos.find(
+                                    j => j.id === (enviarDestinoId ?? destinos[0]?.id)
+                                  ) ?? destinos[0];
+                                if (!destino) return;
+                                if (onEnviarObjetoMochila) {
+                                  void onEnviarObjetoMochila(destino, item, 1);
+                                } else {
+                                  mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
+                                }
+                                setEnviarPopoverAbierto(false);
+                              }}
+                            >
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <span>{item.emoji ?? "🎒"}</span>
+                                <span>{item.nombre}</span>
+                              </span>
+                              <span style={{ fontSize: 11, opacity: 0.75 }}>
+                                Mochila (x{item.cantidad})
+                              </span>
+                            </button>
+                          ))}
+
+                          {enviables.map(elem => {
+                            const etiqueta =
+                              elem.tipo === "posit"
+                                ? elem.texto.trim() || "Posit sin texto"
+                                : elem.nombre;
+                            const icono =
+                              elem.tipo === "posit"
+                                ? "📝"
+                                : elem.tipo === "archivo"
+                                  ? "📄"
+                                  : elem.tipo === "objeto"
+                                    ? elem.emoji ?? "🎒"
+                                    : "◆";
+                            const sub =
+                              elem.tipo === "posit"
+                                ? "Posit"
+                                : elem.tipo === "archivo"
+                                  ? "Doc"
+                                  : elem.tipo === "objeto"
+                                    ? `x${elem.cantidad}`
+                                    : "Macro";
+                            return (
+                              <button
+                                key={elem.id}
+                                type="button"
+                                className="macro-lanzar-btn"
+                                style={{ width: "100%", justifyContent: "space-between" }}
+                                onClick={() => {
+                                  const destino =
+                                    destinos.find(
+                                      j => j.id === (enviarDestinoId ?? destinos[0]?.id)
+                                    ) ?? destinos[0];
+                                  if (!destino) return;
+                                  if (onEnviarElemento) {
+                                    void onEnviarElemento(destino, elem);
+                                  } else {
+                                    mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
+                                  }
+                                  setEnviarPopoverAbierto(false);
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                >
+                                  <span>{icono}</span>
+                                  <span>{etiqueta}</span>
+                                </span>
+                                <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+                                  {sub}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {huchaAbierta && !ajuste && (
             <div
@@ -3553,84 +3787,94 @@ export function Sala({
 
           {masterDivisasAbierto && esMaster && !ajuste && (
             <div
-              className="divisa-popover master-resumen-popover"
-              role="dialog"
-              aria-label="Divisas de jugadores conectados"
+              className="mochila-backdrop"
+              onClick={() => setMasterDivisasAbierto(false)}
             >
-              <div className="dados-selector-cabecera">
-                <span>Divisas · Conectados</span>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <button
-                    type="button"
-                    className="master-actualizar-btn"
-                    onClick={() => void cargarResumenMaster()}
-                    disabled={masterResumenCargando}
-                  >
-                    {masterResumenCargando ? "…" : "Actualizar"}
-                  </button>
-                  <button
-                    type="button"
-                    className="dados-cerrar"
-                    onClick={() => setMasterDivisasAbierto(false)}
-                    aria-label="Cerrar resumen de divisa"
-                  >
-                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
+              <div
+                className="mochila-modal master-inspeccion-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Divisas de jugadores conectados"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mochila-cabecera">
+                  <span className="mochila-titulo">
+                    <IconoBilletePixel size={22} />
+                    <span>Dinero en mesa</span>
+                  </span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="mochila-volver-btn"
+                      onClick={() => void cargarResumenMaster()}
+                      disabled={masterResumenCargando}
+                    >
+                      {masterResumenCargando ? "Actualizando…" : "Actualizar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="dados-cerrar"
+                      onClick={() => setMasterDivisasAbierto(false)}
+                      aria-label="Cerrar resumen de divisa"
+                    >
+                      <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              {masterResumenCargando && masterResumenJugadores.length === 0 ? (
-                <p className="dados-ayuda">Consultando sala…</p>
-              ) : masterResumenJugadores.length === 0 ? (
-                <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
-              ) : (
-                <ul className="master-divisa-lista">
-                  {masterResumenJugadores.map(j => {
-                    const saldosJugador = (
-                      j as PublicJugadorResumenInventario & {
-                        divisasSaldos?: Record<string, number>;
-                      }
-                    ).divisasSaldos;
-                    return (
-                      <li key={j.userId} className="master-divisa-item master-divisa-item-multi">
-                        <span className="master-divisa-jugador">
-                          <span
-                            className="compartir-jugador-punto"
-                            style={{ backgroundColor: j.color }}
-                            aria-hidden="true"
-                          />
-                          <span>{j.nombre}</span>
-                        </span>
-                        <div className="master-divisa-saldos">
-                          {divisasLista.map((d, idx) => {
-                            const valor =
-                              saldosJugador && d.id in saldosJugador
-                                ? saldosJugador[d.id]
-                                : idx === 0
-                                  ? j.divisa
-                                  : 0;
-                            return (
-                              <span
-                                key={d.id}
-                                className="master-divisa-monto"
-                                title={`${valor.toLocaleString("es-ES")} ${d.nombre}`}
-                                style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
-                              >
+                {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">Consultando sala…</p>
+                ) : masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
+                ) : (
+                  <ul className="master-divisa-lista">
+                    {masterResumenJugadores.map(j => {
+                      const saldosJugador = (
+                        j as PublicJugadorResumenInventario & {
+                          divisasSaldos?: Record<string, number>;
+                        }
+                      ).divisasSaldos;
+                      return (
+                        <li key={j.userId} className="master-divisa-item master-divisa-item-multi">
+                          <span className="master-divisa-jugador">
+                            <span
+                              className="compartir-jugador-punto"
+                              style={{ backgroundColor: j.color }}
+                              aria-hidden="true"
+                            />
+                            <span>{j.nombre}</span>
+                          </span>
+                          <div className="master-divisa-saldos">
+                            {divisasLista.map((d, idx) => {
+                              const valor =
+                                saldosJugador && d.id in saldosJugador
+                                  ? saldosJugador[d.id]
+                                  : idx === 0
+                                    ? j.divisa
+                                    : 0;
+                              return (
                                 <span
-                                  className="compartir-jugador-punto"
-                                  style={{ backgroundColor: d.color, width: "7px", height: "7px" }}
-                                  aria-hidden="true"
-                                />
-                                <span>{formatearDivisaCompacta(valor)}</span>
-                                <small style={{ opacity: 0.72 }}>{d.nombre}</small>
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+                                  key={d.id}
+                                  className="master-divisa-monto"
+                                  title={`${valor.toLocaleString("es-ES")} ${d.nombre}`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                >
+                                  <span
+                                    className="compartir-jugador-punto"
+                                    style={{ backgroundColor: d.color, width: "7px", height: "7px" }}
+                                    aria-hidden="true"
+                                  />
+                                  <span>{formatearDivisaCompacta(valor)}</span>
+                                  <small style={{ opacity: 0.72 }}>{d.nombre}</small>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 
@@ -4922,6 +5166,28 @@ export function Sala({
                   </div>
                 </div>
 
+                <div className="macro-campo-icono">
+                  <span className="dados-campo-etiqueta">Color de fondo</span>
+                  <div className="macro-color-grid" role="radiogroup" aria-label="Color de la macro">
+                    {COLORES_MACRO.map(c => {
+                      const seleccionado = macroColor === c.hex;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`macro-color-opcion${seleccionado ? " activo" : ""}`}
+                          style={{ background: c.hex || "rgb(16 12 24 / 95%)" }}
+                          onClick={() => setMacroColor(c.hex)}
+                          title={c.nombre}
+                          aria-label={c.nombre}
+                          aria-checked={seleccionado}
+                          role="radio"
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="dados-grupos-lista">
                   {macroGrupos.map((grupo, idx) => (
                     <div key={grupo.id} className="dados-grupo-card">
@@ -5339,7 +5605,10 @@ export function Sala({
                     }
                   }}
                 >
-                  <div className="mesa-macro-rombo-cuadro">
+                  <div
+                    className="mesa-macro-rombo-cuadro"
+                    style={macroElem.color ? { background: macroElem.color } : undefined}
+                  >
                     <button
                       type="button"
                       className="mesa-macro-rombo-cerrar"

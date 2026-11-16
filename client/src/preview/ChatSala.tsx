@@ -5,7 +5,7 @@ import type {
   KeyboardEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
-import { Crown, FolderUp, Lock, MessageSquare, Minus, Plus, Send, X } from "lucide-react";
+import { Crown, Lock, MessageSquare, Minus, Plus, Send, X } from "lucide-react";
 import type { JugadorPreview, MensajeSala, RectPizarra } from "./tipos";
 
 interface ChatSalaProps {
@@ -31,7 +31,7 @@ const FILTROS_CHAT: ReadonlyArray<{ id: FiltroChat; etiqueta: string }> = [
   { id: "todo", etiqueta: "Todo" },
   { id: "chat", etiqueta: "Chat" },
   { id: "dados", etiqueta: "Dados" },
-  { id: "urls", etiqueta: "URLs" }
+  { id: "urls", etiqueta: "Enlaces" }
 ];
 
 function formatearHora(iso: string): string {
@@ -52,9 +52,7 @@ export function ChatSala({
   mensajes,
   onEnviarMensaje,
   onIniciarArrastre,
-  onIniciarRedimension,
-  compartirAbierto = false,
-  onToggleCompartir
+  onIniciarRedimension
 }: ChatSalaProps) {
   const [plegado, setPlegado] = useState(false);
   const [filtro, setFiltro] = useState<FiltroChat>("todo");
@@ -172,22 +170,6 @@ export function ChatSala({
             <MessageSquare size={13} aria-hidden="true" />
             <span>Chat</span>
           </span>
-          {onToggleCompartir && (
-            <button
-              type="button"
-              className={`chat-compartir-btn${compartirAbierto ? " activo" : ""}`}
-              onPointerDown={e => e.stopPropagation()}
-              onClick={evento => {
-                const caja = evento.currentTarget.closest(".sala-chat")?.getBoundingClientRect();
-                onToggleCompartir(caja ? { left: caja.left, bottom: caja.bottom } : undefined);
-              }}
-              aria-expanded={compartirAbierto}
-              aria-label="Pasar notas y archivos"
-              title="Pasar notas y archivos"
-            >
-              <FolderUp size={13} aria-hidden="true" />
-            </button>
-          )}
         </div>
         <div
           className="chat-filtros"

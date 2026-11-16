@@ -222,6 +222,45 @@ export function IconoLupaPixel({ size = 24 }: { size?: number }) {
   );
 }
 
+/** Icono SVG de paloma mensajera con carta para el botón de enviar objetos/notas. */
+export function IconoPaloma({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 12c2.5-1.2 4.4-3.6 5.5-7 1.7 2.2 3.3 3.7 5.2 4.3 1.4-1.2 3.2-1.4 4.5-.5.7.5 1.2 1.2 1.3 2 .7.2 1.4.4 2 .7-.6.6-1.4 1-2.2 1.1-.4 2.8-2.3 5-5.3 6.1-2.2.8-4.7.8-7.2.2-1.8-.4-3.4-1.2-4.6-2.2 1.3-.3 2.4-.9 3.3-1.8-1-.3-1.8-.9-2.5-2.9z"
+        fill="#f5f1e6"
+        stroke="#2a1f36"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <circle cx="17.8" cy="10.2" r="0.8" fill="#1c1226" />
+      <rect
+        x="19.2"
+        y="12.2"
+        width="4"
+        height="3"
+        rx="0.5"
+        fill="#f7d060"
+        stroke="#7a5318"
+        strokeWidth="0.8"
+      />
+      <path
+        d="M19.4 12.4l1.8 1.4 1.8-1.4"
+        fill="none"
+        stroke="#7a5318"
+        strokeWidth="0.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * Recorta y comprime una imagen subida a formato cuadrado 1:1 ligero (256x256).
  */

@@ -46,6 +46,7 @@ import {
   IconoLupaPixel,
   IconoMochilaPixel,
   IconoMonedasPixel,
+  IconoPaloma,
   recortarImagenCuadrada
 } from "./inventario";
 import {
@@ -56,7 +57,7 @@ import {
 } from "./macros";
 import { reproducirSonidoConsumir, reproducirSonidoMonedas } from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
-import { COLORES_DIVISA } from "./tipos";
+import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   DivisaConfig,
   DocumentoMesa,
@@ -415,48 +416,6 @@ function IconoArchivador() {
   );
 }
 
-/** Icono SVG de paloma mensajera con carta para el botón de enviar objetos/notas. */
-function IconoPaloma({ size = 18 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {/* Alas y cuerpo de la paloma mensajera */}
-      <path
-        d="M3 12c2.5-1.2 4.4-3.6 5.5-7 1.7 2.2 3.3 3.7 5.2 4.3 1.4-1.2 3.2-1.4 4.5-.5.7.5 1.2 1.2 1.3 2 .7.2 1.4.4 2 .7-.6.6-1.4 1-2.2 1.1-.4 2.8-2.3 5-5.3 6.1-2.2.8-4.7.8-7.2.2-1.8-.4-3.4-1.2-4.6-2.2 1.3-.3 2.4-.9 3.3-1.8-1-.3-1.8-.9-2.5-2.9z"
-        fill="#f5f1e6"
-        stroke="#2a1f36"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      {/* Ojo */}
-      <circle cx="17.8" cy="10.2" r="0.8" fill="#1c1226" />
-      {/* Pequeña carta/pergamino en el pico */}
-      <rect
-        x="19.2"
-        y="12.2"
-        width="4"
-        height="3"
-        rx="0.5"
-        fill="#f7d060"
-        stroke="#7a5318"
-        strokeWidth="0.8"
-      />
-      <path
-        d="M19.4 12.4l1.8 1.4 1.8-1.4"
-        fill="none"
-        stroke="#7a5318"
-        strokeWidth="0.7"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /**
  * Superposición compartida del HUD de sala (Chat compacto, Dados, Macros,
  * Dados rápidos, Tirada flotante, Dinero, Mochila e inspección del Máster)
@@ -517,6 +476,7 @@ export function HudSalaCompartido({
   const [macroEditandoId, setMacroEditandoId] = useState<string | null>(null);
   const [macroNombre, setMacroNombre] = useState("");
   const [macroIcono, setMacroIcono] = useState("sword");
+  const [macroColor, setMacroColor] = useState("");
   const [macroGrupos, setMacroGrupos] = useState<GrupoDado[]>([
     { id: "m-0", cantidad: 1, caras: 20 }
   ]);
@@ -681,8 +641,8 @@ export function HudSalaCompartido({
     divisasConfig && divisasConfig.length > 0
       ? divisasConfig
       : divisasConfigLocal.map((d, idx) =>
-          idx === 0 && d.id === "principal" ? { ...d, nombre: divisaNombre } : d
-        );
+        idx === 0 && d.id === "principal" ? { ...d, nombre: divisaNombre } : d
+      );
   const indiceDivisaSeguro =
     divisasLista.length > 0 ? Math.min(indiceDivisa, divisasLista.length - 1) : 0;
   const divisaActiva: DivisaConfig = divisasLista[indiceDivisaSeguro] ?? {
@@ -857,6 +817,7 @@ export function HudSalaCompartido({
     setMacroEditandoId(null);
     setMacroNombre("");
     setMacroIcono("sword");
+    setMacroColor("");
     setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
     setMacroBonificador(0);
     setMacrosAbierto(false);
@@ -867,6 +828,7 @@ export function HudSalaCompartido({
     setMacroEditandoId(macro.id);
     setMacroNombre(macro.nombre);
     setMacroIcono(macro.icono);
+    setMacroColor(macro.color ?? "");
     setMacroGrupos(
       macro.grupos.map((g, idx) => ({
         id: `m-${Date.now()}-${idx}`,
@@ -922,30 +884,32 @@ export function HudSalaCompartido({
     }));
     const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
 
-    if (macroEditandoId) {
-      actualizarMacrosLista(
-        macrosLista.map(m =>
-          m.id === macroEditandoId
-            ? {
-              ...m,
-              nombre: nombreLimpio,
-              icono: macroIcono,
-              grupos: gruposLimpios,
-              bonificador: modLimpio
-            }
-            : m
-        )
-      );
-    } else {
-      const nueva: MacroTirada = {
-        id: nuevoId(),
-        nombre: nombreLimpio,
-        icono: macroIcono,
-        grupos: gruposLimpios,
-        bonificador: modLimpio
-      };
-      actualizarMacrosLista([...macrosLista, nueva]);
-    }
+      if (macroEditandoId) {
+        actualizarMacrosLista(
+          macrosLista.map(m =>
+            m.id === macroEditandoId
+              ? {
+                ...m,
+                nombre: nombreLimpio,
+                icono: macroIcono,
+                ...(macroColor ? { color: macroColor } : { color: undefined }),
+                grupos: gruposLimpios,
+                bonificador: modLimpio
+              }
+              : m
+          )
+        );
+      } else {
+        const nueva: MacroTirada = {
+          id: nuevoId(),
+          nombre: nombreLimpio,
+          icono: macroIcono,
+          ...(macroColor ? { color: macroColor } : {}),
+          grupos: gruposLimpios,
+          bonificador: modLimpio
+        };
+        actualizarMacrosLista([...macrosLista, nueva]);
+      }
     setMacroModalAbierto(false);
     setMacrosAbierto(true);
   }
@@ -1445,6 +1409,7 @@ export function HudSalaCompartido({
               macroId: macro.id,
               nombre: macro.nombre,
               icono: macro.icono,
+              ...(macro.color ? { color: macro.color } : {}),
               grupos: macro.grupos,
               bonificador: macro.bonificador,
               x,
@@ -1761,7 +1726,10 @@ export function HudSalaCompartido({
               }
             }}
           >
-            <div className="mesa-macro-rombo-cuadro">
+            <div
+              className="mesa-macro-rombo-cuadro"
+              style={macroElem.color ? { background: macroElem.color } : undefined}
+            >
               <button
                 type="button"
                 className="mesa-macro-rombo-cerrar"
@@ -1943,6 +1911,33 @@ export function HudSalaCompartido({
           )}
         </button>
 
+        {esMaster && (
+          <div className="hud-master-fila" aria-label="Inspección del Máster">
+            <button
+              type="button"
+              className={`hud-master-cuadro${masterDivisasAbierto ? " activo" : ""}`}
+              onClick={() => alternarPanelMaster("divisas")}
+              aria-expanded={masterDivisasAbierto}
+              title={`Ver ${divisaNombre} de jugadores conectados`}
+              aria-label={`Ver ${divisaNombre} de jugadores conectados`}
+            >
+              <IconoBilletePixel size={24} />
+              <span className="hud-master-label">Dinero mesa</span>
+            </button>
+            <button
+              type="button"
+              className={`hud-master-cuadro${masterMochilasAbierto ? " activo" : ""}`}
+              onClick={() => alternarPanelMaster("mochilas")}
+              aria-expanded={masterMochilasAbierto}
+              title="Inspeccionar mochila y objetos de jugadores conectados"
+              aria-label="Inspeccionar mochila y objetos de jugadores conectados"
+            >
+              <IconoLupaPixel size={24} />
+              <span className="hud-master-label">Objetos mesa</span>
+            </button>
+          </div>
+        )}
+
         <button
           type="button"
           className={`hud-enviar-btn${enviarPopoverAbierto ? " activo" : ""}`}
@@ -1989,31 +1984,6 @@ export function HudSalaCompartido({
           <IconoPaloma size={20} />
           <span>Enviar</span>
         </button>
-
-        {esMaster && (
-          <div className="hud-master-fila" aria-label="Inspección del Máster">
-            <button
-              type="button"
-              className={`hud-master-cuadro${masterDivisasAbierto ? " activo" : ""}`}
-              onClick={() => alternarPanelMaster("divisas")}
-              aria-expanded={masterDivisasAbierto}
-              title={`Ver ${divisaNombre} de jugadores conectados`}
-              aria-label={`Ver ${divisaNombre} de jugadores conectados`}
-            >
-              <IconoBilletePixel size={26} />
-            </button>
-            <button
-              type="button"
-              className={`hud-master-cuadro${masterMochilasAbierto ? " activo" : ""}`}
-              onClick={() => alternarPanelMaster("mochilas")}
-              aria-expanded={masterMochilasAbierto}
-              title="Inspeccionar mochila y objetos de jugadores conectados"
-              aria-label="Inspeccionar mochila y objetos de jugadores conectados"
-            >
-              <IconoLupaPixel size={26} />
-            </button>
-          </div>
-        )}
       </div>
 
       {enviarPopoverAbierto && (
@@ -2248,85 +2218,95 @@ export function HudSalaCompartido({
 
       {masterDivisasAbierto && esMaster && (
         <div
-          className="divisa-popover master-resumen-popover"
-          role="dialog"
-          aria-label="Divisas de jugadores conectados"
+          className="mochila-backdrop"
           style={{ pointerEvents: "auto" }}
+          onClick={() => setMasterDivisasAbierto(false)}
         >
-          <div className="dados-selector-cabecera">
-            <span>Divisas · Conectados</span>
-            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <button
-                type="button"
-                className="master-actualizar-btn"
-                onClick={() => void cargarResumenMaster()}
-                disabled={masterResumenCargando}
-              >
-                {masterResumenCargando ? "…" : "Actualizar"}
-              </button>
-              <button
-                type="button"
-                className="dados-cerrar"
-                onClick={() => setMasterDivisasAbierto(false)}
-                aria-label="Cerrar resumen de divisa"
-              >
-                <X size={13} strokeWidth={2.4} aria-hidden="true" />
-              </button>
+          <div
+            className="mochila-modal master-inspeccion-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Divisas de jugadores conectados"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mochila-cabecera">
+              <span className="mochila-titulo">
+                <IconoBilletePixel size={22} />
+                <span>Dinero en mesa</span>
+              </span>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="mochila-volver-btn"
+                  onClick={() => void cargarResumenMaster()}
+                  disabled={masterResumenCargando}
+                >
+                  {masterResumenCargando ? "Actualizando…" : "Actualizar"}
+                </button>
+                <button
+                  type="button"
+                  className="dados-cerrar"
+                  onClick={() => setMasterDivisasAbierto(false)}
+                  aria-label="Cerrar resumen de divisa"
+                >
+                  <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
             </div>
-          </div>
-          {masterResumenCargando && masterResumenJugadores.length === 0 ? (
-            <p className="dados-ayuda">Consultando sala…</p>
-          ) : masterResumenJugadores.length === 0 ? (
-            <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
-          ) : (
-            <ul className="master-divisa-lista">
-              {masterResumenJugadores.map(j => {
-                const saldosJugador = (
-                  j as PublicJugadorResumenInventario & {
-                    divisasSaldos?: Record<string, number>;
-                  }
-                ).divisasSaldos;
-                return (
-                  <li key={j.userId} className="master-divisa-item master-divisa-item-multi">
-                    <span className="master-divisa-jugador">
-                      <span
-                        className="compartir-jugador-punto"
-                        style={{ backgroundColor: j.color }}
-                        aria-hidden="true"
-                      />
-                      <span>{j.nombre}</span>
-                    </span>
-                    <div className="master-divisa-saldos">
-                      {divisasLista.map((d, idx) => {
-                        const valor =
-                          saldosJugador && d.id in saldosJugador
-                            ? saldosJugador[d.id]
-                            : idx === 0
-                              ? j.divisa
-                              : 0;
-                        return (
-                          <span
-                            key={d.id}
-                            className="master-divisa-monto"
-                            title={`${valor.toLocaleString("es-ES")} ${d.nombre}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
-                          >
+            {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+              <p className="dados-ayuda">Consultando sala…</p>
+            ) : masterResumenJugadores.length === 0 ? (
+              <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
+            ) : (
+              <ul className="master-divisa-lista">
+                {masterResumenJugadores.map(j => {
+                  const saldosJugador = (
+                    j as PublicJugadorResumenInventario & {
+                      divisasSaldos?: Record<string, number>;
+                    }
+                  ).divisasSaldos;
+                  return (
+                    <li key={j.userId} className="master-divisa-item master-divisa-item-multi">
+                      <span className="master-divisa-jugador">
+                        <span
+                          className="compartir-jugador-punto"
+                          style={{ backgroundColor: j.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{j.nombre}</span>
+                      </span>
+                      <div className="master-divisa-saldos">
+                        {divisasLista.map((d, idx) => {
+                          const valor =
+                            saldosJugador && d.id in saldosJugador
+                              ? saldosJugador[d.id]
+                              : idx === 0
+                                ? j.divisa
+                                : 0;
+                          return (
                             <span
-                              className="compartir-jugador-punto"
-                              style={{ backgroundColor: d.color, width: "7px", height: "7px" }}
-                              aria-hidden="true"
-                            />
-                            <span>{formatearDivisaCompacta(valor)}</span>
-                            <small style={{ opacity: 0.72 }}>{d.nombre}</small>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                              key={d.id}
+                              className="master-divisa-monto"
+                              title={`${valor.toLocaleString("es-ES")} ${d.nombre}`}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                            >
+                              <span
+                                className="compartir-jugador-punto"
+                                style={{ backgroundColor: d.color, width: "7px", height: "7px" }}
+                                aria-hidden="true"
+                              />
+                              <span>{formatearDivisaCompacta(valor)}</span>
+                              <small style={{ opacity: 0.72 }}>{d.nombre}</small>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
@@ -3583,6 +3563,28 @@ export function HudSalaCompartido({
                     >
                       <IconoMacro id={item.id} size={15} />
                     </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="macro-campo-icono">
+              <span className="dados-campo-etiqueta">Color de fondo</span>
+              <div className="macro-color-grid" role="radiogroup" aria-label="Color de la macro">
+                {COLORES_MACRO.map(c => {
+                  const seleccionado = macroColor === c.hex;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={`macro-color-opcion${seleccionado ? " activo" : ""}`}
+                      style={{ background: c.hex || "rgb(16 12 24 / 95%)" }}
+                      onClick={() => setMacroColor(c.hex)}
+                      title={c.nombre}
+                      aria-label={c.nombre}
+                      aria-checked={seleccionado}
+                      role="radio"
+                    />
                   );
                 })}
               </div>
