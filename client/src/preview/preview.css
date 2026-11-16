@@ -10039,3 +10039,732 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* --------------------------------------------------------------- Botón Sol/Luna y Paloma inputs */
+
+.sala-tema-btn {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 26;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 2px solid #594b6b;
+  background: rgb(17 13 26 / 90%);
+  color: #f6e3b0;
+  box-shadow: 3px 3px 0 #090612;
+  backdrop-filter: blur(8px);
+}
+
+.sala-tema-btn:hover {
+  border-color: #e8c56a;
+  color: #ffe8a3;
+}
+
+.sala-tema-btn.claro {
+  background: rgb(255 248 236 / 90%);
+  border-color: #B8862B;
+  color: #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+.sala-tema-btn.claro:hover {
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  background: #FFF8EC;
+}
+
+.paloma-textarea,
+.paloma-monedas-input {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgb(232 197 106 / 35%);
+  background: rgb(10 8 16 / 85%);
+  color: #f5efe6;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.paloma-textarea {
+  resize: vertical;
+}
+
+.paloma-monedas-input {
+  width: 66px;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.paloma-monedas-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(232 197 106 / 22%);
+}
+
+.paloma-item-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 10%);
+}
+
+/* ===================================================================== */
+/* MODO CLARO ("Sala de estrategia bañada por el sol")                   */
+/* ===================================================================== */
+
+html.modo-claro {
+  color-scheme: light;
+}
+
+html.modo-claro .sala-escena {
+  background: #EFE2CD;
+}
+
+html.modo-claro .sala-vineta {
+  background: radial-gradient(
+    ellipse at 50% 54%,
+    transparent 56%,
+    rgb(60 40 90 / 16%) 100%
+  );
+}
+
+/* 1 & 2 & 3 & 7. Paneles, barras, bordes dorados profundos, texto #2A1F3D/#6B5B85, sombras suaves */
+
+html.modo-claro .sala-barra,
+html.modo-claro .sala-chat,
+html.modo-claro .hud-divisa-caja,
+html.modo-claro .hud-mochila-btn,
+html.modo-claro .hud-hucha-btn,
+html.modo-claro .hud-enviar-btn,
+html.modo-claro .divisa-popover,
+html.modo-claro .dados-selector,
+html.modo-claro .dados-compuesta-modal,
+html.modo-claro .macros-popover,
+html.modo-claro .macros-modal,
+html.modo-claro .mochila-modal,
+html.modo-claro .sala-musica-popover,
+html.modo-claro .tirada-panel,
+html.modo-claro .solicitud-popup,
+html.modo-claro .master-panel-modal,
+html.modo-claro .master-resumen-popover,
+html.modo-claro .mapa-barra-flotante,
+html.modo-claro .mapa-iniciativa-cabecera,
+html.modo-claro .mapa-iniciativa-editor,
+html.modo-claro .mapa-turno-panel,
+html.modo-claro .mapa-tokens-dock,
+html.modo-claro .mapa-panel,
+html.modo-claro .mapa-limbo,
+html.modo-claro .mapa-token-barra,
+html.modo-claro .pizarra-sidebar,
+html.modo-claro .archivador-barra,
+html.modo-claro .archivador-visor-caja {
+  background: rgb(255 248 236 / 88%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .divisa-popover,
+html.modo-claro .dados-selector,
+html.modo-claro .dados-compuesta-modal,
+html.modo-claro .macros-popover,
+html.modo-claro .macros-modal,
+html.modo-claro .mochila-modal,
+html.modo-claro .sala-musica-popover,
+html.modo-claro .master-panel-modal,
+html.modo-claro .master-resumen-popover,
+html.modo-claro .mapa-panel,
+html.modo-claro .mapa-iniciativa-editor,
+html.modo-claro .archivador-visor-caja {
+  background: rgb(255 248 236 / 95%);
+}
+
+html.modo-claro .sala-barra.sala-barra-master,
+html.modo-claro .archivador-barra-master {
+  border-color: #A8741A;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-titulo-visible,
+html.modo-claro .hud-divisa-titulo,
+html.modo-claro .hud-divisa-label,
+html.modo-claro .hud-master-label,
+html.modo-claro .dados-selector-cabecera,
+html.modo-claro .dados-campo-etiqueta,
+html.modo-claro .macros-selector,
+html.modo-claro .macro-nombre,
+html.modo-claro .chat-titulo,
+html.modo-claro .chat-msg-texto,
+html.modo-claro .sala-musica-popover-titulo,
+html.modo-claro .mapa-panel-titulo,
+html.modo-claro .mapa-panel-subtitulo,
+html.modo-claro .mapa-panel-etiqueta,
+html.modo-claro .mapa-campo-fila-lbl,
+html.modo-claro .mapa-token-colores-etiqueta,
+html.modo-claro .mapa-limbo-titulo,
+html.modo-claro .mapa-token-barra-nombre,
+html.modo-claro .archivador-titulo,
+html.modo-claro .archivador-seccion-cabecera h2,
+html.modo-claro .archivador-archivo-nombre {
+  color: #2A1F3D;
+}
+
+html.modo-claro .muted,
+html.modo-claro .chat-msg-hora,
+html.modo-claro .chat-filtro-sep,
+html.modo-claro .macros-vacio,
+html.modo-claro .sala-musica-vacia,
+html.modo-claro .sala-musica-pista-indice,
+html.modo-claro .mapa-panel-vacio,
+html.modo-claro .mapa-limbo-vacio,
+html.modo-claro .mapa-ayuda-controles,
+html.modo-claro .archivador-archivo-peso,
+html.modo-claro .archivador-vacio,
+html.modo-claro .pizarra-sidebar-meta,
+html.modo-claro .pizarra-sidebar-vacio,
+html.modo-claro .tirada-etiqueta,
+html.modo-claro .tirada-desglose {
+  color: #6B5B85;
+}
+
+html.modo-claro .hud-divisa-valor,
+html.modo-claro .mapa-iniciativa-ronda,
+html.modo-claro .mapa-iniciativa-valor,
+html.modo-claro .sala-musica-volumen-valor {
+  color: #A8741A;
+}
+
+/* Botones de la barra y controles internos */
+
+html.modo-claro .sala-btn,
+html.modo-claro .chat-filtro-btn,
+html.modo-claro .chat-compartir-btn,
+html.modo-claro .chat-plegar-btn,
+html.modo-claro .dados-cerrar,
+html.modo-claro .dados-visibilidad-tab,
+html.modo-claro .dado-tipo-btn,
+html.modo-claro .dados-stepper button,
+html.modo-claro .dados-agregar-grupo,
+html.modo-claro .dados-compuesta-toggle,
+html.modo-claro .divisa-atajo-btn,
+html.modo-claro .divisa-emoji-btn,
+html.modo-claro .hud-divisa-paso,
+html.modo-claro .mochila-destino-chip,
+html.modo-claro .macro-accion-btn,
+html.modo-claro .macros-crear-btn,
+html.modo-claro .sala-musica-mini-btn,
+html.modo-claro .sala-musica-ctrl-btn,
+html.modo-claro .sala-musica-pista,
+html.modo-claro .sala-musica-subir-btn,
+html.modo-claro .mapa-barra-flotante .pizarra-btn,
+html.modo-claro .mapa-barra-flotante .pizarra-tool-btn,
+html.modo-claro .mapa-tokens-dock .pizarra-tool-btn,
+html.modo-claro .mapa-ini-btn,
+html.modo-claro .mapa-zoom-btn,
+html.modo-claro .mapa-preset-btn,
+html.modo-claro .mapa-archivo-chip,
+html.modo-claro .mapa-panel-tab,
+html.modo-claro .mapa-bandeja-filtro-btn,
+html.modo-claro .mapa-panel-cerrar,
+html.modo-claro .mapa-token-tipo-btn,
+html.modo-claro .mapa-token-subir,
+html.modo-claro .mapa-btn-sec,
+html.modo-claro .pizarra-tool-btn,
+html.modo-claro .pizarra-grosor-btn,
+html.modo-claro .pizarra-sidebar-toggle,
+html.modo-claro .archivador-btn {
+  background: rgb(255 253 248 / 92%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 2px 6px rgb(60 40 90 / 12%);
+}
+
+html.modo-claro .sala-btn:hover:not(:disabled),
+html.modo-claro .chat-filtro-btn:hover,
+html.modo-claro .chat-compartir-btn:hover,
+html.modo-claro .dados-visibilidad-tab:hover,
+html.modo-claro .dado-tipo-btn:hover,
+html.modo-claro .dados-stepper button:hover,
+html.modo-claro .divisa-atajo-btn:hover,
+html.modo-claro .hud-divisa-paso:hover,
+html.modo-claro .mochila-destino-chip:hover,
+html.modo-claro .macro-accion-btn:hover,
+html.modo-claro .macros-crear-btn:hover,
+html.modo-claro .sala-musica-mini-btn:hover,
+html.modo-claro .sala-musica-ctrl-btn:hover:not(:disabled),
+html.modo-claro .sala-musica-pista:hover,
+html.modo-claro .mapa-barra-flotante .pizarra-btn:hover:not(:disabled),
+html.modo-claro .mapa-barra-flotante .pizarra-tool-btn:hover:not(:disabled),
+html.modo-claro .mapa-tokens-dock .pizarra-tool-btn:hover:not(:disabled),
+html.modo-claro .mapa-ini-btn:hover,
+html.modo-claro .mapa-zoom-btn:hover,
+html.modo-claro .mapa-preset-btn:hover,
+html.modo-claro .mapa-archivo-chip:hover,
+html.modo-claro .mapa-panel-tab:hover,
+html.modo-claro .mapa-bandeja-filtro-btn:hover,
+html.modo-claro .mapa-btn-sec:hover,
+html.modo-claro .pizarra-tool-btn:hover:not(:disabled),
+html.modo-claro .archivador-btn:hover:not(:disabled) {
+  border-color: #7C5CBF;
+  background: rgb(124 92 191 / 14%);
+  color: #2A1F3D;
+}
+
+/* 4. Acento de marca / estados activos (#E2A93B con texto #2A1F3D) */
+
+html.modo-claro .master-pill-badge,
+html.modo-claro .sala-btn.activo,
+html.modo-claro .chat-filtro-btn.activo,
+html.modo-claro .chat-compartir-btn.activo,
+html.modo-claro .dados-visibilidad-tab.activo,
+html.modo-claro .dado-tipo-btn.activo,
+html.modo-claro .dados-compuesta-toggle.activo,
+html.modo-claro .mochila-destino-chip.activo,
+html.modo-claro .hud-mochila-btn.activo,
+html.modo-claro .hud-hucha-btn.activo,
+html.modo-claro .hud-master-cuadro.activo,
+html.modo-claro .hud-divisa-centro.activo,
+html.modo-claro .sala-btn-disco.reproduciendo,
+html.modo-claro .sala-musica-pista.activa,
+html.modo-claro .mapa-barra-flotante .pizarra-tool-btn.activo,
+html.modo-claro .mapa-tokens-dock .pizarra-tool-btn.activo,
+html.modo-claro .mapa-ini-btn.activo,
+html.modo-claro .mapa-ini-btn-sig,
+html.modo-claro .mapa-candado-btn.activo,
+html.modo-claro .mapa-preset-btn.activo,
+html.modo-claro .mapa-archivo-chip.activo,
+html.modo-claro .mapa-panel-tab.activo,
+html.modo-claro .mapa-bandeja-filtro-btn.activo,
+html.modo-claro .mapa-toggle-fila.activo,
+html.modo-claro .pizarra-tool-btn.activo,
+html.modo-claro .pizarra-grosor-btn.activo,
+html.modo-claro .dados-lanzar,
+html.modo-claro .macro-lanzar-btn,
+html.modo-claro .master-btn-dorado,
+html.modo-claro .mapa-btn-primario,
+html.modo-claro .mapa-btn-confirmar,
+html.modo-claro .archivador-btn-subir,
+html.modo-claro .archivador-accion-principal {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .dados-lanzar:hover:not(:disabled),
+html.modo-claro .macro-lanzar-btn:hover:not(:disabled),
+html.modo-claro .mapa-btn-primario:hover,
+html.modo-claro .archivador-btn-subir:hover:not(:disabled) {
+  background: #D49724;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+}
+
+/* 5. Banner / acentos azul-violeta (#5B6BBF) */
+
+html.modo-claro .mapa-barra-flotante .pizarra-btn.mapa-btn-volver,
+html.modo-claro .chat-enviar-btn,
+html.modo-claro .sala-musica-ctrl-btn.activo,
+html.modo-claro .dados-visibilidad-tab.secreta.activo,
+html.modo-claro .dados-lanzar.secreta {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .mapa-barra-flotante .pizarra-btn.mapa-btn-volver:hover:not(:disabled),
+html.modo-claro .chat-enviar-btn:hover:not(:disabled) {
+  background: #4B5BB0;
+  border-color: #2A1F3D;
+  color: #FFF8EC;
+}
+
+html.modo-claro .hud-enviar-btn {
+  border-color: #5B6BBF;
+  background: rgb(255 248 236 / 90%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .hud-enviar-btn svg {
+  color: #5B6BBF;
+}
+
+html.modo-claro .hud-enviar-btn:hover,
+html.modo-claro .hud-enviar-btn.activo {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .hud-enviar-btn:hover svg,
+html.modo-claro .hud-enviar-btn.activo svg {
+  color: #FFF8EC;
+}
+
+/* Chat e Inputs en modo claro */
+
+html.modo-claro .sala-chat,
+html.modo-claro .chat-cabecera,
+html.modo-claro .chat-pie {
+  border-color: #B8862B;
+}
+
+html.modo-claro .chat-cabecera {
+  background: rgb(238 232 250 / 72%);
+}
+
+html.modo-claro .chat-mensajes {
+  background: rgb(255 253 248 / 65%);
+}
+
+html.modo-claro .chat-msg.sistema {
+  background: rgb(91 107 191 / 12%);
+  border-color: rgb(91 107 191 / 35%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-msg.privado {
+  background: rgb(226 169 59 / 18%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-input,
+html.modo-claro .dados-stepper input,
+html.modo-claro .divisa-custom-form input,
+html.modo-claro .mochila-modal input,
+html.modo-claro .mochila-modal textarea,
+html.modo-claro .macros-buscador,
+html.modo-claro .macro-campo-nombre input,
+html.modo-claro .paloma-textarea,
+html.modo-claro .paloma-monedas-input,
+html.modo-claro .mapa-campo input,
+html.modo-claro .mapa-campo select,
+html.modo-claro .mapa-iniciativa-input,
+html.modo-claro .mapa-bandeja-cat-input,
+html.modo-claro .archivador-input,
+html.modo-claro .sala-apodo-input {
+  background: rgb(255 253 248 / 96%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-input::placeholder,
+html.modo-claro .paloma-textarea::placeholder,
+html.modo-claro .mapa-campo input::placeholder,
+html.modo-claro .archivador-input::placeholder {
+  color: #6B5B85;
+  opacity: 0.85;
+}
+
+html.modo-claro .paloma-monedas-caja,
+html.modo-claro .paloma-item-fila {
+  background: rgb(238 232 250 / 55%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+/* 6. Iconos de la barra inferior (Dados, Macros, Posits, Archivador, Secreto) */
+
+html.modo-claro .dock-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #3B2A6B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .dock-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 30%);
+}
+
+html.modo-claro .dock-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .dock-btn.dock-btn-master {
+  background: #FFF3D6;
+  border-color: #B8862B;
+  color: #5B3E0B;
+}
+
+html.modo-claro .dock-btn.dock-btn-master:hover,
+html.modo-claro .dock-btn.dock-btn-master.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dock-btn.dock-btn-secreto {
+  background: #E6E0F5;
+  border-color: #5B6BBF;
+  color: #3B2A6B;
+}
+
+html.modo-claro .dock-btn.dock-btn-secreto:hover,
+html.modo-claro .dock-btn.dock-btn-secreto.activo {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .dock-etiqueta {
+  background: #FFF8EC;
+  border: 1.5px solid #B8862B;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 22%);
+}
+
+/* 8. Dados rápidos */
+
+html.modo-claro .dados-rapidos-titulo {
+  color: #2A1F3D;
+  background: rgb(255 248 236 / 86%);
+  border: 1.5px solid #B8862B;
+  border-radius: 8px;
+  padding: 3px 8px;
+  text-shadow: none;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .dado-rapido-btn {
+  background: rgb(255 248 236 / 92%);
+  border-color: var(--dado-color);
+  color: var(--dado-color);
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .dado-rapido-btn:hover:not(:disabled) {
+  background: #FFF8EC;
+  border-color: #7C5CBF;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 30%);
+}
+
+/* 9. Chips de nombre y apodos sobre madera / mapa */
+
+html.modo-claro .asiento-nombre {
+  padding: 2px 8px;
+  border: 1.5px solid #B8862B;
+  border-radius: 999px;
+  background: #FFF8EC;
+  color: #2A1F3D;
+  text-shadow: none;
+  opacity: 1;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .asiento-apodo {
+  background: #FFF8EC;
+  border-color: color-mix(in srgb, var(--color-jugador) 72%, #B8862B);
+  color: #2A1F3D;
+  text-shadow: none;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-apodo-texto {
+  color: #2A1F3D;
+  text-shadow: 0 1px 0 #FFF8EC, 0 0 8px rgb(255 248 236 / 95%);
+}
+
+html.modo-claro .sala-apodo-editar-btn {
+  color: #2A1F3D;
+}
+
+html.modo-claro .asiento-d20-suma {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 25%);
+}
+
+/* Mapa: fondo pergamino cálido, jugadores e iniciativa */
+
+html.modo-claro .mapa-page {
+  background: radial-gradient(ellipse at 50% 30%, #FFF8EC 0%, #EFE2CD 68%, #DFCEB4 100%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-jugadores-titulo-svg text {
+  fill: #2A1F3D;
+  filter: drop-shadow(0 1px 0 #FFF8EC) drop-shadow(0 2px 6px rgb(60 40 90 / 25%));
+}
+
+html.modo-claro .mapa-jugador-ficha {
+  background: #FFF8EC;
+  border: 1.5px solid #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .mapa-jugador-nombre {
+  background: #FFF8EC;
+  border-color: color-mix(in srgb, var(--jugador-color) 65%, #B8862B);
+  color: #2A1F3D;
+  box-shadow: none;
+}
+
+html.modo-claro .mapa-jugador-tirada {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .mapa-iniciativa-chip {
+  background: #FFF8EC;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-iniciativa-chip.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 24%);
+}
+
+html.modo-claro .mapa-limbo-token-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-plantilla-card,
+html.modo-claro .mapa-plantilla-invocar {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+/* Música timer, avisos, pizarra y archivador */
+
+html.modo-claro .sala-musica-estado {
+  background: rgb(255 248 236 / 90%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .sala-musica-estado.bucle {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-page.vista-escena .pizarra-barra {
+  background: linear-gradient(180deg, #FFF8EC 0%, #EFE2CD 100%);
+  border-bottom-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-lienzo.vista-escena {
+  background: radial-gradient(ellipse at 50% 35%, #E8EFFC 0%, #FFF8EC 72%, #EFE2CD 100%);
+}
+
+html.modo-claro .archivador-page {
+  background: radial-gradient(ellipse at 50% 25%, #FFF8EC 0%, #EFE2CD 100%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .archivador-card,
+html.modo-claro .pizarra-sidebar-item {
+  background: rgb(255 248 236 / 92%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .sala-aviso,
+html.modo-claro .sala-aviso-ok {
+  background: #FFF8EC;
+  border-color: #5B6BBF;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .hud-master-cuadro {
+  background: rgb(255 248 236 / 88%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .hud-master-cuadro:hover {
+  border-color: #7C5CBF;
+  background: #FFF8EC;
+}
+
+html.modo-claro .hud-master-cuadro.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn,
+html.modo-claro .archivador-visor .master-accion-btn,
+html.modo-claro .pizarra-page .master-accion-btn,
+html.modo-claro .master-imagen-card,
+html.modo-claro .master-divisa-item,
+html.modo-claro .master-actualizar-btn {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-accion-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-divisa-jugador {
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-divisa-monto {
+  color: #A8741A;
+}
+
+html.modo-claro .divisa-atajo-btn.suma,
+html.modo-claro .divisa-emoji-btn.suma {
+  border-color: #1E9E78;
+  color: #156E52;
+  background: rgb(30 158 120 / 12%);
+}
+
+html.modo-claro .divisa-atajo-btn.resta,
+html.modo-claro .divisa-emoji-btn.resta {
+  border-color: #C94A5A;
+  color: #9E2A38;
+  background: rgb(201 74 90 / 12%);
+}
+
+html.modo-claro .divisa-atajo-btn.suma:hover,
+html.modo-claro .divisa-emoji-btn.suma:hover,
+html.modo-claro .divisa-atajo-btn.resta:hover,
+html.modo-claro .divisa-emoji-btn.resta:hover {
+  border-color: #7C5CBF;
+}

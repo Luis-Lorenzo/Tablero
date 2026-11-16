@@ -17,6 +17,7 @@ import { ArchivosMenu } from "./presentation/components/ArchivosMenu";
 import { PanelIzquierdo } from "./presentation/components/PanelIzquierdo";
 import { PanelDerecho } from "./presentation/components/PanelDerecho";
 import { useMesasLive } from "./presentation/hooks/useMesasLive";
+import { aplicarModoClaroDOM, obtenerModoClaro } from "./preview/datos";
 
 type View = "recepcion" | "cuenta" | "moderar" | "gestion" | "sala";
 
@@ -78,6 +79,13 @@ function App() {
   useEffect(() => {
     salaMesaRef.current = salaMesa;
   }, [salaMesa]);
+
+  useEffect(() => {
+    aplicarModoClaroDOM(obtenerModoClaro());
+    const alCambiarTema = () => aplicarModoClaroDOM(obtenerModoClaro());
+    window.addEventListener("pocketrol:tema", alCambiarTema);
+    return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
+  }, []);
 
   useEffect(() => {
     authApi

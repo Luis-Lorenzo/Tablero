@@ -2403,3 +2403,113 @@ tbody tr:hover {
   border-radius: 6px;
   box-shadow: 2px 2px 0 #120b20;
 }
+
+/* ===================================================================== */
+/* MODO CLARO PARA RECEPCIÓN, GESTIÓN, CUENTA Y MODALES (App.css)        */
+/* ===================================================================== */
+
+html.modo-claro .page {
+  background-color: #F7EFE2;
+  background-image:
+    linear-gradient(rgb(91 107 191 / 8%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(91 107 191 / 8%) 1px, transparent 1px),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(226 169 59 / 28%) 0%, transparent 65%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .card,
+html.modo-claro .panel-caja,
+html.modo-claro .mesa-card,
+html.modo-claro .modal-caja,
+html.modo-claro .cuenta-desplegable,
+html.modo-claro .archivos-panel,
+html.modo-claro .archivo-visor-caja {
+  background: rgb(255 248 236 / 90%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .topbar {
+  background: rgb(255 248 236 / 88%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .card h1,
+html.modo-claro .card h2 {
+  color: #2A1F3D;
+  text-shadow: 1px 1px 0 #FFF8EC;
+}
+
+html.modo-claro .muted,
+html.modo-claro .ayuda-campo,
+html.modo-claro .archivos-vacio,
+html.modo-claro .archivos-item-peso {
+  color: #6B5B85;
+}
+
+html.modo-claro button.primary {
+  border-color: #A8741A;
+  background: #E2A93B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro button.primary:hover:not(:disabled) {
+  background: #D49724;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro button.ghost,
+html.modo-claro .tab,
+html.modo-claro .cuenta-boton,
+html.modo-claro .panel-icono-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro button.ghost:hover:not(:disabled),
+html.modo-claro .tab:hover,
+html.modo-claro .cuenta-boton:hover {
+  border-color: #7C5CBF;
+  background: rgb(124 92 191 / 16%);
+}
+
+html.modo-claro .tab.active,
+html.modo-claro .tab.moderar.activa {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .escena-pixel-caja {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  box-shadow: none;
+}
+
+html.modo-claro .escena-pixel-barra {
+  border-top-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro input,
+html.modo-claro select,
+html.modo-claro textarea {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .archivos-item,
+html.modo-claro .archivo-rapido-link,
+html.modo-claro .gestion-bloque {
+  background: rgb(255 253 248 / 90%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}

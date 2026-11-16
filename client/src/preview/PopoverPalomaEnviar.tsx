@@ -299,6 +299,7 @@ export function PopoverPalomaEnviar({
           {tab === "carta" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <textarea
+                className="paloma-textarea"
                 value={mensajeCarta}
                 onChange={e => setMensajeCarta(e.target.value)}
                 placeholder={`Escribe un mensaje privado para ${
@@ -306,18 +307,6 @@ export function PopoverPalomaEnviar({
                 }...`}
                 rows={3}
                 maxLength={600}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  resize: "vertical",
-                  borderRadius: 8,
-                  border: "1px solid rgb(232 197 106 / 35%)",
-                  background: "rgb(10 8 16 / 85%)",
-                  color: "#f5efe6",
-                  padding: "7px 9px",
-                  fontSize: 12,
-                  fontFamily: "inherit"
-                }}
               />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button
@@ -345,17 +334,7 @@ export function PopoverPalomaEnviar({
 
           {tab === "mochila" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  padding: 8,
-                  borderRadius: 8,
-                  background: "rgb(255 255 255 / 4%)",
-                  border: "1px solid rgb(232 197 106 / 22%)"
-                }}
-              >
+              <div className="paloma-monedas-caja">
                 <div
                   style={{
                     display: "flex",
@@ -395,6 +374,7 @@ export function PopoverPalomaEnviar({
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
+                    className="paloma-monedas-input"
                     type="number"
                     min={1}
                     max={Math.max(1, saldoActual)}
@@ -402,15 +382,6 @@ export function PopoverPalomaEnviar({
                     onChange={e =>
                       setCantidadMonedas(Math.max(1, Math.trunc(Number(e.target.value)) || 1))
                     }
-                    style={{
-                      width: 66,
-                      borderRadius: 6,
-                      border: "1px solid rgb(232 197 106 / 35%)",
-                      background: "rgb(10 8 16 / 85%)",
-                      color: "#f5efe6",
-                      padding: "4px 6px",
-                      fontSize: 12
-                    }}
                   />
                   {[1, 5, 10].map(step => (
                     <button
@@ -453,16 +424,7 @@ export function PopoverPalomaEnviar({
                     return (
                       <div
                         key={`mochila-${item.id}`}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 6,
-                          padding: "5px 7px",
-                          borderRadius: 8,
-                          background: "rgb(255 255 255 / 4%)",
-                          border: "1px solid rgb(255 255 255 / 10%)"
-                        }}
+                        className="paloma-item-fila"
                       >
                         <span
                           style={{
