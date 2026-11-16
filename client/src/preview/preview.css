@@ -3496,8 +3496,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-turno-panel {
   position: fixed;
-  top: 22px;
-  left: 252px;
+  top: 16px;
+  left: max(320px, calc(25vw - 30px));
+  transform: translateX(-50%);
   z-index: 26;
   display: inline-flex;
   align-items: center;
