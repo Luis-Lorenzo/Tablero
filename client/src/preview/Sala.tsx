@@ -251,6 +251,13 @@ type Arrastre =
     inicioX: number;
     inicioY: number;
     movido: boolean;
+  }
+  | {
+    tipo: "macro-menu";
+    macro: MacroTirada;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
   };
 
 /** Segundos que el resultado del dado sigue en pantalla antes de irse. */
@@ -1161,6 +1168,24 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "macro-menu") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 6
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+          setMacrosAbierto(false);
+        }
+        if (!actual.movido) return;
+
+        setFantasma({ x: evento.clientX, y: evento.clientY, etiqueta: actual.macro.nombre });
+        return;
+      }
+
       const dx = ((evento.clientX - actual.inicioX) / actual.medidas.width) * 100;
       const dy = ((evento.clientY - actual.inicioY) / actual.medidas.height) * 100;
 
@@ -1341,20 +1366,14 @@ export function Sala({
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
         const destinoDrop = enDropzone ? jugadorSeleccionadoRef.current : null;
         if (actual.movido && (destinoId || enDropzone)) {
-          if (actual.elemento.tipo === "posit") {
-            onElementosMesaRef.current?.(prev =>
-              prev.filter(item => item.id !== actual.id)
-            );
-          } else {
-            // Restauramos la posición original en nuestra mesa y disparamos la transferencia.
-            onElementosMesaRef.current?.(prev =>
-              prev.map(item =>
-                item.id === actual.id
-                  ? { ...item, x: actual.base.x, y: actual.base.y }
-                  : item
-              )
-            );
-          }
+          // Restauramos la posición original en nuestra mesa y disparamos la transferencia.
+          onElementosMesaRef.current?.(prev =>
+            prev.map(item =>
+              item.id === actual.id
+                ? { ...item, x: actual.base.x, y: actual.base.y }
+                : item
+            )
+          );
           const destino =
             destinoDrop ??
             jugadoresRef.current.find(j => j.id === destinoId);
@@ -1462,6 +1481,37 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "macro-menu") {
+        if (actual.movido) {
+          const rectMesa = capaPosits.current?.getBoundingClientRect();
+          const x = rectMesa
+            ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
+            : 50;
+          const y = rectMesa
+            ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
+            : 55;
+          onElementosMesaRef.current?.(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "macro",
+              macroId: actual.macro.id,
+              nombre: actual.macro.nombre,
+              icono: actual.macro.icono,
+              grupos: actual.macro.grupos,
+              bonificador: actual.macro.bonificador,
+              x,
+              y
+            }
+          ]);
+          mostrarAviso(`Macro «${actual.macro.nombre}» colocada en la mesa.`);
+          window.setTimeout(() => {
+            arrastreDocMovido.current = false;
+          }, 0);
+        }
+        return;
+      }
+
       if (actual.tipo === "objeto-mesa") {
         if (!actual.movido) return;
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
@@ -1513,7 +1563,11 @@ export function Sala({
             (enDropzone ? jugadorSeleccionadoRef.current : null) ??
             (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
           if (posit && destino && onEnviarElementoRef.current) {
-            onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== actual.id));
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === actual.id ? { ...el, x: actual.base.x, y: actual.base.y } : el
+              )
+            );
             void onEnviarElementoRef.current(destino, {
               ...posit,
               x: actual.base.x,
@@ -2708,6 +2762,21 @@ export function Sala({
     };
   }
 
+  function iniciarMacroMenu(
+    evento: ReactPointerEvent,
+    macro: MacroTirada
+  ): void {
+    if (evento.button !== 0) return;
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "macro-menu",
+      macro,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false
+    };
+  }
+
   const mensajesVisibles = mensajesChat ?? mensajesLocales;
   const tiradasVisibles = tiradasAsiento ?? tiradasAsientoLocales;
   const divisaAsientoVisibles = divisaAsiento ?? divisaAsientoLocales;
@@ -2759,7 +2828,9 @@ export function Sala({
             </div>
           ) : imagenEscena ? (
             <div
-              className="sala-hotspot hotspot-pizarra con-escena"
+              className={`sala-hotspot hotspot-pizarra con-escena${
+                !ajuste && arrastrandoItemId !== null ? " destino-valido-pizarra" : ""
+              }`}
               data-hotspot-pizarra="true"
               style={estiloRect(calibracion.pizarra)}
             >
@@ -2816,7 +2887,9 @@ export function Sala({
           ) : (
             <button
               type="button"
-              className="sala-hotspot hotspot-pizarra"
+              className={`sala-hotspot hotspot-pizarra${
+                !ajuste && arrastrandoItemId !== null ? " destino-valido-pizarra" : ""
+              }`}
               data-hotspot-pizarra="true"
               style={estiloRect(calibracion.pizarra)}
               onClick={onAbrirPizarra}
@@ -3256,40 +3329,42 @@ export function Sala({
 
           {!ajuste && (
             <div className="sala-hud-derecha" aria-label="Divisa y mochila">
-              <button
-                type="button"
-                className={`hud-hucha-btn${huchaAbierta ? " activo" : ""}`}
-                onClick={() => {
-                  setDivisaAbierta(false);
-                  setMochilaAbierta(false);
-                  setMasterDivisasAbierto(false);
-                  setMasterMochilasAbierto(false);
-                  setHuchaAbierta(v => !v);
-                }}
-                aria-expanded={huchaAbierta}
-                title="Hucha (ver todas tus divisas)"
-                aria-label="Hucha (ver todas tus divisas)"
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 16 16"
-                  shapeRendering="crispEdges"
-                  aria-hidden="true"
+              <div className="hud-economia-fila">
+                <button
+                  type="button"
+                  className={`hud-hucha-btn${huchaAbierta ? " activo" : ""}`}
+                  onClick={() => {
+                    setDivisaAbierta(false);
+                    setMochilaAbierta(false);
+                    setMasterDivisasAbierto(false);
+                    setMasterMochilasAbierto(false);
+                    setHuchaAbierta(v => !v);
+                  }}
+                  aria-expanded={huchaAbierta}
+                  title="Cartera (ver todas tus divisas)"
+                  aria-label="Cartera (ver todas tus divisas)"
                 >
-                  <rect x="4" y="2" width="8" height="2" fill="#d4a03a" />
-                  <rect x="2" y="4" width="12" height="9" fill="#8b5a2b" />
-                  <rect x="3" y="5" width="10" height="7" fill="#a86f38" />
-                  <rect x="2" y="4" width="12" height="1" fill="#181020" />
-                  <rect x="2" y="13" width="12" height="1" fill="#181020" />
-                  <rect x="1" y="5" width="1" height="8" fill="#181020" />
-                  <rect x="14" y="5" width="1" height="8" fill="#181020" />
-                  <rect x="10" y="7" width="4" height="3" fill="#f7d060" />
-                  <rect x="11" y="8" width="1" height="1" fill="#181020" />
-                </svg>
-              </button>
+                  <span className="hud-hucha-label">Cartera</span>
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 16 16"
+                    shapeRendering="crispEdges"
+                    aria-hidden="true"
+                  >
+                    <rect x="4" y="2" width="8" height="2" fill="#d4a03a" />
+                    <rect x="2" y="4" width="12" height="9" fill="#8b5a2b" />
+                    <rect x="3" y="5" width="10" height="7" fill="#a86f38" />
+                    <rect x="2" y="4" width="12" height="1" fill="#181020" />
+                    <rect x="2" y="13" width="12" height="1" fill="#181020" />
+                    <rect x="1" y="5" width="1" height="8" fill="#181020" />
+                    <rect x="14" y="5" width="1" height="8" fill="#181020" />
+                    <rect x="10" y="7" width="4" height="3" fill="#f7d060" />
+                    <rect x="11" y="8" width="1" height="1" fill="#181020" />
+                  </svg>
+                </button>
 
-              <div className="hud-divisa-caja">
+                <div className="hud-divisa-caja">
                 <span className="hud-divisa-titulo">
                   <span
                     className="hud-divisa-color-punto"
@@ -3332,14 +3407,8 @@ export function Sala({
                     title={`${nombreDivisaActiva}: ${divisaActual.toLocaleString("es-ES")}`}
                     aria-expanded={divisaAbierta}
                   >
-                    <span
-                      className="hud-divisa-icono-wrap"
-                      style={{
-                        filter: `drop-shadow(0 0 4px ${divisaActiva.color})`,
-                        borderBottom: `2px solid ${divisaActiva.color}`
-                      }}
-                    >
-                      <IconoMonedasPixel size={38} />
+                    <span className="hud-divisa-icono-wrap">
+                      <IconoMonedasPixel size={38} color={divisaActiva.color} />
                     </span>
                     <span className="hud-divisa-valor">
                       {formatearDivisaCompacta(divisaActual)}
@@ -3368,6 +3437,7 @@ export function Sala({
                     </button>
                   )}
                 </div>
+              </div>
               </div>
 
               <button
@@ -4736,9 +4806,13 @@ export function Sala({
                           <button
                             type="button"
                             className="macro-lanzar-btn"
-                            onClick={() => lanzarMacro(macro)}
+                            onPointerDown={evento => iniciarMacroMenu(evento, macro)}
+                            onClick={() => {
+                              if (arrastreDocMovido.current) return;
+                              lanzarMacro(macro);
+                            }}
                             disabled={tirando}
-                            title={`Lanzar ${macro.nombre} (${formula})`}
+                            title={`Clic para lanzar · Arrastra a la mesa (${formula})`}
                           >
                             <span className="macro-icono-badge">
                               <IconoMacro id={macro.icono} size={15} />
@@ -4749,33 +4823,6 @@ export function Sala({
                             </span>
                           </button>
                           <div className="macro-acciones">
-                            {onElementosMesa && (
-                              <button
-                                type="button"
-                                className="macro-accion-btn macro-sacar-btn"
-                                onClick={() => {
-                                  onElementosMesa(prev => [
-                                    ...prev,
-                                    {
-                                      id: nuevoIdElemento(),
-                                      tipo: "macro",
-                                      macroId: macro.id,
-                                      nombre: macro.nombre,
-                                      icono: macro.icono,
-                                      grupos: macro.grupos,
-                                      bonificador: macro.bonificador,
-                                      x: 50,
-                                      y: 70
-                                    }
-                                  ]);
-                                  mostrarAviso(`Macro «${macro.nombre}» sacada a la mesa.`);
-                                }}
-                                title="Sacar a mesa"
-                                aria-label={`Sacar ${macro.nombre} a mesa`}
-                              >
-                                Sacar a mesa
-                              </button>
-                            )}
                             <button
                               type="button"
                               className="macro-accion-btn"
@@ -5063,44 +5110,22 @@ export function Sala({
                   onActivar={setPositActivo}
                   onTexto={cambiarTextoPositMesa}
                   onColor={cambiarColorPositMesa}
+                  onCompartirATodos={
+                    esMaster && onCompartirATodos
+                      ? id => {
+                          const positElem = elementosMesa.find(
+                            (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+                              el.id === id && el.tipo === "posit" && !el.archivado
+                          );
+                          if (positElem) void onCompartirATodos(positElem);
+                        }
+                      : undefined
+                  }
                   onArchivar={archivarPositMesa}
                   onBorrar={borrarPositMesa}
                   onArrastrar={iniciarPositMesa}
                 />
               ))}
-
-              {esMaster &&
-                onCompartirATodos &&
-                positActivo &&
-                (() => {
-                  const positElem = elementosMesa.find(
-                    (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
-                      el.id === positActivo && el.tipo === "posit" && !el.archivado
-                  );
-                  if (!positElem) return null;
-                  return (
-                    <button
-                      type="button"
-                      className="mesa-posit-dar-todos"
-                      style={{
-                        position: "absolute",
-                        left: `${positElem.x}%`,
-                        top: `${Math.max(4, positElem.y - 8)}%`,
-                        transform: "translate(-50%, -100%)",
-                        zIndex: 45
-                      }}
-                      onPointerDown={e => e.stopPropagation()}
-                      onClick={e => {
-                        e.stopPropagation();
-                        void onCompartirATodos(positElem);
-                      }}
-                      title="Dar a todos"
-                    >
-                      <Users size={12} strokeWidth={2.2} aria-hidden="true" />
-                      <span>Dar a todos</span>
-                    </button>
-                  );
-                })()}
 
               {docsVisibles.map(doc => {
                 const formato = infoFormatoArchivo(doc.vista);
@@ -5281,37 +5306,29 @@ export function Sala({
               {macrosVisibles.map(macroElem => (
                 <div
                   key={macroElem.id}
-                  className="mesa-macro"
+                  className="mesa-macro-rombo"
                   style={{
-                    position: "absolute",
                     left: `${macroElem.x}%`,
-                    top: `${macroElem.y}%`,
-                    transform: "translate(-50%, -50%)"
+                    top: `${macroElem.y}%`
                   }}
                   onPointerDown={evento => iniciarMacroMesa(evento, macroElem)}
-                >
-                  <button
-                    type="button"
-                    className="mesa-macro-quitar"
-                    title="Quitar macro de la mesa"
-                    aria-label={`Quitar ${macroElem.nombre} de la mesa`}
-                    onPointerDown={evento => evento.stopPropagation()}
-                    onClick={evento => {
-                      evento.stopPropagation();
-                      onElementosMesa?.(prev =>
-                        prev.filter(el => el.id !== macroElem.id)
-                      );
-                    }}
-                  >
-                    <X size={11} strokeWidth={2.5} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="mesa-macro-rombo"
-                    title={`Lanzar ${macroElem.nombre}`}
-                    aria-label={`Lanzar ${macroElem.nombre}`}
-                    onClick={() => {
-                      if (arrastreDocMovido.current) return;
+                  onClick={() => {
+                    if (arrastreDocMovido.current) return;
+                    lanzarMacro({
+                      id: macroElem.macroId,
+                      nombre: macroElem.nombre,
+                      icono: macroElem.icono,
+                      grupos: macroElem.grupos,
+                      bonificador: macroElem.bonificador
+                    });
+                  }}
+                  title={`Lanzar ${macroElem.nombre}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Lanzar ${macroElem.nombre}`}
+                  onKeyDown={evento => {
+                    if (evento.key === "Enter" || evento.key === " ") {
+                      evento.preventDefault();
                       lanzarMacro({
                         id: macroElem.macroId,
                         nombre: macroElem.nombre,
@@ -5319,13 +5336,30 @@ export function Sala({
                         grupos: macroElem.grupos,
                         bonificador: macroElem.bonificador
                       });
-                    }}
-                  >
+                    }
+                  }}
+                >
+                  <div className="mesa-macro-rombo-cuadro">
+                    <button
+                      type="button"
+                      className="mesa-macro-rombo-cerrar"
+                      title="Quitar macro de la mesa"
+                      aria-label={`Quitar ${macroElem.nombre} de la mesa`}
+                      onPointerDown={evento => evento.stopPropagation()}
+                      onClick={evento => {
+                        evento.stopPropagation();
+                        onElementosMesa?.(prev =>
+                          prev.filter(el => el.id !== macroElem.id)
+                        );
+                      }}
+                    >
+                      <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
                     <span className="mesa-macro-rombo-icono">
-                      <IconoMacro id={macroElem.icono} size={20} />
+                      <IconoMacro id={macroElem.icono} size={22} />
                     </span>
-                  </button>
-                  <span className="mesa-macro-nombre">{macroElem.nombre}</span>
+                  </div>
+                  <span className="mesa-macro-rombo-nombre">{macroElem.nombre}</span>
                 </div>
               ))}
             </div>
@@ -5336,7 +5370,7 @@ export function Sala({
             style={
               ajuste
                 ? { left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }
-                : { bottom: "24px", left: "50%", top: "auto", transform: "translateX(-50%)" }
+                : { bottom: "64px", left: "50%", top: "auto", transform: "translateX(-50%)" }
             }
             onPointerDown={ajuste ? iniciarDock : undefined}
           >
@@ -5929,11 +5963,6 @@ export function Sala({
                     type="button"
                     className="archivo-visor-descargar"
                     onClick={() => {
-                      if (itemAbierto.tipo === "posit") {
-                        onElementosMesa?.(prev =>
-                          prev.filter(el => el.id !== itemAbierto.id)
-                        );
-                      }
                       void onEnviarElemento(jugadorSeleccionado, itemAbierto);
                       setItemAbierto(null);
                     }}

@@ -1883,10 +1883,14 @@ export function Mapa({
               tiradasAsiento?.[j.id] ??
               (j.usuarioId ? tiradasAsiento?.[j.usuarioId] : undefined);
 
+            const esMioJugador = Boolean(
+              miUsuarioId && (j.usuarioId === miUsuarioId || j.id === miUsuarioId)
+            );
+
             return (
               <div
                 key={j.id}
-                className={`mapa-jugador-item${j.esMaster ? " master" : ""}`}
+                className={`mapa-jugador-item${j.esMaster ? " master" : ""}${esMioJugador ? " es-mio" : ""}`}
                 data-jugador-id={j.id}
                 data-jugador-usuario-id={j.usuarioId ?? j.id}
                 style={{ "--jugador-color": j.color } as CSSProperties}

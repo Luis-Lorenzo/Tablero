@@ -235,6 +235,7 @@ function SalaRealContent({
   const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
 
   const recepcionesRef = useRef(0);
+  const positsPendientesEnvioRef = useRef<Map<string, string>>(new Map());
   const avisoTimerRef = useRef<number | null>(null);
   const timersAsiento = useRef<Record<string, number>>({});
   const timersDivisa = useRef<Record<string, number>>({});
@@ -753,16 +754,21 @@ function SalaRealContent({
       if (evento.type === "mesa:compartir-todos" && evento.mesaId === mesa.id) {
         if (evento.emisorId === user.id) return;
         const emisorNombre = String(evento.emisorNombre ?? "Alguien");
+        const elem = (
+          evento.elemento && typeof evento.elemento === "object"
+            ? evento.elemento
+            : evento
+        ) as Record<string, unknown>;
         const pos = calcularPosicionRecepcion(recepcionesRef.current);
         recepcionesRef.current += 1;
         reproducirSonidoNotificacion();
 
         if (
-          evento.tipo === "posit" &&
-          evento.posit &&
-          typeof evento.posit === "object"
+          elem.tipo === "posit" &&
+          elem.posit &&
+          typeof elem.posit === "object"
         ) {
-          const p = evento.posit as {
+          const p = elem.posit as {
             texto?: string;
             color?: string;
             giro?: number;
@@ -782,11 +788,11 @@ function SalaRealContent({
           ]);
           mostrarAvisoBreve(`${emisorNombre} compartió una nota con todos.`);
         } else if (
-          evento.tipo === "archivo" &&
-          evento.archivo &&
-          typeof evento.archivo === "object"
+          elem.tipo === "archivo" &&
+          elem.archivo &&
+          typeof elem.archivo === "object"
         ) {
-          const arch = evento.archivo as PublicArchivo;
+          const arch = elem.archivo as PublicArchivo;
           setElementosMesa(prev => [
             ...prev,
             crearElementoDesdeArchivo(arch, pos, emisorNombre)
@@ -794,11 +800,11 @@ function SalaRealContent({
           cargarArchivos();
           mostrarAvisoBreve(`${emisorNombre} compartió un archivo con todos.`);
         } else if (
-          evento.tipo === "objeto" &&
-          evento.objeto &&
-          typeof evento.objeto === "object"
+          elem.tipo === "objeto" &&
+          elem.objeto &&
+          typeof elem.objeto === "object"
         ) {
-          const obj = evento.objeto as {
+          const obj = elem.objeto as {
             nombre: string;
             descripcion?: string;
             cantidad?: number;
@@ -830,8 +836,14 @@ function SalaRealContent({
 
       if (evento.type === "transferencia:resuelta") {
         const nombre = String(evento.receptorNombre ?? "El jugador");
+        const transferenciaId = typeof evento.id === "string" ? evento.id : "";
         if (evento.estado === "ACEPTADA") {
           mostrarAvisoBreve(`${nombre} aceptó lo que le pasaste.`);
+          if (transferenciaId && positsPendientesEnvioRef.current.has(transferenciaId)) {
+            const positLocalId = positsPendientesEnvioRef.current.get(transferenciaId)!;
+            positsPendientesEnvioRef.current.delete(transferenciaId);
+            setElementosMesa(prev => prev.filter(el => el.id !== positLocalId));
+          }
           if (evento.tipo === "objeto" && evento.objeto && typeof evento.objeto === "object") {
             const obj = evento.objeto as { idOrigen?: string; cantidad?: number };
             if (obj.idOrigen) {
@@ -853,6 +865,9 @@ function SalaRealContent({
             }
           }
         } else if (evento.estado === "RECHAZADA") {
+          if (transferenciaId) {
+            positsPendientesEnvioRef.current.delete(transferenciaId);
+          }
           mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
         }
       }
@@ -874,7 +889,7 @@ function SalaRealContent({
     setError(null);
     try {
       if (elemento.tipo === "posit") {
-        await mesasApi.compartir(mesa.id, {
+        const transferencia = await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
           tipo: "posit",
           posit: {
@@ -883,6 +898,9 @@ function SalaRealContent({
             giro: elemento.giro
           }
         });
+        if (transferencia?.id) {
+          positsPendientesEnvioRef.current.set(transferencia.id, elemento.id);
+        }
       } else if (elemento.tipo === "objeto") {
         await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
@@ -1206,12 +1224,21 @@ function SalaRealContent({
                 archivoId: elemento.archivoId
               };
       const api = mesasApi as unknown as {
-        compartirATodos?: (id: string, body: typeof payload) => Promise<unknown>;
+        compartirATodos?: (
+          id: string,
+          body: typeof payload
+        ) => Promise<{ destinatarios?: number } | undefined>;
       };
       if (typeof api.compartirATodos === "function") {
-        await api.compartirATodos(mesa.id, payload);
+        const res = await api.compartirATodos(mesa.id, payload);
+        if (res && res.destinatarios === 0) {
+          mostrarAvisoBreve("No hay otros jugadores en la mesa para compartir.");
+        } else {
+          mostrarAvisoBreve("Compartido con todos los jugadores de la mesa.");
+        }
+      } else {
+        mostrarAvisoBreve("Compartido con toda la mesa.");
       }
-      mostrarAvisoBreve("Compartido con toda la mesa.");
     } catch (envioError) {
       setError(describeError(envioError));
     }

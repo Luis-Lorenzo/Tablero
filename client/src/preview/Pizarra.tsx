@@ -17,7 +17,8 @@ import {
   Snowflake,
   Sparkles,
   Trash2,
-  Undo2
+  Undo2,
+  Users
 } from "lucide-react";
 import type {
   CSSProperties,
@@ -116,6 +117,7 @@ interface PositProps {
   onActivar: (id: string) => void;
   onTexto: (id: string, texto: string) => void;
   onColor: (id: string, color: string) => void;
+  onCompartirATodos?: (id: string) => void;
   onArchivar?: (id: string) => void;
   onSacarAMesa?: (id: string) => void;
   onBorrar: (id: string) => void;
@@ -241,6 +243,7 @@ export function Posit({
   onActivar,
   onTexto,
   onColor,
+  onCompartirATodos,
   onArchivar,
   onSacarAMesa,
   onBorrar,
@@ -351,6 +354,20 @@ export function Posit({
               }}
             />
           ))}
+          {onCompartirATodos && (
+            <button
+              type="button"
+              className="doc-master-icono"
+              title="Dar a todos"
+              aria-label="Dar a todos"
+              onClick={evento => {
+                evento.stopPropagation();
+                onCompartirATodos(posit.id);
+              }}
+            >
+              <Users size={13} strokeWidth={2.1} aria-hidden="true" />
+            </button>
+          )}
           {onArchivar && (
             <button
               type="button"

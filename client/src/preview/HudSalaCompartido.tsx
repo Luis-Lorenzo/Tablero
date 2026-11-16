@@ -1357,6 +1357,9 @@ export function HudSalaCompartido({
         Math.hypot(ev.clientX - inicioX, ev.clientY - inicioY) > 4
       ) {
         arrastreElementoMovido.current = true;
+        if (elemento.tipo !== "macro") {
+          document.body.dataset.mapaArrastrandoEnvio = "true";
+        }
       }
       if (!arrastreElementoMovido.current) return;
       const vw = Math.max(1, window.innerWidth);
@@ -1372,6 +1375,7 @@ export function HudSalaCompartido({
       window.removeEventListener("pointermove", mover);
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
+      delete document.body.dataset.mapaArrastrandoEnvio;
 
       if (
         arrastreElementoMovido.current &&
@@ -1380,12 +1384,76 @@ export function HudSalaCompartido({
       ) {
         const destino = detectarJugadorEnPunto(ev.clientX, ev.clientY);
         if (destino) {
-          if (elemento.tipo === "posit" || elemento.tipo === "objeto") {
-            onElementosMesaRef.current?.(prev =>
-              prev.filter(el => el.id !== elemento.id)
-            );
-          }
-          void onEnviarElementoRef.current(destino, elemento);
+          onElementosMesaRef.current?.(prev =>
+            prev.map(el =>
+              el.id === elemento.id ? { ...el, x: baseX, y: baseY } : el
+            )
+          );
+          void onEnviarElementoRef.current(destino, {
+            ...elemento,
+            x: baseX,
+            y: baseY
+          });
+        }
+      }
+
+      window.setTimeout(() => {
+        arrastreElementoMovido.current = false;
+      }, 0);
+    }
+
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+  }
+
+  function iniciarArrastreMacroMenu(
+    evento: ReactPointerEvent,
+    macro: MacroTirada
+  ): void {
+    if (evento.button !== 0) return;
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    arrastreElementoMovido.current = false;
+
+    function mover(ev: globalThis.PointerEvent): void {
+      if (
+        !arrastreElementoMovido.current &&
+        Math.hypot(ev.clientX - inicioX, ev.clientY - inicioY) > 6
+      ) {
+        arrastreElementoMovido.current = true;
+        setMacrosAbierto(false);
+      }
+    }
+
+    function soltar(ev: globalThis.PointerEvent): void {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+
+      if (arrastreElementoMovido.current) {
+        const vw = Math.max(1, window.innerWidth);
+        const vh = Math.max(1, window.innerHeight);
+        const x = limitar((ev.clientX / vw) * 100, 6, 94);
+        const y = limitar((ev.clientY / vh) * 100, 10, 90);
+        if (onElementosMesaRef.current) {
+          onElementosMesaRef.current(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "macro",
+              macroId: macro.id,
+              nombre: macro.nombre,
+              icono: macro.icono,
+              grupos: macro.grupos,
+              bonificador: macro.bonificador,
+              x,
+              y
+            }
+          ]);
+          mostrarAviso(`Macro «${macro.nombre}» colocada en el mapa.`);
+        } else if (onSacarMacroAMesa) {
+          onSacarMacroAMesa(macro);
         }
       }
 
@@ -1499,9 +1567,6 @@ export function HudSalaCompartido({
     destino: JugadorPreview,
     elem: ElementoMesa
   ): void {
-    if (elem.tipo === "posit" || elem.tipo === "objeto") {
-      onElementosMesa?.(prev => prev.filter(e => e.id !== elem.id));
-    }
     if (onEnviarElemento) {
       void onEnviarElemento(destino, elem);
     } else {
@@ -1530,37 +1595,19 @@ export function HudSalaCompartido({
             onActivar={setPositActivo}
             onTexto={cambiarTextoPositMapa}
             onColor={cambiarColorPositMapa}
+            onCompartirATodos={
+              esMaster && onCompartirATodos
+                ? id => {
+                    const positElem = positsVisibles.find(el => el.id === id);
+                    if (positElem) void onCompartirATodos(positElem);
+                  }
+                : undefined
+            }
             onArchivar={archivarPositMapa}
             onBorrar={borrarPositMapa}
             onArrastrar={evento => iniciarArrastreElemento(evento, posit)}
           />
         ))}
-
-        {esMaster &&
-          onCompartirATodos &&
-          positActivo &&
-          (() => {
-            const positElem = positsVisibles.find(el => el.id === positActivo);
-            if (!positElem) return null;
-            return (
-              <button
-                type="button"
-                className="mesa-posit-dar-todos"
-                style={{
-                  position: "absolute",
-                  left: `${positElem.x}%`,
-                  top: `${Math.max(4, positElem.y - 8)}%`,
-                  transform: "translate(-50%, -100%)",
-                  pointerEvents: "auto"
-                }}
-                onClick={() => void onCompartirATodos(positElem)}
-                title="Enviar copia de esta nota a todos los jugadores"
-              >
-                <Users size={12} strokeWidth={2.2} aria-hidden="true" />
-                <span>Dar a todos</span>
-              </button>
-            );
-          })()}
 
         {docsVisibles.map(doc => {
           const formato = infoFormatoArchivo(doc.vista);
@@ -1764,40 +1811,42 @@ export function HudSalaCompartido({
             <Snowflake size={44} strokeWidth={2.2} aria-hidden="true" />
           </span>
         )}
-        <button
-          type="button"
-          className={`hud-hucha-btn${huchaAbierta ? " activo" : ""}`}
-          onClick={() => {
-            setDivisaAbierta(false);
-            setMochilaAbierta(false);
-            setMasterDivisasAbierto(false);
-            setMasterMochilasAbierto(false);
-            setHuchaAbierta(v => !v);
-          }}
-          aria-expanded={huchaAbierta}
-          title="Hucha (ver todas tus divisas)"
-          aria-label="Hucha (ver todas tus divisas)"
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 16 16"
-            shapeRendering="crispEdges"
-            aria-hidden="true"
+        <div className="hud-economia-fila">
+          <button
+            type="button"
+            className={`hud-hucha-btn${huchaAbierta ? " activo" : ""}`}
+            onClick={() => {
+              setDivisaAbierta(false);
+              setMochilaAbierta(false);
+              setMasterDivisasAbierto(false);
+              setMasterMochilasAbierto(false);
+              setHuchaAbierta(v => !v);
+            }}
+            aria-expanded={huchaAbierta}
+            title="Cartera (ver todas tus divisas)"
+            aria-label="Cartera (ver todas tus divisas)"
           >
-            <rect x="4" y="2" width="8" height="2" fill="#d4a03a" />
-            <rect x="2" y="4" width="12" height="9" fill="#8b5a2b" />
-            <rect x="3" y="5" width="10" height="7" fill="#a86f38" />
-            <rect x="2" y="4" width="12" height="1" fill="#181020" />
-            <rect x="2" y="13" width="12" height="1" fill="#181020" />
-            <rect x="1" y="5" width="1" height="8" fill="#181020" />
-            <rect x="14" y="5" width="1" height="8" fill="#181020" />
-            <rect x="10" y="7" width="4" height="3" fill="#f7d060" />
-            <rect x="11" y="8" width="1" height="1" fill="#181020" />
-          </svg>
-        </button>
+            <span className="hud-hucha-label">Cartera</span>
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 16 16"
+              shapeRendering="crispEdges"
+              aria-hidden="true"
+            >
+              <rect x="4" y="2" width="8" height="2" fill="#d4a03a" />
+              <rect x="2" y="4" width="12" height="9" fill="#8b5a2b" />
+              <rect x="3" y="5" width="10" height="7" fill="#a86f38" />
+              <rect x="2" y="4" width="12" height="1" fill="#181020" />
+              <rect x="2" y="13" width="12" height="1" fill="#181020" />
+              <rect x="1" y="5" width="1" height="8" fill="#181020" />
+              <rect x="14" y="5" width="1" height="8" fill="#181020" />
+              <rect x="10" y="7" width="4" height="3" fill="#f7d060" />
+              <rect x="11" y="8" width="1" height="1" fill="#181020" />
+            </svg>
+          </button>
 
-        <div className="hud-divisa-caja">
+          <div className="hud-divisa-caja">
           <span className="hud-divisa-titulo">
             <span
               className="hud-divisa-color-punto"
@@ -1840,14 +1889,8 @@ export function HudSalaCompartido({
               title={`${nombreDivisaActiva}: ${divisaActual.toLocaleString("es-ES")}`}
               aria-expanded={divisaAbierta}
             >
-              <span
-                className="hud-divisa-icono-wrap"
-                style={{
-                  filter: `drop-shadow(0 0 4px ${divisaActiva.color})`,
-                  borderBottom: `2px solid ${divisaActiva.color}`
-                }}
-              >
-                <IconoMonedasPixel size={38} />
+              <span className="hud-divisa-icono-wrap">
+                <IconoMonedasPixel size={38} color={divisaActiva.color} />
               </span>
               <span className="hud-divisa-valor">
                 {formatearDivisaCompacta(divisaActual)}
@@ -1876,6 +1919,7 @@ export function HudSalaCompartido({
               </button>
             )}
           </div>
+        </div>
         </div>
 
         <button
@@ -3427,9 +3471,13 @@ export function HudSalaCompartido({
                       <button
                         type="button"
                         className="macro-lanzar-btn"
-                        onClick={() => lanzarMacro(macro)}
+                        onPointerDown={evento => iniciarArrastreMacroMenu(evento, macro)}
+                        onClick={() => {
+                          if (arrastreElementoMovido.current) return;
+                          lanzarMacro(macro);
+                        }}
                         disabled={tirando}
-                        title={`Lanzar ${macro.nombre} (${formula})`}
+                        title={`Clic para lanzar · Arrastra al mapa (${formula})`}
                       >
                         <span className="macro-icono-badge">
                           <IconoMacro id={macro.icono} size={15} />
@@ -3440,37 +3488,6 @@ export function HudSalaCompartido({
                         </span>
                       </button>
                       <div className="macro-acciones">
-                        <button
-                          type="button"
-                          className="macro-accion-btn macro-sacar-btn"
-                          onClick={() => {
-                            if (onElementosMesa) {
-                              onElementosMesa(prev => [
-                                ...prev,
-                                {
-                                  id: nuevoIdElemento(),
-                                  tipo: "macro",
-                                  macroId: macro.id,
-                                  nombre: macro.nombre,
-                                  icono: macro.icono,
-                                  grupos: macro.grupos,
-                                  bonificador: macro.bonificador,
-                                  x: 50,
-                                  y: 70
-                                }
-                              ]);
-                              mostrarAviso(`Macro «${macro.nombre}» sacada al mapa.`);
-                            } else if (onSacarMacroAMesa) {
-                              onSacarMacroAMesa(macro);
-                            } else {
-                              mostrarAviso("Ve a la sala para sacar macros a la mesa.");
-                            }
-                          }}
-                          title="Sacar a mesa"
-                          aria-label={`Sacar ${macro.nombre} a mesa`}
-                        >
-                          Sacar a mesa
-                        </button>
                         <button
                           type="button"
                           className="macro-accion-btn"
