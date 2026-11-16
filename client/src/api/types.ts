@@ -281,6 +281,7 @@ export interface ActualizarTokenMapaPayload {
   celdasAlto?: number;
   escala?: number;
   esMonstruo?: boolean;
+  enLimbo?: boolean;
 }
 
 export interface ActualizarPlantillaMapaPayload {

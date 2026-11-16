@@ -32,6 +32,7 @@ export interface TokenMapa {
   autorNombre: string;
   autorColor: string;
   esMonstruo?: boolean;
+  enLimbo?: boolean;
 }
 
 export interface PlantillaTokenMapa {
@@ -235,7 +236,8 @@ function sanitizarToken(raw: unknown): TokenMapa | null {
     escala: clampNumero(obj.escala, 0.1, 5, 1),
     autorId,
     autorNombre,
-    autorColor
+    autorColor,
+    ...(obj.enLimbo === true ? { enLimbo: true } : {})
   };
   if (obj.esMonstruo === true) {
     token.esMonstruo = true;

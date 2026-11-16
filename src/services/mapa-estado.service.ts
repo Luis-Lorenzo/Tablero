@@ -40,6 +40,7 @@ export interface ActualizarTokenMapaInput {
   celdasAlto?: unknown;
   escala?: unknown;
   esMonstruo?: unknown;
+  enLimbo?: unknown;
 }
 
 export interface ActualizarPlantillaMapaInput {
@@ -122,7 +123,13 @@ export class MapaEstadoService {
     }
 
     const entradaActual = iniciativa.entradas[iniciativa.turnoIndice];
-    if (!this.esMaster(actor, mesa) && entradaActual?.jugadorId !== actor.id) {
+    const tokenTurno = entradaActual?.tokenId
+      ? actual.tokens.find(t => t.id === entradaActual.tokenId)
+      : undefined;
+    const esDuenoDelTurno =
+      entradaActual?.jugadorId === actor.id ||
+      Boolean(tokenTurno && !tokenTurno.esMonstruo && tokenTurno.autorId === actor.id);
+    if (!this.esMaster(actor, mesa) && !esDuenoDelTurno) {
       throw errors.forbidden();
     }
 
@@ -290,6 +297,14 @@ export class MapaEstadoService {
         actualizado.esMonstruo = true;
       } else {
         delete actualizado.esMonstruo;
+      }
+    }
+
+    if (typeof patch.enLimbo === "boolean") {
+      if (patch.enLimbo) {
+        actualizado.enLimbo = true;
+      } else {
+        delete actualizado.enLimbo;
       }
     }
 

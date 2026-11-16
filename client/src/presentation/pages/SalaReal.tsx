@@ -1087,7 +1087,9 @@ function SalaRealContent({
 
   async function actualizarTokenMapa(
     tokenId: string,
-    patch: Partial<Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre">>
+    patch: Partial<
+      Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre" | "enLimbo">
+    >
   ): Promise<void> {
     setEstadoMapa(prev => ({
       ...prev,

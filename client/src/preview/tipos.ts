@@ -258,6 +258,7 @@ export interface TokenMapa {
   autorNombre: string;
   autorColor: string;
   esMonstruo?: boolean;
+  enLimbo?: boolean;
 }
 
 export interface PlantillaTokenMapa {

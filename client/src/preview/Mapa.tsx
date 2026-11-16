@@ -87,7 +87,7 @@ export interface MapaProps {
     patch: Partial<
       Pick<
         TokenMapa,
-        "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre"
+        "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre" | "enLimbo"
       >
     >
   ) => void | Promise<void>;
@@ -318,6 +318,8 @@ export function Mapa({
   onCambiarDibujoCongelado
 }: MapaProps) {
   const { tokens, plantillas } = estadoMapa;
+  const tokensEnMapa = useMemo(() => tokens.filter(t => !t.enLimbo), [tokens]);
+  const tokensEnLimbo = useMemo(() => tokens.filter(t => Boolean(t.enLimbo)), [tokens]);
   const trazos = estadoMapa.trazos ?? [];
   const dibujoCongelado = Boolean(estadoMapa.dibujoCongelado);
   const dibujoBloqueado = dibujoCongelado && !esMaster;
@@ -1189,6 +1191,7 @@ export function Mapa({
       valor: valorLimpio,
       color: esMonstruo ? "#e06c75" : token.autorColor || "#e8c56a",
       esMonstruo,
+      ...(esMonstruo ? {} : { jugadorId: token.autorId }),
       tokenId: token.id
     };
     emitirIniciativa({
@@ -1288,8 +1291,14 @@ export function Mapa({
       return false;
     }
     if (!entradaActual) return false;
+    const tokenTurno = entradaActual.tokenId
+      ? estadoMapa.tokens.find(t => t.id === entradaActual.tokenId)
+      : undefined;
     if (miUsuarioId) {
       if (entradaActual.jugadorId === miUsuarioId) return true;
+      if (tokenTurno && !tokenTurno.esMonstruo && tokenTurno.autorId === miUsuarioId) {
+        return true;
+      }
       return jugadoresActivos.some(j => {
         if (j.id !== miUsuarioId && j.usuarioId !== miUsuarioId) return false;
         return (
@@ -1316,6 +1325,7 @@ export function Mapa({
   }, [
     entradaActual,
     esMaster,
+    estadoMapa.tokens,
     iniciativa.activa,
     iniciativa.entradas.length,
     jugadoresActivos,
@@ -1634,6 +1644,20 @@ export function Mapa({
               role="dialog"
               aria-label="Gestión de iniciativa"
             >
+              <div className="mapa-panel-cabecera" style={{ padding: "0 0 6px 0" }}>
+                <span className="mapa-panel-titulo">
+                  <Swords size={13} aria-hidden="true" />
+                  <span>Gestionar iniciativa</span>
+                </span>
+                <button
+                  type="button"
+                  className="mapa-panel-cerrar"
+                  onClick={() => setIniciativaAbierta(false)}
+                  aria-label="Cerrar iniciativa"
+                >
+                  <X size={14} />
+                </button>
+              </div>
               <div className="mapa-iniciativa-acciones-top">
                 <button
                   type="button"
@@ -1728,13 +1752,13 @@ export function Mapa({
                 </button>
               </form>
 
-              {tokens.length > 0 && (
+              {tokensEnMapa.length > 0 && (
                 <div className="mapa-iniciativa-tokens">
                   <span className="mapa-iniciativa-tokens-titulo">
                     Tokens en el mapa
                   </span>
                   <div className="mapa-iniciativa-tokens-lista">
-                    {tokens.map(token => {
+                    {tokensEnMapa.map(token => {
                       const dotColor = token.esMonstruo
                         ? "#e06c75"
                         : token.autorColor || "#e8c56a";
@@ -1812,6 +1836,15 @@ export function Mapa({
                   ))}
                 </ul>
               )}
+
+              <button
+                type="button"
+                className="mapa-btn-confirmar"
+                onClick={() => setIniciativaAbierta(false)}
+              >
+                <Check size={14} aria-hidden="true" />
+                <span>Hecho</span>
+              </button>
             </div>
           )}
         </div>
@@ -2520,6 +2553,19 @@ export function Mapa({
 
           <button
             type="button"
+            className="mapa-btn-sec"
+            onClick={() => {
+              const id = tokenSeleccionado.id;
+              setTokenSeleccionadoId(null);
+              void onActualizarToken(id, { enLimbo: true });
+            }}
+            title="Apartar token al Limbo"
+          >
+            <span>Limbo</span>
+          </button>
+
+          <button
+            type="button"
             className="mapa-btn-peligro mapa-btn-icono"
             onClick={() => {
               const id = tokenSeleccionado.id;
@@ -2663,7 +2709,7 @@ export function Mapa({
             </svg>
 
             {/* Capa 3: Tokens */}
-            {tokens.map(token => {
+            {tokensEnMapa.map(token => {
               const editable = puedeEditarToken(token, esMaster, miUsuarioId);
               const seleccionado = token.id === tokenSeleccionadoId;
               const enArrastre =
@@ -2737,6 +2783,58 @@ export function Mapa({
           </div>
         </div>
       </div>
+
+      {/* Contenedor vertical derecho: Limbo de tokens fuera del mapa */}
+      <aside className="mapa-limbo" aria-label="Limbo de tokens">
+        <span className="mapa-limbo-titulo">Limbo</span>
+        {tokensEnLimbo.length === 0 ? (
+          <span className="mapa-limbo-vacio">—</span>
+        ) : (
+          <div className="mapa-limbo-lista">
+            {tokensEnLimbo.map(token => {
+              const editable = puedeEditarToken(token);
+              return (
+                <div
+                  key={token.id}
+                  className={`mapa-limbo-item${editable ? " editable" : ""}`}
+                  title={
+                    editable
+                      ? `${token.nombre} — Clic para devolver al mapa`
+                      : `${token.nombre} (${token.autorNombre})`
+                  }
+                >
+                  <button
+                    type="button"
+                    className="mapa-limbo-token-btn"
+                    disabled={!editable}
+                    onClick={() =>
+                      void onActualizarToken(token.id, {
+                        enLimbo: false,
+                        x: 50,
+                        y: 50
+                      })
+                    }
+                  >
+                    <img src={token.imagenUrl} alt={token.nombre} />
+                    <span className="mapa-limbo-nombre">{token.nombre}</span>
+                  </button>
+                  {editable && (
+                    <button
+                      type="button"
+                      className="mapa-limbo-borrar"
+                      onClick={() => void onEliminarToken(token.id)}
+                      aria-label={`Eliminar ${token.nombre} del Limbo`}
+                      title="Eliminar definitivamente al Almacén"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </aside>
 
       {/* Dock inferior izquierdo: Crear token y Almacén encima de Dados rápidos */}
       <div className="mapa-tokens-dock" role="toolbar" aria-label="Crear token y almacén">

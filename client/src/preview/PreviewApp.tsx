@@ -323,7 +323,9 @@ export default function PreviewApp() {
   const actualizarTokenPreview = useCallback(
     (
       tokenId: string,
-      patch: Partial<Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre">>
+      patch: Partial<
+        Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre" | "enLimbo">
+      >
     ) => {
       setEstadoMapa(prev => ({
         ...prev,
