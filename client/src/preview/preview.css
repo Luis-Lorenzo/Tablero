@@ -8939,8 +8939,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mesa-macro-rombo-cerrar {
   position: absolute;
-  top: -7px;
-  right: -7px;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 18px;
   height: 18px;
   padding: 0;
@@ -8956,7 +8957,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.14s ease, transform 0.12s ease;
-  z-index: 2;
+  z-index: 3;
 }
 
 .mesa-macro-rombo:hover .mesa-macro-rombo-cerrar {
@@ -8964,7 +8965,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mesa-macro-rombo-cerrar:hover {
-  transform: scale(1.1);
+  transform: translateX(-50%) scale(1.1);
 }
 
 .hud-economia-fila {

@@ -890,32 +890,32 @@ export function HudSalaCompartido({
     }));
     const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
 
-      if (macroEditandoId) {
-        actualizarMacrosLista(
-          macrosLista.map(m =>
-            m.id === macroEditandoId
-              ? {
-                ...m,
-                nombre: nombreLimpio,
-                icono: macroIcono,
-                ...(macroColor ? { color: macroColor } : { color: undefined }),
-                grupos: gruposLimpios,
-                bonificador: modLimpio
-              }
-              : m
-          )
-        );
-      } else {
-        const nueva: MacroTirada = {
-          id: nuevoId(),
-          nombre: nombreLimpio,
-          icono: macroIcono,
-          ...(macroColor ? { color: macroColor } : {}),
-          grupos: gruposLimpios,
-          bonificador: modLimpio
-        };
-        actualizarMacrosLista([...macrosLista, nueva]);
-      }
+    if (macroEditandoId) {
+      actualizarMacrosLista(
+        macrosLista.map(m =>
+          m.id === macroEditandoId
+            ? {
+              ...m,
+              nombre: nombreLimpio,
+              icono: macroIcono,
+              ...(macroColor ? { color: macroColor } : { color: undefined }),
+              grupos: gruposLimpios,
+              bonificador: modLimpio
+            }
+            : m
+        )
+      );
+    } else {
+      const nueva: MacroTirada = {
+        id: nuevoId(),
+        nombre: nombreLimpio,
+        icono: macroIcono,
+        ...(macroColor ? { color: macroColor } : {}),
+        grupos: gruposLimpios,
+        bonificador: modLimpio
+      };
+      actualizarMacrosLista([...macrosLista, nueva]);
+    }
     setMacroModalAbierto(false);
     setMacrosAbierto(true);
   }
@@ -1024,6 +1024,7 @@ export function HudSalaCompartido({
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
+            reproducirSonidoTirada(resultadoFinal.especial);
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
               ...prev,
@@ -1786,25 +1787,25 @@ export function HudSalaCompartido({
               }
             }}
           >
+            <button
+              type="button"
+              className="mesa-macro-rombo-cerrar"
+              title="Quitar macro de la mesa"
+              aria-label={`Quitar ${macroElem.nombre} de la mesa`}
+              onPointerDown={evento => evento.stopPropagation()}
+              onClick={evento => {
+                evento.stopPropagation();
+                onElementosMesa?.(prev =>
+                  prev.filter(el => el.id !== macroElem.id)
+                );
+              }}
+            >
+              <X size={11} strokeWidth={2.5} aria-hidden="true" />
+            </button>
             <div
               className="mesa-macro-rombo-cuadro"
               style={macroElem.color ? { background: macroElem.color } : undefined}
             >
-              <button
-                type="button"
-                className="mesa-macro-rombo-cerrar"
-                title="Quitar macro de la mesa"
-                aria-label={`Quitar ${macroElem.nombre} de la mesa`}
-                onPointerDown={evento => evento.stopPropagation()}
-                onClick={evento => {
-                  evento.stopPropagation();
-                  onElementosMesa?.(prev =>
-                    prev.filter(el => el.id !== macroElem.id)
-                  );
-                }}
-              >
-                <X size={11} strokeWidth={2.5} aria-hidden="true" />
-              </button>
               <span className="mesa-macro-rombo-icono">
                 <IconoMacro id={macroElem.icono} size={20} />
               </span>

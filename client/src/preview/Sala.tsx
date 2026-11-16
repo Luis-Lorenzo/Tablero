@@ -5600,25 +5600,25 @@ export function Sala({
                     }
                   }}
                 >
+                  <button
+                    type="button"
+                    className="mesa-macro-rombo-cerrar"
+                    title="Quitar macro de la mesa"
+                    aria-label={`Quitar ${macroElem.nombre} de la mesa`}
+                    onPointerDown={evento => evento.stopPropagation()}
+                    onClick={evento => {
+                      evento.stopPropagation();
+                      onElementosMesa?.(prev =>
+                        prev.filter(el => el.id !== macroElem.id)
+                      );
+                    }}
+                  >
+                    <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                  </button>
                   <div
                     className="mesa-macro-rombo-cuadro"
                     style={macroElem.color ? { background: macroElem.color } : undefined}
                   >
-                    <button
-                      type="button"
-                      className="mesa-macro-rombo-cerrar"
-                      title="Quitar macro de la mesa"
-                      aria-label={`Quitar ${macroElem.nombre} de la mesa`}
-                      onPointerDown={evento => evento.stopPropagation()}
-                      onClick={evento => {
-                        evento.stopPropagation();
-                        onElementosMesa?.(prev =>
-                          prev.filter(el => el.id !== macroElem.id)
-                        );
-                      }}
-                    >
-                      <X size={11} strokeWidth={2.5} aria-hidden="true" />
-                    </button>
                     <span className="mesa-macro-rombo-icono">
                       <IconoMacro id={macroElem.icono} size={22} />
                     </span>
