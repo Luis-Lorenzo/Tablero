@@ -362,6 +362,12 @@ export function Mapa({
   // Viewport, zoom y pan
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const limboRef = useRef<HTMLElement>(null);
+  const [sobreLimbo, setSobreLimbo] = useState(false);
+  const [redimensionToken, setRedimensionToken] = useState<{
+    tokenId: string;
+    escala: number;
+  } | null>(null);
   const [tamanoViewport, setTamanoViewport] = useState({ w: 1280, h: 720 });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -778,7 +784,19 @@ export function Mapa({
       };
       arrastreTokenRef.current = actualizado;
       setArrastreToken(actualizado);
+      setSobreLimbo(movido && estaSobreLimbo(evento.clientX, evento.clientY));
     }
+  }
+
+  function estaSobreLimbo(clientX: number, clientY: number): boolean {
+    const rect = limboRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    );
   }
 
   function alSoltarPunteroViewport(
@@ -797,16 +815,63 @@ export function Mapa({
     if (tokActivo && tokActivo.pointerId === evento.pointerId) {
       arrastreTokenRef.current = null;
       setArrastreToken(null);
+      setSobreLimbo(false);
       if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
         evento.currentTarget.releasePointerCapture(evento.pointerId);
       }
       if (tokActivo.movido) {
+        if (estaSobreLimbo(evento.clientX, evento.clientY)) {
+          setTokenSeleccionadoId(prev => (prev === tokActivo.tokenId ? null : prev));
+          void onActualizarToken(tokActivo.tokenId, { enLimbo: true });
+          return;
+        }
         void onActualizarToken(tokActivo.tokenId, {
           x: Number(tokActivo.xActual.toFixed(3)),
           y: Number(tokActivo.yActual.toFixed(3))
         });
       }
     }
+  }
+
+  function iniciarRedimensionToken(
+    evento: ReactPointerEvent<HTMLSpanElement>,
+    token: TokenMapa
+  ): void {
+    if (evento.button !== 0 || !puedeEditarToken(token, esMaster, miUsuarioId)) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+
+    const nodoToken = evento.currentTarget.closest<HTMLElement>(".mapa-token");
+    const rect = nodoToken?.getBoundingClientRect();
+    const baseSize = rect ? Math.max(24, (rect.width + rect.height) / 2) : 60;
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    const escalaBase = token.escala;
+    let escalaActual = escalaBase;
+
+    setTokenSeleccionadoId(token.id);
+    setRedimensionToken({ tokenId: token.id, escala: escalaBase });
+
+    function alMover(ev: globalThis.PointerEvent): void {
+      const delta = (ev.clientX - inicioX + (ev.clientY - inicioY)) / 2;
+      const factor = Math.max(0.25, (baseSize + delta * 2) / baseSize);
+      escalaActual = Number(limitar(escalaBase * factor, 0.5, 4).toFixed(2));
+      setRedimensionToken({ tokenId: token.id, escala: escalaActual });
+    }
+
+    function alSoltar(): void {
+      window.removeEventListener("pointermove", alMover);
+      window.removeEventListener("pointerup", alSoltar);
+      window.removeEventListener("pointercancel", alSoltar);
+      setRedimensionToken(null);
+      if (Math.abs(escalaActual - escalaBase) >= 0.02) {
+        void onActualizarToken(token.id, { escala: escalaActual });
+      }
+    }
+
+    window.addEventListener("pointermove", alMover);
+    window.addEventListener("pointerup", alSoltar);
+    window.addEventListener("pointercancel", alSoltar);
   }
 
   function alBajarPunteroToken(
@@ -1479,38 +1544,6 @@ export function Mapa({
             <span>Fondo y rejilla</span>
           </button>
         )}
-
-        <span className="mapa-barra-sep" aria-hidden="true" />
-
-        <div className="mapa-zoom-grupo" role="group" aria-label="Zoom del mapa">
-          <button
-            type="button"
-            className="mapa-zoom-btn"
-            onClick={() => aplicarZoom(1 / 1.2)}
-            title="Alejar"
-            aria-label="Alejar"
-          >
-            <Minus size={13} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="mapa-zoom-btn mapa-zoom-reset"
-            onClick={() => centrarVista(1)}
-            title="Restablecer zoom al 100% y centrar"
-          >
-            <RotateCcw size={12} aria-hidden="true" />
-            <span>{Math.round(zoom * 100)}%</span>
-          </button>
-          <button
-            type="button"
-            className="mapa-zoom-btn"
-            onClick={() => aplicarZoom(1.2)}
-            title="Acercar"
-            aria-label="Acercar"
-          >
-            <Plus size={13} aria-hidden="true" />
-          </button>
-        </div>
 
         {dibujandoActivo && (
           <div
@@ -2720,16 +2753,20 @@ export function Mapa({
               const seleccionado = token.id === tokenSeleccionadoId;
               const enArrastre =
                 arrastreToken?.tokenId === token.id ? arrastreToken : null;
+              const escalaActual =
+                redimensionToken?.tokenId === token.id
+                  ? redimensionToken.escala
+                  : token.escala;
               const posX = enArrastre ? enArrastre.xActual : token.x;
               const posY = enArrastre ? enArrastre.yActual : token.y;
               const anchoPct =
                 (token.celdasAncho / Math.max(4, rejillaActiva.columnas)) *
                 100 *
-                token.escala;
+                escalaActual;
               const altoPct =
                 (token.celdasAlto / Math.max(4, rejillaActiva.filas)) *
                 100 *
-                token.escala;
+                escalaActual;
 
               return (
                 <div
@@ -2764,6 +2801,14 @@ export function Mapa({
                     draggable={false}
                   />
                   <span className="mapa-token-etiqueta">{token.nombre}</span>
+                  {editable && (
+                    <span
+                      className="mapa-token-tirador"
+                      title="Arrastra para redimensionar token"
+                      aria-label={`Redimensionar ${token.nombre}`}
+                      onPointerDown={e => iniciarRedimensionToken(e, token)}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -2790,7 +2835,8 @@ export function Mapa({
 
           {/* Contenedor vertical derecho: Limbo de tokens justo al lado del mapa */}
           <aside
-            className="mapa-limbo"
+            ref={limboRef}
+            className={`mapa-limbo${sobreLimbo ? " destino-limbo" : ""}`}
             style={{ height: `${tamanoCanvas.h}px` }}
             aria-label="Limbo de tokens"
             onPointerDown={e => e.stopPropagation()}
@@ -2880,6 +2926,37 @@ export function Mapa({
               {plantillasVisibles.length}
             </span>
           )}
+        </button>
+      </div>
+
+      {/* Zoom flotante abajo a la derecha (no tapa la barra de iniciativa) */}
+      <div className="mapa-zoom-grupo mapa-zoom-flotante" role="group" aria-label="Zoom del mapa">
+        <button
+          type="button"
+          className="mapa-zoom-btn"
+          onClick={() => aplicarZoom(1 / 1.2)}
+          title="Alejar"
+          aria-label="Alejar"
+        >
+          <Minus size={13} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="mapa-zoom-btn mapa-zoom-reset"
+          onClick={() => centrarVista(1)}
+          title="Restablecer zoom al 100% y centrar"
+        >
+          <RotateCcw size={12} aria-hidden="true" />
+          <span>{Math.round(zoom * 100)}%</span>
+        </button>
+        <button
+          type="button"
+          className="mapa-zoom-btn"
+          onClick={() => aplicarZoom(1.2)}
+          title="Acercar"
+          aria-label="Acercar"
+        >
+          <Plus size={13} aria-hidden="true" />
         </button>
       </div>
 
