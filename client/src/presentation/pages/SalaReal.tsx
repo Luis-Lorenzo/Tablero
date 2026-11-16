@@ -1074,7 +1074,9 @@ function SalaRealContent({
         }, DURACION_D20_ASIENTO);
       }
 
-      reproducirSonidoTirada(roll.especial ?? null);
+      if (roll.jugadorId !== user.id) {
+        reproducirSonidoTirada(roll.especial ?? null);
+      }
 
       setMensajesChat(prev => {
         const idSistema = `roll-${roll.id}`;

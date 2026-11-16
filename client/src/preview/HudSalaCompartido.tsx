@@ -998,6 +998,7 @@ export function HudSalaCompartido({
           secreta: esSecretaMaster || esSoloMaster
         });
         setTirando(false);
+        reproducirSonidoTirada(resultadoFinal.especial);
 
         if (!esSecretaMaster) {
           const desgloseTexto =
@@ -1023,7 +1024,6 @@ export function HudSalaCompartido({
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
-            reproducirSonidoTirada(resultadoFinal.especial);
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
               ...prev,

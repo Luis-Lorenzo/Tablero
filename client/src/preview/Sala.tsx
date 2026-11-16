@@ -2061,6 +2061,7 @@ export function Sala({
           secreta: esSecretaMaster || esSoloMaster
         });
         setTirando(false);
+        reproducirSonidoTirada(resultadoFinal.especial);
 
         if (!esSecretaMaster) {
           if (onTiradaPublica) {
@@ -2090,7 +2091,6 @@ export function Sala({
               resultadoFinal.caras,
               desglose
             );
-            reproducirSonidoTirada(resultadoFinal.especial);
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
               ...prev,
