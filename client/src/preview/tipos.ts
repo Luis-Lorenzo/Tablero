@@ -249,14 +249,25 @@ export interface GrupoDadoMacro {
 
 export const COLORES_MACRO = [
   { id: "defecto", nombre: "Oscuro", hex: "" },
-  { id: "rojo", nombre: "Rojo", hex: "#7f1d1d" },
-  { id: "azul", nombre: "Azul", hex: "#1e3a8a" },
-  { id: "verde", nombre: "Verde", hex: "#14532d" },
-  { id: "morado", nombre: "Morado", hex: "#581c87" },
+  { id: "negro-carbon", nombre: "Negro carbón", hex: "#18181b" },
+  { id: "acero", nombre: "Gris acero", hex: "#334155" },
+  { id: "rojo", nombre: "Rojo oscuro", hex: "#7f1d1d" },
+  { id: "carmesi", nombre: "Carmesí", hex: "#b91c1c" },
   { id: "naranja", nombre: "Naranja", hex: "#9a3412" },
+  { id: "ambar", nombre: "Ámbar", hex: "#b45309" },
   { id: "dorado", nombre: "Dorado", hex: "#854d0e" },
+  { id: "lima", nombre: "Lima oscuro", hex: "#3f6212" },
+  { id: "verde", nombre: "Verde bosque", hex: "#14532d" },
+  { id: "esmeralda", nombre: "Esmeralda", hex: "#065f46" },
+  { id: "turquesa", nombre: "Turquesa", hex: "#115e59" },
   { id: "cyan", nombre: "Cian", hex: "#155e75" },
-  { id: "magenta", nombre: "Magenta", hex: "#831843" }
+  { id: "azul", nombre: "Azul marino", hex: "#1e3a8a" },
+  { id: "cobalto", nombre: "Azul cobalto", hex: "#1d4ed8" },
+  { id: "indigo", nombre: "Índigo", hex: "#3730a3" },
+  { id: "morado", nombre: "Morado", hex: "#581c87" },
+  { id: "violeta", nombre: "Violeta", hex: "#6d28d9" },
+  { id: "magenta", nombre: "Magenta", hex: "#831843" },
+  { id: "rosa", nombre: "Rosa oscuro", hex: "#9d174d" }
 ] as const;
 
 export interface MacroTirada {

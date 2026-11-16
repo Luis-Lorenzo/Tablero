@@ -1563,9 +1563,9 @@ export function HudSalaCompartido({
             onCompartirATodos={
               esMaster && onCompartirATodos
                 ? id => {
-                    const positElem = positsVisibles.find(el => el.id === id);
-                    if (positElem) void onCompartirATodos(positElem);
-                  }
+                  const positElem = positsVisibles.find(el => el.id === id);
+                  if (positElem) void onCompartirATodos(positElem);
+                }
                 : undefined
             }
             onArchivar={archivarPositMapa}
@@ -1815,79 +1815,79 @@ export function HudSalaCompartido({
           </button>
 
           <div className="hud-divisa-caja">
-          <span className="hud-divisa-titulo">
-            <span
-              className="hud-divisa-color-punto"
-              style={{ backgroundColor: divisaActiva.color }}
-              aria-hidden="true"
-            />
-            <span>{nombreDivisaActiva}</span>
-          </span>
-          <div className="hud-divisa-fila">
-            {divisasLista.length > 1 && (
+            <span className="hud-divisa-titulo">
+              <span
+                className="hud-divisa-color-punto"
+                style={{ backgroundColor: divisaActiva.color }}
+                aria-hidden="true"
+              />
+              <span>{nombreDivisaActiva}</span>
+            </span>
+            <div className="hud-divisa-fila">
+              {divisasLista.length > 1 && (
+                <button
+                  type="button"
+                  className="hud-divisa-paso hud-divisa-flecha"
+                  onClick={() =>
+                    setIndiceDivisa(i => (i - 1 + divisasLista.length) % divisasLista.length)
+                  }
+                  aria-label="Divisa anterior"
+                  title="Divisa anterior"
+                >
+                  <ChevronLeft size={13} strokeWidth={2.6} aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
-                className="hud-divisa-paso hud-divisa-flecha"
-                onClick={() =>
-                  setIndiceDivisa(i => (i - 1 + divisasLista.length) % divisasLista.length)
-                }
-                aria-label="Divisa anterior"
-                title="Divisa anterior"
+                className="hud-divisa-paso"
+                onClick={() => modificarDivisa(-divisaPaso)}
+                aria-label={`Restar ${divisaPaso} ${nombreDivisaActiva}`}
+                title={`Restar ${divisaPaso}`}
               >
-                <ChevronLeft size={13} strokeWidth={2.6} aria-hidden="true" />
+                <Minus size={13} strokeWidth={2.6} aria-hidden="true" />
               </button>
-            )}
-            <button
-              type="button"
-              className="hud-divisa-paso"
-              onClick={() => modificarDivisa(-divisaPaso)}
-              aria-label={`Restar ${divisaPaso} ${nombreDivisaActiva}`}
-              title={`Restar ${divisaPaso}`}
-            >
-              <Minus size={13} strokeWidth={2.6} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={`hud-divisa-centro${divisaAbierta ? " activo" : ""}`}
-              onClick={() => {
-                setMochilaAbierta(false);
-                setHuchaAbierta(false);
-                setDivisaAbierta(v => !v);
-              }}
-              title={`${nombreDivisaActiva}: ${divisaActual.toLocaleString("es-ES")}`}
-              aria-expanded={divisaAbierta}
-            >
-              <span className="hud-divisa-icono-wrap">
-                <IconoMonedasPixel size={38} color={divisaActiva.color} />
-              </span>
-              <span className="hud-divisa-valor">
-                {formatearDivisaCompacta(divisaActual)}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="hud-divisa-paso"
-              onClick={() => modificarDivisa(divisaPaso)}
-              aria-label={`Sumar ${divisaPaso} ${nombreDivisaActiva}`}
-              title={`Sumar ${divisaPaso}`}
-            >
-              <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
-            </button>
-            {divisasLista.length > 1 && (
               <button
                 type="button"
-                className="hud-divisa-paso hud-divisa-flecha"
-                onClick={() =>
-                  setIndiceDivisa(i => (i + 1) % divisasLista.length)
-                }
-                aria-label="Divisa siguiente"
-                title="Divisa siguiente"
+                className={`hud-divisa-centro${divisaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setMochilaAbierta(false);
+                  setHuchaAbierta(false);
+                  setDivisaAbierta(v => !v);
+                }}
+                title={`${nombreDivisaActiva}: ${divisaActual.toLocaleString("es-ES")}`}
+                aria-expanded={divisaAbierta}
               >
-                <ChevronRight size={13} strokeWidth={2.6} aria-hidden="true" />
+                <span className="hud-divisa-icono-wrap">
+                  <IconoMonedasPixel size={38} color={divisaActiva.color} />
+                </span>
+                <span className="hud-divisa-valor">
+                  {formatearDivisaCompacta(divisaActual)}
+                </span>
               </button>
-            )}
+              <button
+                type="button"
+                className="hud-divisa-paso"
+                onClick={() => modificarDivisa(divisaPaso)}
+                aria-label={`Sumar ${divisaPaso} ${nombreDivisaActiva}`}
+                title={`Sumar ${divisaPaso}`}
+              >
+                <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
+              </button>
+              {divisasLista.length > 1 && (
+                <button
+                  type="button"
+                  className="hud-divisa-paso hud-divisa-flecha"
+                  onClick={() =>
+                    setIndiceDivisa(i => (i + 1) % divisasLista.length)
+                  }
+                  aria-label="Divisa siguiente"
+                  title="Divisa siguiente"
+                >
+                  <ChevronRight size={13} strokeWidth={2.6} aria-hidden="true" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
         </div>
 
         <button
