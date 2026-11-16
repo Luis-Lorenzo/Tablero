@@ -849,6 +849,18 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.post("/:id/mapa/iniciativa/siguiente", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.avanzarTurnoIniciativa(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/:id/mapa/tokens", requireAuth, async (req, res, next) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;

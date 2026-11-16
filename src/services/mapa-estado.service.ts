@@ -101,6 +101,38 @@ export class MapaEstadoService {
     return siguiente;
   }
 
+  async avanzarTurnoIniciativa(
+    actor: User,
+    mesaId: string
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+    const iniciativa = actual.iniciativa;
+
+    if (!iniciativa?.activa || iniciativa.entradas.length === 0) {
+      return actual;
+    }
+
+    const entradaActual = iniciativa.entradas[iniciativa.turnoIndice];
+    if (!this.esMaster(actor, mesa) && entradaActual?.jugadorId !== actor.id) {
+      throw errors.forbidden();
+    }
+
+    const haySiguiente = iniciativa.turnoIndice + 1 < iniciativa.entradas.length;
+    const siguiente: EstadoMapaCompartido = sanitizarMapaEstado({
+      ...actual,
+      iniciativa: {
+        ...iniciativa,
+        turnoIndice: haySiguiente ? iniciativa.turnoIndice + 1 : 0,
+        ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1
+      }
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
   async crearToken(
     actor: User,
     mesaId: string,

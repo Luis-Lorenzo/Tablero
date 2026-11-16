@@ -346,6 +346,25 @@ export default function PreviewApp() {
     []
   );
 
+  const terminarTurnoIniciativaPreview = useCallback(() => {
+    setEstadoMapa(prev => {
+      const iniciativa = prev.iniciativa;
+      if (!iniciativa?.activa || iniciativa.entradas.length === 0) {
+        return prev;
+      }
+      const haySiguiente =
+        iniciativa.turnoIndice + 1 < iniciativa.entradas.length;
+      return {
+        ...prev,
+        iniciativa: {
+          ...iniciativa,
+          turnoIndice: haySiguiente ? iniciativa.turnoIndice + 1 : 0,
+          ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1
+        }
+      };
+    });
+  }, []);
+
   const cambiarApodoPreview = useCallback((apodo: string) => {
     const limpio = apodo.trim().slice(0, 24);
     setJugadores(prev =>
@@ -428,6 +447,7 @@ export default function PreviewApp() {
           onEliminarToken={eliminarTokenPreview}
           onEliminarPlantilla={eliminarPlantillaPreview}
           onCambiarIniciativa={cambiarIniciativaPreview}
+          onTerminarTurnoIniciativa={terminarTurnoIniciativaPreview}
           archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
           onSubirImagenMapa={subirImagenMapaPreview}
         />

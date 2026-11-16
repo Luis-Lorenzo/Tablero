@@ -1131,6 +1131,15 @@ function SalaRealContent({
     }
   }
 
+  async function terminarTurnoIniciativaMapa(): Promise<void> {
+    try {
+      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
   async function subirImagenMapa(
     archivo: File,
     _categoria: "escena" | "token"
@@ -1197,6 +1206,7 @@ function SalaRealContent({
           onEliminarToken={eliminarTokenMapa}
           onEliminarPlantilla={eliminarPlantillaMapa}
           onCambiarIniciativa={cambiarIniciativaMapa}
+          onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}
           archivosDisponibles={archivosDisponibles}
           onSubirImagenMapa={subirImagenMapa}
         />

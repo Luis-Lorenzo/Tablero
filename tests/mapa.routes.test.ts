@@ -273,6 +273,97 @@ describe("rutas de /api/mesas/:id/mapa", () => {
       .expect(200);
     expect(getJugador.body.iniciativa).toEqual(iniciativaPayload);
   });
+
+  it("el jugador con el turno activo puede avanzar el turno y otro jugador recibe 403", async () => {
+    const { app, aprobar, sesionDe, notifier } = montar();
+    const master = await aprobar("master-turno@pocket.test");
+    const jugador1 = await aprobar("jugador1-turno@pocket.test");
+    const jugador2 = await aprobar("jugador2-turno@pocket.test");
+
+    const cookieMaster = await sesionDe("master-turno@pocket.test");
+    const cookieJ1 = await sesionDe("jugador1-turno@pocket.test");
+    const cookieJ2 = await sesionDe("jugador2-turno@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJ1)
+      .send()
+      .expect(200);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJ2)
+      .send()
+      .expect(200);
+
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+      .set("Cookie", cookieMaster)
+      .send({
+        iniciativa: {
+          activa: true,
+          ronda: 1,
+          turnoIndice: 0,
+          entradas: [
+            {
+              id: "e-1",
+              nombre: "Lyra",
+              valor: 18,
+              color: "#96fbc7",
+              jugadorId: jugador1.id
+            },
+            {
+              id: "e-2",
+              nombre: "Kael",
+              valor: 12,
+              color: "#7dd3fc",
+              jugadorId: jugador2.id
+            }
+          ]
+        }
+      })
+      .expect(200);
+
+    // jugador2 no tiene el turno activo -> 403
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+      .set("Cookie", cookieJ2)
+      .send()
+      .expect(403);
+
+    // jugador1 tiene el turno activo -> avanza a turnoIndice 1
+    const resJ1 = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+      .set("Cookie", cookieJ1)
+      .send()
+      .expect(200);
+
+    expect(resJ1.body.iniciativa.turnoIndice).toBe(1);
+    expect(resJ1.body.iniciativa.ronda).toBe(1);
+    expect(notifier.mapasDifundidos.at(-1)?.userIds).toEqual([
+      master.id,
+      jugador1.id,
+      jugador2.id
+    ]);
+    expect(notifier.mapasDifundidos.at(-1)?.mapa.iniciativa?.turnoIndice).toBe(1);
+
+    // Ahora jugador2 tiene el turno activo -> vuelve a 0 y sube ronda a 2
+    const resJ2 = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+      .set("Cookie", cookieJ2)
+      .send()
+      .expect(200);
+
+    expect(resJ2.body.iniciativa.turnoIndice).toBe(0);
+    expect(resJ2.body.iniciativa.ronda).toBe(2);
+  });
 });
 
 describe("PgMapaEstadoRepository", () => {

@@ -96,6 +96,7 @@ export interface MapaProps {
   jugadores?: JugadorPreview[];
   tiradasAsiento?: Record<string, TiradaAsiento>;
   onCambiarIniciativa?: (iniciativa: MapaIniciativaEstado) => void | Promise<void>;
+  onTerminarTurnoIniciativa?: () => void | Promise<void>;
 }
 
 const ZOOM_MIN = 0.4;
@@ -243,7 +244,8 @@ export function Mapa({
   onSubirImagenMapa,
   jugadores = [],
   tiradasAsiento,
-  onCambiarIniciativa
+  onCambiarIniciativa,
+  onTerminarTurnoIniciativa
 }: MapaProps) {
   const { tokens, plantillas } = estadoMapa;
 
@@ -940,6 +942,24 @@ export function Mapa({
     });
   }
 
+  function agregarTokenIniciativa(token: TokenMapa): void {
+    const valorNum = Number(valorIniciativa);
+    const valorLimpio = Number.isFinite(valorNum) ? Math.round(valorNum) : 10;
+    const esMonstruo = Boolean(token.esMonstruo);
+    const nuevaEntrada: IniciativaEntrada = {
+      id: nuevoId(),
+      nombre: token.nombre.trim() || (esMonstruo ? "Monstruo" : "Token"),
+      valor: valorLimpio,
+      color: esMonstruo ? "#e06c75" : token.autorColor || "#e8c56a",
+      esMonstruo
+    };
+    emitirIniciativa({
+      ...iniciativa,
+      activa: true,
+      entradas: [...iniciativa.entradas, nuevaEntrada]
+    });
+  }
+
   function ordenarIniciativa(): void {
     const ordenadas = [...iniciativa.entradas].sort(
       (a, b) => b.valor - a.valor
@@ -1023,6 +1043,34 @@ export function Mapa({
 
   const mostrarBarraIniciativa =
     esMaster || iniciativa.activa || iniciativa.entradas.length > 0;
+
+  const entradaActual = iniciativa.entradas[iniciativa.turnoIndice];
+  const esMiTurnoIniciativa = useMemo(() => {
+    if (!entradaActual) return false;
+    if (esMaster) return true;
+    if (miUsuarioId && entradaActual.jugadorId === miUsuarioId) return true;
+    if (nombreJugador && entradaActual.nombre === nombreJugador) return true;
+    return jugadoresActivos.some(j => {
+      const esMismoJugador =
+        (miUsuarioId && (j.id === miUsuarioId || j.usuarioId === miUsuarioId)) ||
+        (nombreJugador && j.nombre === nombreJugador);
+      if (!esMismoJugador) return false;
+      return (
+        entradaActual.jugadorId === j.id ||
+        (j.usuarioId ? entradaActual.jugadorId === j.usuarioId : false) ||
+        entradaActual.nombre === j.nombre ||
+        Boolean(j.apodo?.trim() && entradaActual.nombre === j.apodo.trim())
+      );
+    });
+  }, [entradaActual, esMaster, jugadoresActivos, miUsuarioId, nombreJugador]);
+
+  function manejarTerminarTurno(): void {
+    if (onTerminarTurnoIniciativa) {
+      void onTerminarTurnoIniciativa();
+    } else if (esMaster) {
+      avanzarTurnoIniciativa();
+    }
+  }
 
   return (
     <div className="mapa-page">
@@ -1196,6 +1244,19 @@ export function Mapa({
             )}
           </div>
 
+          {iniciativa.activa &&
+            iniciativa.entradas.length > 0 &&
+            esMiTurnoIniciativa && (
+              <button
+                type="button"
+                className="mapa-turno-terminado-btn"
+                onClick={manejarTerminarTurno}
+                title="Finalizar turno actual"
+              >
+                Turno terminado
+              </button>
+            )}
+
           {esMaster && iniciativaAbierta && (
             <div
               className="mapa-iniciativa-popover"
@@ -1296,6 +1357,45 @@ export function Mapa({
                 </button>
               </form>
 
+              {tokens.length > 0 && (
+                <div className="mapa-iniciativa-tokens">
+                  <span className="mapa-iniciativa-tokens-titulo">
+                    Tokens en el mapa
+                  </span>
+                  <div className="mapa-iniciativa-tokens-lista">
+                    {tokens.map(token => {
+                      const dotColor = token.esMonstruo
+                        ? "#e06c75"
+                        : token.autorColor || "#e8c56a";
+                      const yaEnLista = iniciativa.entradas.some(
+                        e => e.nombre === token.nombre
+                      );
+                      return (
+                        <button
+                          key={token.id}
+                          type="button"
+                          className={`mapa-iniciativa-token-btn${
+                            token.esMonstruo ? " monstruo" : ""
+                          }${yaEnLista ? " en-lista" : ""}`}
+                          onClick={() => agregarTokenIniciativa(token)}
+                          title={`Añadir ${token.nombre} a iniciativa`}
+                        >
+                          <span
+                            className="mapa-iniciativa-dot"
+                            style={{ backgroundColor: dotColor }}
+                            aria-hidden="true"
+                          />
+                          <span className="mapa-iniciativa-token-nombre">
+                            {token.nombre}
+                          </span>
+                          <Plus size={11} aria-hidden="true" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {iniciativa.entradas.length > 0 && (
                 <ul className="mapa-iniciativa-editor-lista">
                   {iniciativa.entradas.map((entrada, idx) => (
@@ -1343,6 +1443,26 @@ export function Mapa({
           className={`mapa-jugadores-columna${esMaster ? " con-master" : ""}`}
           aria-label="Jugadores en mesa"
         >
+          <svg
+            className="mapa-jugadores-titulo-svg"
+            viewBox="0 0 156 30"
+            aria-hidden="true"
+          >
+            <path
+              id="mapa-jugadores-arco"
+              d="M 8,24 Q 78,8 148,24"
+              fill="none"
+            />
+            <text>
+              <textPath
+                href="#mapa-jugadores-arco"
+                startOffset="50%"
+                textAnchor="middle"
+              >
+                JUGADORES
+              </textPath>
+            </text>
+          </svg>
           {jugadoresActivos.map(j => {
             const tieneApodo = !j.esMaster && Boolean(j.apodo?.trim());
             const etiqueta = tieneApodo ? j.apodo!.trim() : j.nombre;
@@ -1356,6 +1476,24 @@ export function Mapa({
                 className={`mapa-jugador-item${j.esMaster ? " master" : ""}`}
                 style={{ "--jugador-color": j.color } as CSSProperties}
               >
+                <div className="mapa-jugador-ficha">
+                  <span
+                    className="mapa-jugador-esfera"
+                    style={{ "--color": j.color } as CSSProperties}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={`mapa-jugador-nombre${
+                      tieneApodo ? " con-apodo" : ""
+                    }`}
+                    title={
+                      tieneApodo ? `${etiqueta} (${j.nombre})` : j.nombre
+                    }
+                  >
+                    {etiqueta}
+                  </span>
+                </div>
+
                 {tirada && (
                   <div
                     className={`mapa-jugador-tirada${
@@ -1376,24 +1514,6 @@ export function Mapa({
                     )}
                   </div>
                 )}
-
-                <div className="mapa-jugador-ficha">
-                  <span
-                    className="mapa-jugador-esfera"
-                    style={{ "--color": j.color } as CSSProperties}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className={`mapa-jugador-nombre${
-                      tieneApodo ? " con-apodo" : ""
-                    }`}
-                    title={
-                      tieneApodo ? `${etiqueta} (${j.nombre})` : j.nombre
-                    }
-                  >
-                    {etiqueta}
-                  </span>
-                </div>
               </div>
             );
           })}

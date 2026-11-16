@@ -376,7 +376,7 @@ export function HudSalaCompartido({
   onConsultarResumenMaster,
   onSolicitarArchivos,
   onAviso,
-  chatRect = { x: 1.2, y: 56, w: 22, h: 28 },
+  chatRect = { x: 76.5, y: 58, w: 22, h: 28 },
   dockPos = { x: 50, y: 92 }
 }: HudSalaCompartidoProps) {
   const [selectorAbierto, setSelectorAbierto] = useState(false);
@@ -403,7 +403,7 @@ export function HudSalaCompartido({
   ]);
   const [macroBonificador, setMacroBonificador] = useState(0);
 
-const CLAVE_CHAT_MAPA = "pocketrol.mapa.chat.v1";
+const CLAVE_CHAT_MAPA = "pocketrol.mapa.chat.v2";
 
 function cargarChatMapaRect(defecto: RectPizarra): RectPizarra {
   try {

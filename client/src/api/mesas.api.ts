@@ -280,6 +280,10 @@ export const mesasApi = {
       iniciativa
     }),
 
+  /** Avanza al siguiente turno en la iniciativa del mapa. */
+  avanzarTurnoMapa: (mesaId: string) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`),
+
   /** Crea un token en el mapa táctico (y opcionalmente su plantilla). */
   crearTokenMapa: (mesaId: string, datos: CrearTokenMapaPayload) =>
     http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/tokens`, datos),
