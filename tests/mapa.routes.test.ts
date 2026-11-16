@@ -477,6 +477,218 @@ describe("rutas de /api/mesas/:id/mapa", () => {
       patchRes.body.plantillas
     );
   });
+
+  it("permite dibujar trazos, deshacer el propio, limpiar todo como máster y congelar el dibujo sin bloquear los tokens", async () => {
+    const { app, aprobar, sesionDe, notifier } = montar();
+    const master = await aprobar("master-dibujo@pocket.test");
+    const jugador = await aprobar("jugador-dibujo@pocket.test");
+    const ajeno = await aprobar("ajeno-dibujo@pocket.test");
+
+    const cookieMaster = await sesionDe("master-dibujo@pocket.test");
+    const cookieJugador = await sesionDe("jugador-dibujo@pocket.test");
+    const cookieAjeno = await sesionDe("ajeno-dibujo@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugador)
+      .send()
+      .expect(200);
+
+    // Un usuario ajeno no puede dibujar
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieAjeno)
+      .send({
+        id: "trazo-ajeno",
+        color: "#ff0000",
+        grosor: 4,
+        puntos: [{ x: 10, y: 10 }]
+      })
+      .expect(403);
+
+    // El jugador dibuja un trazo (sanitiza puntos 0..100, grosor 1..24 y fuerza autorId)
+    const trazoJugadorRes = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .send({
+        id: "trazo-j1",
+        color: "#38d9a9",
+        grosor: 50,
+        autorId: master.id,
+        puntos: [
+          { x: -10, y: 120 },
+          { x: 45.5, y: 60 }
+        ]
+      })
+      .expect(201);
+
+    expect(trazoJugadorRes.body.trazos).toEqual([
+      {
+        id: "trazo-j1",
+        color: "#38d9a9",
+        grosor: 24,
+        autorId: jugador.id,
+        puntos: [
+          { x: 0, y: 100 },
+          { x: 45.5, y: 60 }
+        ]
+      }
+    ]);
+    expect(notifier.mapasDifundidos.at(-1)?.userIds).toEqual([master.id, jugador.id]);
+    expect(notifier.mapasDifundidos.at(-1)?.mapa.trazos).toHaveLength(1);
+
+    // El máster dibuja otro trazo
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieMaster)
+      .send({
+        id: "trazo-m1",
+        color: "#e8c56a",
+        grosor: 5,
+        puntos: [
+          { x: 20, y: 20 },
+          { x: 30, y: 30 }
+        ]
+      })
+      .expect(201);
+
+    // El jugador NO puede deshacer el trazo del máster
+    await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/trazos/trazo-m1`)
+      .set("Cookie", cookieJugador)
+      .expect(403);
+
+    // El jugador SÍ puede deshacer su propio trazo
+    const deshacerJugador = await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/trazos/trazo-j1`)
+      .set("Cookie", cookieJugador)
+      .expect(200);
+    expect(deshacerJugador.body.trazos.map((t: { id: string }) => t.id)).toEqual([
+      "trazo-m1"
+    ]);
+
+    // El jugador vuelve a dibujar un trazo para probar congelar y borrar todo
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .send({
+        id: "trazo-j2",
+        color: "#4dabf7",
+        grosor: 3,
+        puntos: [{ x: 50, y: 50 }]
+      })
+      .expect(201);
+
+    // El jugador crea un token antes de congelar el dibujo
+    const tokenRes = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/tokens`)
+      .set("Cookie", cookieJugador)
+      .send({
+        nombre: "Explorador",
+        imagenUrl: "/api/archivos/f1",
+        x: 20,
+        y: 25
+      })
+      .expect(201);
+    const tokenId = tokenRes.body.tokens[0].id as string;
+
+    // El jugador NO puede congelar el dibujo ni borrar todos los trazos
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/congelar`)
+      .set("Cookie", cookieJugador)
+      .send({ congelado: true })
+      .expect(403);
+
+    await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .expect(403);
+
+    // El máster congela el dibujo
+    const congelarRes = await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/congelar`)
+      .set("Cookie", cookieMaster)
+      .send({ congelado: true })
+      .expect(200);
+    expect(congelarRes.body.dibujoCongelado).toBe(true);
+
+    // Con dibujoCongelado: el jugador NO puede dibujar ni deshacer su trazo
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .send({
+        id: "trazo-j3",
+        color: "#4dabf7",
+        grosor: 3,
+        puntos: [{ x: 10, y: 10 }]
+      })
+      .expect(403);
+
+    await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/trazos/trazo-j2`)
+      .set("Cookie", cookieJugador)
+      .expect(403);
+
+    // Con dibujoCongelado: el jugador SÍ puede mover su token
+    const moverTokenRes = await request(app)
+      .patch(`/api/mesas/${mesaId}/mapa/tokens/${tokenId}`)
+      .set("Cookie", cookieJugador)
+      .send({ x: 60, y: 70 })
+      .expect(200);
+    expect(moverTokenRes.body.tokens[0].x).toBe(60);
+    expect(moverTokenRes.body.tokens[0].y).toBe(70);
+
+    // Con dibujoCongelado: el máster SÍ puede dibujar y deshacer
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieMaster)
+      .send({
+        id: "trazo-m2",
+        color: "#e8c56a",
+        grosor: 6,
+        puntos: [{ x: 80, y: 80 }]
+      })
+      .expect(201);
+
+    await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/trazos/trazo-j2`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+
+    // El máster borra todos los trazos
+    const limpiarRes = await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(limpiarRes.body.trazos).toEqual([]);
+    expect(notifier.mapasDifundidos.at(-1)?.mapa.trazos).toEqual([]);
+
+    // El máster descongela el dibujo y el jugador vuelve a poder dibujar
+    const descongelarRes = await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/congelar`)
+      .set("Cookie", cookieMaster)
+      .send({ congelado: false })
+      .expect(200);
+    expect(descongelarRes.body.dibujoCongelado).toBe(false);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .send({
+        id: "trazo-j4",
+        color: "#4dabf7",
+        grosor: 3,
+        puntos: [{ x: 15, y: 15 }]
+      })
+      .expect(201);
+  });
 });
 
 describe("PgMapaEstadoRepository", () => {

@@ -6,12 +6,14 @@ import {
   sanitizarIniciativa,
   sanitizarMapaEstado,
   sanitizarRejilla,
+  sanitizarTrazo,
   type EstadoMapaCompartido,
   type MapaEstadoRepository,
   type MapaFondoConfig,
   type MapaRejillaConfig,
   type PlantillaTokenMapa,
-  type TokenMapa
+  type TokenMapa,
+  type TrazoMapa
 } from "../repositories/mapa-estado.repository.js";
 import type { Mesa, MesaRepository } from "../repositories/mesa.repository.js";
 import { nombreDeUsuario, type User } from "../repositories/user.repository.js";
@@ -426,6 +428,117 @@ export class MapaEstadoService {
     const siguiente = sanitizarMapaEstado({
       ...actual,
       plantillas: actual.plantillas.filter(p => p.id !== plantillaId)
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async agregarTrazo(
+    actor: User,
+    mesaId: string,
+    trazoRaw: unknown
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+
+    if (actual.dibujoCongelado && !this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
+
+    if (!trazoRaw || typeof trazoRaw !== "object" || Array.isArray(trazoRaw)) {
+      throw errors.invalidRequest();
+    }
+
+    const bruto = trazoRaw as Record<string, unknown>;
+    const id =
+      typeof bruto.id === "string" && bruto.id.trim()
+        ? bruto.id.trim()
+        : crypto.randomUUID();
+
+    const trazo: TrazoMapa | null = sanitizarTrazo({
+      ...bruto,
+      id,
+      autorId: actor.id
+    });
+    if (!trazo) {
+      throw errors.invalidRequest();
+    }
+
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      trazos: [...(actual.trazos ?? []), trazo]
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async eliminarTrazo(
+    actor: User,
+    mesaId: string,
+    trazoId: string
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+
+    const trazosActuales = actual.trazos ?? [];
+    const trazo = trazosActuales.find(t => t.id === trazoId);
+    if (!trazo) {
+      throw new AppError("TRAZO_NOT_FOUND", 404);
+    }
+
+    const esMaster = this.esMaster(actor, mesa);
+    if (!esMaster && (trazo.autorId !== actor.id || actual.dibujoCongelado)) {
+      throw errors.forbidden();
+    }
+
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      trazos: trazosActuales.filter(t => t.id !== trazoId)
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async borrarTodosTrazos(
+    actor: User,
+    mesaId: string
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesa(mesaId);
+    if (!this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
+
+    const actual = await this.mapaEstado.getEstado(mesaId);
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      trazos: []
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async cambiarDibujoCongelado(
+    actor: User,
+    mesaId: string,
+    congelado: boolean
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesa(mesaId);
+    if (!this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
+
+    const actual = await this.mapaEstado.getEstado(mesaId);
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      dibujoCongelado: Boolean(congelado)
     });
 
     await this.mapaEstado.saveEstado(mesaId, siguiente);

@@ -10,7 +10,8 @@ import type {
   MensajeChat,
   PublicMesa,
   PublicTransferencia,
-  ResultadoAceptarTransferencia
+  ResultadoAceptarTransferencia,
+  TrazoMapa
 } from "./types";
 
 async function putJson<T>(path: string, body: unknown): Promise<T> {
@@ -321,5 +322,25 @@ export const mesasApi = {
   eliminarPlantillaMapa: (mesaId: string, plantillaId: string) =>
     http.delete<EstadoMapaCompartido>(
       `/api/mesas/${mesaId}/mapa/plantillas/${encodeURIComponent(plantillaId)}`
-    )
+    ),
+
+  /** Añade un trazo de dibujo al mapa táctico. */
+  agregarTrazoMapa: (mesaId: string, trazo: Omit<TrazoMapa, "autorId">) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/trazos`, trazo),
+
+  /** Elimina (deshace) un trazo de dibujo del mapa táctico. */
+  eliminarTrazoMapa: (mesaId: string, trazoId: string) =>
+    http.delete<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/trazos/${encodeURIComponent(trazoId)}`
+    ),
+
+  /** Borra todos los trazos de dibujo del mapa táctico (solo Máster). */
+  borrarTrazosMapa: (mesaId: string) =>
+    http.delete<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/trazos`),
+
+  /** Congela o descongela el dibujo en el mapa táctico (solo Máster). */
+  congelarDibujoMapa: (mesaId: string, congelado: boolean) =>
+    putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/congelar`, {
+      congelado
+    })
 };

@@ -236,12 +236,22 @@ export interface MapaIniciativaEstado {
   entradas: IniciativaEntrada[];
 }
 
+export interface TrazoMapa {
+  id: string;
+  color: string;
+  grosor: number;
+  puntos: Array<{ x: number; y: number }>;
+  autorId?: string;
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
   tokens: TokenMapa[];
   plantillas: PlantillaTokenMapa[];
   iniciativa?: MapaIniciativaEstado;
+  trazos?: TrazoMapa[];
+  dibujoCongelado?: boolean;
 }
 
 export interface GuardarMapaFondoPayload {

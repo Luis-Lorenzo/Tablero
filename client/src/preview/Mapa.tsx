@@ -24,12 +24,15 @@ import {
   Lock,
   Map as MapIcon,
   Minus,
+  Pencil,
   Plus,
   Radio,
   RotateCcw,
   Sliders,
+  Snowflake,
   Swords,
   Trash2,
+  Undo2,
   Unlock,
   Upload,
   UserPlus,
@@ -49,7 +52,8 @@ import type {
   PingVisual,
   PlantillaTokenMapa,
   TiradaAsiento,
-  TokenMapa
+  TokenMapa,
+  TrazoPizarra
 } from "./tipos";
 
 export interface ArchivoItem {
@@ -103,12 +107,30 @@ export interface MapaProps {
   tiradasAsiento?: Record<string, TiradaAsiento>;
   onCambiarIniciativa?: (iniciativa: MapaIniciativaEstado) => void | Promise<void>;
   onTerminarTurnoIniciativa?: () => void | Promise<void>;
+  onAgregarTrazo?: (trazo: TrazoPizarra) => void | Promise<void>;
+  onEliminarTrazo?: (trazoId: string) => void | Promise<void>;
+  onBorrarTrazos?: () => void | Promise<void>;
+  onCambiarDibujoCongelado?: (congelado: boolean) => void | Promise<void>;
 }
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 4;
 const ASPECTO_POR_DEFECTO = 16 / 9;
 const PRESETS_TAMANO = [1, 2, 3, 4] as const;
+const COLORES_DIBUJO = [
+  "#f5c542",
+  "#ef4444",
+  "#3b82f6",
+  "#22c55e",
+  "#a855f7",
+  "#ffffff",
+  "#111827"
+] as const;
+const GROSORES_DIBUJO = [
+  { etiqueta: "Fino", valor: 2.5 },
+  { etiqueta: "Medio", valor: 5 },
+  { etiqueta: "Grueso", valor: 9 }
+] as const;
 const CATEGORIAS_BANDEJA_PRESETS = [
   "Monstruos",
   "Enemigos",
@@ -259,11 +281,28 @@ export function Mapa({
   jugadores = [],
   tiradasAsiento,
   onCambiarIniciativa,
-  onTerminarTurnoIniciativa
+  onTerminarTurnoIniciativa,
+  onAgregarTrazo,
+  onEliminarTrazo,
+  onBorrarTrazos,
+  onCambiarDibujoCongelado
 }: MapaProps) {
   const { tokens, plantillas } = estadoMapa;
+  const trazos = estadoMapa.trazos ?? [];
+  const dibujoCongelado = Boolean(estadoMapa.dibujoCongelado);
+  const dibujoBloqueado = dibujoCongelado && !esMaster;
 
   const [modoPing, setModoPing] = useState(false);
+  const [modoDibujo, setModoDibujo] = useState(false);
+  const [colorDibujo, setColorDibujo] = useState<string>(
+    colorJugador || COLORES_DIBUJO[0]
+  );
+  const [grosorDibujo, setGrosorDibujo] = useState<number>(
+    GROSORES_DIBUJO[1].valor
+  );
+  const [trazoEnCurso, setTrazoEnCurso] = useState<TrazoPizarra | null>(null);
+  const trazoEnCursoRef = useRef<TrazoPizarra | null>(null);
+  const pointerIdDibujoRef = useRef<number | null>(null);
   const [pingsLocales, setPingsLocales] = useState<PingVisual[]>([]);
   const [panelAbierto, setPanelAbierto] = useState<
     "fondo" | "tokens" | "bandeja" | null
@@ -432,6 +471,8 @@ export function Mapa({
           setIniciativaAbierta(false);
         } else if (tokenSeleccionadoId) {
           setTokenSeleccionadoId(null);
+        } else if (modoDibujo) {
+          setModoDibujo(false);
         } else if (modoPing) {
           setModoPing(false);
         }
@@ -454,6 +495,7 @@ export function Mapa({
     panelAbierto,
     iniciativaAbierta,
     tokenSeleccionadoId,
+    modoDibujo,
     modoPing,
     cerrarPanelFondoSinConfirmar
   ]);
@@ -509,6 +551,113 @@ export function Mapa({
     }, 2400);
   }
 
+  const dibujandoActivo = modoDibujo && !dibujoBloqueado;
+
+  const coloresPaleta = useMemo(() => {
+    const lista = colorJugador
+      ? [colorJugador, ...COLORES_DIBUJO]
+      : [...COLORES_DIBUJO];
+    return Array.from(new Set(lista));
+  }, [colorJugador]);
+
+  const ultimoTrazoDeshacer = useMemo(() => {
+    if (trazos.length === 0) return null;
+    if (esMaster || !miUsuarioId) {
+      return trazos[trazos.length - 1];
+    }
+    for (let i = trazos.length - 1; i >= 0; i--) {
+      if (trazos[i].autorId === miUsuarioId) {
+        return trazos[i];
+      }
+    }
+    return null;
+  }, [trazos, esMaster, miUsuarioId]);
+
+  const trazosVisibles = useMemo(
+    () => (trazoEnCurso ? [...trazos, trazoEnCurso] : trazos),
+    [trazos, trazoEnCurso]
+  );
+
+  function obtenerPuntoCanvas(
+    clientX: number,
+    clientY: number
+  ): { x: number; y: number } | null {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      x: limitar(((clientX - rect.left) / rect.width) * 100, 0, 100),
+      y: limitar(((clientY - rect.top) / rect.height) * 100, 0, 100)
+    };
+  }
+
+  function alBajarPunteroCanvas(
+    evento: ReactPointerEvent<HTMLDivElement>
+  ): void {
+    if (!dibujandoActivo || evento.button !== 0 || espacioPulsado) return;
+    const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
+    if (!punto) return;
+
+    evento.stopPropagation();
+    evento.preventDefault();
+    evento.currentTarget.setPointerCapture(evento.pointerId);
+
+    const nuevoTrazo: TrazoPizarra = {
+      id: nuevoId(),
+      color: colorDibujo,
+      grosor: grosorDibujo,
+      puntos: [punto],
+      autorId: miUsuarioId
+    };
+    pointerIdDibujoRef.current = evento.pointerId;
+    trazoEnCursoRef.current = nuevoTrazo;
+    setTrazoEnCurso(nuevoTrazo);
+  }
+
+  function alMoverPunteroCanvas(
+    evento: ReactPointerEvent<HTMLDivElement>
+  ): void {
+    const actual = trazoEnCursoRef.current;
+    if (!actual || pointerIdDibujoRef.current !== evento.pointerId) return;
+    const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
+    if (!punto) return;
+
+    const ultimo = actual.puntos[actual.puntos.length - 1];
+    if (
+      ultimo &&
+      Math.hypot(punto.x - ultimo.x, punto.y - ultimo.y) < 0.15
+    ) {
+      return;
+    }
+
+    const actualizado: TrazoPizarra = {
+      ...actual,
+      puntos: [...actual.puntos, punto]
+    };
+    trazoEnCursoRef.current = actualizado;
+    setTrazoEnCurso(actualizado);
+  }
+
+  function alSoltarPunteroCanvas(
+    evento: ReactPointerEvent<HTMLDivElement>
+  ): void {
+    const actual = trazoEnCursoRef.current;
+    if (!actual || pointerIdDibujoRef.current !== evento.pointerId) return;
+
+    trazoEnCursoRef.current = null;
+    pointerIdDibujoRef.current = null;
+    setTrazoEnCurso(null);
+
+    if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
+      evento.currentTarget.releasePointerCapture(evento.pointerId);
+    }
+
+    if (actual.puntos.length > 0 && onAgregarTrazo) {
+      void onAgregarTrazo(actual);
+    }
+  }
+
   function alBajarPunteroViewport(
     evento: ReactPointerEvent<HTMLDivElement>
   ): void {
@@ -517,6 +666,10 @@ export function Mapa({
 
     if (modoPing && evento.button === 0 && !espacioPulsado) {
       emitirPingEn(evento.clientX, evento.clientY);
+      return;
+    }
+
+    if (dibujandoActivo && evento.button === 0 && !espacioPulsado) {
       return;
     }
 
@@ -628,7 +781,9 @@ export function Mapa({
     evento: ReactPointerEvent<HTMLDivElement>,
     token: TokenMapa
   ): void {
-    if (modoPing || espacioPulsado || evento.button === 1) return;
+    if (modoPing || dibujandoActivo || espacioPulsado || evento.button === 1) {
+      return;
+    }
     evento.stopPropagation();
 
     if (!puedeEditarToken(token, esMaster, miUsuarioId)) {
@@ -1160,7 +1315,13 @@ export function Mapa({
         <button
           type="button"
           className={`pizarra-tool-btn${modoPing ? " activo" : ""}`}
-          onClick={() => setModoPing(prev => !prev)}
+          onClick={() => {
+            setModoPing(prev => {
+              const siguiente = !prev;
+              if (siguiente) setModoDibujo(false);
+              return siguiente;
+            });
+          }}
           title="Señalar un punto temporalmente con un ping"
         >
           <Radio size={14} strokeWidth={2.1} aria-hidden="true" />
@@ -1169,35 +1330,76 @@ export function Mapa({
 
         <button
           type="button"
-          className={`pizarra-tool-btn${panelAbierto === "tokens" ? " activo" : ""}`}
+          className={`pizarra-tool-btn${dibujandoActivo ? " activo" : ""}`}
+          disabled={dibujoBloqueado}
           onClick={() => {
-            setErrorPanel(null);
-            setPanelAbierto(prev => (prev === "tokens" ? null : "tokens"));
+            if (dibujoBloqueado) return;
+            setModoDibujo(prev => {
+              const siguiente = !prev;
+              if (siguiente) setModoPing(false);
+              return siguiente;
+            });
           }}
-          title="Crear nuevos tokens en el mapa"
+          title={
+            dibujoBloqueado
+              ? "El Máster ha congelado el dibujo en el mapa"
+              : "Dibujar sobre el mapa"
+          }
         >
-          <Users size={14} aria-hidden="true" />
-          <span>Tokens</span>
+          <Pencil size={14} strokeWidth={2.1} aria-hidden="true" />
+          <span>Dibujar</span>
         </button>
 
         <button
           type="button"
-          className={`pizarra-tool-btn${panelAbierto === "bandeja" ? " activo" : ""}`}
+          className="pizarra-tool-btn"
+          disabled={!ultimoTrazoDeshacer || dibujoBloqueado || !onEliminarTrazo}
           onClick={() => {
-            setErrorPanel(null);
-            setPlantillaEditandoCatId(null);
-            setPanelAbierto(prev => (prev === "bandeja" ? null : "bandeja"));
+            if (ultimoTrazoDeshacer && onEliminarTrazo) {
+              void onEliminarTrazo(ultimoTrazoDeshacer.id);
+            }
           }}
-          title="Abrir bandeja de tokens guardados"
+          title="Deshacer tu último trazo"
         >
-          <Inbox size={14} aria-hidden="true" />
-          <span>Bandeja</span>
-          {plantillasVisibles.length > 0 && (
-            <span className="mapa-bandeja-badge">
-              {plantillasVisibles.length}
-            </span>
-          )}
+          <Undo2 size={14} strokeWidth={2.1} aria-hidden="true" />
+          <span>Deshacer</span>
         </button>
+
+        {esMaster && (
+          <>
+            <button
+              type="button"
+              className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
+              disabled={!onCambiarDibujoCongelado}
+              onClick={() => {
+                void onCambiarDibujoCongelado?.(!dibujoCongelado);
+              }}
+              title={
+                dibujoCongelado
+                  ? "Descongelar dibujo para los jugadores"
+                  : "Congelar dibujo para los jugadores"
+              }
+            >
+              <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Congelar</span>
+            </button>
+
+            <button
+              type="button"
+              className="pizarra-tool-btn"
+              disabled={trazos.length === 0 || !onBorrarTrazos}
+              onClick={() => {
+                if (trazos.length > 0) {
+                  void onBorrarTrazos?.();
+                }
+              }}
+              title="Borrar todos los trazos del mapa"
+            >
+              <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Borrar todo</span>
+            </button>
+          </>
+        )}
 
         {esMaster && (
           <button
@@ -1248,9 +1450,48 @@ export function Mapa({
             <Plus size={13} aria-hidden="true" />
           </button>
         </div>
+
+        {dibujandoActivo && (
+          <div
+            className="mapa-dibujo-paleta"
+            role="group"
+            aria-label="Opciones de dibujo"
+          >
+            <div className="mapa-dibujo-colores" title="Color del trazo">
+              {coloresPaleta.map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`mapa-color-swatch${
+                    colorDibujo === color ? " activo" : ""
+                  }`}
+                  style={{ backgroundColor: color }}
+                  aria-label={`Color ${color}`}
+                  onClick={() => setColorDibujo(color)}
+                />
+              ))}
+            </div>
+            <span className="mapa-barra-sep" aria-hidden="true" />
+            <div className="mapa-dibujo-grosores" title="Grosor del trazo">
+              {GROSORES_DIBUJO.map(item => (
+                <button
+                  key={item.valor}
+                  type="button"
+                  className={`mapa-grosor-btn${
+                    grosorDibujo === item.valor ? " activo" : ""
+                  }`}
+                  onClick={() => setGrosorDibujo(item.valor)}
+                >
+                  {item.etiqueta}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Barra superior central: Tracker de Iniciativa */}
+      {/* Columna izquierda: Iniciativa arriba + Jugadores debajo */}
+      <div className="mapa-izquierda-stack">
       {mostrarBarraIniciativa && (
         <div
           className="mapa-iniciativa-barra"
@@ -1619,6 +1860,7 @@ export function Mapa({
           })}
         </aside>
       )}
+      </div>
 
       {/* Panel flotante: Fondo y rejilla (solo Máster) */}
       {esMaster && panelAbierto === "fondo" && (
@@ -1853,7 +2095,10 @@ export function Mapa({
 
       {/* Panel flotante: Tokens */}
       {panelAbierto === "tokens" && (
-        <aside className="mapa-panel" aria-label="Bandeja y creación de tokens">
+        <aside
+          className="mapa-panel en-abajo"
+          aria-label="Bandeja y creación de tokens"
+        >
           <header className="mapa-panel-cabecera">
             <span className="mapa-panel-titulo">
               <Users size={14} aria-hidden="true" />
@@ -1987,7 +2232,7 @@ export function Mapa({
 
       {/* Panel flotante: Bandeja de tokens */}
       {panelAbierto === "bandeja" && (
-        <aside className="mapa-panel" aria-label="Bandeja de tokens">
+        <aside className="mapa-panel en-abajo" aria-label="Bandeja de tokens">
           <header className="mapa-panel-cabecera">
             <span className="mapa-panel-titulo">
               <Inbox size={14} aria-hidden="true" />
@@ -2255,8 +2500,8 @@ export function Mapa({
       <div
         ref={viewportRef}
         className={`mapa-viewport${modoPing ? " modo-ping" : ""}${
-          espacioPulsado ? " modo-pan" : ""
-        }${paneando ? " paneando" : ""}`}
+          dibujandoActivo ? " modo-dibujo" : ""
+        }${espacioPulsado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
         onWheel={alGirarRueda}
         onPointerDown={alBajarPunteroViewport}
         onPointerMove={alMoverPunteroViewport}
@@ -2276,6 +2521,10 @@ export function Mapa({
               width: `${tamanoCanvas.w}px`,
               height: `${tamanoCanvas.h}px`
             }}
+            onPointerDown={alBajarPunteroCanvas}
+            onPointerMove={alMoverPunteroCanvas}
+            onPointerUp={alSoltarPunteroCanvas}
+            onPointerCancel={alSoltarPunteroCanvas}
           >
             {/* Capa 1: Fondo estático o lienzo por defecto */}
             {fondoActivo ? (
@@ -2343,6 +2592,37 @@ export function Mapa({
                 ))}
               </svg>
             )}
+
+            {/* Capa 2.5: Dibujo sobre el mapa */}
+            <svg
+              className="mapa-dibujo-svg"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              {trazosVisibles.map(trazo =>
+                trazo.puntos.length === 1 ? (
+                  <circle
+                    key={trazo.id}
+                    cx={trazo.puntos[0].x}
+                    cy={trazo.puntos[0].y}
+                    r={Math.max(0.25, trazo.grosor * 0.08)}
+                    fill={trazo.color}
+                  />
+                ) : (
+                  <polyline
+                    key={trazo.id}
+                    points={trazo.puntos.map(p => `${p.x},${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={trazo.color}
+                    strokeWidth={trazo.grosor}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )
+              )}
+            </svg>
 
             {/* Capa 3: Tokens */}
             {tokens.map(token => {
@@ -2418,6 +2698,41 @@ export function Mapa({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Dock inferior izquierdo: Tokens y Bandeja encima de Dados rápidos */}
+      <div className="mapa-tokens-dock" role="toolbar" aria-label="Tokens y bandeja">
+        <button
+          type="button"
+          className={`pizarra-tool-btn${panelAbierto === "tokens" ? " activo" : ""}`}
+          onClick={() => {
+            setErrorPanel(null);
+            setPanelAbierto(prev => (prev === "tokens" ? null : "tokens"));
+          }}
+          title="Crear nuevos tokens en el mapa"
+        >
+          <Users size={14} aria-hidden="true" />
+          <span>Tokens</span>
+        </button>
+
+        <button
+          type="button"
+          className={`pizarra-tool-btn${panelAbierto === "bandeja" ? " activo" : ""}`}
+          onClick={() => {
+            setErrorPanel(null);
+            setPlantillaEditandoCatId(null);
+            setPanelAbierto(prev => (prev === "bandeja" ? null : "bandeja"));
+          }}
+          title="Abrir bandeja de tokens guardados"
+        >
+          <Inbox size={14} aria-hidden="true" />
+          <span>Bandeja</span>
+          {plantillasVisibles.length > 0 && (
+            <span className="mapa-bandeja-badge">
+              {plantillasVisibles.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Ayuda discreta de controles */}

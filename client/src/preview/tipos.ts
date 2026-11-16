@@ -193,6 +193,7 @@ export interface TrazoPizarra {
   grosor: number;
   /** Puntos normalizados (0-100) dentro del lienzo de la pizarra. */
   puntos: Punto[];
+  autorId?: string;
 }
 
 export interface ImagenEscenaPreview {
@@ -295,4 +296,6 @@ export interface EstadoMapaCompartido {
   tokens: TokenMapa[];
   plantillas: PlantillaTokenMapa[];
   iniciativa?: MapaIniciativaEstado;
+  trazos?: TrazoPizarra[];
+  dibujoCongelado?: boolean;
 }

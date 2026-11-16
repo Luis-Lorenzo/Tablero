@@ -64,12 +64,22 @@ export interface MapaIniciativaEstado {
   entradas: IniciativaEntrada[];
 }
 
+export interface TrazoMapa {
+  id: string;
+  color: string;
+  grosor: number;
+  puntos: Array<{ x: number; y: number }>;
+  autorId?: string;
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
   tokens: TokenMapa[];
   plantillas: PlantillaTokenMapa[];
   iniciativa?: MapaIniciativaEstado;
+  trazos?: TrazoMapa[];
+  dibujoCongelado?: boolean;
 }
 
 export const REJILLA_MAPA_DEFECTO: MapaRejillaConfig = {
@@ -89,7 +99,9 @@ export function crearMapaEstadoVacio(): EstadoMapaCompartido {
     fondo: null,
     rejilla: { ...REJILLA_MAPA_DEFECTO },
     tokens: [],
-    plantillas: []
+    plantillas: [],
+    trazos: [],
+    dibujoCongelado: false
   };
 }
 
@@ -339,6 +351,58 @@ export function sanitizarIniciativa(raw: unknown): MapaIniciativaEstado | undefi
   };
 }
 
+const COLOR_TRAZO_REGEX =
+  /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{2,24}|rgba?\([^)]{1,40}\)|hsla?\([^)]{1,40}\))$/;
+const MAX_TRAZOS_MAPA = 500;
+
+export function sanitizarTrazo(raw: unknown): TrazoMapa | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.id !== "string" || !obj.id.trim()) return null;
+  if (!Array.isArray(obj.puntos)) return null;
+
+  const puntos = obj.puntos
+    .map(punto => {
+      if (!punto || typeof punto !== "object" || Array.isArray(punto)) {
+        return null;
+      }
+      const p = punto as Record<string, unknown>;
+      if (
+        typeof p.x !== "number" ||
+        !Number.isFinite(p.x) ||
+        typeof p.y !== "number" ||
+        !Number.isFinite(p.y)
+      ) {
+        return null;
+      }
+      return {
+        x: clampNumero(p.x, 0, 100, 0),
+        y: clampNumero(p.y, 0, 100, 0)
+      };
+    })
+    .filter((p): p is { x: number; y: number } => p !== null);
+
+  if (puntos.length === 0) return null;
+
+  const colorCrudo = typeof obj.color === "string" ? obj.color.trim() : "";
+  const color = COLOR_TRAZO_REGEX.test(colorCrudo) ? colorCrudo : "#e8c56a";
+  const grosor = clampNumero(obj.grosor, 1, 24, 3);
+
+  const trazo: TrazoMapa = {
+    id: obj.id.trim().slice(0, 120),
+    color,
+    grosor,
+    puntos
+  };
+
+  if (typeof obj.autorId === "string" && obj.autorId.trim()) {
+    trazo.autorId = obj.autorId.trim().slice(0, 120);
+  }
+
+  return trazo;
+}
+
 export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return crearMapaEstadoVacio();
@@ -359,12 +423,21 @@ export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
 
   const iniciativa = sanitizarIniciativa(obj.iniciativa);
 
+  const trazos = Array.isArray(obj.trazos)
+    ? obj.trazos
+        .map(sanitizarTrazo)
+        .filter((t): t is TrazoMapa => t !== null)
+        .slice(-MAX_TRAZOS_MAPA)
+    : [];
+
   return {
     fondo: sanitizarFondo(obj.fondo),
     rejilla: sanitizarRejilla(obj.rejilla),
     tokens,
     plantillas,
-    ...(iniciativa ? { iniciativa } : {})
+    ...(iniciativa ? { iniciativa } : {}),
+    trazos,
+    dibujoCongelado: Boolean(obj.dibujoCongelado)
   };
 }
 

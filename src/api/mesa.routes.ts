@@ -943,5 +943,69 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   );
 
+  router.post("/:id/mapa/trazos", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.agregarTrazo(
+        req.currentUser!,
+        String(req.params.id),
+        req.body
+      );
+      res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/trazos/:trazoId", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.eliminarTrazo(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.trazoId)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/trazos", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.borrarTodosTrazos(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/mapa/congelar", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as {
+        congelado?: unknown;
+        dibujoCongelado?: unknown;
+      };
+      const congelado =
+        typeof body.congelado === "boolean"
+          ? body.congelado
+          : typeof body.dibujoCongelado === "boolean"
+            ? body.dibujoCongelado
+            : null;
+      if (congelado === null) {
+        throw errors.invalidRequest();
+      }
+      const mapa = await mapaEstadoService.cambiarDibujoCongelado(
+        req.currentUser!,
+        String(req.params.id),
+        congelado
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

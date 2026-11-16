@@ -1181,6 +1181,56 @@ function SalaRealContent({
     }
   }
 
+  async function agregarTrazoMapa(trazo: TrazoPizarra): Promise<void> {
+    const trazoConAutor: TrazoPizarra = {
+      ...trazo,
+      autorId: trazo.autorId ?? user.id
+    };
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: [...(prev.trazos ?? []), trazoConAutor]
+    }));
+    try {
+      const actualizado = await mesasApi.agregarTrazoMapa(mesa.id, trazo);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarTrazoMapa(trazoId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTrazoMapa(mesa.id, trazoId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function borrarTrazosMapa(): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, trazos: [] }));
+    try {
+      const actualizado = await mesasApi.borrarTrazosMapa(mesa.id);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function cambiarDibujoCongeladoMapa(congelado: boolean): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
+    try {
+      const actualizado = await mesasApi.congelarDibujoMapa(mesa.id, congelado);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
   async function subirImagenMapa(
     archivo: File,
     _categoria: "escena" | "token"
@@ -1249,6 +1299,10 @@ function SalaRealContent({
           onEliminarPlantilla={eliminarPlantillaMapa}
           onCambiarIniciativa={cambiarIniciativaMapa}
           onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}
+          onAgregarTrazo={agregarTrazoMapa}
+          onEliminarTrazo={eliminarTrazoMapa}
+          onBorrarTrazos={borrarTrazosMapa}
+          onCambiarDibujoCongelado={cambiarDibujoCongeladoMapa}
           archivosDisponibles={archivosDisponibles}
           onSubirImagenMapa={subirImagenMapa}
         />
@@ -1258,6 +1312,7 @@ function SalaRealContent({
           miUsuarioId={user.id}
           hostName={mesa.hostName}
           yoAsientoId={yoAsientoId}
+          dibujoCongelado={Boolean(estadoMapa.dibujoCongelado)}
           mensajesChat={mensajesChat}
           onEnviarChat={enviarChat}
           onTiradaPublica={enviarTiradaPublica}

@@ -82,7 +82,9 @@ function cargarEstadoMapaPreview(): EstadoMapaCompartido {
       rejilla: { ...ESTADO_MAPA_DEFECTO.rejilla, ...(parsed.rejilla ?? {}) },
       tokens: Array.isArray(parsed.tokens) ? parsed.tokens : [],
       plantillas: Array.isArray(parsed.plantillas) ? parsed.plantillas : [],
-      iniciativa: parsed.iniciativa
+      iniciativa: parsed.iniciativa,
+      trazos: Array.isArray(parsed.trazos) ? parsed.trazos : [],
+      dibujoCongelado: Boolean(parsed.dibujoCongelado)
     };
   } catch {
     return ESTADO_MAPA_DEFECTO;
@@ -446,6 +448,31 @@ export default function PreviewApp() {
     });
   }, []);
 
+  const agregarTrazoPreview = useCallback((trazo: TrazoPizarra) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: [
+        ...(prev.trazos ?? []),
+        { ...trazo, autorId: trazo.autorId ?? "master" }
+      ]
+    }));
+  }, []);
+
+  const eliminarTrazoPreview = useCallback((trazoId: string) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+  }, []);
+
+  const borrarTrazosPreview = useCallback(() => {
+    setEstadoMapa(prev => ({ ...prev, trazos: [] }));
+  }, []);
+
+  const cambiarDibujoCongeladoPreview = useCallback((congelado: boolean) => {
+    setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
+  }, []);
+
   const cambiarApodoPreview = useCallback((apodo: string) => {
     const limpio = apodo.trim().slice(0, 24);
     setJugadores(prev =>
@@ -530,6 +557,10 @@ export default function PreviewApp() {
           onEliminarPlantilla={eliminarPlantillaPreview}
           onCambiarIniciativa={cambiarIniciativaPreview}
           onTerminarTurnoIniciativa={terminarTurnoIniciativaPreview}
+          onAgregarTrazo={agregarTrazoPreview}
+          onEliminarTrazo={eliminarTrazoPreview}
+          onBorrarTrazos={borrarTrazosPreview}
+          onCambiarDibujoCongelado={cambiarDibujoCongeladoPreview}
           archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
           onSubirImagenMapa={subirImagenMapaPreview}
         />
@@ -540,6 +571,7 @@ export default function PreviewApp() {
           hostName="Máster"
           yoAsientoId="master"
           onAviso={mostrarAvisoPreview}
+          dibujoCongelado={Boolean(estadoMapa.dibujoCongelado)}
         />
       </>
     );

@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Snowflake,
   Trash2,
   Upload,
   X
@@ -93,6 +94,7 @@ export interface HudSalaCompartidoProps {
   onAviso?: (texto: string) => void;
   chatRect?: RectPizarra;
   dockPos?: { x: number; y: number };
+  dibujoCongelado?: boolean;
 }
 
 const DURACION_RESULTADO = 4500;
@@ -376,8 +378,9 @@ export function HudSalaCompartido({
   onConsultarResumenMaster,
   onSolicitarArchivos,
   onAviso,
-  chatRect = { x: 76.5, y: 58, w: 22, h: 28 },
-  dockPos = { x: 50, y: 92 }
+  chatRect = { x: 76.5, y: 66, w: 22, h: 28 },
+  dockPos = { x: 50, y: 92 },
+  dibujoCongelado = false
 }: HudSalaCompartidoProps) {
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
@@ -403,7 +406,7 @@ export function HudSalaCompartido({
   ]);
   const [macroBonificador, setMacroBonificador] = useState(0);
 
-const CLAVE_CHAT_MAPA = "pocketrol.mapa.chat.v2";
+const CLAVE_CHAT_MAPA = "pocketrol.mapa.chat.v3";
 
 function cargarChatMapaRect(defecto: RectPizarra): RectPizarra {
   try {
@@ -1081,6 +1084,15 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         aria-label="Divisa y mochila"
         style={{ pointerEvents: "auto" }}
       >
+        {!esMaster && dibujoCongelado && (
+          <span
+            className="hud-dibujo-congelado-icono"
+            title="Dibujo en el mapa congelado por el Máster"
+            aria-label="Dibujo congelado"
+          >
+            <Snowflake size={16} strokeWidth={2.3} aria-hidden="true" />
+          </span>
+        )}
         <div className="hud-divisa-caja">
           <span className="hud-divisa-titulo">{divisaNombre}</span>
           <div className="hud-divisa-fila">
@@ -1846,8 +1858,8 @@ function guardarChatMapaRect(rect: RectPizarra): void {
 
       {selectorAbierto && (
         <form
-          className={`dados-selector${dockPos.y < 30 ? " debajo" : ""}${tiradaSecreta ? " secreta" : ""}`}
-          style={{ left: `${dockPos.x}%`, top: `${dockPos.y}%`, pointerEvents: "auto" }}
+          className={`dados-selector en-mapa${dockPos.y < 30 ? " debajo" : ""}${tiradaSecreta ? " secreta" : ""}`}
+          style={{ pointerEvents: "auto" }}
           onSubmit={evento => {
             evento.preventDefault();
             tirarDado();
@@ -2170,8 +2182,8 @@ function guardarChatMapaRect(rect: RectPizarra): void {
 
       {macrosAbierto && (
         <div
-          className={`dados-selector macros-selector${dockPos.y < 30 ? " debajo" : ""}${macroSecreta ? " secreta" : ""}`}
-          style={{ left: `${dockPos.x}%`, top: `${dockPos.y}%`, pointerEvents: "auto" }}
+          className={`dados-selector macros-selector en-mapa${dockPos.y < 30 ? " debajo" : ""}${macroSecreta ? " secreta" : ""}`}
+          style={{ pointerEvents: "auto" }}
           role="dialog"
           aria-label="Macros de tirada"
         >
@@ -2505,8 +2517,8 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         !macrosAbierto &&
         !macroModalAbierto && (
         <div
-          className={`tirada-panel${dockPos.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
-          style={{ left: `${dockPos.x}%`, top: `${dockPos.y}%`, pointerEvents: "auto" }}
+          className={`tirada-panel en-mapa${dockPos.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
+          style={{ pointerEvents: "auto" }}
         >
           <span className="tirada-icono">
             <IconoDadoPoligono caras={tirada.caras} />
@@ -2548,8 +2560,8 @@ function guardarChatMapaRect(rect: RectPizarra): void {
       )}
 
       <div
-        className="sala-dock"
-        style={{ left: `${dockPos.x}%`, top: `${dockPos.y}%`, pointerEvents: "auto" }}
+        className="sala-dock en-mapa"
+        style={{ pointerEvents: "auto" }}
       >
         <div className="dock-item">
           <button

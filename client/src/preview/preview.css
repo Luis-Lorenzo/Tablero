@@ -1936,14 +1936,16 @@
 
 .mapa-barra-flotante {
   position: absolute;
-  top: 12px;
-  left: 14px;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 26;
   display: inline-flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 6px;
-  max-width: calc(100vw - 260px);
+  max-width: calc(100vw - 380px);
   padding: 6px 8px;
   border: 2px solid #3c424f;
   border-radius: 10px;
@@ -1970,6 +1972,78 @@
 }
 
 .mapa-barra-flotante .pizarra-tool-btn.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 22%);
+  color: #ffe8a3;
+}
+
+.mapa-barra-flotante .pizarra-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mapa-dibujo-paleta {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  margin-top: 2px;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+}
+
+.mapa-dibujo-colores {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mapa-color-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid rgb(255 255 255 / 26%);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.mapa-color-swatch:hover {
+  transform: scale(1.12);
+  border-color: #fff;
+}
+
+.mapa-color-swatch.activo {
+  border-color: #ffe8a3;
+  box-shadow: 0 0 0 2px #090b0f, 0 0 8px rgb(232 197 106 / 65%);
+  transform: scale(1.14);
+}
+
+.mapa-dibujo-grosores {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mapa-grosor-btn {
+  padding: 3px 7px;
+  border: 1px solid #495060;
+  border-radius: 5px;
+  background: #171a21;
+  color: #d4d8e0;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapa-grosor-btn:hover {
+  border-color: #e8c56a;
+  color: #fff;
+}
+
+.mapa-grosor-btn.activo {
   border-color: #e8c56a;
   background: rgb(232 197 106 / 22%);
   color: #ffe8a3;
@@ -2041,7 +2115,8 @@
   cursor: grab;
 }
 
-.mapa-viewport.modo-ping {
+.mapa-viewport.modo-ping,
+.mapa-viewport.modo-dibujo {
   cursor: crosshair;
 }
 
@@ -2096,6 +2171,16 @@
 .mapa-rejilla-svg {
   position: absolute;
   inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.mapa-dibujo-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -2183,6 +2268,50 @@
   box-shadow: 5px 5px 0 #090b0f;
   color: #ece8df;
   overflow: hidden;
+}
+
+.mapa-panel.en-abajo {
+  left: 14px;
+  bottom: 184px;
+  top: auto;
+  max-height: calc(100vh - 210px);
+}
+
+.mapa-tokens-dock {
+  position: fixed;
+  left: 14px;
+  bottom: 114px;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 2px solid #3c424f;
+  border-radius: 10px;
+  background: rgb(22 25 32 / 92%);
+  box-shadow: 4px 4px 0 #090b0f;
+  backdrop-filter: blur(6px);
+}
+
+.mapa-tokens-dock .pizarra-tool-btn {
+  padding: 6px 9px;
+  border-color: #495060;
+  background: #232833;
+  color: #ece8df;
+  box-shadow: 2px 2px 0 #090b0f;
+  font-size: 0.72rem;
+}
+
+.mapa-tokens-dock .pizarra-tool-btn:hover:not(:disabled) {
+  border-color: #e8c56a;
+  background: #2d3341;
+  color: #fff;
+}
+
+.mapa-tokens-dock .pizarra-tool-btn.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 22%);
+  color: #ffe8a3;
 }
 
 .mapa-panel-cabecera {
@@ -2806,19 +2935,29 @@
   pointer-events: none;
 }
 
-/* Tracker de Iniciativa (arriba centro) */
+/* Columna izquierda: Iniciativa arriba + Jugadores debajo */
 
-.mapa-iniciativa-barra {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+.mapa-izquierda-stack {
+  position: fixed;
+  left: 14px;
+  top: 14px;
   z-index: 25;
-  max-width: min(640px, calc(100vw - 440px));
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.mapa-iniciativa-barra {
+  position: relative;
+  z-index: 25;
+  max-width: min(360px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
+  pointer-events: auto;
 }
 
 .mapa-iniciativa-cabecera {
@@ -3130,9 +3269,7 @@
 /* Columna vertical de jugadores en el borde izquierdo del mapa */
 
 .mapa-jugadores-columna {
-  position: fixed;
-  left: 14px;
-  top: 68px;
+  position: relative;
   z-index: 22;
   display: flex;
   flex-direction: column;
@@ -3142,7 +3279,7 @@
 }
 
 .mapa-jugadores-columna.con-master {
-  top: 68px;
+  top: auto;
 }
 
 .mapa-jugadores-titulo-svg {
@@ -3291,17 +3428,12 @@
 }
 
 @media (max-width: 900px) {
-  .mapa-jugadores-columna {
-    top: 68px;
-  }
-
-  .mapa-jugadores-columna.con-master {
-    top: 68px;
+  .mapa-izquierda-stack {
+    top: 60px;
   }
 
   .mapa-iniciativa-barra {
     max-width: calc(100vw - 24px);
-    top: 56px;
   }
 }
 
@@ -8019,4 +8151,97 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #3a2110;
+}
+
+/* ==================== HUD Mapa: Dock, Congelado y Móvil ==================== */
+
+.hud-dibujo-congelado-icono {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #60a5fa;
+  filter: drop-shadow(0 0 8px rgb(96 165 250 / 75%));
+  pointer-events: none;
+}
+
+.hud-mapa-capa .sala-dock.en-mapa {
+  left: 50%;
+  bottom: 28px;
+  top: auto;
+  transform: translateX(-50%);
+  gap: 14px;
+}
+
+.hud-mapa-capa .sala-dock.en-mapa .dock-btn {
+  width: 54px;
+  height: 54px;
+}
+
+.hud-mapa-capa .sala-dock.en-mapa .dock-btn svg {
+  width: 26px;
+  height: 26px;
+}
+
+.hud-mapa-capa .dados-selector.en-mapa,
+.hud-mapa-capa .macros-selector.en-mapa {
+  left: 50%;
+  bottom: 106px;
+  top: auto;
+  transform: translateX(-50%);
+}
+
+.hud-mapa-capa .tirada-panel.en-mapa {
+  left: 50%;
+  bottom: 106px;
+  top: auto;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 760px) {
+  .mapa-barra-flotante {
+    max-width: calc(100vw - 24px);
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    gap: 4px;
+    padding: 5px 6px;
+  }
+
+  .mapa-tokens-dock {
+    left: 10px;
+    bottom: 62px;
+    padding: 5px 6px;
+    gap: 5px;
+  }
+
+  .mapa-panel.en-abajo {
+    left: 10px;
+    bottom: 116px;
+    top: auto;
+    max-height: calc(100vh - 138px);
+  }
+
+  .hud-mapa-capa .sala-dock.en-mapa {
+    left: 50%;
+    right: auto;
+    bottom: 66px;
+    top: auto;
+    transform: translateX(-50%);
+    gap: 10px;
+  }
+
+  .hud-mapa-capa .dados-selector.en-mapa,
+  .hud-mapa-capa .macros-selector.en-mapa,
+  .hud-mapa-capa .tirada-panel.en-mapa {
+    left: 10px;
+    right: 10px;
+    bottom: 126px;
+    top: auto;
+    width: auto;
+    max-width: calc(100vw - 20px);
+    transform: none;
+  }
 }
