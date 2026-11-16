@@ -802,12 +802,12 @@ export function Mapa({
       const debeAjustar = rejillaActiva.imanActivo && !evento.altKey;
       const posFinal = debeAjustar
         ? ajustarARejilla(
-            rawX,
-            rawY,
-            tokActivo.celdasAncho,
-            tokActivo.celdasAlto,
-            rejillaActiva
-          )
+          rawX,
+          rawY,
+          tokActivo.celdasAncho,
+          tokActivo.celdasAlto,
+          rejillaActiva
+        )
         : { x: rawX, y: rawY };
 
       const actualizado: ArrastreToken = {
@@ -869,12 +869,12 @@ export function Mapa({
       const yCrudo = limitar(((ev.clientY - rect.top) / rect.height) * 100, 0, 100);
       const pos = rejillaActiva.imanActivo
         ? ajustarARejilla(
-            xCrudo,
-            yCrudo,
-            token.celdasAncho,
-            token.celdasAlto,
-            rejillaActiva
-          )
+          xCrudo,
+          yCrudo,
+          token.celdasAncho,
+          token.celdasAlto,
+          rejillaActiva
+        )
         : { x: xCrudo, y: yCrudo };
       void onActualizarToken(token.id, {
         enLimbo: false,
@@ -1033,9 +1033,9 @@ export function Mapa({
       setRejillaBorrador(prev =>
         prev.filasAuto
           ? {
-              ...prev,
-              filas: calcularFilasAuto(prev.columnas, aspectoNuevo)
-            }
+            ...prev,
+            filas: calcularFilasAuto(prev.columnas, aspectoNuevo)
+          }
           : prev
       );
     } catch (err) {
@@ -1143,12 +1143,12 @@ export function Mapa({
   ): Promise<void> {
     const centro = rejillaActiva.imanActivo
       ? ajustarARejilla(
-          50,
-          50,
-          plantilla.celdasAncho,
-          plantilla.celdasAlto,
-          rejillaActiva
-        )
+        50,
+        50,
+        plantilla.celdasAncho,
+        plantilla.celdasAlto,
+        rejillaActiva
+      )
       : { x: 50, y: 50 };
 
     await onCrearToken(
@@ -1268,9 +1268,9 @@ export function Mapa({
         siguiente.entradas.length === 0
           ? 0
           : Math.max(
-              0,
-              Math.min(siguiente.entradas.length - 1, siguiente.turnoIndice)
-            )
+            0,
+            Math.min(siguiente.entradas.length - 1, siguiente.turnoIndice)
+          )
     };
     void onCambiarIniciativa?.(normalizada);
   }
@@ -1475,7 +1475,7 @@ export function Mapa({
     return jugadoresActivos.some(j => {
       const esMismoJugador = Boolean(
         nombreJugador &&
-          (j.nombre === nombreJugador || j.apodo?.trim() === nombreJugador)
+        (j.nombre === nombreJugador || j.apodo?.trim() === nombreJugador)
       );
       if (!esMismoJugador) return false;
       return (
@@ -1719,9 +1719,8 @@ export function Mapa({
                 <button
                   key={color}
                   type="button"
-                  className={`mapa-color-swatch${
-                    colorDibujo === color ? " activo" : ""
-                  }`}
+                  className={`mapa-color-swatch${colorDibujo === color ? " activo" : ""
+                    }`}
                   style={{ backgroundColor: color }}
                   aria-label={`Color ${color}`}
                   onClick={() => setColorDibujo(color)}
@@ -1734,9 +1733,8 @@ export function Mapa({
                 <button
                   key={item.valor}
                   type="button"
-                  className={`mapa-grosor-btn${
-                    grosorDibujo === item.valor ? " activo" : ""
-                  }`}
+                  className={`mapa-grosor-btn${grosorDibujo === item.valor ? " activo" : ""
+                    }`}
                   onClick={() => setGrosorDibujo(item.valor)}
                 >
                   {item.etiqueta}
@@ -1810,11 +1808,9 @@ export function Mapa({
                         setArrastreIniciativaIdx(null);
                         setSobreIniciativaIdx(null);
                       }}
-                      className={`mapa-iniciativa-chip${esTurno ? " activo" : ""}${
-                        entrada.esMonstruo ? " monstruo" : ""
-                      }${esMaster ? " arrastrable" : ""}${
-                        arrastreIniciativaIdx === idx ? " arrastrando" : ""
-                      }${sobreIniciativaIdx === idx && arrastreIniciativaIdx !== idx ? " sobre-destino" : ""}`}
+                      className={`mapa-iniciativa-chip${esTurno ? " activo" : ""}${entrada.esMonstruo ? " monstruo" : ""
+                        }${esMaster ? " arrastrable" : ""}${arrastreIniciativaIdx === idx ? " arrastrando" : ""
+                        }${sobreIniciativaIdx === idx && arrastreIniciativaIdx !== idx ? " sobre-destino" : ""}`}
                       title={
                         esMaster
                           ? `${entrada.nombre} (${entrada.valor}) — Arrastra para reordenar`
@@ -2009,9 +2005,8 @@ export function Mapa({
                         <button
                           key={token.id}
                           type="button"
-                          className={`mapa-iniciativa-token-btn${
-                            token.esMonstruo ? " monstruo" : ""
-                          }${yaEnLista ? " en-lista" : ""}`}
+                          className={`mapa-iniciativa-token-btn${token.esMonstruo ? " monstruo" : ""
+                            }${yaEnLista ? " en-lista" : ""}`}
                           disabled={yaEnLista}
                           onClick={() => agregarTokenIniciativa(token)}
                           title={
@@ -2081,11 +2076,9 @@ export function Mapa({
                         setArrastreIniciativaIdx(null);
                         setSobreIniciativaIdx(null);
                       }}
-                      className={`mapa-iniciativa-editor-item${
-                        idx === iniciativa.turnoIndice ? " activo" : ""
-                      }${esMaster ? " arrastrable" : ""}${
-                        arrastreIniciativaIdx === idx ? " arrastrando" : ""
-                      }${sobreIniciativaIdx === idx && arrastreIniciativaIdx !== idx ? " sobre-destino" : ""}`}
+                      className={`mapa-iniciativa-editor-item${idx === iniciativa.turnoIndice ? " activo" : ""
+                        }${esMaster ? " arrastrable" : ""}${arrastreIniciativaIdx === idx ? " arrastrando" : ""
+                        }${sobreIniciativaIdx === idx && arrastreIniciativaIdx !== idx ? " sobre-destino" : ""}`}
                     >
                       {esMaster && (
                         <GripVertical
@@ -2203,9 +2196,8 @@ export function Mapa({
                     aria-hidden="true"
                   />
                   <span
-                    className={`mapa-jugador-nombre${
-                      tieneApodo ? " con-apodo" : ""
-                    }`}
+                    className={`mapa-jugador-nombre${tieneApodo ? " con-apodo" : ""
+                      }`}
                     title={
                       tieneApodo ? `${etiqueta} (${j.nombre})` : j.nombre
                     }
@@ -2216,9 +2208,8 @@ export function Mapa({
 
                 {tirada && (
                   <div
-                    className={`mapa-jugador-tirada${
-                      tirada.especial === "critico" ? " critico" : ""
-                    }${tirada.especial === "pifia" ? " pifia" : ""}`}
+                    className={`mapa-jugador-tirada${tirada.especial === "critico" ? " critico" : ""
+                      }${tirada.especial === "pifia" ? " pifia" : ""}`}
                     aria-label={`${etiqueta} sacó ${tirada.total}`}
                   >
                     <span
@@ -2311,9 +2302,8 @@ export function Mapa({
                       <button
                         key={arch.id}
                         type="button"
-                        className={`mapa-archivo-chip${
-                          fondoBorrador?.archivoId === arch.id ? " activo" : ""
-                        }`}
+                        className={`mapa-archivo-chip${fondoBorrador?.archivoId === arch.id ? " activo" : ""
+                          }`}
                         onClick={() => void alElegirArchivoFondo(arch)}
                         title={arch.nombre}
                       >
@@ -2602,9 +2592,8 @@ export function Mapa({
                         <button
                           key={n}
                           type="button"
-                          className={`mapa-preset-btn${
-                            celdasToken === n ? " activo" : ""
-                          }`}
+                          className={`mapa-preset-btn${celdasToken === n ? " activo" : ""
+                            }`}
                           onClick={() => setCeldasToken(n)}
                         >
                           {n}×{n}
@@ -2622,11 +2611,10 @@ export function Mapa({
                         <button
                           key={color}
                           type="button"
-                          className={`mapa-color-swatch${
-                            colorToken.toLowerCase() === color.toLowerCase()
-                              ? " activo"
-                              : ""
-                          }`}
+                          className={`mapa-color-swatch${colorToken.toLowerCase() === color.toLowerCase()
+                            ? " activo"
+                            : ""
+                            }`}
                           style={{ backgroundColor: color }}
                           aria-label={`Color ${color}`}
                           onClick={() => setColorToken(color)}
@@ -2683,9 +2671,8 @@ export function Mapa({
                         <button
                           key={cat}
                           type="button"
-                          className={`mapa-bandeja-filtro-btn${
-                            categoriaToken === cat ? " activo" : ""
-                          }`}
+                          className={`mapa-bandeja-filtro-btn${categoriaToken === cat ? " activo" : ""
+                            }`}
                           onClick={() =>
                             setCategoriaToken(prev => (prev === cat ? "" : cat))
                           }
@@ -2726,9 +2713,8 @@ export function Mapa({
                       type="button"
                       role="tab"
                       aria-selected={filtroCategoriaBandeja === "Todas"}
-                      className={`mapa-bandeja-filtro-btn${
-                        filtroCategoriaBandeja === "Todas" ? " activo" : ""
-                      }`}
+                      className={`mapa-bandeja-filtro-btn${filtroCategoriaBandeja === "Todas" ? " activo" : ""
+                        }`}
                       onClick={() => setFiltroCategoriaBandeja("Todas")}
                     >
                       Todas
@@ -2739,9 +2725,8 @@ export function Mapa({
                         type="button"
                         role="tab"
                         aria-selected={filtroCategoriaBandeja === cat}
-                        className={`mapa-bandeja-filtro-btn${
-                          filtroCategoriaBandeja === cat ? " activo" : ""
-                        }`}
+                        className={`mapa-bandeja-filtro-btn${filtroCategoriaBandeja === cat ? " activo" : ""
+                          }`}
                         onClick={() => setFiltroCategoriaBandeja(cat)}
                       >
                         {cat}
@@ -2828,9 +2813,8 @@ export function Mapa({
                             ) : onActualizarPlantilla ? (
                               <button
                                 type="button"
-                                className={`mapa-bandeja-cat-badge${
-                                  pl.categoria ? "" : " vacia"
-                                }`}
+                                className={`mapa-bandeja-cat-badge${pl.categoria ? "" : " vacia"
+                                  }`}
                                 onClick={() => {
                                   setPlantillaEditandoCatId(pl.id);
                                   setCategoriaEdicionValor(pl.categoria || "");
@@ -2904,12 +2888,12 @@ export function Mapa({
                   onClick={() => {
                     const pos = rejillaActiva.imanActivo
                       ? ajustarARejilla(
-                          tokenSeleccionado.x,
-                          tokenSeleccionado.y,
-                          n,
-                          n,
-                          rejillaActiva
-                        )
+                        tokenSeleccionado.x,
+                        tokenSeleccionado.y,
+                        n,
+                        n,
+                        rejillaActiva
+                      )
                       : { x: tokenSeleccionado.x, y: tokenSeleccionado.y };
                     void onActualizarToken(tokenSeleccionado.id, {
                       celdasAncho: n,
@@ -2976,9 +2960,8 @@ export function Mapa({
       {/* Viewport interactivo (Zoom + Pan) */}
       <div
         ref={viewportRef}
-        className={`mapa-viewport${modoPing ? " modo-ping" : ""}${
-          dibujandoActivo ? " modo-dibujo" : ""
-        }${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
+        className={`mapa-viewport${modoPing ? " modo-ping" : ""}${dibujandoActivo ? " modo-dibujo" : ""
+          }${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
         onWheel={alGirarRueda}
         onPointerDown={alBajarPunteroViewport}
         onPointerMove={alMoverPunteroViewport}
@@ -3004,12 +2987,12 @@ export function Mapa({
           const yCrudo = limitar(((e.clientY - rect.top) / rect.height) * 100, 0, 100);
           const pos = rejillaActiva.imanActivo
             ? ajustarARejilla(
-                xCrudo,
-                yCrudo,
-                token.celdasAncho,
-                token.celdasAlto,
-                rejillaActiva
-              )
+              xCrudo,
+              yCrudo,
+              token.celdasAncho,
+              token.celdasAlto,
+              rejillaActiva
+            )
             : { x: xCrudo, y: yCrudo };
           void onActualizarToken(token.id, {
             enLimbo: false,
@@ -3048,8 +3031,8 @@ export function Mapa({
                   if (img.naturalWidth > 0 && img.naturalHeight > 0) {
                     setDimsNaturales(prev =>
                       prev &&
-                      prev.w === img.naturalWidth &&
-                      prev.h === img.naturalHeight
+                        prev.w === img.naturalWidth &&
+                        prev.h === img.naturalHeight
                         ? prev
                         : { w: img.naturalWidth, h: img.naturalHeight }
                     );
@@ -3153,9 +3136,9 @@ export function Mapa({
                 escalaActual;
               const esDeMaster = Boolean(
                 token.esMonstruo ||
-                  masterIds.has(token.autorId) ||
-                  (esMaster && miUsuarioId && token.autorId === miUsuarioId) ||
-                  (esMaster && (!token.autorId || token.autorId === "local"))
+                masterIds.has(token.autorId) ||
+                (esMaster && miUsuarioId && token.autorId === miUsuarioId) ||
+                (esMaster && (!token.autorId || token.autorId === "local"))
               );
               const anchoTokenPx = (anchoPct / 100) * tamanoCanvas.w;
               const etiquetaFontPx = Math.max(
@@ -3166,11 +3149,9 @@ export function Mapa({
               return (
                 <div
                   key={token.id}
-                  className={`mapa-token${editable ? " editable" : ""}${
-                    seleccionado ? " seleccionado" : ""
-                  }${enArrastre ? " arrastrando" : ""}${
-                    token.esMonstruo ? " monstruo" : ""
-                  }${esDeMaster ? " de-master" : ""}`}
+                  className={`mapa-token${editable ? " editable" : ""}${seleccionado ? " seleccionado" : ""
+                    }${enArrastre ? " arrastrando" : ""}${token.esMonstruo ? " monstruo" : ""
+                    }${esDeMaster ? " de-master" : ""}`}
                   style={
                     {
                       left: `${posX}%`,
@@ -3234,9 +3215,8 @@ export function Mapa({
       {/* Contenedor horizontal: Limbo de tokens al lado de Archivador */}
       <aside
         ref={limboRef}
-        className={`mapa-limbo${sobreLimbo ? " destino-limbo" : ""}${
-          esMaster ? " con-master" : ""
-        }`}
+        className={`mapa-limbo${sobreLimbo ? " destino-limbo" : ""}${esMaster ? " con-master" : ""
+          }`}
         aria-label="Limbo de tokens"
         onPointerDown={e => e.stopPropagation()}
         onWheel={e => e.stopPropagation()}

@@ -2867,12 +2867,10 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: radial-gradient(
-    circle at 34% 28%,
-    rgb(255 255 255 / 55%) 0%,
-    var(--esfera-color, #e8c56a) 46%,
-    rgb(0 0 0 / 55%) 100%
-  );
+  background: radial-gradient(circle at 34% 28%,
+      rgb(255 255 255 / 55%) 0%,
+      var(--esfera-color, #e8c56a) 46%,
+      rgb(0 0 0 / 55%) 100%);
   color: rgb(255 255 255 / 88%);
   text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
 }
@@ -3498,13 +3496,13 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-turno-panel {
   position: fixed;
-  top: 10px;
-  left: 224px;
+  top: 22px;
+  left: 266px;
   z-index: 26;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: 9px;
+  padding: 6px 10px;
   border-radius: 10px;
   background: rgb(18 21 28 / 92%);
   border: 2px solid #3c424f;
@@ -3517,11 +3515,11 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
+  gap: 7px;
+  padding: 9px 16px;
   border-radius: 8px;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.94rem;
   font-weight: 800;
   line-height: 1.1;
   background: #16a34a;
@@ -3555,9 +3553,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-turno-timer {
   font-family: "Press Start 2P", monospace;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   line-height: 1;
-  padding: 6px 9px;
+  padding: 7px 11px;
   border-radius: 7px;
   background: #0c0e13;
   border: 1.5px solid #333a48;
@@ -3798,8 +3796,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-jugadores-titulo-svg {
-  width: 196px;
-  height: 38px;
+  width: 235px;
+  height: 46px;
   overflow: visible;
   pointer-events: none;
   margin-bottom: -2px;
@@ -3807,7 +3805,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-jugadores-titulo-svg text {
   font-family: "Press Start 2P", monospace;
-  font-size: 13px;
+  font-size: 15.5px;
   font-weight: 700;
   fill: #ffffff;
   letter-spacing: 0.04em;
@@ -3818,15 +3816,15 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   pointer-events: auto;
 }
 
 .mapa-jugador-ficha {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 5px 12px 5px 6px;
+  gap: 11px;
+  padding: 6px 14px 6px 7px;
   border-radius: 999px;
   border: 1px solid rgb(255 255 255 / 14%);
   background: rgb(16 18 25 / 86%);
@@ -3850,8 +3848,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-jugador-esfera {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   flex-shrink: 0;
   border: 2px solid rgb(255 255 255 / 60%);
@@ -3871,13 +3869,13 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-jugador-nombre {
-  max-width: 150px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 2px 10px;
+  padding: 3px 12px;
   border-radius: 999px;
-  font-size: 0.88rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #ffffff;
   background: color-mix(in srgb, var(--jugador-color) 20%, rgb(12 10 18 / 68%));
@@ -3907,6 +3905,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 .mapa-jugador-tirada.critico {
   border-color: #3ddc84;
   color: #3ddc84;
+  box-shadow: 0 0 12px rgb(61 220 132 / 40%);
   box-shadow:
     0 0 8px rgb(61 220 132 / 65%),
     0 0 18px rgb(61 220 132 / 45%);
@@ -3914,13 +3913,13 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-jugador-tirada.critico .mapa-jugador-tirada-icono {
   filter:
-    drop-shadow(0 0 4px #3ddc84)
-    drop-shadow(0 0 9px rgb(61 220 132 / 90%));
+    drop-shadow(0 0 4px #3ddc84) drop-shadow(0 0 9px rgb(61 220 132 / 90%));
 }
 
 .mapa-jugador-tirada.pifia {
   border-color: #ff5c77;
   color: #ff5c77;
+  box-shadow: 0 0 12px rgb(255 92 119 / 40%);
   box-shadow:
     0 0 8px rgb(255 92 119 / 65%),
     0 0 18px rgb(255 92 119 / 45%);
@@ -3928,8 +3927,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-jugador-tirada.pifia .mapa-jugador-tirada-icono {
   filter:
-    drop-shadow(0 0 4px #ff5c77)
-    drop-shadow(0 0 9px rgb(255 92 119 / 90%));
+    drop-shadow(0 0 4px #ff5c77) drop-shadow(0 0 9px rgb(255 92 119 / 90%));
 }
 
 .mapa-jugador-tirada-icono {
@@ -6208,15 +6206,31 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .asiento-d20.critico {
+  color: #3ddc84;
+  filter: drop-shadow(0 0 12px rgb(61 220 132 / 85%));
   filter:
-    drop-shadow(0 0 6px #3ddc84)
-    drop-shadow(0 0 15px rgb(61 220 132 / 92%));
+    drop-shadow(0 0 6px #3ddc84) drop-shadow(0 0 15px rgb(61 220 132 / 92%));
+}
+
+.asiento-d20.critico polygon,
+.asiento-d20.critico rect,
+.asiento-d20.critico circle {
+  fill: rgb(10 32 22 / 94%);
+  stroke: #3ddc84;
 }
 
 .asiento-d20.pifia {
+  color: #ff5c77;
+  filter: drop-shadow(0 0 12px rgb(255 92 119 / 85%));
   filter:
-    drop-shadow(0 0 6px #ff5c77)
-    drop-shadow(0 0 15px rgb(255 92 119 / 92%));
+    drop-shadow(0 0 6px #ff5c77) drop-shadow(0 0 15px rgb(255 92 119 / 92%));
+}
+
+.asiento-d20.pifia polygon,
+.asiento-d20.pifia rect,
+.asiento-d20.pifia circle {
+  fill: rgb(36 10 18 / 94%);
+  stroke: #ff5c77;
 }
 
 .tirada-panel.critico {
@@ -9017,7 +9031,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   pointer-events: none;
 }
 
-.mapa-elementos-capa > * {
+.mapa-elementos-capa>* {
   pointer-events: auto;
 }
 
@@ -9751,6 +9765,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
