@@ -2563,10 +2563,14 @@ html.modo-claro textarea {
 }
 
 html.modo-claro .archivos-item,
-html.modo-claro .archivo-rapido-link,
-html.modo-claro .gestion-bloque {
+html.modo-claro .archivo-rapido-link {
   background: rgb(255 253 248 / 90%);
   border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .gestion-bloque {
+  background: transparent;
   color: #2A1F3D;
 }
 
@@ -2853,4 +2857,66 @@ html.modo-claro .feedback.aviso {
   background: rgb(226 169 59 / 18%);
   border-color: #B8862B;
   color: #7A4F0C;
+}
+
+html.modo-claro .gestion-subtitulo {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .gestion-subtitulo svg {
+  color: #5B4688;
+}
+
+html.modo-claro .hexagono-grande text {
+  fill: #2A1F3D;
+}
+
+html.modo-claro .hexagono-grande.amarillo polygon {
+  stroke: #B8862B;
+  fill: rgb(226 169 59 / 14%);
+  filter: none;
+}
+
+html.modo-claro .hexagono-grande.rojo polygon {
+  stroke: #C94A5A;
+  fill: rgb(201 74 90 / 10%);
+  filter: none;
+}
+
+html.modo-claro .hexagono-grande.verde polygon {
+  stroke: #1E9E78;
+  fill: rgb(30 158 120 / 12%);
+  filter: none;
+}
+
+html.modo-claro .gestion-jugadores li {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .jugador-nombre {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .jugador-yo {
+  color: #5B4688;
+}
+
+html.modo-claro .paleta-colores {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+}
+
+html.modo-claro .detail-item,
+html.modo-claro .cuenta-form {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .details dt {
+  color: #534469;
 }
