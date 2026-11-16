@@ -17,6 +17,8 @@ import {
   MemoryPizarraEstadoRepository,
   sanitizarPizarraEstado
 } from "../repositories/pizarra-estado.repository.js";
+import { MemoryMapaEstadoRepository } from "../repositories/mapa-estado.repository.js";
+import { MapaEstadoService } from "../services/mapa-estado.service.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
 
 function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
@@ -38,6 +40,13 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     context.mesaEstadoRepository ?? new MemoryMesaEstadoRepository();
   const pizarraEstado =
     context.pizarraEstadoRepository ?? new MemoryPizarraEstadoRepository();
+  const mapaEstadoService =
+    context.mapaEstadoService ??
+    new MapaEstadoService(
+      context.mesaRepository,
+      context.mapaEstadoRepository ?? new MemoryMapaEstadoRepository(),
+      context.mesasNotifier
+    );
   const transferencias =
     context.transferenciaService ??
     new TransferenciaService(
@@ -770,6 +779,97 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       next(error);
     }
   });
+
+  router.get("/:id/mapa", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.obtenerMapa(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/mapa/fondo", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as {
+        fondo?: unknown;
+        rejilla?: unknown;
+      };
+      const mapa = await mapaEstadoService.guardarFondoYRejilla(
+        req.currentUser!,
+        String(req.params.id),
+        body.fondo as Parameters<typeof mapaEstadoService.guardarFondoYRejilla>[2],
+        body.rejilla as Parameters<typeof mapaEstadoService.guardarFondoYRejilla>[3]
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/mapa/tokens", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const guardarPlantilla = body.guardarPlantilla === true;
+      const mapa = await mapaEstadoService.crearToken(
+        req.currentUser!,
+        String(req.params.id),
+        body,
+        guardarPlantilla
+      );
+      res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/mapa/tokens/:tokenId", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const mapa = await mapaEstadoService.actualizarToken(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.tokenId),
+        body
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/tokens/:tokenId", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.eliminarToken(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.tokenId)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete(
+    "/:id/mapa/plantillas/:plantillaId",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mapa = await mapaEstadoService.eliminarPlantilla(
+          req.currentUser!,
+          String(req.params.id),
+          String(req.params.plantillaId)
+        );
+        res.json(mapa);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   return router;
 }

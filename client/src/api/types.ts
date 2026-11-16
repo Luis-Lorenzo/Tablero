@@ -168,3 +168,86 @@ export interface PublicJugadorResumenInventario {
   mochila: PublicObjetoResumen[];
   objetosMesa: PublicObjetoResumen[];
 }
+
+export interface MapaRejillaConfig {
+  visible: boolean;
+  columnas: number;
+  filas: number;
+  filasAuto: boolean;
+  offsetX: number;
+  offsetY: number;
+  color: string;
+  opacidad: number;
+  imanActivo: boolean;
+}
+
+export interface MapaFondoConfig {
+  archivoId?: string;
+  url: string;
+  titulo?: string;
+  anchoNatural?: number;
+  altoNatural?: number;
+}
+
+export interface TokenMapa {
+  id: string;
+  nombre: string;
+  archivoId?: string;
+  imagenUrl: string;
+  x: number;
+  y: number;
+  celdasAncho: number;
+  celdasAlto: number;
+  escala: number;
+  autorId: string;
+  autorNombre: string;
+  autorColor: string;
+  esMonstruo?: boolean;
+}
+
+export interface PlantillaTokenMapa {
+  id: string;
+  nombre: string;
+  archivoId?: string;
+  imagenUrl: string;
+  celdasAncho: number;
+  celdasAlto: number;
+  escala: number;
+  autorId: string;
+  esMonstruo?: boolean;
+}
+
+export interface EstadoMapaCompartido {
+  fondo: MapaFondoConfig | null;
+  rejilla: MapaRejillaConfig;
+  tokens: TokenMapa[];
+  plantillas: PlantillaTokenMapa[];
+}
+
+export interface GuardarMapaFondoPayload {
+  fondo?: MapaFondoConfig | null;
+  rejilla?: MapaRejillaConfig;
+}
+
+export interface CrearTokenMapaPayload {
+  nombre?: string;
+  archivoId?: string;
+  imagenUrl?: string;
+  x?: number;
+  y?: number;
+  celdasAncho?: number;
+  celdasAlto?: number;
+  escala?: number;
+  esMonstruo?: boolean;
+  guardarPlantilla?: boolean;
+}
+
+export interface ActualizarTokenMapaPayload {
+  nombre?: string;
+  x?: number;
+  y?: number;
+  celdasAncho?: number;
+  celdasAlto?: number;
+  escala?: number;
+  esMonstruo?: boolean;
+}

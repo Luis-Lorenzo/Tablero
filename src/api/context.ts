@@ -12,6 +12,8 @@ import type { MesasNotifier } from "../realtime/mesas-notifier.js";
 import type { ArchivoService } from "../services/archivo.service.js";
 import type { MesaEstadoRepository } from "../repositories/mesa-estado.repository.js";
 import type { PizarraEstadoRepository } from "../repositories/pizarra-estado.repository.js";
+import type { MapaEstadoRepository } from "../repositories/mapa-estado.repository.js";
+import type { MapaEstadoService } from "../services/mapa-estado.service.js";
 import type { TransferenciaService } from "../services/transferencia.service.js";
 import type { UserMacrosRepository } from "../repositories/user-macros.repository.js";
 
@@ -23,10 +25,12 @@ export interface AppContext {
   mesaRepository: MesaRepository;
   mesaEstadoRepository?: MesaEstadoRepository;
   pizarraEstadoRepository?: PizarraEstadoRepository;
+  mapaEstadoRepository?: MapaEstadoRepository;
   authService: AuthService;
   userService: UserService;
   bloqueoService: BloqueoService;
   mesaService: MesaService;
+  mapaEstadoService?: MapaEstadoService;
   chatService: ChatService;
   archivoService: ArchivoService;
   transferenciaService?: TransferenciaService;

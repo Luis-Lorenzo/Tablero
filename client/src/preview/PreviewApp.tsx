@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Archivador, ProyeccionMasterModal } from "./Archivador";
+import { HudSalaCompartido } from "./HudSalaCompartido";
 import { Lobby } from "./Lobby";
 import { Mapa } from "./Mapa";
 import { Pizarra } from "./Pizarra";
@@ -33,11 +34,16 @@ import type {
   Calibracion,
   DocumentoMesa,
   ElementoMesa,
+  EstadoMapaCompartido,
   FasePreview,
   ImagenEscenaPreview,
   JugadorPreview,
+  MapaFondoConfig,
+  MapaRejillaConfig,
+  PlantillaTokenMapa,
   PositPreview,
   SolicitudTransferencia,
+  TokenMapa,
   TrazoPizarra
 } from "./tipos";
 import "./preview.css";
@@ -46,6 +52,41 @@ import "./preview.css";
  * Preview aislada de la sala (Fase 0): sin backend, sin login, sin sonido y con
  * datos falsos. Se abre en desarrollo con `?preview=1`.
  */
+const MAPA_PREVIEW_KEY = "tablero.preview.mapa.v1";
+
+const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
+  fondo: null,
+  rejilla: {
+    visible: true,
+    columnas: 20,
+    filas: 12,
+    filasAuto: true,
+    offsetX: 0,
+    offsetY: 0,
+    color: "#ffffff",
+    opacidad: 0.35,
+    imanActivo: true
+  },
+  tokens: [],
+  plantillas: []
+};
+
+function cargarEstadoMapaPreview(): EstadoMapaCompartido {
+  try {
+    const raw = window.localStorage.getItem(MAPA_PREVIEW_KEY);
+    if (!raw) return ESTADO_MAPA_DEFECTO;
+    const parsed = JSON.parse(raw) as Partial<EstadoMapaCompartido>;
+    return {
+      fondo: parsed.fondo ?? null,
+      rejilla: { ...ESTADO_MAPA_DEFECTO.rejilla, ...(parsed.rejilla ?? {}) },
+      tokens: Array.isArray(parsed.tokens) ? parsed.tokens : [],
+      plantillas: Array.isArray(parsed.plantillas) ? parsed.plantillas : []
+    };
+  } catch {
+    return ESTADO_MAPA_DEFECTO;
+  }
+}
+
 /** Permite abrir directamente una fase: `?preview=1&fase=sala`. */
 function faseInicial(): FasePreview {
   const valor = new URLSearchParams(window.location.search).get("fase");
@@ -179,6 +220,9 @@ export default function PreviewApp() {
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
   >(null);
+  const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(
+    cargarEstadoMapaPreview
+  );
 
   useEffect(() => {
     guardarJugadores(jugadores);
@@ -211,6 +255,103 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarProyeccionPreview(imagenProyectada);
   }, [imagenProyectada]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MAPA_PREVIEW_KEY, JSON.stringify(estadoMapa));
+    } catch {
+      // Sin espacio o bloqueado en navegador privado.
+    }
+  }, [estadoMapa]);
+
+  const cambiarFondoYRejillaPreview = useCallback(
+    (fondo: MapaFondoConfig | null, rejilla: MapaRejillaConfig) => {
+      setEstadoMapa(prev => ({ ...prev, fondo, rejilla }));
+    },
+    []
+  );
+
+  const crearTokenPreview = useCallback(
+    (
+      token: Omit<TokenMapa, "id" | "autorId" | "autorNombre" | "autorColor">,
+      guardarPlantilla = false
+    ) => {
+      const nuevoToken: TokenMapa = {
+        ...token,
+        id: nuevoIdElemento(),
+        autorId: "master",
+        autorNombre: "Máster",
+        autorColor: "#e8c56a"
+      };
+      setEstadoMapa(prev => {
+        const plantillas: PlantillaTokenMapa[] = guardarPlantilla
+          ? [
+              ...prev.plantillas,
+              {
+                id: nuevoIdElemento(),
+                nombre: token.nombre,
+                archivoId: token.archivoId,
+                imagenUrl: token.imagenUrl,
+                celdasAncho: token.celdasAncho,
+                celdasAlto: token.celdasAlto,
+                escala: token.escala,
+                autorId: "master",
+                esMonstruo: token.esMonstruo
+              }
+            ]
+          : prev.plantillas;
+        return {
+          ...prev,
+          tokens: [...prev.tokens, nuevoToken],
+          plantillas
+        };
+      });
+    },
+    []
+  );
+
+  const actualizarTokenPreview = useCallback(
+    (
+      tokenId: string,
+      patch: Partial<Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre">>
+    ) => {
+      setEstadoMapa(prev => ({
+        ...prev,
+        tokens: prev.tokens.map(t => (t.id === tokenId ? { ...t, ...patch } : t))
+      }));
+    },
+    []
+  );
+
+  const eliminarTokenPreview = useCallback((tokenId: string) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      tokens: prev.tokens.filter(t => t.id !== tokenId)
+    }));
+  }, []);
+
+  const eliminarPlantillaPreview = useCallback((plantillaId: string) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.filter(p => p.id !== plantillaId)
+    }));
+  }, []);
+
+  const subirImagenMapaPreview = useCallback(
+    async (
+      archivo: File,
+      _categoria: "escena" | "token"
+    ): Promise<{ archivoId?: string; url: string; titulo: string }> => {
+      const url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        reader.readAsDataURL(archivo);
+      });
+      return { url, titulo: archivo.name };
+    },
+    []
+  );
 
   const volverASala = useCallback(() => setFase("sala"), []);
   const proyectar = useCallback((imagen: ImagenEscenaPreview | null) => {
@@ -253,7 +394,33 @@ export default function PreviewApp() {
       />
     );
   } else if (fase === "mapa") {
-    contenido = <Mapa onVolver={volverASala} />;
+    contenido = (
+      <>
+        <Mapa
+          onVolver={volverASala}
+          esMaster
+          miUsuarioId="master"
+          colorJugador="#e8c56a"
+          nombreJugador="Máster"
+          estadoMapa={estadoMapa}
+          onCambiarFondoYRejilla={cambiarFondoYRejillaPreview}
+          onCrearToken={crearTokenPreview}
+          onActualizarToken={actualizarTokenPreview}
+          onEliminarToken={eliminarTokenPreview}
+          onEliminarPlantilla={eliminarPlantillaPreview}
+          archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
+          onSubirImagenMapa={subirImagenMapaPreview}
+        />
+        <HudSalaCompartido
+          jugadores={jugadores}
+          esMaster
+          miUsuarioId="master"
+          hostName="Máster"
+          yoAsientoId="master"
+          onAviso={mostrarAvisoPreview}
+        />
+      </>
+    );
   } else if (fase === "archivador") {
     contenido = (
       <Archivador

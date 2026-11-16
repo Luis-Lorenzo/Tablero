@@ -9,6 +9,7 @@ import type {
   User,
   UserRepository
 } from "../repositories/user.repository.js";
+import type { EstadoMapaCompartido } from "../repositories/mapa-estado.repository.js";
 import type { MesasNotifier } from "./mesas-notifier.js";
 
 const RUTA = "/ws";
@@ -147,6 +148,20 @@ export class MesasBroadcaster implements MesasNotifier {
         cliente.send(mensaje);
       }
     }
+  }
+
+  /** Difunde el estado actualizado del mapa táctico a los miembros de la mesa. */
+  mapaActualizado(
+    userIds: readonly string[],
+    mesaId: string,
+    mapa: EstadoMapaCompartido
+  ): void {
+    this.enviarAUsuarios(userIds, {
+      type: "mesa:mapa-actualizado",
+      tipo: "mesa:mapa-actualizado",
+      mesaId,
+      mapa
+    });
   }
 
   /** Cierra el canal y libera el temporizador de latidos. */
