@@ -1366,7 +1366,7 @@ export function Mapa({
 
       {/* Barra flotante superior izquierda (deja libre arriba-derecha y abajo) */}
       <div className="mapa-barra-flotante">
-        <button type="button" className="pizarra-btn" onClick={onVolver}>
+        <button type="button" className="pizarra-btn mapa-btn-volver" onClick={onVolver}>
           <ArrowLeft size={14} aria-hidden="true" />
           <span>Volver</span>
         </button>

@@ -1999,6 +1999,18 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #fff;
 }
 
+.mapa-barra-flotante .pizarra-btn.mapa-btn-volver {
+  border-color: #9f7aea;
+  background: #3b1d5e;
+  color: #f3e8ff;
+}
+
+.mapa-barra-flotante .pizarra-btn.mapa-btn-volver:hover:not(:disabled) {
+  border-color: #c4b5fd;
+  background: #4c2678;
+  color: #ffffff;
+}
+
 .mapa-barra-flotante .pizarra-tool-btn.activo {
   border-color: #e8c56a;
   background: rgb(232 197 106 / 22%);
