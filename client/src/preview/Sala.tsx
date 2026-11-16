@@ -357,7 +357,7 @@ const DADOS_RAPIDOS = [
   { caras: 6, color: "#4dabf7", colorClaro: "#2A7FD1", glow: "rgb(77 171 247 / 32%)" },
   { caras: 8, color: "#b197fc", colorClaro: "#7A5CD6", glow: "rgb(177 151 252 / 34%)" },
   { caras: 10, color: "#ffa94d", colorClaro: "#D9791B", glow: "rgb(255 169 77 / 32%)" },
-  { caras: 20, color: "#e8c56a", colorClaro: "#B8862B", glow: "rgb(232 197 106 / 34%)" }
+  { caras: 20, color: "#e8c56a", colorClaro: "#D9534F", glow: "rgb(232 197 106 / 34%)" }
 ] as const;
 
 interface GrupoDado {
@@ -6146,6 +6146,9 @@ export function Sala({
                   aria-label="Dados privados"
                 >
                   <IconoD20 />
+                  <span className="dock-secreto-badge" aria-hidden="true">
+                    <VenetianMask size={13} strokeWidth={2.4} />
+                  </span>
                 </button>
                 <span className="dock-etiqueta">Secreto</span>
               </div>

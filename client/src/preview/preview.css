@@ -726,7 +726,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   z-index: 24;
   transform: translate(-50%, -50%);
   display: flex;
-  gap: 14px;
+  gap: 22px;
 }
 
 .sala-dock.ajustable {
@@ -10127,6 +10127,27 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 /* MODO CLARO ("Sala de estrategia bañada por el sol")                   */
 /* ===================================================================== */
 
+.dock-secreto-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #14101f;
+  border: 1.5px solid #c084fc;
+  color: #f3e8ff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 60%);
+  pointer-events: none;
+}
+
+.dock-secreto-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
 html.modo-claro {
   color-scheme: light;
 }
@@ -10136,11 +10157,19 @@ html.modo-claro .sala-escena {
 }
 
 html.modo-claro .sala-vineta {
-  background: radial-gradient(
-    ellipse at 50% 54%,
-    transparent 56%,
-    rgb(60 40 90 / 16%) 100%
-  );
+  background:
+    linear-gradient(
+      to top,
+      rgb(247 239 226 / 92%) 0%,
+      rgb(247 239 226 / 52%) 7%,
+      rgb(247 239 226 / 14%) 14%,
+      transparent 22%
+    ),
+    radial-gradient(
+      ellipse at 50% 54%,
+      transparent 56%,
+      rgb(60 40 90 / 16%) 100%
+    );
 }
 
 /* 1 & 2 & 3 & 7. Paneles, barras, bordes dorados profundos, texto #2A1F3D/#6B5B85, sombras suaves */
@@ -10243,7 +10272,15 @@ html.modo-claro .tirada-desglose {
   color: #6B5B85;
 }
 
-html.modo-claro .hud-divisa-valor,
+html.modo-claro .hud-divisa-valor {
+  color: #7A4F0C;
+}
+
+html.modo-claro .hud-hucha-label {
+  color: #8A5A10;
+  font-weight: 800;
+}
+
 html.modo-claro .mapa-iniciativa-ronda,
 html.modo-claro .mapa-iniciativa-valor,
 html.modo-claro .sala-musica-volumen-valor {
@@ -10253,7 +10290,6 @@ html.modo-claro .sala-musica-volumen-valor {
 /* Botones de la barra y controles internos */
 
 html.modo-claro .sala-btn,
-html.modo-claro .chat-filtro-btn,
 html.modo-claro .chat-compartir-btn,
 html.modo-claro .chat-plegar-btn,
 html.modo-claro .dados-cerrar,
@@ -10295,8 +10331,20 @@ html.modo-claro .archivador-btn {
   box-shadow: 0 2px 6px rgb(60 40 90 / 12%);
 }
 
+html.modo-claro .sala-btn.sala-tema-btn {
+  border: 2px solid #B8862B;
+  background: rgb(255 248 236 / 92%);
+  color: #8A5A10;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-btn.sala-tema-btn:hover {
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  background: #FFF8EC;
+}
+
 html.modo-claro .sala-btn:hover:not(:disabled),
-html.modo-claro .chat-filtro-btn:hover,
 html.modo-claro .chat-compartir-btn:hover,
 html.modo-claro .dados-visibilidad-tab:hover,
 html.modo-claro .dado-tipo-btn:hover,
@@ -10330,7 +10378,6 @@ html.modo-claro .archivador-btn:hover:not(:disabled) {
 
 html.modo-claro .master-pill-badge,
 html.modo-claro .sala-btn.activo,
-html.modo-claro .chat-filtro-btn.activo,
 html.modo-claro .chat-compartir-btn.activo,
 html.modo-claro .dados-visibilidad-tab.activo,
 html.modo-claro .dado-tipo-btn.activo,
@@ -10396,42 +10443,96 @@ html.modo-claro .chat-enviar-btn:hover:not(:disabled) {
 }
 
 html.modo-claro .hud-enviar-btn {
-  border-color: #5B6BBF;
-  background: rgb(255 248 236 / 90%);
+  border: 2px solid #A8741A;
+  background: #E2A93B;
   color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
 }
 
 html.modo-claro .hud-enviar-btn svg {
-  color: #5B6BBF;
+  color: #2A1F3D;
 }
 
 html.modo-claro .hud-enviar-btn:hover,
 html.modo-claro .hud-enviar-btn.activo {
-  background: #5B6BBF;
-  border-color: #3E4C99;
-  color: #FFF8EC;
+  background: #D49724;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
   box-shadow: 0 4px 14px rgb(60 40 90 / 28%);
 }
 
 html.modo-claro .hud-enviar-btn:hover svg,
 html.modo-claro .hud-enviar-btn.activo svg {
-  color: #FFF8EC;
+  color: #2A1F3D;
 }
 
 /* Chat e Inputs en modo claro */
 
-html.modo-claro .sala-chat,
-html.modo-claro .chat-cabecera,
-html.modo-claro .chat-pie {
+html.modo-claro .sala-chat {
+  background: rgb(255 248 236 / 80%);
+  backdrop-filter: blur(8px);
   border-color: #B8862B;
 }
 
+html.modo-claro .chat-cabecera,
+html.modo-claro .chat-pie {
+  border-color: rgb(184 134 43 / 35%);
+}
+
 html.modo-claro .chat-cabecera {
-  background: rgb(238 232 250 / 72%);
+  background: rgb(255 248 236 / 65%);
 }
 
 html.modo-claro .chat-mensajes {
-  background: rgb(255 253 248 / 65%);
+  background: transparent;
+}
+
+html.modo-claro .chat-vacio {
+  color: #6B5B85;
+}
+
+html.modo-claro .chat-msg-autor,
+html.modo-claro .chat-en-mapa .chat-msg-autor {
+  color: #8A5A10;
+  font-weight: 700;
+}
+
+html.modo-claro .chat-msg-privado-etiqueta {
+  color: #5B6BBF;
+  font-weight: 700;
+}
+
+html.modo-claro .chat-filtro-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: #6B5B85;
+  padding: 3px 6px;
+}
+
+html.modo-claro .chat-filtro-btn:hover {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #7C5CBF;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-filtro-btn.activo {
+  background: rgb(226 169 59 / 22%);
+  border: none;
+  border-bottom: 2.5px solid #B8862B;
+  border-radius: 4px 4px 0 0;
+  box-shadow: none;
+  color: #2A1F3D;
+  font-weight: 800;
+}
+
+html.modo-claro .hud-divisa-centro {
+  background: #FFF8EC;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
 }
 
 html.modo-claro .chat-msg.sistema {
@@ -10518,23 +10619,31 @@ html.modo-claro .dock-btn.dock-btn-master.activo {
 }
 
 html.modo-claro .dock-btn.dock-btn-secreto {
-  background: #E6E0F5;
-  border-color: #5B6BBF;
-  color: #3B2A6B;
+  background: #E3DCF7;
+  border: 2.5px solid #4A3B7C;
+  color: #2A1F3D;
 }
 
 html.modo-claro .dock-btn.dock-btn-secreto:hover,
 html.modo-claro .dock-btn.dock-btn-secreto.activo {
   background: #5B6BBF;
-  border-color: #3E4C99;
+  border-color: #2A1F3D;
   color: #FFF8EC;
+}
+
+html.modo-claro .dock-secreto-badge {
+  background: #FFF8EC;
+  border-color: #4A3B7C;
+  color: #3B2A6B;
+  box-shadow: 0 2px 6px rgb(60 40 90 / 28%);
 }
 
 html.modo-claro .dock-etiqueta {
   background: #FFF8EC;
   border: 1.5px solid #B8862B;
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 7px;
+  font-size: 0.64rem;
   color: #2A1F3D;
   box-shadow: 0 3px 10px rgb(60 40 90 / 22%);
 }
@@ -10549,6 +10658,13 @@ html.modo-claro .dados-rapidos-titulo {
   padding: 3px 8px;
   text-shadow: none;
   box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .dados-rapidos {
+  background: rgb(255 248 236 / 88%);
+  backdrop-filter: blur(8px);
+  border: 2px solid #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
 }
 
 html.modo-claro .dado-rapido-btn {
@@ -10566,15 +10682,19 @@ html.modo-claro .dado-rapido-btn:hover:not(:disabled) {
 
 /* 9. Chips de nombre y apodos sobre madera / mapa */
 
-html.modo-claro .asiento-nombre {
-  padding: 2px 8px;
+html.modo-claro .asiento-nombre,
+html.modo-claro .asiento.master .asiento-nombre,
+html.modo-claro .asiento.seleccionado .asiento-nombre {
+  padding: 3px 10px;
   border: 1.5px solid #B8862B;
   border-radius: 999px;
-  background: #FFF8EC;
+  background: rgb(255 255 255 / 92%);
   color: #2A1F3D;
+  font-size: 11.5px;
+  font-weight: 600;
   text-shadow: none;
   opacity: 1;
-  box-shadow: 0 3px 10px rgb(60 40 90 / 22%);
+  box-shadow: 0 2px 8px rgb(60 40 90 / 22%);
 }
 
 html.modo-claro .asiento-apodo {
@@ -10668,9 +10788,9 @@ html.modo-claro .sala-musica-estado {
 }
 
 html.modo-claro .sala-musica-estado.bucle {
-  background: #E2A93B;
-  border-color: #A8741A;
-  color: #2A1F3D;
+  background: transparent;
+  border: 1.5px solid #B8862B;
+  color: #8A5A10;
 }
 
 html.modo-claro .pizarra-page.vista-escena .pizarra-barra {

@@ -2513,3 +2513,172 @@ html.modo-claro .gestion-bloque {
   border-color: #8E7CC3;
   color: #2A1F3D;
 }
+
+.auth-page-rel {
+  position: relative;
+}
+
+.auth-tema-btn,
+.topbar-tema-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 10px;
+  border: 2px solid #594b6b;
+  background: rgb(23 20 32 / 90%);
+  color: #f6e3b0;
+  box-shadow: 3px 3px 0 #090612;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.auth-tema-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 30;
+}
+
+.auth-tema-btn:hover,
+.topbar-tema-btn:hover {
+  border-color: #e8c56a;
+  color: #ffe8a3;
+}
+
+html.modo-claro .auth-tema-btn,
+html.modo-claro .topbar-tema-btn {
+  background: rgb(255 248 236 / 92%);
+  border-color: #B8862B;
+  color: #8A5A10;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .auth-tema-btn:hover,
+html.modo-claro .topbar-tema-btn:hover {
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  background: #FFF8EC;
+}
+
+html.modo-claro .form label {
+  color: #2A1F3D;
+  font-weight: 600;
+}
+
+html.modo-claro .form input,
+html.modo-claro .input-con-icono input {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .form input::placeholder,
+html.modo-claro .input-con-icono input::placeholder {
+  color: #6B5B85;
+}
+
+html.modo-claro .form input:focus,
+html.modo-claro .input-con-icono input:focus {
+  border-color: #7C5CBF;
+  box-shadow: 0 0 0 3px rgb(124 92 191 / 20%);
+}
+
+html.modo-claro .input-icono,
+html.modo-claro .input-ojo,
+html.modo-claro .input-limpiar {
+  color: #6B5B85;
+}
+
+html.modo-claro .badge,
+html.modo-claro .mesa-dato,
+html.modo-claro .mesa-info,
+html.modo-claro .panel-titulo-pixel,
+html.modo-claro .emblema-subtitulo,
+html.modo-claro .taberna-stat-num,
+html.modo-claro .cuenta-etiqueta,
+html.modo-claro .cuenta-nombre,
+html.modo-claro table,
+html.modo-claro th,
+html.modo-claro td {
+  color: #2A1F3D;
+}
+
+html.modo-claro .badge {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+}
+
+html.modo-claro .mesa-pista,
+html.modo-claro .taberna-stat-label {
+  color: #6B5B85;
+}
+
+html.modo-claro .mesa-etiqueta {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .taberna-stat,
+html.modo-claro .clicker-visor,
+html.modo-claro .cesion-popup {
+  background: rgb(255 248 236 / 94%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .clicker-btn,
+html.modo-claro .clicker-dado-tag {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .clicker-btn:hover {
+  border-color: #7C5CBF;
+  background: #E2D9F5;
+}
+
+html.modo-claro .pill.on {
+  background: rgb(30 158 120 / 16%);
+  color: #156E52;
+}
+
+html.modo-claro .pill.off {
+  background: rgb(201 74 90 / 16%);
+  color: #9E2A38;
+}
+
+html.modo-claro .pill.pending {
+  background: rgb(226 169 59 / 22%);
+  color: #8A5A10;
+}
+
+html.modo-claro .pill.blocked {
+  background: rgb(217 121 27 / 18%);
+  color: #9A4E0B;
+}
+
+html.modo-claro .feedback.ok {
+  background: rgb(30 158 120 / 14%);
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
+html.modo-claro .feedback.ko {
+  background: rgb(201 74 90 / 14%);
+  border-color: #C94A5A;
+  color: #9E2A38;
+}
+
+html.modo-claro .feedback.aviso {
+  background: rgb(226 169 59 / 18%);
+  border-color: #B8862B;
+  color: #7A4F0C;
+}
