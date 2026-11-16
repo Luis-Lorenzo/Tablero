@@ -9058,15 +9058,15 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   position: fixed;
   bottom: 64px;
   left: calc(50% + 206px);
+  right: 16px;
   z-index: 25;
   box-sizing: border-box;
-  display: inline-flex;
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
   width: auto;
   height: 58px;
-  max-width: calc(50vw - 222px);
   padding: 6px 10px;
   border: 2px solid #3c424f;
   border-radius: 12px;
@@ -9077,7 +9077,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-limbo.con-master {
   left: calc(50% + 254px);
-  max-width: calc(50vw - 270px);
+  right: 16px;
 }
 
 .mapa-limbo.destino-limbo {

@@ -28,10 +28,10 @@ interface Destinatario {
 type FiltroChat = "todo" | "chat" | "dados" | "urls";
 
 const FILTROS_CHAT: ReadonlyArray<{ id: FiltroChat; etiqueta: string }> = [
-  { id: "todo", etiqueta: "Todo" },
   { id: "chat", etiqueta: "Chat" },
   { id: "dados", etiqueta: "Dados" },
-  { id: "urls", etiqueta: "Enlaces" }
+  { id: "urls", etiqueta: "Enlaces" },
+  { id: "todo", etiqueta: "Todo" }
 ];
 
 function formatearHora(iso: string): string {
@@ -55,7 +55,7 @@ export function ChatSala({
   onIniciarRedimension
 }: ChatSalaProps) {
   const [plegado, setPlegado] = useState(false);
-  const [filtro, setFiltro] = useState<FiltroChat>("todo");
+  const [filtro, setFiltro] = useState<FiltroChat>("chat");
   const [texto, setTexto] = useState("");
   const [destinatario, setDestinatario] = useState<Destinatario | null>(null);
   const [indiceMencion, setIndiceMencion] = useState(0);
