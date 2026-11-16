@@ -603,6 +603,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         especial?: "critico" | "pifia" | null;
         secreta?: boolean;
         soloMaster?: boolean;
+        colorDado?: string;
       };
       const resultado = await context.chatService.registrarTirada(
         req.currentUser!,
@@ -615,7 +616,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           caras: body.caras,
           especial: body.especial,
           secreta: Boolean(body.secreta),
-          soloMaster: Boolean(body.soloMaster)
+          soloMaster: Boolean(body.soloMaster),
+          colorDado: body.colorDado
         }
       );
 

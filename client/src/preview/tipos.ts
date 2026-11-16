@@ -73,6 +73,7 @@ export interface TiradaAsiento {
   especial?: TipoEspecialTirada;
   caras?: number;
   desglose?: string;
+  colorDado?: string;
 }
 
 export interface PositPreview {

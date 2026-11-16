@@ -59,7 +59,11 @@ import {
   IconoMacro
 } from "./macros";
 import { reproducirSonidoConsumir, reproducirSonidoMonedas } from "./sonido";
-import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
+import {
+  reproducirSonidoRoll,
+  reproducirSonidoRollSecreto,
+  reproducirSonidoTirada
+} from "./sonidoDados";
 import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   DivisaConfig,
@@ -73,6 +77,20 @@ import type {
   TipoEspecialTirada,
   TiradaAsiento
 } from "./tipos";
+
+const CLAVE_COLOR_DADO = "pocketrol.colorDado";
+
+function cargarColorDadoLocal(fallback = "#e8c56a"): string {
+  try {
+    const guardado = window.localStorage.getItem(CLAVE_COLOR_DADO);
+    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
+      return guardado;
+    }
+  } catch {
+    // Ignoramos errores de almacenamiento
+  }
+  return fallback;
+}
 
 export interface HudSalaCompartidoProps {
   jugadores: JugadorPreview[];
@@ -90,8 +108,10 @@ export interface HudSalaCompartidoProps {
     caras: number;
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
+    color?: string;
+    colorDado?: string;
   }) => void | Promise<void>;
-  onTiradaLocal?: (tirada: TiradaAsiento) => void;
+  onTiradaLocal?: (tirada: TiradaAsiento & { color?: string }) => void;
   macros?: MacroTirada[];
   onMacros?: (macros: MacroTirada[]) => void;
   onSacarMacroAMesa?: (macro: MacroTirada) => void;
@@ -470,6 +490,20 @@ export function HudSalaCompartido({
 }: HudSalaCompartidoProps) {
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
+  const colorJugadorActual =
+    jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.color || "#e8c56a";
+  const [colorDado, setColorDado] = useState<string>(() =>
+    cargarColorDadoLocal(colorJugadorActual)
+  );
+
+  function actualizarColorDado(nuevoColor: string): void {
+    setColorDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
@@ -978,7 +1012,11 @@ export function HudSalaCompartido({
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
-    reproducirSonidoRoll();
+    if (esSecretaMaster) {
+      reproducirSonidoRollSecreto();
+    } else {
+      reproducirSonidoRoll();
+    }
 
     setSelectorAbierto(false);
     setCompuestaAbierta(false);
@@ -1026,11 +1064,15 @@ export function HudSalaCompartido({
             total: resultadoFinal.total,
             especial: resultadoFinal.especial,
             caras: resultadoFinal.caras,
-            desglose: desgloseTexto
+            desglose: desgloseTexto,
+            color: colorDado,
+            colorDado
           });
           if (onTiradaPublica) {
             void onTiradaPublica({
               ...resultadoFinal,
+              color: colorDado,
+              colorDado,
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
@@ -3199,17 +3241,63 @@ export function HudSalaCompartido({
               </div>
             </div>
 
-            <button
-              type="submit"
-              className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
-              disabled={tirando}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginTop: "2px"
+              }}
             >
-              {tiradaSecreta
-                ? esMaster
-                  ? `Tirar en secreto · ${formulaActual}`
-                  : `Tirar al Máster · ${formulaActual}`
-                : `Tirar · ${formulaActual}`}
-            </button>
+              <button
+                type="submit"
+                className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
+                style={{ flex: 1, marginTop: 0 }}
+                disabled={tirando}
+              >
+                {tiradaSecreta
+                  ? esMaster
+                    ? `Tirar en secreto · ${formulaActual}`
+                    : `Tirar al Máster · ${formulaActual}`
+                  : `Tirar · ${formulaActual}`}
+              </button>
+              <label
+                title="Color de tu dado"
+                aria-label="Color de tu dado"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "26px",
+                  height: "26px",
+                  flexShrink: 0,
+                  padding: 0,
+                  borderRadius: "6px",
+                  border: tiradaSecreta
+                    ? "2px solid #c084fc"
+                    : "2px solid #e8c56a",
+                  backgroundColor: colorDado,
+                  boxShadow: "2px 2px 0 #090612",
+                  cursor: "pointer",
+                  overflow: "hidden"
+                }}
+              >
+                <input
+                  type="color"
+                  value={colorDado}
+                  onChange={e => actualizarColorDado(e.target.value)}
+                  aria-label="Elegir color del dado"
+                  style={{
+                    opacity: 0,
+                    width: "100%",
+                    height: "100%",
+                    padding: 0,
+                    border: "none",
+                    cursor: "pointer"
+                  }}
+                />
+              </label>
+            </div>
           </form>
         );
       })()}

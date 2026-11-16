@@ -187,6 +187,7 @@ export const mesasApi = {
       especial?: "critico" | "pifia" | null;
       secreta?: boolean;
       soloMaster?: boolean;
+      colorDado?: string;
     }
   ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos),
 

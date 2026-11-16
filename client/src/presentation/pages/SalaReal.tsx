@@ -28,6 +28,10 @@ import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
+import {
+  obtenerColorDadoGuardado,
+  sanitizarColorDado
+} from "../../preview/datos";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
   cargarCalibracion,
@@ -1112,6 +1116,8 @@ function SalaRealContent({
           ? `${dados.join(" + ")}${modTxt} = ${roll.total}`
           : undefined;
 
+        const colorDado = sanitizarColorDado(roll.colorDado);
+
         setTiradasAsiento(prev => ({
           ...prev,
           [asientoId]: {
@@ -1119,7 +1125,8 @@ function SalaRealContent({
             total: roll.total,
             especial: roll.especial ?? null,
             caras: roll.caras ?? 20,
-            desglose
+            desglose,
+            ...(colorDado ? { colorDado } : {})
           }
         }));
 
@@ -1383,12 +1390,16 @@ function SalaRealContent({
     caras: number;
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
+    colorDado?: string;
   }): Promise<void> {
     try {
+      const colorDado =
+        sanitizarColorDado(tirada.colorDado) ?? obtenerColorDadoGuardado(user.id);
       await mesasApi.enviarTirada(mesa.id, {
         ...tirada,
         secreta: false,
-        soloMaster: Boolean(tirada.soloMaster)
+        soloMaster: Boolean(tirada.soloMaster),
+        ...(colorDado ? { colorDado } : {})
       });
     } catch (tiradaError) {
       setError(describeError(tiradaError));

@@ -30,6 +30,7 @@ export interface EventoTirada {
   caras?: number;
   especial: TipoEspecialTirada;
   soloMaster?: boolean;
+  colorDado?: string;
   createdAt: string;
 }
 
@@ -42,6 +43,20 @@ export interface DatosTirada {
   especial?: TipoEspecialTirada;
   secreta?: boolean;
   soloMaster?: boolean;
+  colorDado?: string;
+}
+
+function sanitizarColorDado(valor: unknown): string | undefined {
+  if (typeof valor !== "string") return undefined;
+  const limpio = valor.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(limpio)) {
+    return limpio.toLowerCase();
+  }
+  if (/^#[0-9a-fA-F]{3}$/.test(limpio)) {
+    const [, r, g, b] = limpio;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return undefined;
 }
 
 function resolverEspecial(datos: DatosTirada): TipoEspecialTirada {
@@ -164,6 +179,8 @@ export class ChatService {
       throw errors.invalidRequest();
     }
 
+    const colorDado = sanitizarColorDado(datos.colorDado);
+
     const tirada: EventoTirada = {
       id: crypto.randomUUID(),
       mesaId: mesa.id,
@@ -178,6 +195,7 @@ export class ChatService {
         : {}),
       especial: resolverEspecial(datos),
       ...(datos.soloMaster ? { soloMaster: true } : {}),
+      ...(colorDado ? { colorDado } : {}),
       createdAt: new Date().toISOString()
     };
 

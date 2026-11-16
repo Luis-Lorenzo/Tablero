@@ -79,7 +79,11 @@ import {
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion
 } from "./sonido";
-import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
+import {
+  reproducirSonidoRoll,
+  reproducirSonidoRollSecreto,
+  reproducirSonidoTirada
+} from "./sonidoDados";
 import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   Asiento,
@@ -125,6 +129,22 @@ const MUSICA_VACIA: MusicaAmbienteMesa = {
   volumenMaster: 0.7
 };
 
+type TiradaAsientoConColor = TiradaAsiento & { color?: string };
+
+const CLAVE_COLOR_DADO = "pocketrol.colorDado";
+
+function cargarColorDadoLocal(fallback = "#e8c56a"): string {
+  try {
+    const guardado = window.localStorage.getItem(CLAVE_COLOR_DADO);
+    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
+      return guardado;
+    }
+  } catch {
+    // Ignoramos errores de almacenamiento
+  }
+  return fallback;
+}
+
 interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
@@ -151,7 +171,7 @@ interface SalaProps {
   miUsuarioId?: string;
   mensajesChat?: MensajeSala[];
   onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
-  tiradasAsiento?: Record<string, TiradaAsiento>;
+  tiradasAsiento?: Record<string, TiradaAsientoConColor>;
   onTiradaPublica?: (tirada: {
     total: number;
     formula: string;
@@ -160,6 +180,8 @@ interface SalaProps {
     caras: number;
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
+    color?: string;
+    colorDado?: string;
   }) => void | Promise<void>;
   colorJugador?: string;
   nombreJugador?: string;
@@ -411,11 +433,14 @@ function lanzarGruposDados(
 
 function IconoDadoPoligono({
   caras,
-  valor
+  valor,
+  color
 }: {
   caras: number;
   valor?: number | string;
+  color?: string;
 }) {
+  const estiloPoligono = color ? { stroke: color } : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -440,6 +465,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -471,6 +497,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -485,6 +512,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -499,6 +527,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -528,7 +557,7 @@ function IconoDadoPoligono({
       </svg>
     );
   }
-  return <IconoD20 valor={valor} />;
+  return <IconoD20 valor={valor} color={color} />;
 }
 
 function limitar(valor: number, min: number, max: number): number {
@@ -579,7 +608,8 @@ function centroide(quad: QuadMapa): Punto {
   return { x: suma.x / 4, y: suma.y / 4 };
 }
 
-function IconoD20({ valor }: { valor?: number | string }) {
+function IconoD20({ valor, color }: { valor?: number | string; color?: string }) {
+  const estiloPoligono = color ? { stroke: color } : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -588,6 +618,7 @@ function IconoD20({ valor }: { valor?: number | string }) {
         stroke="currentColor"
         strokeWidth="1.4"
         strokeLinejoin="round"
+        style={estiloPoligono}
       />
       <polygon
         points="12,6.5 17.5,15.5 6.5,15.5"
@@ -596,6 +627,7 @@ function IconoD20({ valor }: { valor?: number | string }) {
         strokeWidth="1.05"
         strokeLinejoin="round"
         opacity="0.7"
+        style={estiloPoligono}
       />
       <line x1="12" y1="2" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
       <line x1="21" y1="7" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
@@ -849,6 +881,18 @@ export function Sala({
   );
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
+  const [colorDado, setColorDado] = useState<string>(() =>
+    cargarColorDadoLocal(colorJugador || "#e8c56a")
+  );
+
+  function actualizarColorDado(nuevoColor: string): void {
+    setColorDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
   const [sonidoSilenciado, setSonidoSilenciado] = useState<boolean>(
     estaSonidoSilenciado
   );
@@ -1092,7 +1136,7 @@ export function Sala({
   const [sobreMapa, setSobreMapa] = useState(false);
   const [mensajesLocales, setMensajesLocales] = useState<MensajeSala[]>([]);
   const [tiradasAsientoLocales, setTiradasAsientoLocales] = useState<
-    Record<string, TiradaAsiento>
+    Record<string, TiradaAsientoConColor>
   >({});
   const [positActivo, setPositActivo] = useState<string | null>(null);
   const [visorDoc, setVisorDoc] = useState<DocumentoMesa | null>(null);
@@ -1972,7 +2016,8 @@ export function Sala({
     total: number,
     especial: TipoEspecialTirada = null,
     caras = 20,
-    desglose?: string
+    desglose?: string,
+    color?: string
   ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
@@ -1981,7 +2026,7 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total, especial, caras, desglose }
+      [asientoId]: { id: tiradaId, total, especial, caras, desglose, color }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -2204,7 +2249,11 @@ export function Sala({
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
-    reproducirSonidoRoll();
+    if (esSecretaMaster) {
+      reproducirSonidoRollSecreto();
+    } else {
+      reproducirSonidoRoll();
+    }
 
     setSelectorAbierto(false);
     setCompuestaAbierta(false);
@@ -2240,6 +2289,8 @@ export function Sala({
           if (onTiradaPublica) {
             void onTiradaPublica({
               ...resultadoFinal,
+              color: colorDado,
+              colorDado,
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
@@ -2262,7 +2313,8 @@ export function Sala({
               resultadoFinal.total,
               resultadoFinal.especial,
               resultadoFinal.caras,
-              desglose
+              desglose,
+              colorDado
             );
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
@@ -3215,23 +3267,40 @@ export function Sala({
                         }
                   }
                 >
-                  {tiradaSobreAsiento && !ajuste && (
-                    <div
-                      key={tiradaSobreAsiento.id}
-                      className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
-                      aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
-                    >
-                      {tiradaSobreAsiento.desglose && (
-                        <span className="asiento-d20-suma">
-                          {tiradaSobreAsiento.desglose}
-                        </span>
-                      )}
-                      <IconoDadoPoligono
-                        caras={tiradaSobreAsiento.caras ?? 20}
-                        valor={tiradaSobreAsiento.total}
-                      />
-                    </div>
-                  )}
+                  {tiradaSobreAsiento && !ajuste && (() => {
+                    const colorDadoAsiento = !tiradaSobreAsiento.especial
+                      ? tiradaSobreAsiento.colorDado ||
+                        tiradaSobreAsiento.color ||
+                        (esMio ? colorDado : jugador.color)
+                      : undefined;
+                    return (
+                      <div
+                        key={tiradaSobreAsiento.id}
+                        className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
+                        style={
+                          colorDadoAsiento
+                            ? ({
+                                color: colorDadoAsiento,
+                                "--dado-color": colorDadoAsiento,
+                                filter: `drop-shadow(0 0 10px ${colorDadoAsiento})`
+                              } as CSSProperties)
+                            : undefined
+                        }
+                        aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
+                      >
+                        {tiradaSobreAsiento.desglose && (
+                          <span className="asiento-d20-suma">
+                            {tiradaSobreAsiento.desglose}
+                          </span>
+                        )}
+                        <IconoDadoPoligono
+                          caras={tiradaSobreAsiento.caras ?? 20}
+                          valor={tiradaSobreAsiento.total}
+                          color={colorDadoAsiento}
+                        />
+                      </div>
+                    );
+                  })()}
                   {divisaDeltaSobreAsiento && !ajuste && (
                     <div
                       key={divisaDeltaSobreAsiento.id}
@@ -5183,17 +5252,63 @@ export function Sala({
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
-                  disabled={tirando}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginTop: "2px"
+                  }}
                 >
-                  {tiradaSecreta
-                    ? esMaster
-                      ? `Tirar en secreto · ${formulaActual}`
-                      : `Tirar al Máster · ${formulaActual}`
-                    : `Tirar · ${formulaActual}`}
-                </button>
+                  <button
+                    type="submit"
+                    className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
+                    style={{ flex: 1, marginTop: 0 }}
+                    disabled={tirando}
+                  >
+                    {tiradaSecreta
+                      ? esMaster
+                        ? `Tirar en secreto · ${formulaActual}`
+                        : `Tirar al Máster · ${formulaActual}`
+                      : `Tirar · ${formulaActual}`}
+                  </button>
+                  <label
+                    title="Color de tu dado"
+                    aria-label="Color de tu dado"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "26px",
+                      height: "26px",
+                      flexShrink: 0,
+                      padding: 0,
+                      borderRadius: "6px",
+                      border: tiradaSecreta
+                        ? "2px solid #c084fc"
+                        : "2px solid #e8c56a",
+                      backgroundColor: colorDado,
+                      boxShadow: "2px 2px 0 #090612",
+                      cursor: "pointer",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={colorDado}
+                      onChange={e => actualizarColorDado(e.target.value)}
+                      aria-label="Elegir color del dado"
+                      style={{
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        padding: 0,
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    />
+                  </label>
+                </div>
               </form>
             );
           })()}
