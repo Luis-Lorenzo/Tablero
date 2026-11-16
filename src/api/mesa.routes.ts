@@ -170,6 +170,30 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.patch("/:id/apodo", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { apodo?: unknown };
+      const apodo =
+        body.apodo === null || body.apodo === undefined
+          ? ""
+          : typeof body.apodo === "string"
+            ? body.apodo
+            : null;
+      if (apodo === null) {
+        throw errors.invalidRequest();
+      }
+      const vista = await context.mesaService.cambiarApodo(
+        req.currentUser!,
+        String(req.params.id),
+        apodo
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(vista));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/:id/escena", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.ponerImagenEscena(
@@ -803,6 +827,21 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         String(req.params.id),
         body.fondo as Parameters<typeof mapaEstadoService.guardarFondoYRejilla>[2],
         body.rejilla as Parameters<typeof mapaEstadoService.guardarFondoYRejilla>[3]
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/mapa/iniciativa", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const payload = "iniciativa" in body ? body.iniciativa : body;
+      const mapa = await mapaEstadoService.guardarIniciativa(
+        req.currentUser!,
+        String(req.params.id),
+        payload
       );
       res.json(mapa);
     } catch (error) {

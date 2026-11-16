@@ -10,6 +10,8 @@ export interface JugadorPreview {
   /** ID real del usuario en el backend (en modo preview coincide con `id`). */
   userId?: string;
   nombre: string;
+  /** Nombre del personaje en esta mesa (editable por cada jugador). */
+  apodo?: string;
   color: string;
   esMaster: boolean;
   /** Asiento habilitado. El trasero derecho empieza desactivado. */
@@ -269,9 +271,26 @@ export interface PlantillaTokenMapa {
   esMonstruo?: boolean;
 }
 
+export interface IniciativaEntrada {
+  id: string;
+  nombre: string;
+  valor: number;
+  color?: string;
+  esMonstruo?: boolean;
+  jugadorId?: string;
+}
+
+export interface MapaIniciativaEstado {
+  activa: boolean;
+  ronda: number;
+  turnoIndice: number;
+  entradas: IniciativaEntrada[];
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
   tokens: TokenMapa[];
   plantillas: PlantillaTokenMapa[];
+  iniciativa?: MapaIniciativaEstado;
 }

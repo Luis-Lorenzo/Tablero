@@ -314,6 +314,20 @@
   color: #f0d48a;
 }
 
+.asiento-apodo {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-jugador) 26%, rgb(12 10 18 / 76%));
+  border: 1px solid color-mix(in srgb, var(--color-jugador) 65%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-jugador) 45%, transparent);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+}
+
 .asiento.interactivo {
   pointer-events: auto;
   cursor: pointer;
@@ -2684,6 +2698,378 @@
   color: rgb(236 232 223 / 58%);
   font-size: 0.66rem;
   pointer-events: none;
+}
+
+/* Tracker de Iniciativa (arriba centro) */
+
+.mapa-iniciativa-barra {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  max-width: min(640px, calc(100vw - 440px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.mapa-iniciativa-cabecera {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid rgb(232 197 106 / 45%);
+  border-radius: 10px;
+  background: rgb(20 23 30 / 92%);
+  box-shadow: 3px 3px 0 #090b0f, 0 8px 20px rgb(0 0 0 / 45%);
+  color: #ece8df;
+  backdrop-filter: blur(6px);
+}
+
+.mapa-iniciativa-ronda {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: #e8c56a;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.mapa-iniciativa-lista {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  max-width: 420px;
+  padding: 1px 0;
+  scrollbar-width: thin;
+}
+
+.mapa-iniciativa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  background: rgb(32 36 46 / 85%);
+  color: #d7dce6;
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition: border-color 0.14s ease, background-color 0.14s ease, transform 0.14s ease;
+}
+
+.mapa-iniciativa-chip.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 24%);
+  color: #fff6dc;
+  font-weight: 800;
+  box-shadow: 0 0 10px rgb(232 197 106 / 35%);
+}
+
+.mapa-iniciativa-chip.monstruo {
+  border-color: rgb(224 108 117 / 32%);
+}
+
+.mapa-iniciativa-chip.monstruo.activo {
+  border-color: #e06c75;
+  background: rgb(224 108 117 / 24%);
+  box-shadow: 0 0 10px rgb(224 108 117 / 35%);
+}
+
+.mapa-iniciativa-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 35%);
+}
+
+.mapa-iniciativa-nombre {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapa-iniciativa-valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: #ffe9a8;
+}
+
+.mapa-iniciativa-controles {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mapa-ini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  border: 1px solid #3c424f;
+  border-radius: 6px;
+  background: #1a1d24;
+  color: #dde1e8;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapa-ini-btn:hover,
+.mapa-ini-btn.activo {
+  border-color: #e8c56a;
+  color: #ffe9a8;
+}
+
+.mapa-ini-btn-sig {
+  border-color: rgb(232 197 106 / 55%);
+  background: rgb(232 197 106 / 16%);
+  color: #ffe9a8;
+}
+
+.mapa-ini-btn-sig:hover {
+  background: rgb(232 197 106 / 28%);
+}
+
+.mapa-iniciativa-popover {
+  width: min(360px, 92vw);
+  padding: 10px;
+  border: 1px solid rgb(232 197 106 / 45%);
+  border-radius: 10px;
+  background: rgb(20 23 30 / 96%);
+  box-shadow: 4px 4px 0 #090b0f, 0 12px 28px rgb(0 0 0 / 55%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #ece8df;
+}
+
+.mapa-iniciativa-acciones-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mapa-iniciativa-form {
+  display: grid;
+  grid-template-columns: 1fr 56px auto auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.mapa-iniciativa-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.mapa-iniciativa-editor-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mapa-iniciativa-editor-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(14 16 22 / 75%);
+  font-size: 0.74rem;
+}
+
+.mapa-iniciativa-editor-item.activo {
+  border-color: rgb(232 197 106 / 65%);
+  background: rgb(232 197 106 / 14%);
+}
+
+.mapa-iniciativa-editor-nombre {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapa-iniciativa-editor-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: #ffe9a8;
+}
+
+/* Columna vertical de jugadores en el borde derecho del mapa */
+
+.mapa-jugadores-columna {
+  position: fixed;
+  right: 14px;
+  top: 184px;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.mapa-jugadores-columna.con-master {
+  top: 240px;
+}
+
+.mapa-jugador-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.mapa-jugador-ficha {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px 4px 5px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  background: rgb(16 18 25 / 86%);
+  box-shadow: 2px 2px 0 #090b0f, 0 6px 16px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(4px);
+}
+
+.mapa-jugador-item.master .mapa-jugador-ficha {
+  border-color: rgb(232 197 106 / 55%);
+}
+
+.mapa-jugador-esfera {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgb(255 255 255 / 60%);
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 55%), transparent 46%),
+    var(--color, #999);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 50%),
+    inset 0 -3px 5px rgb(0 0 0 / 28%);
+}
+
+.mapa-jugador-item.master .mapa-jugador-esfera {
+  border-color: #e8c56a;
+  box-shadow:
+    0 0 0 2px rgb(232 197 106 / 28%),
+    0 2px 6px rgb(0 0 0 / 50%);
+}
+
+.mapa-jugador-nombre {
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #f1ece0;
+}
+
+.mapa-jugador-nombre.con-apodo {
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: color-mix(in srgb, var(--jugador-color) 24%, rgb(12 10 18 / 72%));
+  border: 1px solid color-mix(in srgb, var(--jugador-color) 55%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--jugador-color) 38%, transparent);
+}
+
+.mapa-jugador-tirada {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  border: 1.5px solid #e8c56a;
+  background: rgb(18 15 26 / 94%);
+  color: #ffe9a8;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 55%);
+  animation: mapa-tirada-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mapa-jugador-tirada.critico {
+  border-color: #3ddc84;
+  color: #3ddc84;
+  box-shadow: 0 0 12px rgb(61 220 132 / 40%);
+}
+
+.mapa-jugador-tirada.pifia {
+  border-color: #ff5c77;
+  color: #ff5c77;
+  box-shadow: 0 0 12px rgb(255 92 119 / 40%);
+}
+
+.mapa-jugador-tirada-icono {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mapa-jugador-tirada-icono svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mapa-jugador-tirada-total {
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.mapa-jugador-tirada-desglose {
+  font-size: 0.66rem;
+  color: rgb(236 232 223 / 75%);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes mapa-tirada-pop {
+  from {
+    opacity: 0;
+    transform: translateX(8px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .mapa-jugadores-columna {
+    top: 70px;
+  }
+
+  .mapa-jugadores-columna.con-master {
+    top: 70px;
+  }
+
+  .mapa-iniciativa-barra {
+    max-width: calc(100vw - 24px);
+    top: 56px;
+  }
 }
 
 /* Chat compacto sin tonos morados dentro de la vista Mapa */

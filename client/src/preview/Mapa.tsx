@@ -11,8 +11,13 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  ArrowUpDown,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Crown,
+  Eye,
+  EyeOff,
   Grid3x3,
   ImagePlus,
   Lock,
@@ -22,20 +27,27 @@ import {
   Radio,
   RotateCcw,
   Sliders,
+  Swords,
   Trash2,
   Unlock,
   Upload,
+  UserPlus,
   Users,
   X
 } from "lucide-react";
 import { nuevoId } from "./calibracion";
+import { IconoDadoPoligono } from "./HudSalaCompartido";
 import { reproducirSonidoPing } from "./sonido";
 import type {
   EstadoMapaCompartido,
+  IniciativaEntrada,
+  JugadorPreview,
   MapaFondoConfig,
+  MapaIniciativaEstado,
   MapaRejillaConfig,
   PingVisual,
   PlantillaTokenMapa,
+  TiradaAsiento,
   TokenMapa
 } from "./tipos";
 
@@ -81,6 +93,9 @@ export interface MapaProps {
     archivo: File,
     categoria: "escena" | "token"
   ) => Promise<{ archivoId?: string; url: string; titulo: string }>;
+  jugadores?: JugadorPreview[];
+  tiradasAsiento?: Record<string, TiradaAsiento>;
+  onCambiarIniciativa?: (iniciativa: MapaIniciativaEstado) => void | Promise<void>;
 }
 
 const ZOOM_MIN = 0.4;
@@ -225,18 +240,37 @@ export function Mapa({
   onEliminarToken,
   onEliminarPlantilla,
   archivosDisponibles = [],
-  onSubirImagenMapa
+  onSubirImagenMapa,
+  jugadores = [],
+  tiradasAsiento,
+  onCambiarIniciativa
 }: MapaProps) {
-  const { fondo, rejilla, tokens, plantillas } = estadoMapa;
+  const { tokens, plantillas } = estadoMapa;
 
   const [modoPing, setModoPing] = useState(false);
   const [pingsLocales, setPingsLocales] = useState<PingVisual[]>([]);
   const [panelAbierto, setPanelAbierto] = useState<"fondo" | "tokens" | null>(
     null
   );
+  const [fondoBorrador, setFondoBorrador] = useState<MapaFondoConfig | null>(
+    estadoMapa.fondo
+  );
+  const [rejillaBorrador, setRejillaBorrador] = useState<MapaRejillaConfig>(
+    estadoMapa.rejilla
+  );
   const [tokenSeleccionadoId, setTokenSeleccionadoId] = useState<string | null>(
     null
   );
+
+  // Iniciativa
+  const [iniciativaAbierta, setIniciativaAbierta] = useState(false);
+  const [nombreIniciativa, setNombreIniciativa] = useState("");
+  const [valorIniciativa, setValorIniciativa] = useState("10");
+  const [monstruoIniciativa, setMonstruoIniciativa] = useState(true);
+
+  const editandoFondo = esMaster && panelAbierto === "fondo";
+  const fondoActivo = editandoFondo ? fondoBorrador : estadoMapa.fondo;
+  const rejillaActiva = editandoFondo ? rejillaBorrador : estadoMapa.rejilla;
 
   // Viewport, zoom y pan
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -253,8 +287,8 @@ export function Mapa({
     w: number;
     h: number;
   } | null>(
-    fondo?.anchoNatural && fondo?.altoNatural
-      ? { w: fondo.anchoNatural, h: fondo.altoNatural }
+    fondoActivo?.anchoNatural && fondoActivo?.altoNatural
+      ? { w: fondoActivo.anchoNatural, h: fondoActivo.altoNatural }
       : null
   );
 
@@ -278,14 +312,17 @@ export function Mapa({
   const inputFondoRef = useRef<HTMLInputElement>(null);
   const inputTokenRef = useRef<HTMLInputElement>(null);
 
-  // Sincronizar dimensiones naturales cuando cambia el fondo desde fuera
+  // Sincronizar dimensiones naturales cuando cambia el fondo activo
   useEffect(() => {
-    if (fondo?.anchoNatural && fondo?.altoNatural) {
-      setDimsNaturales({ w: fondo.anchoNatural, h: fondo.altoNatural });
-    } else if (!fondo) {
+    if (fondoActivo?.anchoNatural && fondoActivo?.altoNatural) {
+      setDimsNaturales({
+        w: fondoActivo.anchoNatural,
+        h: fondoActivo.altoNatural
+      });
+    } else if (!fondoActivo) {
       setDimsNaturales(null);
     }
-  }, [fondo?.url, fondo?.anchoNatural, fondo?.altoNatural]);
+  }, [fondoActivo?.url, fondoActivo?.anchoNatural, fondoActivo?.altoNatural]);
 
   // Medir viewport con ResizeObserver
   useEffect(() => {
@@ -304,11 +341,16 @@ export function Mapa({
   }, []);
 
   const aspectoCanvas = useMemo(() => {
-    if (fondo && dimsNaturales && dimsNaturales.w > 0 && dimsNaturales.h > 0) {
+    if (
+      fondoActivo &&
+      dimsNaturales &&
+      dimsNaturales.w > 0 &&
+      dimsNaturales.h > 0
+    ) {
       return dimsNaturales.w / dimsNaturales.h;
     }
     return ASPECTO_POR_DEFECTO;
-  }, [fondo, dimsNaturales]);
+  }, [fondoActivo, dimsNaturales]);
 
   // Tamaño base del lienzo en píxeles (a zoom = 1) preservando el aspecto exacto
   const tamanoCanvas = useMemo(() => {
@@ -328,6 +370,19 @@ export function Mapa({
     setPan({ x: 0, y: 0 });
   }, []);
 
+  const abrirPanelFondo = useCallback(() => {
+    setErrorPanel(null);
+    setFondoBorrador(estadoMapa.fondo);
+    setRejillaBorrador(estadoMapa.rejilla);
+    setPanelAbierto("fondo");
+  }, [estadoMapa.fondo, estadoMapa.rejilla]);
+
+  const cerrarPanelFondoSinConfirmar = useCallback(() => {
+    setFondoBorrador(estadoMapa.fondo);
+    setRejillaBorrador(estadoMapa.rejilla);
+    setPanelAbierto(null);
+  }, [estadoMapa.fondo, estadoMapa.rejilla]);
+
   // Teclado: Espacio para pan, Escape para cerrar/deseleccionar
   useEffect(() => {
     function esElementoEditable(target: EventTarget | null): boolean {
@@ -346,8 +401,12 @@ export function Mapa({
         e.preventDefault();
         setEspacioPulsado(true);
       } else if (e.key === "Escape") {
-        if (panelAbierto) {
+        if (panelAbierto === "fondo") {
+          cerrarPanelFondoSinConfirmar();
+        } else if (panelAbierto) {
           setPanelAbierto(null);
+        } else if (iniciativaAbierta) {
+          setIniciativaAbierta(false);
         } else if (tokenSeleccionadoId) {
           setTokenSeleccionadoId(null);
         } else if (modoPing) {
@@ -368,7 +427,13 @@ export function Mapa({
       window.removeEventListener("keydown", alBajarTecla);
       window.removeEventListener("keyup", alSubirTecla);
     };
-  }, [panelAbierto, tokenSeleccionadoId, modoPing]);
+  }, [
+    panelAbierto,
+    iniciativaAbierta,
+    tokenSeleccionadoId,
+    modoPing,
+    cerrarPanelFondoSinConfirmar
+  ]);
 
   // Deseleccionar si el token desaparece o pierde permisos
   useEffect(() => {
@@ -486,14 +551,14 @@ export function Mapa({
         100
       );
 
-      const debeAjustar = rejilla.imanActivo && !evento.altKey;
+      const debeAjustar = rejillaActiva.imanActivo && !evento.altKey;
       const posFinal = debeAjustar
         ? ajustarARejilla(
             rawX,
             rawY,
             tokActivo.celdasAncho,
             tokActivo.celdasAlto,
-            rejilla
+            rejillaActiva
           )
         : { x: rawX, y: rawY };
 
@@ -568,17 +633,19 @@ export function Mapa({
   }
 
   function actualizarRejilla(parche: Partial<MapaRejillaConfig>): void {
-    const siguiente: MapaRejillaConfig = { ...rejilla, ...parche };
-    siguiente.columnas = Math.round(limitar(siguiente.columnas, 4, 80));
-    if (siguiente.filasAuto) {
-      siguiente.filas = calcularFilasAuto(siguiente.columnas, aspectoCanvas);
-    } else {
-      siguiente.filas = Math.round(limitar(siguiente.filas, 4, 80));
-    }
-    siguiente.offsetX = limitar(siguiente.offsetX, -50, 50);
-    siguiente.offsetY = limitar(siguiente.offsetY, -50, 50);
-    siguiente.opacidad = limitar(siguiente.opacidad, 0.05, 1);
-    void onCambiarFondoYRejilla(fondo, siguiente);
+    setRejillaBorrador(prev => {
+      const siguiente: MapaRejillaConfig = { ...prev, ...parche };
+      siguiente.columnas = Math.round(limitar(siguiente.columnas, 4, 80));
+      if (siguiente.filasAuto) {
+        siguiente.filas = calcularFilasAuto(siguiente.columnas, aspectoCanvas);
+      } else {
+        siguiente.filas = Math.round(limitar(siguiente.filas, 4, 80));
+      }
+      siguiente.offsetX = limitar(siguiente.offsetX, -50, 50);
+      siguiente.offsetY = limitar(siguiente.offsetY, -50, 50);
+      siguiente.opacidad = limitar(siguiente.opacidad, 0.05, 1);
+      return siguiente;
+    });
   }
 
   async function alSubirFondo(
@@ -624,14 +691,16 @@ export function Mapa({
         nuevoFondo.anchoNatural && nuevoFondo.altoNatural
           ? nuevoFondo.anchoNatural / nuevoFondo.altoNatural
           : aspectoCanvas;
-      const nuevaRejilla = rejilla.filasAuto
-        ? {
-            ...rejilla,
-            filas: calcularFilasAuto(rejilla.columnas, aspectoNuevo)
-          }
-        : rejilla;
 
-      await onCambiarFondoYRejilla(nuevoFondo, nuevaRejilla);
+      setFondoBorrador(nuevoFondo);
+      setRejillaBorrador(prev =>
+        prev.filasAuto
+          ? {
+              ...prev,
+              filas: calcularFilasAuto(prev.columnas, aspectoNuevo)
+            }
+          : prev
+      );
     } catch (err) {
       setErrorPanel(
         err instanceof Error ? err.message : "No se pudo cargar el fondo."
@@ -656,10 +725,12 @@ export function Mapa({
       setDimsNaturales({ w: dims.ancho, h: dims.alto });
     }
     const aspectoNuevo = dims ? dims.ancho / dims.alto : aspectoCanvas;
-    const nuevaRejilla = rejilla.filasAuto
-      ? { ...rejilla, filas: calcularFilasAuto(rejilla.columnas, aspectoNuevo) }
-      : rejilla;
-    await onCambiarFondoYRejilla(nuevoFondo, nuevaRejilla);
+    setFondoBorrador(nuevoFondo);
+    setRejillaBorrador(prev =>
+      prev.filasAuto
+        ? { ...prev, filas: calcularFilasAuto(prev.columnas, aspectoNuevo) }
+        : prev
+    );
   }
 
   async function alSubirImagenToken(
@@ -702,8 +773,8 @@ export function Mapa({
       return;
     }
     setErrorPanel(null);
-    const centro = rejilla.imanActivo
-      ? ajustarARejilla(50, 50, celdasToken, celdasToken, rejilla)
+    const centro = rejillaActiva.imanActivo
+      ? ajustarARejilla(50, 50, celdasToken, celdasToken, rejillaActiva)
       : { x: 50, y: 50 };
 
     await onCrearToken(
@@ -729,13 +800,13 @@ export function Mapa({
   async function alInvocarPlantilla(
     plantilla: PlantillaTokenMapa
   ): Promise<void> {
-    const centro = rejilla.imanActivo
+    const centro = rejillaActiva.imanActivo
       ? ajustarARejilla(
           50,
           50,
           plantilla.celdasAncho,
           plantilla.celdasAlto,
-          rejilla
+          rejillaActiva
         )
       : { x: 50, y: 50 };
 
@@ -771,13 +842,13 @@ export function Mapa({
 
   // Líneas de la rejilla SVG en píxeles del lienzo
   const lineasRejilla = useMemo(() => {
-    if (!rejilla.visible) return null;
-    const cols = Math.max(4, rejilla.columnas);
-    const filas = Math.max(4, rejilla.filas);
+    if (!rejillaActiva.visible) return null;
+    const cols = Math.max(4, rejillaActiva.columnas);
+    const filas = Math.max(4, rejillaActiva.filas);
     const cellW = tamanoCanvas.w / cols;
     const cellH = tamanoCanvas.h / filas;
-    const offX = (rejilla.offsetX / 100) * cellW;
-    const offY = (rejilla.offsetY / 100) * cellH;
+    const offX = (rejillaActiva.offsetX / 100) * cellW;
+    const offY = (rejillaActiva.offsetY / 100) * cellH;
 
     const verticales: number[] = [];
     for (let i = -1; i <= cols + 1; i++) {
@@ -796,7 +867,162 @@ export function Mapa({
     }
 
     return { verticales, horizontales };
-  }, [rejilla, tamanoCanvas]);
+  }, [rejillaActiva, tamanoCanvas]);
+
+  const jugadoresActivos = useMemo(
+    () => jugadores.filter(j => j.activo),
+    [jugadores]
+  );
+
+  const iniciativa: MapaIniciativaEstado = estadoMapa.iniciativa ?? {
+    activa: false,
+    ronda: 1,
+    turnoIndice: 0,
+    entradas: []
+  };
+
+  function emitirIniciativa(siguiente: MapaIniciativaEstado): void {
+    const normalizada: MapaIniciativaEstado = {
+      ...siguiente,
+      ronda: Math.max(1, Math.round(siguiente.ronda)),
+      turnoIndice:
+        siguiente.entradas.length === 0
+          ? 0
+          : Math.max(
+              0,
+              Math.min(siguiente.entradas.length - 1, siguiente.turnoIndice)
+            )
+    };
+    void onCambiarIniciativa?.(normalizada);
+  }
+
+  function agregarJugadoresActivosIniciativa(): void {
+    const existentes = new Set(
+      iniciativa.entradas
+        .map(e => e.jugadorId)
+        .filter((id): id is string => Boolean(id))
+    );
+    const nuevos: IniciativaEntrada[] = jugadoresActivos
+      .filter(j => !j.esMaster && !existentes.has(j.id))
+      .map(j => ({
+        id: nuevoId(),
+        nombre: !j.esMaster && j.apodo?.trim() ? j.apodo.trim() : j.nombre,
+        valor: 10,
+        color: j.color,
+        esMonstruo: false,
+        jugadorId: j.id
+      }));
+    if (nuevos.length === 0) return;
+    emitirIniciativa({
+      ...iniciativa,
+      activa: true,
+      entradas: [...iniciativa.entradas, ...nuevos]
+    });
+  }
+
+  function agregarCombatienteIniciativa(): void {
+    const valorNum = Number(valorIniciativa);
+    const valorLimpio = Number.isFinite(valorNum) ? Math.round(valorNum) : 10;
+    const nuevaEntrada: IniciativaEntrada = {
+      id: nuevoId(),
+      nombre:
+        nombreIniciativa.trim() ||
+        (monstruoIniciativa ? "Monstruo" : "Combatiente"),
+      valor: valorLimpio,
+      color: monstruoIniciativa ? "#e06c75" : "#e8c56a",
+      esMonstruo: monstruoIniciativa
+    };
+    setNombreIniciativa("");
+    emitirIniciativa({
+      ...iniciativa,
+      activa: true,
+      entradas: [...iniciativa.entradas, nuevaEntrada]
+    });
+  }
+
+  function ordenarIniciativa(): void {
+    const ordenadas = [...iniciativa.entradas].sort(
+      (a, b) => b.valor - a.valor
+    );
+    emitirIniciativa({
+      ...iniciativa,
+      turnoIndice: 0,
+      entradas: ordenadas
+    });
+  }
+
+  function avanzarTurnoIniciativa(): void {
+    const total = iniciativa.entradas.length;
+    if (total === 0) return;
+    if (iniciativa.turnoIndice + 1 < total) {
+      emitirIniciativa({
+        ...iniciativa,
+        activa: true,
+        turnoIndice: iniciativa.turnoIndice + 1
+      });
+    } else {
+      emitirIniciativa({
+        ...iniciativa,
+        activa: true,
+        ronda: iniciativa.ronda + 1,
+        turnoIndice: 0
+      });
+    }
+  }
+
+  function retrocederTurnoIniciativa(): void {
+    const total = iniciativa.entradas.length;
+    if (total === 0) return;
+    if (iniciativa.turnoIndice > 0) {
+      emitirIniciativa({
+        ...iniciativa,
+        turnoIndice: iniciativa.turnoIndice - 1
+      });
+    } else if (iniciativa.ronda > 1) {
+      emitirIniciativa({
+        ...iniciativa,
+        ronda: iniciativa.ronda - 1,
+        turnoIndice: total - 1
+      });
+    }
+  }
+
+  function eliminarEntradaIniciativa(id: string): void {
+    const idx = iniciativa.entradas.findIndex(e => e.id === id);
+    if (idx === -1) return;
+    const restantes = iniciativa.entradas.filter(e => e.id !== id);
+    let nuevoTurno = iniciativa.turnoIndice;
+    if (idx < nuevoTurno) {
+      nuevoTurno -= 1;
+    } else if (nuevoTurno >= restantes.length) {
+      nuevoTurno = Math.max(0, restantes.length - 1);
+    }
+    emitirIniciativa({
+      ...iniciativa,
+      turnoIndice: nuevoTurno,
+      entradas: restantes
+    });
+  }
+
+  function limpiarIniciativa(): void {
+    setIniciativaAbierta(false);
+    emitirIniciativa({
+      activa: false,
+      ronda: 1,
+      turnoIndice: 0,
+      entradas: []
+    });
+  }
+
+  function alternarVisibilidadIniciativa(): void {
+    emitirIniciativa({
+      ...iniciativa,
+      activa: !iniciativa.activa
+    });
+  }
+
+  const mostrarBarraIniciativa =
+    esMaster || iniciativa.activa || iniciativa.entradas.length > 0;
 
   return (
     <div className="mapa-page">
@@ -837,8 +1063,11 @@ export function Mapa({
             type="button"
             className={`pizarra-tool-btn${panelAbierto === "fondo" ? " activo" : ""}`}
             onClick={() => {
-              setErrorPanel(null);
-              setPanelAbierto(prev => (prev === "fondo" ? null : "fondo"));
+              if (panelAbierto === "fondo") {
+                cerrarPanelFondoSinConfirmar();
+              } else {
+                abrirPanelFondo();
+              }
             }}
             title="Configurar imagen de fondo y rejilla táctica"
           >
@@ -880,6 +1109,297 @@ export function Mapa({
         </div>
       </div>
 
+      {/* Barra superior central: Tracker de Iniciativa */}
+      {mostrarBarraIniciativa && (
+        <div
+          className="mapa-iniciativa-barra"
+          role="region"
+          aria-label="Rastreador de iniciativa"
+        >
+          <div className="mapa-iniciativa-cabecera">
+            <span className="mapa-iniciativa-ronda">
+              <Swords size={13} aria-hidden="true" />
+              <span>
+                {iniciativa.entradas.length > 0 || iniciativa.activa
+                  ? `Ronda ${iniciativa.ronda}`
+                  : "Iniciativa"}
+              </span>
+            </span>
+
+            {iniciativa.entradas.length > 0 && (
+              <div className="mapa-iniciativa-lista">
+                {iniciativa.entradas.map((entrada, idx) => {
+                  const esTurno = idx === iniciativa.turnoIndice;
+                  const dotColor =
+                    entrada.color ??
+                    (entrada.esMonstruo ? "#e06c75" : "#e8c56a");
+                  return (
+                    <span
+                      key={entrada.id}
+                      className={`mapa-iniciativa-chip${esTurno ? " activo" : ""}${
+                        entrada.esMonstruo ? " monstruo" : ""
+                      }`}
+                      title={`${entrada.nombre} (${entrada.valor})`}
+                    >
+                      <span
+                        className="mapa-iniciativa-dot"
+                        style={{ backgroundColor: dotColor }}
+                        aria-hidden="true"
+                      />
+                      <span className="mapa-iniciativa-nombre">
+                        {entrada.nombre}
+                      </span>
+                      <span className="mapa-iniciativa-valor">
+                        {entrada.valor}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {esMaster && (
+              <div className="mapa-iniciativa-controles">
+                {iniciativa.entradas.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className="mapa-ini-btn"
+                      onClick={retrocederTurnoIniciativa}
+                      title="Turno anterior"
+                      aria-label="Turno anterior"
+                    >
+                      <ChevronLeft size={13} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mapa-ini-btn mapa-ini-btn-sig"
+                      onClick={avanzarTurnoIniciativa}
+                      title="Siguiente turno"
+                    >
+                      <span>Siguiente</span>
+                      <ChevronRight size={13} aria-hidden="true" />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className={`mapa-ini-btn${iniciativaAbierta ? " activo" : ""}`}
+                  onClick={() => setIniciativaAbierta(prev => !prev)}
+                  aria-expanded={iniciativaAbierta}
+                  title="Gestionar iniciativa"
+                >
+                  <Sliders size={12} aria-hidden="true" />
+                  {iniciativa.entradas.length === 0 && <span>Configurar</span>}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {esMaster && iniciativaAbierta && (
+            <div
+              className="mapa-iniciativa-popover"
+              role="dialog"
+              aria-label="Gestión de iniciativa"
+            >
+              <div className="mapa-iniciativa-acciones-top">
+                <button
+                  type="button"
+                  className="mapa-btn-sec"
+                  onClick={agregarJugadoresActivosIniciativa}
+                  disabled={jugadoresActivos.every(
+                    j =>
+                      j.esMaster ||
+                      iniciativa.entradas.some(e => e.jugadorId === j.id)
+                  )}
+                >
+                  <UserPlus size={12} aria-hidden="true" />
+                  <span>Añadir jugadores</span>
+                </button>
+                <button
+                  type="button"
+                  className="mapa-btn-sec"
+                  onClick={ordenarIniciativa}
+                  disabled={iniciativa.entradas.length < 2}
+                  title="Ordenar de mayor a menor iniciativa"
+                >
+                  <ArrowUpDown size={12} aria-hidden="true" />
+                  <span>Ordenar</span>
+                </button>
+                <button
+                  type="button"
+                  className="mapa-btn-sec"
+                  onClick={alternarVisibilidadIniciativa}
+                  title={
+                    iniciativa.activa
+                      ? "Ocultar iniciativa a los jugadores"
+                      : "Mostrar iniciativa a los jugadores"
+                  }
+                >
+                  {iniciativa.activa ? (
+                    <>
+                      <EyeOff size={12} aria-hidden="true" />
+                      <span>Ocultar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={12} aria-hidden="true" />
+                      <span>Mostrar</span>
+                    </>
+                  )}
+                </button>
+                {iniciativa.entradas.length > 0 && (
+                  <button
+                    type="button"
+                    className="mapa-btn-peligro"
+                    onClick={limpiarIniciativa}
+                    title="Limpiar y cerrar iniciativa"
+                  >
+                    <Trash2 size={12} aria-hidden="true" />
+                    <span>Limpiar</span>
+                  </button>
+                )}
+              </div>
+
+              <form
+                className="mapa-iniciativa-form"
+                onSubmit={e => {
+                  e.preventDefault();
+                  agregarCombatienteIniciativa();
+                }}
+              >
+                <input
+                  type="text"
+                  className="mapa-input"
+                  placeholder="Nombre (ej. Goblin)"
+                  value={nombreIniciativa}
+                  onChange={e => setNombreIniciativa(e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="mapa-input mapa-iniciativa-num"
+                  value={valorIniciativa}
+                  onChange={e => setValorIniciativa(e.target.value)}
+                  aria-label="Valor de iniciativa"
+                />
+                <label className="mapa-check">
+                  <input
+                    type="checkbox"
+                    checked={monstruoIniciativa}
+                    onChange={e => setMonstruoIniciativa(e.target.checked)}
+                  />
+                  <span>Monstruo</span>
+                </label>
+                <button type="submit" className="mapa-btn-primario">
+                  <Plus size={13} aria-hidden="true" />
+                  <span>Añadir</span>
+                </button>
+              </form>
+
+              {iniciativa.entradas.length > 0 && (
+                <ul className="mapa-iniciativa-editor-lista">
+                  {iniciativa.entradas.map((entrada, idx) => (
+                    <li
+                      key={entrada.id}
+                      className={`mapa-iniciativa-editor-item${
+                        idx === iniciativa.turnoIndice ? " activo" : ""
+                      }`}
+                    >
+                      <span
+                        className="mapa-iniciativa-dot"
+                        style={{
+                          backgroundColor:
+                            entrada.color ??
+                            (entrada.esMonstruo ? "#e06c75" : "#e8c56a")
+                        }}
+                        aria-hidden="true"
+                      />
+                      <span className="mapa-iniciativa-editor-nombre">
+                        {entrada.nombre}
+                      </span>
+                      <span className="mapa-iniciativa-editor-val">
+                        {entrada.valor}
+                      </span>
+                      <button
+                        type="button"
+                        className="mapa-panel-cerrar"
+                        onClick={() => eliminarEntradaIniciativa(entrada.id)}
+                        aria-label={`Quitar a ${entrada.nombre}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Columna vertical de jugadores activos y tiradas recientes */}
+      {jugadoresActivos.length > 0 && (
+        <aside
+          className={`mapa-jugadores-columna${esMaster ? " con-master" : ""}`}
+          aria-label="Jugadores en mesa"
+        >
+          {jugadoresActivos.map(j => {
+            const tieneApodo = !j.esMaster && Boolean(j.apodo?.trim());
+            const etiqueta = tieneApodo ? j.apodo!.trim() : j.nombre;
+            const tirada =
+              tiradasAsiento?.[j.id] ??
+              (j.usuarioId ? tiradasAsiento?.[j.usuarioId] : undefined);
+
+            return (
+              <div
+                key={j.id}
+                className={`mapa-jugador-item${j.esMaster ? " master" : ""}`}
+                style={{ "--jugador-color": j.color } as CSSProperties}
+              >
+                {tirada && (
+                  <div
+                    className={`mapa-jugador-tirada${
+                      tirada.especial === "critico" ? " critico" : ""
+                    }${tirada.especial === "pifia" ? " pifia" : ""}`}
+                    aria-label={`${etiqueta} sacó ${tirada.total}`}
+                  >
+                    <span className="mapa-jugador-tirada-icono">
+                      <IconoDadoPoligono caras={tirada.caras ?? 20} />
+                    </span>
+                    <span className="mapa-jugador-tirada-total">
+                      {tirada.total}
+                    </span>
+                    {tirada.desglose && (
+                      <span className="mapa-jugador-tirada-desglose">
+                        {tirada.desglose}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="mapa-jugador-ficha">
+                  <span
+                    className="mapa-jugador-esfera"
+                    style={{ "--color": j.color } as CSSProperties}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={`mapa-jugador-nombre${
+                      tieneApodo ? " con-apodo" : ""
+                    }`}
+                    title={
+                      tieneApodo ? `${etiqueta} (${j.nombre})` : j.nombre
+                    }
+                  >
+                    {etiqueta}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </aside>
+      )}
+
       {/* Panel flotante: Fondo y rejilla (solo Máster) */}
       {esMaster && panelAbierto === "fondo" && (
         <aside className="mapa-panel" aria-label="Fondo y rejilla del mapa">
@@ -891,7 +1411,7 @@ export function Mapa({
             <button
               type="button"
               className="mapa-panel-cerrar"
-              onClick={() => setPanelAbierto(null)}
+              onClick={cerrarPanelFondoSinConfirmar}
               aria-label="Cerrar panel"
             >
               <X size={14} />
@@ -913,11 +1433,11 @@ export function Mapa({
                   <Upload size={13} aria-hidden="true" />
                   <span>{subiendoFondo ? "Subiendo..." : "Subir imagen"}</span>
                 </button>
-                {fondo && (
+                {fondoBorrador && (
                   <button
                     type="button"
                     className="mapa-btn-peligro"
-                    onClick={() => void onCambiarFondoYRejilla(null, rejilla)}
+                    onClick={() => setFondoBorrador(null)}
                   >
                     <Trash2 size={13} aria-hidden="true" />
                     <span>Quitar</span>
@@ -943,7 +1463,7 @@ export function Mapa({
                         key={arch.id}
                         type="button"
                         className={`mapa-archivo-chip${
-                          fondo?.archivoId === arch.id ? " activo" : ""
+                          fondoBorrador?.archivoId === arch.id ? " activo" : ""
                         }`}
                         onClick={() => void alElegirArchivoFondo(arch)}
                         title={arch.nombre}
@@ -961,7 +1481,7 @@ export function Mapa({
                 <label className="mapa-check">
                   <input
                     type="checkbox"
-                    checked={rejilla.visible}
+                    checked={rejillaBorrador.visible}
                     onChange={e =>
                       actualizarRejilla({ visible: e.target.checked })
                     }
@@ -972,7 +1492,7 @@ export function Mapa({
                 <label className="mapa-check">
                   <input
                     type="checkbox"
-                    checked={rejilla.imanActivo}
+                    checked={rejillaBorrador.imanActivo}
                     onChange={e =>
                       actualizarRejilla({ imanActivo: e.target.checked })
                     }
@@ -983,12 +1503,12 @@ export function Mapa({
 
               <div className="mapa-grid-campos">
                 <label className="mapa-campo">
-                  <span>Columnas ({rejilla.columnas})</span>
+                  <span>Columnas ({rejillaBorrador.columnas})</span>
                   <input
                     type="range"
                     min={4}
                     max={80}
-                    value={rejilla.columnas}
+                    value={rejillaBorrador.columnas}
                     onChange={e =>
                       actualizarRejilla({ columnas: Number(e.target.value) })
                     }
@@ -997,20 +1517,22 @@ export function Mapa({
 
                 <div className="mapa-campo">
                   <div className="mapa-campo-fila-lbl">
-                    <span>Filas ({rejilla.filas})</span>
+                    <span>Filas ({rejillaBorrador.filas})</span>
                     <button
                       type="button"
-                      className={`mapa-lock-btn${rejilla.filasAuto ? " activo" : ""}`}
+                      className={`mapa-lock-btn${rejillaBorrador.filasAuto ? " activo" : ""}`}
                       onClick={() =>
-                        actualizarRejilla({ filasAuto: !rejilla.filasAuto })
+                        actualizarRejilla({
+                          filasAuto: !rejillaBorrador.filasAuto
+                        })
                       }
                       title={
-                        rejilla.filasAuto
+                        rejillaBorrador.filasAuto
                           ? "Filas automáticas (celdas cuadradas). Pulsa para editar manualmente."
                           : "Filas manuales. Pulsa para volver a celdas cuadradas."
                       }
                     >
-                      {rejilla.filasAuto ? (
+                      {rejillaBorrador.filasAuto ? (
                         <>
                           <Lock size={11} aria-hidden="true" />
                           <span>Auto</span>
@@ -1027,8 +1549,8 @@ export function Mapa({
                     type="range"
                     min={4}
                     max={80}
-                    disabled={rejilla.filasAuto}
-                    value={rejilla.filas}
+                    disabled={rejillaBorrador.filasAuto}
+                    value={rejillaBorrador.filas}
                     onChange={e =>
                       actualizarRejilla({ filas: Number(e.target.value) })
                     }
@@ -1036,13 +1558,13 @@ export function Mapa({
                 </div>
 
                 <label className="mapa-campo">
-                  <span>Desfase X ({Math.round(rejilla.offsetX)}%)</span>
+                  <span>Desfase X ({Math.round(rejillaBorrador.offsetX)}%)</span>
                   <input
                     type="range"
                     min={-50}
                     max={50}
                     step={1}
-                    value={rejilla.offsetX}
+                    value={rejillaBorrador.offsetX}
                     onChange={e =>
                       actualizarRejilla({ offsetX: Number(e.target.value) })
                     }
@@ -1050,13 +1572,13 @@ export function Mapa({
                 </label>
 
                 <label className="mapa-campo">
-                  <span>Desfase Y ({Math.round(rejilla.offsetY)}%)</span>
+                  <span>Desfase Y ({Math.round(rejillaBorrador.offsetY)}%)</span>
                   <input
                     type="range"
                     min={-50}
                     max={50}
                     step={1}
-                    value={rejilla.offsetY}
+                    value={rejillaBorrador.offsetY}
                     onChange={e =>
                       actualizarRejilla({ offsetY: Number(e.target.value) })
                     }
@@ -1064,13 +1586,15 @@ export function Mapa({
                 </label>
 
                 <label className="mapa-campo">
-                  <span>Opacidad ({Math.round(rejilla.opacidad * 100)}%)</span>
+                  <span>
+                    Opacidad ({Math.round(rejillaBorrador.opacidad * 100)}%)
+                  </span>
                   <input
                     type="range"
                     min={0.05}
                     max={1}
                     step={0.05}
-                    value={rejilla.opacidad}
+                    value={rejillaBorrador.opacidad}
                     onChange={e =>
                       actualizarRejilla({ opacidad: Number(e.target.value) })
                     }
@@ -1081,7 +1605,7 @@ export function Mapa({
                   <span>Color</span>
                   <input
                     type="color"
-                    value={rejilla.color}
+                    value={rejillaBorrador.color}
                     onChange={e =>
                       actualizarRejilla({ color: e.target.value })
                     }
@@ -1096,7 +1620,7 @@ export function Mapa({
               type="button"
               className="mapa-btn-confirmar"
               onClick={() => {
-                void onCambiarFondoYRejilla(fondo, rejilla);
+                void onCambiarFondoYRejilla(fondoBorrador, rejillaBorrador);
                 setPanelAbierto(null);
               }}
             >
@@ -1289,13 +1813,13 @@ export function Mapa({
                   type="button"
                   className={`mapa-preset-btn${activo ? " activo" : ""}`}
                   onClick={() => {
-                    const pos = rejilla.imanActivo
+                    const pos = rejillaActiva.imanActivo
                       ? ajustarARejilla(
                           tokenSeleccionado.x,
                           tokenSeleccionado.y,
                           n,
                           n,
-                          rejilla
+                          rejillaActiva
                         )
                       : { x: tokenSeleccionado.x, y: tokenSeleccionado.y };
                     void onActualizarToken(tokenSeleccionado.id, {
@@ -1367,17 +1891,17 @@ export function Mapa({
         >
           <div
             ref={canvasRef}
-            className={`mapa-canvas${fondo ? "" : " sin-fondo"}`}
+            className={`mapa-canvas${fondoActivo ? "" : " sin-fondo"}`}
             style={{
               width: `${tamanoCanvas.w}px`,
               height: `${tamanoCanvas.h}px`
             }}
           >
             {/* Capa 1: Fondo estático o lienzo por defecto */}
-            {fondo ? (
+            {fondoActivo ? (
               <img
-                src={fondo.url}
-                alt={fondo.titulo ?? "Mapa táctico"}
+                src={fondoActivo.url}
+                alt={fondoActivo.titulo ?? "Mapa táctico"}
                 className="mapa-fondo-img"
                 draggable={false}
                 onLoad={e => {
@@ -1405,7 +1929,7 @@ export function Mapa({
             )}
 
             {/* Capa 2: Rejilla SVG recortada exactamente al lienzo */}
-            {rejilla.visible && lineasRejilla && (
+            {rejillaActiva.visible && lineasRejilla && (
               <svg
                 className="mapa-rejilla-svg"
                 width="100%"
@@ -1413,7 +1937,7 @@ export function Mapa({
                 viewBox={`0 0 ${tamanoCanvas.w} ${tamanoCanvas.h}`}
                 preserveAspectRatio="none"
                 aria-hidden="true"
-                style={{ opacity: rejilla.opacidad }}
+                style={{ opacity: rejillaActiva.opacidad }}
               >
                 {lineasRejilla.verticales.map((x, idx) => (
                   <line
@@ -1422,7 +1946,7 @@ export function Mapa({
                     y1={0}
                     x2={x}
                     y2={tamanoCanvas.h}
-                    stroke={rejilla.color}
+                    stroke={rejillaActiva.color}
                     strokeWidth={1 / Math.max(0.6, Math.min(2, zoom))}
                   />
                 ))}
@@ -1433,7 +1957,7 @@ export function Mapa({
                     y1={y}
                     x2={tamanoCanvas.w}
                     y2={y}
-                    stroke={rejilla.color}
+                    stroke={rejillaActiva.color}
                     strokeWidth={1 / Math.max(0.6, Math.min(2, zoom))}
                   />
                 ))}
@@ -1449,11 +1973,11 @@ export function Mapa({
               const posX = enArrastre ? enArrastre.xActual : token.x;
               const posY = enArrastre ? enArrastre.yActual : token.y;
               const anchoPct =
-                (token.celdasAncho / Math.max(4, rejilla.columnas)) *
+                (token.celdasAncho / Math.max(4, rejillaActiva.columnas)) *
                 100 *
                 token.escala;
               const altoPct =
-                (token.celdasAlto / Math.max(4, rejilla.filas)) *
+                (token.celdasAlto / Math.max(4, rejillaActiva.filas)) *
                 100 *
                 token.escala;
 

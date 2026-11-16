@@ -194,6 +194,85 @@ describe("rutas de /api/mesas/:id/mapa", () => {
       .expect(201);
     expect(tokenRes.body.tokens[0].imagenUrl).toBe(`/api/archivos/${archivoId}`);
   });
+
+  it("solo el máster puede guardar la iniciativa del mapa y se difunde a todos los miembros", async () => {
+    const { app, aprobar, sesionDe, notifier } = montar();
+    const master = await aprobar("master-init@pocket.test");
+    const jugador = await aprobar("jugador-init@pocket.test");
+
+    const cookieMaster = await sesionDe("master-init@pocket.test");
+    const cookieJugador = await sesionDe("jugador-init@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugador)
+      .send()
+      .expect(200);
+
+    const iniciativaPayload = {
+      activa: true,
+      ronda: 2,
+      turnoIndice: 1,
+      entradas: [
+        {
+          id: "init-1",
+          nombre: "Lyra",
+          valor: 18,
+          color: "#96fbc7",
+          jugadorId: jugador.id
+        },
+        {
+          id: "init-2",
+          nombre: "Goblin Jefe",
+          valor: 14,
+          esMonstruo: true
+        }
+      ]
+    };
+
+    // El jugador no puede modificar la iniciativa
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+      .set("Cookie", cookieJugador)
+      .send({ iniciativa: iniciativaPayload })
+      .expect(403);
+
+    // Payload inválido devuelve 400
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+      .set("Cookie", cookieMaster)
+      .send({})
+      .expect(400);
+
+    // El máster guarda la iniciativa
+    const putRes = await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+      .set("Cookie", cookieMaster)
+      .send({ iniciativa: iniciativaPayload })
+      .expect(200);
+
+    expect(putRes.body.iniciativa).toEqual(iniciativaPayload);
+
+    // Se difundió mesa:mapa-actualizado a todos los miembros
+    expect(notifier.mapasDifundidos).toHaveLength(1);
+    expect(notifier.mapasDifundidos[0]!.mesaId).toBe(mesaId);
+    expect(notifier.mapasDifundidos[0]!.userIds).toEqual([master.id, jugador.id]);
+    expect(notifier.mapasDifundidos[0]!.mapa.iniciativa).toEqual(iniciativaPayload);
+
+    // El jugador ve la iniciativa al consultar GET /mapa
+    const getJugador = await request(app)
+      .get(`/api/mesas/${mesaId}/mapa`)
+      .set("Cookie", cookieJugador)
+      .expect(200);
+    expect(getJugador.body.iniciativa).toEqual(iniciativaPayload);
+  });
 });
 
 describe("PgMapaEstadoRepository", () => {

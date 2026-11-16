@@ -5,6 +5,7 @@ import type {
   EstadoMapaCompartido,
   EventoTirada,
   GuardarMapaFondoPayload,
+  MapaIniciativaEstado,
   MensajeChat,
   PublicMesa,
   PublicTransferencia,
@@ -84,6 +85,10 @@ export const mesasApi = {
   /** Cambia el color del jugador dentro de la mesa. */
   ponerColor: (id: string, color: string | null) =>
     http.post<PublicMesa>(`/api/mesas/${id}/color`, { color }),
+
+  /** Cambia o limpia el apodo de personaje del jugador dentro de la mesa. */
+  cambiarApodo: (id: string, apodo: string) =>
+    http.patch<PublicMesa>(`/api/mesas/${id}/apodo`, { apodo }),
 
   pendientesCompartir: (id: string) =>
     http.get<PublicTransferencia[]>(`/api/mesas/${id}/compartir/pendientes`),
@@ -268,6 +273,12 @@ export const mesasApi = {
   /** Guarda el fondo y/o configuración de rejilla del mapa (solo Máster). */
   guardarMapaFondo: (mesaId: string, datos: GuardarMapaFondoPayload) =>
     putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/fondo`, datos),
+
+  /** Guarda el estado de iniciativa del combate en el mapa (solo Máster). */
+  guardarMapaIniciativa: (mesaId: string, iniciativa: MapaIniciativaEstado) =>
+    putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/iniciativa`, {
+      iniciativa
+    }),
 
   /** Crea un token en el mapa táctico (y opcionalmente su plantilla). */
   crearTokenMapa: (mesaId: string, datos: CrearTokenMapaPayload) =>

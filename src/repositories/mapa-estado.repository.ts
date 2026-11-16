@@ -46,11 +46,28 @@ export interface PlantillaTokenMapa {
   esMonstruo?: boolean;
 }
 
+export interface IniciativaEntrada {
+  id: string;
+  nombre: string;
+  valor: number;
+  color?: string;
+  esMonstruo?: boolean;
+  jugadorId?: string;
+}
+
+export interface MapaIniciativaEstado {
+  activa: boolean;
+  ronda: number;
+  turnoIndice: number;
+  entradas: IniciativaEntrada[];
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
   tokens: TokenMapa[];
   plantillas: PlantillaTokenMapa[];
+  iniciativa?: MapaIniciativaEstado;
 }
 
 export const REJILLA_MAPA_DEFECTO: MapaRejillaConfig = {
@@ -255,6 +272,65 @@ function sanitizarPlantilla(raw: unknown): PlantillaTokenMapa | null {
   return plantilla;
 }
 
+function sanitizarIniciativaEntrada(raw: unknown): IniciativaEntrada | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.id !== "string" || !obj.id.trim()) return null;
+  const nombre =
+    typeof obj.nombre === "string" && obj.nombre.trim()
+      ? obj.nombre.trim().slice(0, 120)
+      : "Participante";
+  const valor = clampNumero(obj.valor, -999, 9999, 0);
+
+  const entrada: IniciativaEntrada = {
+    id: obj.id.trim().slice(0, 120),
+    nombre,
+    valor
+  };
+
+  if (typeof obj.color === "string" && obj.color.trim()) {
+    entrada.color = obj.color.trim().slice(0, 32);
+  }
+  if (obj.esMonstruo === true) {
+    entrada.esMonstruo = true;
+  }
+  if (typeof obj.jugadorId === "string" && obj.jugadorId.trim()) {
+    entrada.jugadorId = obj.jugadorId.trim().slice(0, 120);
+  }
+
+  return entrada;
+}
+
+export function sanitizarIniciativa(raw: unknown): MapaIniciativaEstado | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.activa !== "boolean" && !Array.isArray(obj.entradas)) {
+    return undefined;
+  }
+
+  const entradas = Array.isArray(obj.entradas)
+    ? obj.entradas
+        .map(sanitizarIniciativaEntrada)
+        .filter((e): e is IniciativaEntrada => e !== null)
+        .slice(0, 100)
+    : [];
+
+  const activa = typeof obj.activa === "boolean" ? obj.activa : false;
+  const ronda = Math.round(clampNumero(obj.ronda, 1, 9999, 1));
+  const turnoIndice =
+    entradas.length > 0
+      ? Math.round(clampNumero(obj.turnoIndice, 0, entradas.length - 1, 0))
+      : 0;
+
+  return {
+    activa,
+    ronda,
+    turnoIndice,
+    entradas
+  };
+}
+
 export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return crearMapaEstadoVacio();
@@ -273,11 +349,14 @@ export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
         .filter((p): p is PlantillaTokenMapa => p !== null)
     : [];
 
+  const iniciativa = sanitizarIniciativa(obj.iniciativa);
+
   return {
     fondo: sanitizarFondo(obj.fondo),
     rejilla: sanitizarRejilla(obj.rejilla),
     tokens,
-    plantillas
+    plantillas,
+    ...(iniciativa ? { iniciativa } : {})
   };
 }
 

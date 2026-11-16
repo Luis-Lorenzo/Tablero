@@ -83,8 +83,11 @@ CREATE TABLE IF NOT EXISTS mesa_jugadores (
   mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
   user_id UUID NOT NULL, 
   color   TEXT, 
+  apodo   TEXT,
   PRIMARY KEY (mesa_id, user_id) 
 );
+
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS apodo TEXT;
 
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
 

@@ -37,6 +37,7 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: "ESPERA" | "EN_CURSO";
   colores?: Record<string, string>;
+  playerApodos?: Record<string, string>;
   imagenEscena?: ImagenMaster | null;
   imagenProyectada?: ImagenMaster | null;
   divisaNombre?: string;
@@ -217,11 +218,28 @@ export interface PlantillaTokenMapa {
   esMonstruo?: boolean;
 }
 
+export interface IniciativaEntrada {
+  id: string;
+  nombre: string;
+  valor: number;
+  color?: string;
+  esMonstruo?: boolean;
+  jugadorId?: string;
+}
+
+export interface MapaIniciativaEstado {
+  activa: boolean;
+  ronda: number;
+  turnoIndice: number;
+  entradas: IniciativaEntrada[];
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
   tokens: TokenMapa[];
   plantillas: PlantillaTokenMapa[];
+  iniciativa?: MapaIniciativaEstado;
 }
 
 export interface GuardarMapaFondoPayload {

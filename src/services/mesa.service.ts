@@ -42,6 +42,7 @@ export interface MesaVista {
   /** Si el máster ya ha empezado la partida. */
   estado: EstadoMesa;
   colores?: Record<string, string>;
+  playerApodos?: Record<string, string>;
   imagenEscena: ImagenMesa | null;
   imagenProyectada: ImagenMesa | null;
   divisaNombre?: string;
@@ -371,6 +372,7 @@ export class MesaService {
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
       colores: mesa.colores ?? {},
+      playerApodos: mesa.apodos ?? {},
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
       divisaNombre: mesa.divisaNombre?.trim() || "Divisa",
@@ -438,6 +440,31 @@ export class MesaService {
       mesa.colores[actor.id] = color;
     } else {
       delete mesa.colores[actor.id];
+    }
+    await this.mesas.save(mesa);
+    return this.vista(mesa);
+  }
+
+  async cambiarApodo(
+    actor: User,
+    mesaId: string,
+    apodo: string | null
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    const esAnfitrion = mesa.hostId === actor.id;
+    const esJugador = (mesa.players ?? []).includes(actor.id);
+    if (!esAnfitrion && !esJugador) {
+      throw errors.mesaForbidden();
+    }
+
+    if (!mesa.apodos) mesa.apodos = {};
+    const limpio = typeof apodo === "string" ? apodo.trim().slice(0, 24) : "";
+    if (limpio) {
+      mesa.apodos[actor.id] = limpio;
+    } else {
+      delete mesa.apodos[actor.id];
     }
     await this.mesas.save(mesa);
     return this.vista(mesa);

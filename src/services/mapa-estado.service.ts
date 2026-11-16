@@ -3,6 +3,7 @@ import type { MesasNotifier } from "../realtime/mesas-notifier.js";
 import {
   clampNumero,
   sanitizarFondo,
+  sanitizarIniciativa,
   sanitizarMapaEstado,
   sanitizarRejilla,
   type EstadoMapaCompartido,
@@ -67,6 +68,32 @@ export class MapaEstadoService {
       ...actual,
       fondo: fondo === undefined ? actual.fondo : sanitizarFondo(fondo),
       rejilla: rejilla === undefined ? actual.rejilla : sanitizarRejilla(rejilla)
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async guardarIniciativa(
+    actor: User,
+    mesaId: string,
+    iniciativa: unknown
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesa(mesaId);
+    if (!this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
+
+    const limpia = sanitizarIniciativa(iniciativa);
+    if (!limpia) {
+      throw errors.invalidRequest();
+    }
+
+    const actual = await this.mapaEstado.getEstado(mesaId);
+    const siguiente: EstadoMapaCompartido = sanitizarMapaEstado({
+      ...actual,
+      iniciativa: limpia
     });
 
     await this.mapaEstado.saveEstado(mesaId, siguiente);

@@ -53,7 +53,8 @@ import type {
   MensajeSala,
   ObjetoMochila,
   RectPizarra,
-  TipoEspecialTirada
+  TipoEspecialTirada,
+  TiradaAsiento
 } from "./tipos";
 
 export interface HudSalaCompartidoProps {
@@ -73,6 +74,7 @@ export interface HudSalaCompartidoProps {
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
   }) => void | Promise<void>;
+  onTiradaLocal?: (tirada: TiradaAsiento) => void;
   macros?: MacroTirada[];
   onMacros?: (macros: MacroTirada[]) => void;
   divisa?: number;
@@ -225,7 +227,7 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
   );
 }
 
-function IconoDadoPoligono({
+export function IconoDadoPoligono({
   caras,
   valor
 }: {
@@ -361,6 +363,7 @@ export function HudSalaCompartido({
   mensajesChat,
   onEnviarChat,
   onTiradaPublica,
+  onTiradaLocal,
   macros,
   onMacros,
   divisa,
@@ -843,6 +846,24 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         setTirando(false);
 
         if (!esSecretaMaster) {
+          const desgloseTexto =
+            resultadoFinal.desgloseDados.length > 1 ||
+            resultadoFinal.bonificador !== 0
+              ? `${resultadoFinal.dados.join("+")}${
+                  resultadoFinal.bonificador > 0
+                    ? `+${resultadoFinal.bonificador}`
+                    : resultadoFinal.bonificador < 0
+                      ? `${resultadoFinal.bonificador}`
+                      : ""
+                }`
+              : undefined;
+          onTiradaLocal?.({
+            id: `${Date.now()}-${Math.random()}`,
+            total: resultadoFinal.total,
+            especial: resultadoFinal.especial,
+            caras: resultadoFinal.caras,
+            desglose: desgloseTexto
+          });
           if (onTiradaPublica) {
             void onTiradaPublica({
               ...resultadoFinal,

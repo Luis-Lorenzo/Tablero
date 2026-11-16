@@ -49,6 +49,7 @@ import type {
   ImagenEscenaPreview,
   JugadorPreview,
   MapaFondoConfig,
+  MapaIniciativaEstado,
   MapaRejillaConfig,
   MensajeSala,
   ObjetoMochila,
@@ -100,6 +101,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
       usuarioId: jugador.id,
       userId: jugador.id,
       nombre: jugador.name,
+      apodo: mesa.playerApodos?.[jugador.id],
       color:
         mesa.colores?.[jugador.id] ??
         jugador.color ??
@@ -968,6 +970,16 @@ function SalaRealContent({
     }
   }
 
+  async function cambiarApodo(apodo: string): Promise<void> {
+    setError(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, apodo);
+      onActualizarMesa(actualizada);
+    } catch (apodoError) {
+      setError(describeError(apodoError));
+    }
+  }
+
   async function volverAEspera() {
     if (!esMaster) {
       onVolver();
@@ -1109,6 +1121,16 @@ function SalaRealContent({
     }
   }
 
+  async function cambiarIniciativaMapa(iniciativa: MapaIniciativaEstado): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, iniciativa }));
+    try {
+      const actualizado = await mesasApi.guardarMapaIniciativa(mesa.id, iniciativa);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
   async function subirImagenMapa(
     archivo: File,
     _categoria: "escena" | "token"
@@ -1166,12 +1188,15 @@ function SalaRealContent({
           nombreJugador={nombreJugadorActual}
           esMaster={esMaster}
           miUsuarioId={user.id}
+          jugadores={jugadores}
+          tiradasAsiento={tiradasAsiento}
           estadoMapa={estadoMapa}
           onCambiarFondoYRejilla={cambiarFondoYRejilla}
           onCrearToken={crearTokenMapa}
           onActualizarToken={actualizarTokenMapa}
           onEliminarToken={eliminarTokenMapa}
           onEliminarPlantilla={eliminarPlantillaMapa}
+          onCambiarIniciativa={cambiarIniciativaMapa}
           archivosDisponibles={archivosDisponibles}
           onSubirImagenMapa={subirImagenMapa}
         />
@@ -1274,6 +1299,7 @@ function SalaRealContent({
             }
             : undefined
         }
+        onCambiarApodo={!esMaster ? cambiarApodo : undefined}
       />
     );
   }

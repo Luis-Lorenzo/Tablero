@@ -39,6 +39,7 @@ import type {
   ImagenEscenaPreview,
   JugadorPreview,
   MapaFondoConfig,
+  MapaIniciativaEstado,
   MapaRejillaConfig,
   PlantillaTokenMapa,
   PositPreview,
@@ -80,7 +81,8 @@ function cargarEstadoMapaPreview(): EstadoMapaCompartido {
       fondo: parsed.fondo ?? null,
       rejilla: { ...ESTADO_MAPA_DEFECTO.rejilla, ...(parsed.rejilla ?? {}) },
       tokens: Array.isArray(parsed.tokens) ? parsed.tokens : [],
-      plantillas: Array.isArray(parsed.plantillas) ? parsed.plantillas : []
+      plantillas: Array.isArray(parsed.plantillas) ? parsed.plantillas : [],
+      iniciativa: parsed.iniciativa
     };
   } catch {
     return ESTADO_MAPA_DEFECTO;
@@ -337,6 +339,22 @@ export default function PreviewApp() {
     }));
   }, []);
 
+  const cambiarIniciativaPreview = useCallback(
+    (iniciativa: MapaIniciativaEstado) => {
+      setEstadoMapa(prev => ({ ...prev, iniciativa }));
+    },
+    []
+  );
+
+  const cambiarApodoPreview = useCallback((apodo: string) => {
+    const limpio = apodo.trim().slice(0, 24);
+    setJugadores(prev =>
+      prev.map(j =>
+        j.id === "master" ? { ...j, apodo: limpio || undefined } : j
+      )
+    );
+  }, []);
+
   const subirImagenMapaPreview = useCallback(
     async (
       archivo: File,
@@ -402,12 +420,14 @@ export default function PreviewApp() {
           miUsuarioId="master"
           colorJugador="#e8c56a"
           nombreJugador="Máster"
+          jugadores={jugadores}
           estadoMapa={estadoMapa}
           onCambiarFondoYRejilla={cambiarFondoYRejillaPreview}
           onCrearToken={crearTokenPreview}
           onActualizarToken={actualizarTokenPreview}
           onEliminarToken={eliminarTokenPreview}
           onEliminarPlantilla={eliminarPlantillaPreview}
+          onCambiarIniciativa={cambiarIniciativaPreview}
           archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
           onSubirImagenMapa={subirImagenMapaPreview}
         />
@@ -468,6 +488,7 @@ export default function PreviewApp() {
         onAceptarSolicitud={aceptarSolicitudPreview}
         onRechazarSolicitud={() => setSolicitudPendiente(null)}
         onSimularRecepcion={simularRecepcion}
+        onCambiarApodo={cambiarApodoPreview}
       />
     );
   }
