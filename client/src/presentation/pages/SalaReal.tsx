@@ -9,6 +9,7 @@ import {
 import { ApiError } from "../../api/client";
 import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
+import { usersApi } from "../../api/users.api";
 import type {
   EventoTirada,
   MensajeChat,
@@ -33,14 +34,21 @@ import {
   crearElementoDesdeArchivo,
   nuevoIdElemento
 } from "../../preview/compartir";
-import { reproducirSonidoNotificacion } from "../../preview/sonido";
+import {
+  reproducirSonidoMonedas,
+  reproducirSonidoNotificacion,
+  reproducirSonidoPing
+} from "../../preview/sonido";
 import type {
   Calibracion,
+  DivisaAsientoDelta,
   DocumentoMesa,
   ElementoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
   MensajeSala,
+  ObjetoMochila,
+  PingVisual,
   PositPreview,
   SolicitudTransferencia,
   TipoEspecialTirada,
@@ -113,6 +121,15 @@ function aSolicitudCliente(t: PublicTransferencia): SolicitudTransferencia {
     };
   }
 
+  if (t.tipo === "objeto") {
+    return {
+      id: t.id,
+      emisorNombre: t.emisorNombre,
+      tipo: "objeto",
+      objeto: t.objeto
+    };
+  }
+
   return {
     id: t.id,
     emisorNombre: t.emisorNombre,
@@ -152,10 +169,16 @@ function SalaRealContent({
   const [error, setError] = useState<string | null>(null);
   const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
   const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
+  const [divisaAsiento, setDivisaAsiento] = useState<Record<string, DivisaAsientoDelta>>({});
+  const [divisa, setDivisa] = useState<number>(0);
+  const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
+  const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
+  const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
 
   const recepcionesRef = useRef(0);
   const avisoTimerRef = useRef<number | null>(null);
   const timersAsiento = useRef<Record<string, number>>({});
+  const timersDivisa = useRef<Record<string, number>>({});
   const estadoCargadoRef = useRef(false);
   const pizarraCargadaRef = useRef(false);
   const ignorarGuardadoPizarraRef = useRef(false);
@@ -186,6 +209,14 @@ function SalaRealContent({
       window.clearTimeout(avisoTimerRef.current);
     }
     avisoTimerRef.current = window.setTimeout(() => setEstadoAviso(null), 3200);
+  }, []);
+
+  const agregarPingVisual = useCallback((ping: PingVisual) => {
+    reproducirSonidoPing();
+    setPingsActivos(prev => [...prev, ping]);
+    window.setTimeout(() => {
+      setPingsActivos(prev => prev.filter(item => item.id !== ping.id));
+    }, 2400);
   }, []);
 
   useEffect(
@@ -284,6 +315,26 @@ function SalaRealContent({
 
   useEffect(() => {
     let activo = true;
+    void usersApi
+      .obtenerMacros()
+      .then(({ macros: remotas }) => {
+        if (activo && Array.isArray(remotas)) setMacros(remotas);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [user.id]);
+
+  const actualizarMacros = useCallback((nuevas: import("../../preview/tipos").MacroTirada[]) => {
+    setMacros(nuevas);
+    void usersApi.guardarMacros(nuevas).catch(() => {
+      setError("No se pudieron guardar las macros en tu perfil.");
+    });
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
     pizarraCargadaRef.current = false;
     void mesasApi
       .obtenerPizarra(mesa.id)
@@ -350,6 +401,10 @@ function SalaRealContent({
           ? (res.elementos as ElementoMesa[])
           : [];
         setElementosMesa(cargados);
+        setDivisa(typeof res.divisa === "number" ? res.divisa : 0);
+        setMochila(
+          Array.isArray(res.mochila) ? (res.mochila as ObjetoMochila[]) : []
+        );
       })
       .catch(() => undefined)
       .finally(() => {
@@ -378,12 +433,28 @@ function SalaRealContent({
               archivado: el.archivado,
               remitente: el.remitente
             }
-          : el
+          : el.tipo === "objeto"
+            ? {
+                id: el.id,
+                tipo: el.tipo,
+                nombre: el.nombre,
+                descripcion: el.descripcion,
+                cantidad: el.cantidad,
+                emoji: el.emoji,
+                archivoId: el.archivoId,
+                archivoNombre: el.archivoNombre,
+                x: el.x,
+                y: el.y,
+                archivado: el.archivado,
+                remitente: el.remitente
+              }
+            : el
       );
-      void mesasApi.guardarEstado(mesa.id, limpios).catch(() => undefined);
+      const mochilaLimpia = mochila.map(({ imagenLocal: _img, ...resto }) => resto);
+      void mesasApi.guardarEstado(mesa.id, limpios, mochilaLimpia).catch(() => undefined);
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [mesa.id, elementosMesa]);
+  }, [mesa.id, elementosMesa, mochila]);
   const refrescar = useCallback(async () => {
     try {
       const actualizada = await mesasApi.obtener(mesa.id);
@@ -421,19 +492,34 @@ function SalaRealContent({
 
   useEffect(() => {
     let activo = true;
-    void mesasApi
-      .pendientesCompartir(mesa.id)
-      .then(lista => {
-        if (!activo || lista.length === 0) return;
-        setColaSolicitudes(prev => {
-          const existentes = new Set(prev.map(s => s.id));
-          const nuevas = lista
-            .filter(t => !existentes.has(t.id))
-            .map(aSolicitudCliente);
-          return nuevas.length > 0 ? [...prev, ...nuevas] : prev;
-        });
-      })
-      .catch(() => undefined);
+    const sincronizarPendientes = () => {
+      void mesasApi
+        .pendientesCompartir(mesa.id)
+        .then(lista => {
+          if (!activo) return;
+          setColaSolicitudes(prev => {
+            const idsActivos = new Set(lista.map(t => t.id));
+            const filtrada = prev.filter(s => idsActivos.has(s.id));
+            const existentes = new Set(filtrada.map(s => s.id));
+            const nuevas = lista
+              .filter(t => !existentes.has(t.id))
+              .map(aSolicitudCliente);
+            if (nuevas.length === 0 && filtrada.length === prev.length) return prev;
+            return [...filtrada, ...nuevas];
+          });
+        })
+        .catch(() => undefined);
+    };
+
+    sincronizarPendientes();
+    const intervalo = window.setInterval(sincronizarPendientes, 4000);
+    const alEnfocar = () => {
+      if (document.visibilityState !== "hidden") {
+        sincronizarPendientes();
+      }
+    };
+    window.addEventListener("focus", alEnfocar);
+    document.addEventListener("visibilitychange", alEnfocar);
 
     void archivosApi
       .listar()
@@ -444,11 +530,22 @@ function SalaRealContent({
 
     return () => {
       activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", alEnfocar);
+      document.removeEventListener("visibilitychange", alEnfocar);
     };
   }, [mesa.id]);
 
   const alMensajeEnVivo = useCallback(
     (evento: Record<string, unknown>) => {
+      if (evento.type === "mesa:ping" && evento.mesaId === mesa.id && evento.ping) {
+        const bruto = evento.ping as PingVisual & { autorId?: string };
+        if (bruto.autorId !== user.id) {
+          agregarPingVisual(bruto);
+        }
+        return;
+      }
+
       if (evento.type === "pizarra:actualizada" && evento.mesaId === mesa.id) {
         if (evento.autorId !== user.id && evento.estado && typeof evento.estado === "object") {
           aplicarEstadoPizarraRemoto(
@@ -470,16 +567,93 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:divisa" && evento.mesaId === mesa.id) {
+        const jugadorId = String(evento.jugadorId ?? "");
+        const jugadorNombre = String(evento.jugadorNombre ?? "Alguien");
+        const delta = Number(evento.delta ?? 0);
+        const total = Number(evento.divisa ?? 0);
+        const nombreDivisa = String(evento.divisaNombre ?? "Divisa");
+        const creado = String(evento.createdAt ?? new Date().toISOString());
+
+        if (delta !== 0) {
+          reproducirSonidoMonedas();
+          const jugador = jugadores.find(j => (j.userId ?? j.id) === jugadorId);
+          if (jugador) {
+            const asientoId = jugador.id;
+            const prevTimer = timersDivisa.current[asientoId];
+            if (prevTimer !== undefined) window.clearTimeout(prevTimer);
+            const idDelta = `${Date.now()}-${Math.random()}`;
+            setDivisaAsiento(prev => ({
+              ...prev,
+              [asientoId]: { id: idDelta, delta }
+            }));
+            timersDivisa.current[asientoId] = window.setTimeout(() => {
+              setDivisaAsiento(prev => {
+                if (prev[asientoId]?.id !== idDelta) return prev;
+                const copia = { ...prev };
+                delete copia[asientoId];
+                return copia;
+              });
+              delete timersDivisa.current[asientoId];
+            }, 3200);
+          }
+
+          const signo = delta > 0 ? `+${delta}` : String(delta);
+          setMensajesChat(prev => [
+            ...prev,
+            {
+              id: `divisa-${Date.now()}-${Math.random()}`,
+              autorId: jugadorId,
+              autorNombre: jugadorNombre,
+              texto: `${signo} ${nombreDivisa} (Total: ${total})`,
+              destinatarioId: null,
+              destinatarioNombre: null,
+              createdAt: creado,
+              esSistema: true,
+              esDivisa: true
+            }
+          ]);
+        }
+        return;
+      }
+
       if (evento.type === "transferencia:resuelta") {
         const nombre = String(evento.receptorNombre ?? "El jugador");
         if (evento.estado === "ACEPTADA") {
           mostrarAvisoBreve(`${nombre} aceptó lo que le pasaste.`);
+          if (evento.tipo === "objeto" && evento.objeto && typeof evento.objeto === "object") {
+            const obj = evento.objeto as { idOrigen?: string; cantidad?: number };
+            if (obj.idOrigen) {
+              const cant = Math.max(1, obj.cantidad ?? 1);
+              setMochila(prev =>
+                prev.flatMap(item => {
+                  if (item.id !== obj.idOrigen) return [item];
+                  const restante = item.cantidad - cant;
+                  return restante > 0 ? [{ ...item, cantidad: restante }] : [];
+                })
+              );
+              setElementosMesa(prev =>
+                prev.flatMap(el => {
+                  if (el.id !== obj.idOrigen || el.tipo !== "objeto") return [el];
+                  const restante = el.cantidad - cant;
+                  return restante > 0 ? [{ ...el, cantidad: restante }] : [];
+                })
+              );
+            }
+          }
         } else if (evento.estado === "RECHAZADA") {
           mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
         }
       }
     },
-    [mesa.id, user.id, aplicarEstadoPizarraRemoto, mostrarAvisoBreve]
+    [
+      mesa.id,
+      user.id,
+      jugadores,
+      aplicarEstadoPizarraRemoto,
+      agregarPingVisual,
+      mostrarAvisoBreve
+    ]
   );
 
   async function enviarElemento(destino: JugadorPreview, elemento: ElementoMesa) {
@@ -496,6 +670,20 @@ function SalaRealContent({
             giro: elemento.giro
           }
         });
+      } else if (elemento.tipo === "objeto") {
+        await mesasApi.compartir(mesa.id, {
+          receptorId: destino.usuarioId,
+          tipo: "objeto",
+          objeto: {
+            idOrigen: elemento.id,
+            nombre: elemento.nombre,
+            descripcion: elemento.descripcion,
+            cantidad: elemento.cantidad,
+            emoji: elemento.emoji,
+            archivoId: elemento.archivoId,
+            archivoNombre: elemento.archivoNombre
+          }
+        });
       } else {
         await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
@@ -504,6 +692,33 @@ function SalaRealContent({
         });
       }
       mostrarAvisoBreve(`Solicitud enviada a ${destino.nombre}.`);
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  async function enviarObjetoMochila(
+    destino: JugadorPreview,
+    objeto: ObjetoMochila,
+    cantidadEnviar: number = 1
+  ) {
+    if (!destino.usuarioId) return;
+    setError(null);
+    try {
+      await mesasApi.compartir(mesa.id, {
+        receptorId: destino.usuarioId,
+        tipo: "objeto",
+        objeto: {
+          idOrigen: objeto.id,
+          nombre: objeto.nombre,
+          descripcion: objeto.descripcion,
+          cantidad: Math.max(1, Math.min(objeto.cantidad, cantidadEnviar)),
+          emoji: objeto.emoji,
+          archivoId: objeto.archivoId,
+          archivoNombre: objeto.archivoNombre
+        }
+      });
+      mostrarAvisoBreve(`Objeto enviado a ${destino.nombre}.`);
     } catch (envioError) {
       setError(describeError(envioError));
     }
@@ -530,6 +745,29 @@ function SalaRealContent({
             remitente: solicitud.emisorNombre
           }
         ]);
+      } else if (res.tipo === "objeto") {
+        const pasoObj = (recepcionesRef.current - 1) % 6;
+        const posObj = {
+          x: Number((50 + ((pasoObj % 3) - 1) * 5).toFixed(2)),
+          y: Number((70.5 + Math.floor(pasoObj / 3) * 3.5).toFixed(2))
+        };
+        setElementosMesa(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "objeto",
+            nombre: res.objeto.nombre,
+            descripcion: res.objeto.descripcion,
+            cantidad: Math.max(1, res.objeto.cantidad),
+            ...(res.objeto.emoji ? { emoji: res.objeto.emoji } : {}),
+            ...(res.objeto.archivoId ? { archivoId: res.objeto.archivoId } : {}),
+            ...(res.objeto.archivoNombre ? { archivoNombre: res.objeto.archivoNombre } : {}),
+            x: posObj.x,
+            y: posObj.y,
+            remitente: solicitud.emisorNombre
+          }
+        ]);
+        if (res.objeto.archivoId) cargarArchivos();
       } else {
         setElementosMesa(prev => [
           ...prev,
@@ -617,15 +855,15 @@ function SalaRealContent({
             autorId: roll.jugadorId,
             autorNombre: roll.jugadorNombre,
             texto: `Tiró ${roll.formula} → ${roll.total}`,
-            destinatarioId: null,
-            destinatarioNombre: null,
+            destinatarioId: roll.soloMaster ? mesa.hostId : null,
+            destinatarioNombre: roll.soloMaster ? mesa.hostName : null,
             createdAt: roll.createdAt,
             esSistema: true
           }
         ];
       });
     },
-    [jugadores, mesa.id]
+    [jugadores, mesa.hostId, mesa.hostName, mesa.id]
   );
 
   useMesasLive(
@@ -657,11 +895,35 @@ function SalaRealContent({
     bonificador: number;
     caras: number;
     especial: TipoEspecialTirada;
+    soloMaster?: boolean;
   }): Promise<void> {
     try {
-      await mesasApi.enviarTirada(mesa.id, { ...tirada, secreta: false });
+      await mesasApi.enviarTirada(mesa.id, {
+        ...tirada,
+        secreta: false,
+        soloMaster: Boolean(tirada.soloMaster)
+      });
     } catch (tiradaError) {
       setError(describeError(tiradaError));
+    }
+  }
+
+  async function cambiarDivisa(nueva: number, delta: number): Promise<void> {
+    const limpia = Math.max(0, Math.trunc(nueva));
+    setDivisa(limpia);
+    try {
+      await mesasApi.guardarDivisa(mesa.id, limpia, delta);
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+    }
+  }
+
+  async function cambiarDivisaNombre(nombre: string): Promise<void> {
+    try {
+      const actualizada = await mesasApi.cambiarDivisaNombre(mesa.id, nombre);
+      onActualizarMesa(actualizada);
+    } catch (divisaError) {
+      setError(describeError(divisaError));
     }
   }
 
@@ -715,6 +977,30 @@ function SalaRealContent({
     }
   }
 
+  function enviarPing(datos: {
+    x: number;
+    y: number;
+    vista: "pizarra" | "escena" | "mapa";
+  }): void {
+    const ping: PingVisual = {
+      id: crypto.randomUUID(),
+      x: datos.x,
+      y: datos.y,
+      color: colorJugadorActual,
+      vista: datos.vista,
+      autorNombre: nombreJugadorActual
+    };
+    agregarPingVisual(ping);
+    void mesasApi
+      .enviarPing(mesa.id, {
+        x: datos.x,
+        y: datos.y,
+        vista: datos.vista,
+        color: colorJugadorActual
+      })
+      .catch(() => undefined);
+  }
+
   let contenido: ReactNode;
   if (fase === "pizarra") {
     contenido = (
@@ -744,10 +1030,20 @@ function SalaRealContent({
         onCambiarEscena={cambiarEscena}
         onProyectarImagen={proyectarImagen}
         onArchivosCambiados={cargarArchivos}
+        pingsActivos={pingsActivos}
+        onEnviarPing={enviarPing}
       />
     );
   } else if (fase === "mapa") {
-    contenido = <Mapa onVolver={() => setFase("sala")} />;
+    contenido = (
+      <Mapa
+        onVolver={() => setFase("sala")}
+        pingsActivos={pingsActivos}
+        onEnviarPing={enviarPing}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+      />
+    );
   } else if (fase === "archivador") {
     contenido = (
       <Archivador
@@ -799,6 +1095,24 @@ function SalaRealContent({
         solicitudPendiente={colaSolicitudes[0] ?? null}
         onAceptarSolicitud={s => void aceptarSolicitud(s)}
         onRechazarSolicitud={s => void rechazarSolicitud(s)}
+        macros={macros}
+        onMacros={actualizarMacros}
+        divisa={divisa}
+        divisaNombre={mesa.divisaNombre ?? "Divisa"}
+        onCambiarDivisa={cambiarDivisa}
+        onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
+        divisaAsiento={divisaAsiento}
+        mochila={mochila}
+        onMochila={setMochila}
+        onEnviarObjetoMochila={enviarObjetoMochila}
+        onConsultarResumenMaster={
+          esMaster
+            ? async () => {
+                const res = await mesasApi.resumenInventarioMaster(mesa.id);
+                return res.jugadores;
+              }
+            : undefined
+        }
       />
     );
   }

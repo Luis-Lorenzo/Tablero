@@ -77,6 +77,7 @@ ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_escena_id UUID;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_escena_titulo TEXT;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_id UUID;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_titulo TEXT;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS divisa_nombre TEXT NOT NULL DEFAULT 'Divisa';
 
 CREATE TABLE IF NOT EXISTS mesa_jugadores ( 
   mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
@@ -111,9 +112,14 @@ CREATE TABLE IF NOT EXISTS mesa_jugador_estado (
   mesa_id    UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
   user_id    UUID NOT NULL,
   elementos  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  divisa     BIGINT NOT NULL DEFAULT 0,
+  mochila    JSONB NOT NULL DEFAULT '[]'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (mesa_id, user_id)
 );
+
+ALTER TABLE mesa_jugador_estado ADD COLUMN IF NOT EXISTS divisa BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE mesa_jugador_estado ADD COLUMN IF NOT EXISTS mochila JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- Historial de mensajes de chat por mesa (públicos o susurros).
 CREATE TABLE IF NOT EXISTS chat_mensajes (
@@ -149,5 +155,12 @@ CREATE INDEX IF NOT EXISTS transferencias_mesa_receptor_idx
 CREATE TABLE IF NOT EXISTS mesa_pizarra_estado (
   mesa_id    UUID PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
   datos      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Macros de tiradas personales de cada usuario.
+CREATE TABLE IF NOT EXISTS user_macros (
+  user_id    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  macros     JSONB NOT NULL DEFAULT '[]'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

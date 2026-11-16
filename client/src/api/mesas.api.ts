@@ -74,6 +74,19 @@ export const mesasApi = {
           tipo: "archivo";
           archivoId: string;
         }
+      | {
+          receptorId: string;
+          tipo: "objeto";
+          objeto: {
+            idOrigen?: string;
+            nombre: string;
+            descripcion: string;
+            cantidad: number;
+            emoji?: string;
+            archivoId?: string;
+            archivoNombre?: string;
+          };
+        }
   ) => http.post<PublicTransferencia>(`/api/mesas/${id}/compartir`, payload),
 
   aceptarCompartir: (id: string, transferenciaId: string) =>
@@ -107,6 +120,7 @@ export const mesasApi = {
       caras?: number;
       especial?: "critico" | "pifia" | null;
       secreta?: boolean;
+      soloMaster?: boolean;
     }
   ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos),
 
@@ -128,13 +142,29 @@ export const mesasApi = {
       titulo: titulo ?? null
     }),
 
-  /** Carga los elementos en mesa del jugador actual en esta mesa. */
+  /** Carga los elementos en mesa, divisa y mochila del jugador actual. */
   obtenerEstado: (id: string) =>
-    http.get<{ elementos: unknown[] }>(`/api/mesas/${id}/estado`),
+    http.get<{ elementos: unknown[]; divisa?: number; mochila?: unknown[] }>(
+      `/api/mesas/${id}/estado`
+    ),
 
-  /** Guarda los elementos en mesa del jugador actual en esta mesa. */
-  guardarEstado: (id: string, elementos: unknown[]) =>
-    http.patch<void>(`/api/mesas/${id}/estado`, { elementos }),
+  /** Guarda los elementos en mesa y/o mochila del jugador actual. */
+  guardarEstado: (id: string, elementos: unknown[], mochila?: unknown[]) =>
+    http.patch<void>(`/api/mesas/${id}/estado`, {
+      elementos,
+      ...(mochila !== undefined ? { mochila } : {})
+    }),
+
+  /** Actualiza la divisa del jugador actual y difunde el cambio delta. */
+  guardarDivisa: (id: string, divisa: number, delta?: number) =>
+    http.patch<{ divisa: number }>(`/api/mesas/${id}/divisa`, {
+      divisa,
+      ...(delta !== undefined ? { delta } : {})
+    }),
+
+  /** Cambia el nombre de la divisa de la mesa (solo Máster). */
+  cambiarDivisaNombre: (id: string, nombre: string) =>
+    http.patch<PublicMesa>(`/api/mesas/${id}/divisa-nombre`, { nombre }),
 
   /** Carga el estado compartido de la pizarra y vista escena de la mesa. */
   obtenerPizarra: (id: string) =>
@@ -162,5 +192,45 @@ export const mesasApi = {
       tamanoImagenesEscena: Record<string, { w: number; h: number }>;
       congelada: boolean;
     }
-  ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos)
+  ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos),
+
+  /** Envía un ping visual temporal en pizarra, escena o mapa. */
+  enviarPing: (
+    id: string,
+    datos: {
+      x: number;
+      y: number;
+      vista: "pizarra" | "escena" | "mapa";
+      color: string;
+    }
+  ) => http.post<void>(`/api/mesas/${id}/ping`, datos),
+
+  /** Resumen de divisa, mochila y objetos en mesa de jugadores conectados (solo Máster). */
+  resumenInventarioMaster: (id: string) =>
+    http.get<{
+      jugadores: Array<{
+        userId: string;
+        nombre: string;
+        color: string;
+        divisa: number;
+        mochila: Array<{
+          id: string;
+          nombre: string;
+          descripcion: string;
+          cantidad: number;
+          emoji?: string;
+          archivoId?: string;
+          archivoNombre?: string;
+        }>;
+        objetosMesa: Array<{
+          id: string;
+          nombre: string;
+          descripcion: string;
+          cantidad: number;
+          emoji?: string;
+          archivoId?: string;
+          archivoNombre?: string;
+        }>;
+      }>;
+    }>(`/api/mesas/${id}/master-resumen`)
 };

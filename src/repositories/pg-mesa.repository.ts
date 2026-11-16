@@ -12,6 +12,7 @@ interface MesaRow {
   imagen_escena_titulo: string | null;
   imagen_proyectada_id: string | null;
   imagen_proyectada_titulo: string | null;
+  divisa_nombre: string | null;
   created_at: Date;
 }
 
@@ -21,7 +22,7 @@ interface MesaColorRow {
 }
 
 const SELECT_COLUMNS =
-"id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, created_at";
+  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, created_at";
 
 function toMesa(row: MesaRow, colores: Record<string, string> = {}): Mesa {
   return {
@@ -38,6 +39,7 @@ function toMesa(row: MesaRow, colores: Record<string, string> = {}): Mesa {
     imagenProyectada: row.imagen_proyectada_id
       ? { id: row.imagen_proyectada_id, titulo: row.imagen_proyectada_titulo }
       : null,
+    divisaNombre: row.divisa_nombre?.trim() || "Divisa",
     createdAt: new Date(row.created_at)
   };
 }
@@ -109,8 +111,8 @@ export class PgMesaRepository implements MesaRepository {
 
   async save(mesa: Mesa) {
     await this.pool.query(
-      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, created_at)
-       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, created_at)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT(id) DO UPDATE SET
          host_id = EXCLUDED.host_id,
       players = EXCLUDED.players,
@@ -120,7 +122,8 @@ export class PgMesaRepository implements MesaRepository {
          imagen_escena_id = EXCLUDED.imagen_escena_id,
          imagen_escena_titulo = EXCLUDED.imagen_escena_titulo,
          imagen_proyectada_id = EXCLUDED.imagen_proyectada_id,
-         imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo`,
+         imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo,
+         divisa_nombre = EXCLUDED.divisa_nombre`,
       [
         mesa.id,
         mesa.hostId,
@@ -132,6 +135,7 @@ export class PgMesaRepository implements MesaRepository {
         mesa.imagenEscena?.titulo ?? null,
         mesa.imagenProyectada?.id ?? null,
         mesa.imagenProyectada?.titulo ?? null,
+        mesa.divisaNombre?.trim() || "Divisa",
         mesa.createdAt
       ]
     );

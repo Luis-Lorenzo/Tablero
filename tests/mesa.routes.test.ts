@@ -28,6 +28,7 @@ function notificadorEspia() {
     notificarCambio: () => {
       avisos.push(avisos.length + 1);
     },
+    notificarUsuario: () => {},
     enviarAUsuarios: () => {},
     avisos
   };
@@ -535,5 +536,106 @@ describe("rutas de /api/mesas", () => {
         congelada: false
       });
     expect(edicionBloqueada.status).toBe(403);
+  });
+
+  it("persiste divisa, nombre de divisa (solo máster), mochila y transferencia de objetos", async () => {
+    const { app, aprobar, sesionDe } = montar();
+    await aprobar("host-dm@pocket.test");
+    await aprobar("jug-inv@pocket.test");
+
+    const cookieMaster = await sesionDe("host-dm@pocket.test");
+    const cookieJugadora = await sesionDe("jug-inv@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send();
+    const mesaId = crear.body.id as string;
+    const jugadoraId = (
+      await request(app)
+        .post(`/api/mesas/${mesaId}/unirse`)
+        .set("Cookie", cookieJugadora)
+        .send()
+    ).body.players[0].id as string;
+
+    // Nombre de divisa: solo el máster puede cambiarlo
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa-nombre`)
+      .set("Cookie", cookieJugadora)
+      .send({ nombre: "Créditos" })
+      .expect(403);
+
+    const ren = await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa-nombre`)
+      .set("Cookie", cookieMaster)
+      .send({ nombre: "Oro" })
+      .expect(200);
+    expect(ren.body.divisaNombre).toBe("Oro");
+
+    // Divisa del jugador
+    const divRes = await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa`)
+      .set("Cookie", cookieJugadora)
+      .send({ divisa: 250, delta: 250 })
+      .expect(200);
+    expect(divRes.body.divisa).toBe(250);
+
+    // Mochila en estado
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieJugadora)
+      .send({
+        mochila: [
+          {
+            id: "obj-1",
+            nombre: "Poción curativa",
+            descripcion: "Recupera 2d4+2 PG",
+            cantidad: 3,
+            emoji: "🧪"
+          }
+        ]
+      })
+      .expect(204);
+
+    const estado = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieJugadora)
+      .expect(200);
+    expect(estado.body.divisa).toBe(250);
+    expect(estado.body.mochila).toEqual([
+      {
+        id: "obj-1",
+        nombre: "Poción curativa",
+        descripcion: "Recupera 2d4+2 PG",
+        cantidad: 3,
+        emoji: "🧪"
+      }
+    ]);
+
+    // Transferencia de objeto entre miembros
+    const comp = await request(app)
+      .post(`/api/mesas/${mesaId}/compartir`)
+      .set("Cookie", cookieJugadora)
+      .send({
+        receptorId: crear.body.hostId,
+        tipo: "objeto",
+        objeto: {
+          idOrigen: "obj-1",
+          nombre: "Poción curativa",
+          descripcion: "Recupera 2d4+2 PG",
+          cantidad: 1,
+          emoji: "🧪"
+        }
+      })
+      .expect(201);
+    expect(comp.body.tipo).toBe("objeto");
+    expect(jugadoraId).toBeTruthy();
+
+    const aceptada = await request(app)
+      .post(`/api/mesas/${mesaId}/compartir/${comp.body.id}/aceptar`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(aceptada.body.tipo).toBe("objeto");
+    expect(aceptada.body.objeto.nombre).toBe("Poción curativa");
   });
 });

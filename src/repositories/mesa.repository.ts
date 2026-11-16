@@ -25,6 +25,8 @@ export interface Mesa {
   imagenEscena?: ImagenMesa | null;
   /** Imagen proyectada por el máster a toda la pantalla (Opción A). */
   imagenProyectada?: ImagenMesa | null;
+  /** Nombre configurable de la moneda de la mesa (por defecto "Divisa"). */
+  divisaNombre?: string;
   createdAt: Date;
 }
 

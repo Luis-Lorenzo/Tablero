@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Bookmark,
+  Check,
+  Copy,
   Crown,
   Eye,
   Image as ImageIcon,
   Minus,
+  Moon,
+  Pencil,
   Plus,
+  Search,
   Sparkles,
+  Trash2,
   Upload,
+  Volume2,
+  VolumeX,
   X
 } from "lucide-react";
 import type {
@@ -29,17 +38,46 @@ import {
   tipoCortoArchivo
 } from "./compartir";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
+import type { PublicJugadorResumenInventario } from "../api/types";
+import {
+  cargarDivisaLocal,
+  cargarMochilaLocal,
+  EMOJIS_OBJETO_SUGERIDOS,
+  formatearDivisaCompacta,
+  guardarDivisaLocal,
+  guardarMochilaLocal,
+  IconoBilletePixel,
+  IconoLupaPixel,
+  IconoMochilaPixel,
+  IconoMonedasPixel,
+  recortarImagenCuadrada
+} from "./inventario";
+import {
+  cargarMacrosLocales,
+  guardarMacrosLocales,
+  ICONOS_MACROS,
+  IconoMacro
+} from "./macros";
 import { Posit } from "./Pizarra";
-import { reproducirSonidoNotificacion } from "./sonido";
+import {
+  establecerSonidoSilenciado,
+  estaSonidoSilenciado,
+  reproducirSonidoConsumir,
+  reproducirSonidoMonedas,
+  reproducirSonidoNotificacion
+} from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
 import type {
   Asiento,
   Calibracion,
+  DivisaAsientoDelta,
   DocumentoMesa,
   ElementoMesa,
   ImagenEscenaPreview,
   JugadorPreview,
+  MacroTirada,
   MensajeSala,
+  ObjetoMochila,
   PositPreview,
   Punto,
   QuadMapa,
@@ -81,6 +119,7 @@ interface SalaProps {
     bonificador: number;
     caras: number;
     especial: TipoEspecialTirada;
+    soloMaster?: boolean;
   }) => void | Promise<void>;
   colorJugador?: string;
   nombreJugador?: string;
@@ -90,6 +129,21 @@ interface SalaProps {
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
   proyeccionOculta?: boolean;
   onReabrirProyeccion?: () => void;
+  macros?: MacroTirada[];
+  onMacros?: (macros: MacroTirada[]) => void;
+  divisa?: number;
+  divisaNombre?: string;
+  onCambiarDivisa?: (nueva: number, delta: number) => void | Promise<void>;
+  onCambiarDivisaNombre?: (nombre: string) => void | Promise<void>;
+  divisaAsiento?: Record<string, DivisaAsientoDelta>;
+  mochila?: ObjetoMochila[];
+  onMochila?: Dispatch<SetStateAction<ObjetoMochila[]>>;
+  onEnviarObjetoMochila?: (
+    destino: JugadorPreview,
+    objeto: ObjetoMochila,
+    cantidad?: number
+  ) => void | Promise<void>;
+  onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -161,6 +215,22 @@ type Arrastre =
     elemento: ElementoMesa;
     inicioX: number;
     inicioY: number;
+  }
+  | {
+    tipo: "objeto-mesa";
+    id: string;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
+    base: Punto;
+    medidas: Medidas;
+  }
+  | {
+    tipo: "mochila-objeto";
+    objeto: ObjetoMochila;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
   };
 
 /** Segundos que el resultado del dado sigue en pantalla antes de irse. */
@@ -244,7 +314,8 @@ function lanzarGruposDados(
   }
   const dados = desgloseDados.map(d => d.valor);
   const suma = dados.reduce((acc, valor) => acc + valor, 0);
-  const carasPrincipal = grupos[0]?.caras ?? 20;
+  const esMultiple = grupos.length > 1 || desgloseDados.length > 1;
+  const carasPrincipal = esMultiple ? 20 : (grupos[0]?.caras ?? 20);
   return {
     total: suma + bonificador,
     dados,
@@ -611,7 +682,18 @@ export function Sala({
   onCambiarEscena,
   onProyectarImagen,
   proyeccionOculta,
-  onReabrirProyeccion
+  onReabrirProyeccion,
+  macros,
+  onMacros,
+  divisa,
+  divisaNombre = "Divisa",
+  onCambiarDivisa,
+  onCambiarDivisaNombre,
+  divisaAsiento,
+  mochila,
+  onMochila,
+  onEnviarObjetoMochila,
+  onConsultarResumenMaster
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -653,6 +735,15 @@ export function Sala({
   );
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
+  const [sonidoSilenciado, setSonidoSilenciado] = useState<boolean>(
+    estaSonidoSilenciado
+  );
+
+  function alternarSilencio(): void {
+    const siguiente = !sonidoSilenciado;
+    setSonidoSilenciado(siguiente);
+    establecerSonidoSilenciado(siguiente);
+  }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
@@ -661,6 +752,129 @@ export function Sala({
     { id: "c-0", cantidad: 1, caras: 20 }
   ]);
   const [bonificadorCompuesta, setBonificadorCompuesta] = useState(0);
+  const [macrosLocales, setMacrosLocales] = useState<MacroTirada[]>(cargarMacrosLocales);
+  const [macrosAbierto, setMacrosAbierto] = useState(false);
+  const [macroSecreta, setMacroSecreta] = useState(false);
+  const [macroFiltro, setMacroFiltro] = useState("");
+  const [macroModalAbierto, setMacroModalAbierto] = useState(false);
+  const [macroEditandoId, setMacroEditandoId] = useState<string | null>(null);
+  const [macroNombre, setMacroNombre] = useState("");
+  const [macroIcono, setMacroIcono] = useState("sword");
+  const [macroGrupos, setMacroGrupos] = useState<GrupoDado[]>([
+    { id: "m-0", cantidad: 1, caras: 20 }
+  ]);
+  const [macroBonificador, setMacroBonificador] = useState(0);
+  const macrosLista = macros ?? macrosLocales;
+
+  const [divisaLocal, setDivisaLocal] = useState<number>(cargarDivisaLocal);
+  const divisaActual = divisa ?? divisaLocal;
+  const [divisaAbierta, setDivisaAbierta] = useState(false);
+  const [divisaPaso, setDivisaPaso] = useState<1 | 10 | 100>(1);
+  const [divisaCustomTexto, setDivisaCustomTexto] = useState("");
+  const [divisaNombreEdit, setDivisaNombreEdit] = useState(divisaNombre);
+  const [divisaAsientoLocales, setDivisaAsientoLocales] = useState<
+    Record<string, DivisaAsientoDelta>
+  >({});
+
+  const [mochilaLocal, setMochilaLocal] = useState<ObjetoMochila[]>(cargarMochilaLocal);
+  const mochilaActual = mochila ?? mochilaLocal;
+  const [mochilaAbierta, setMochilaAbierta] = useState(false);
+  const [objetoMochilaId, setObjetoMochilaId] = useState<string | null>(null);
+  const [creandoObjeto, setCreandoObjeto] = useState(false);
+  const [nuevoObjNombre, setNuevoObjNombre] = useState("");
+  const [nuevoObjDesc, setNuevoObjDesc] = useState("");
+  const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
+  const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
+  const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
+    archivoId?: string;
+    archivoNombre?: string;
+    imagenLocal?: string;
+  } | null>(null);
+  const [subiendoObjetoImg, setSubiendoObjetoImg] = useState(false);
+  const [pasandoObjetoId, setPasandoObjetoId] = useState<string | null>(null);
+  const [objetoMesaActivo, setObjetoMesaActivo] = useState<
+    Extract<ElementoMesa, { tipo: "objeto" }> | null
+  >(null);
+  const [masterDivisasAbierto, setMasterDivisasAbierto] = useState(false);
+  const [masterMochilasAbierto, setMasterMochilasAbierto] = useState(false);
+  const [masterResumenJugadores, setMasterResumenJugadores] = useState<
+    PublicJugadorResumenInventario[]
+  >([]);
+  const [masterResumenCargando, setMasterResumenCargando] = useState(false);
+  const [masterJugadorMochilaId, setMasterJugadorMochilaId] = useState<string | null>(
+    null
+  );
+
+  async function cargarResumenMaster(): Promise<void> {
+    if (!onConsultarResumenMaster) {
+      const simulados: PublicJugadorResumenInventario[] = jugadores
+        .filter(j => j.activo && !j.esMaster)
+        .map(j => ({
+          userId: j.usuarioId ?? j.id,
+          nombre: j.nombre,
+          color: j.color,
+          divisa: 0,
+          mochila: [],
+          objetosMesa: []
+        }));
+      setMasterResumenJugadores(simulados);
+      if (simulados.length > 0 && !masterJugadorMochilaId) {
+        setMasterJugadorMochilaId(simulados[0].userId);
+      }
+      return;
+    }
+
+    setMasterResumenCargando(true);
+    try {
+      const lista = await onConsultarResumenMaster();
+      setMasterResumenJugadores(lista);
+      setMasterJugadorMochilaId(actual =>
+        actual && lista.some(j => j.userId === actual)
+          ? actual
+          : (lista[0]?.userId ?? null)
+      );
+    } catch {
+      mostrarAviso("No se pudo consultar el resumen de jugadores.");
+    } finally {
+      setMasterResumenCargando(false);
+    }
+  }
+
+  function alternarPanelMaster(modo: "divisas" | "mochilas"): void {
+    setDivisaAbierta(false);
+    setMochilaAbierta(false);
+    if (modo === "divisas") {
+      setMasterMochilasAbierto(false);
+      setMasterDivisasAbierto(v => {
+        const next = !v;
+        if (next) void cargarResumenMaster();
+        return next;
+      });
+    } else {
+      setMasterDivisasAbierto(false);
+      setMasterMochilasAbierto(v => {
+        const next = !v;
+        if (next) void cargarResumenMaster();
+        return next;
+      });
+    }
+  }
+
+  const divisaDebounceRef = useRef<{ timer: number | null; acumulado: number }>({
+    timer: null,
+    acumulado: 0
+  });
+  const divisaActualRef = useRef(divisaActual);
+  divisaActualRef.current = divisaActual;
+  const onCambiarDivisaRef = useRef(onCambiarDivisa);
+  onCambiarDivisaRef.current = onCambiarDivisa;
+  const onEnviarObjetoMochilaRef = useRef(onEnviarObjetoMochila);
+  onEnviarObjetoMochilaRef.current = onEnviarObjetoMochila;
+  const objetoImgInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDivisaNombreEdit(divisaNombre);
+  }, [divisaNombre]);
   const [tirando, setTirando] = useState(false);
   const [tirada, setTirada] = useState<ResultadoTirada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -751,20 +965,50 @@ export function Sala({
   }, [itemAbierto]);
 
   useEffect(() => {
-    if (!selectorAbierto && !compuestaAbierta && !itemAbierto) return;
+    if (
+      !selectorAbierto &&
+      !compuestaAbierta &&
+      !itemAbierto &&
+      !macrosAbierto &&
+      !macroModalAbierto &&
+      !divisaAbierta &&
+      !mochilaAbierta &&
+      !objetoMesaActivo
+    ) {
+      return;
+    }
     function alPulsarEscape(evento: KeyboardEvent) {
       if (evento.key !== "Escape") return;
       if (itemAbierto) {
         setItemAbierto(null);
+      } else if (objetoMesaActivo) {
+        setObjetoMesaActivo(null);
+      } else if (macroModalAbierto) {
+        setMacroModalAbierto(false);
       } else if (compuestaAbierta) {
         setCompuestaAbierta(false);
+      } else if (mochilaAbierta) {
+        setMochilaAbierta(false);
+      } else if (divisaAbierta) {
+        setDivisaAbierta(false);
+      } else if (macrosAbierto) {
+        setMacrosAbierto(false);
       } else if (selectorAbierto) {
         setSelectorAbierto(false);
       }
     }
     window.addEventListener("keydown", alPulsarEscape);
     return () => window.removeEventListener("keydown", alPulsarEscape);
-  }, [selectorAbierto, compuestaAbierta, itemAbierto]);
+  }, [
+    selectorAbierto,
+    compuestaAbierta,
+    itemAbierto,
+    macrosAbierto,
+    macroModalAbierto,
+    divisaAbierta,
+    mochilaAbierta,
+    objetoMesaActivo
+  ]);
 
   useEffect(() => {
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
@@ -813,6 +1057,26 @@ export function Sala({
           setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
           setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         }
+        return;
+      }
+
+      if (actual.tipo === "mochila-objeto") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 6
+        ) {
+          actual.movido = true;
+          setMochilaAbierta(false);
+        }
+        if (!actual.movido) return;
+
+        const etiqueta = `${actual.objeto.emoji ? `${actual.objeto.emoji} ` : ""}${actual.objeto.nombre}`;
+        setFantasma({ x: evento.clientX, y: evento.clientY, etiqueta });
+        setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
         return;
       }
 
@@ -882,6 +1146,30 @@ export function Sala({
       }
 
       if (actual.tipo === "doc-mesa") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 5
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+        }
+        if (!actual.movido) return;
+
+        setArrastrandoItemId(actual.id);
+        const x = limitar(actual.base.x + dx, 6, 94);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === actual.id ? { ...el, x, y } : el))
+        );
+        setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
+        setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
+        return;
+      }
+
+      if (actual.tipo === "objeto-mesa") {
         if (
           !actual.movido &&
           Math.hypot(
@@ -985,6 +1273,90 @@ export function Sala({
           void onEnviarElementoRef.current?.(destino, actual.elemento);
         } else if (enDropzone) {
           mostrarAviso("Elige primero un jugador para enviarle el elemento.");
+        }
+        return;
+      }
+
+      if (actual.tipo === "mochila-objeto") {
+        if (!actual.movido) return;
+        const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
+        const destino =
+          (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+          (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
+        if (destino) {
+          if (onEnviarObjetoMochilaRef.current) {
+            void onEnviarObjetoMochilaRef.current(destino, actual.objeto, 1);
+          } else {
+            mostrarAviso(`Objeto ${actual.objeto.nombre} pasado a ${destino.nombre}.`);
+          }
+          return;
+        }
+        if (enDropzone) {
+          mostrarAviso("Elige primero un jugador para enviarle el objeto.");
+          return;
+        }
+
+        const rectMesa = capaPosits.current?.getBoundingClientRect();
+        const x = rectMesa
+          ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
+          : 50;
+        const y = rectMesa
+          ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
+          : 55;
+        onElementosMesaRef.current?.(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "objeto",
+            nombre: actual.objeto.nombre,
+            descripcion: actual.objeto.descripcion,
+            cantidad: actual.objeto.cantidad,
+            ...(actual.objeto.emoji ? { emoji: actual.objeto.emoji } : {}),
+            ...(actual.objeto.archivoId ? { archivoId: actual.objeto.archivoId } : {}),
+            ...(actual.objeto.archivoNombre
+              ? { archivoNombre: actual.objeto.archivoNombre }
+              : {}),
+            ...(actual.objeto.imagenLocal
+              ? { imagenLocal: actual.objeto.imagenLocal }
+              : {}),
+            x,
+            y
+          }
+        ]);
+        const quitarId = actual.objeto.id;
+        if (onMochila) {
+          onMochila(prev => prev.filter(item => item.id !== quitarId));
+        } else {
+          setMochilaLocal(prev => {
+            const next = prev.filter(item => item.id !== quitarId);
+            guardarMochilaLocal(next);
+            return next;
+          });
+        }
+        mostrarAviso(`${actual.objeto.nombre} colocado en la mesa.`);
+        return;
+      }
+
+      if (actual.tipo === "objeto-mesa") {
+        if (!actual.movido) return;
+        const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
+        if (destinoId || enDropzone) {
+          const destino =
+            (enDropzone ? jugadorSeleccionadoRef.current : null) ??
+            (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
+          const item = elementosMesaRef.current.find(el => el.id === actual.id);
+          if (destino && item && item.tipo === "objeto") {
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === actual.id
+                  ? { ...el, x: actual.base.x, y: actual.base.y }
+                  : el
+              )
+            );
+            void onEnviarElementoRef.current?.(destino, item);
+          } else if (enDropzone && !destino) {
+            mostrarAviso("Elige primero un jugador para enviarle el objeto.");
+          }
         }
         return;
       }
@@ -1258,10 +1630,135 @@ export function Sala({
     setGruposCompuesta(prev => (prev.length > 1 ? prev.filter(g => g.id !== id) : prev));
   }
 
+  function actualizarMacrosLista(nuevas: MacroTirada[]): void {
+    if (onMacros) {
+      onMacros(nuevas);
+    } else {
+      setMacrosLocales(nuevas);
+      guardarMacrosLocales(nuevas);
+    }
+  }
+
+  function abrirNuevaMacro(): void {
+    setMacroEditandoId(null);
+    setMacroNombre("");
+    setMacroIcono("sword");
+    setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
+    setMacroBonificador(0);
+    setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function abrirEditarMacro(macro: MacroTirada): void {
+    setMacroEditandoId(macro.id);
+    setMacroNombre(macro.nombre);
+    setMacroIcono(macro.icono);
+    setMacroGrupos(
+      macro.grupos.map((g, idx) => ({
+        id: `m-${Date.now()}-${idx}`,
+        cantidad: g.cantidad,
+        caras: g.caras
+      }))
+    );
+    setMacroBonificador(macro.bonificador);
+    setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function duplicarMacro(macro: MacroTirada): void {
+    const copia: MacroTirada = {
+      ...macro,
+      id: nuevoId(),
+      nombre: `${macro.nombre} (copia)`.slice(0, 40),
+      grupos: macro.grupos.map(g => ({ ...g }))
+    };
+    actualizarMacrosLista([...macrosLista, copia]);
+  }
+
+  function eliminarMacro(id: string): void {
+    actualizarMacrosLista(macrosLista.filter(m => m.id !== id));
+  }
+
+  function agregarGrupoMacro(): void {
+    setMacroGrupos(prev => {
+      if (prev.length >= 6) return prev;
+      return [...prev, { id: `m-${Date.now()}-${prev.length}`, cantidad: 1, caras: 6 }];
+    });
+  }
+
+  function actualizarGrupoMacro(
+    id: string,
+    patch: Partial<Pick<GrupoDado, "cantidad" | "caras">>
+  ): void {
+    setMacroGrupos(prev =>
+      prev.map(g => (g.id === id ? { ...g, ...patch } : g))
+    );
+  }
+
+  function eliminarGrupoMacro(id: string): void {
+    setMacroGrupos(prev => (prev.length > 1 ? prev.filter(g => g.id !== id) : prev));
+  }
+
+  function guardarMacroFormulario(): void {
+    const formula = formatearFormulaCompuesta(macroGrupos, macroBonificador);
+    const nombreLimpio = (macroNombre.trim() || formula).slice(0, 40);
+    const gruposLimpios = macroGrupos.map(g => ({
+      cantidad: Math.round(limitar(g.cantidad, 1, 20)),
+      caras: g.caras
+    }));
+    const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
+
+    if (macroEditandoId) {
+      actualizarMacrosLista(
+        macrosLista.map(m =>
+          m.id === macroEditandoId
+            ? {
+                ...m,
+                nombre: nombreLimpio,
+                icono: macroIcono,
+                grupos: gruposLimpios,
+                bonificador: modLimpio
+              }
+            : m
+        )
+      );
+    } else {
+      const nueva: MacroTirada = {
+        id: nuevoId(),
+        nombre: nombreLimpio,
+        icono: macroIcono,
+        grupos: gruposLimpios,
+        bonificador: modLimpio
+      };
+      actualizarMacrosLista([...macrosLista, nueva]);
+    }
+    setMacroModalAbierto(false);
+    setMacrosAbierto(true);
+  }
+
+  function lanzarMacro(macro: MacroTirada): void {
+    setMacrosAbierto(false);
+    const gruposMacro: GrupoDado[] = macro.grupos.map((g, idx) => ({
+      id: `m-roll-${idx}`,
+      cantidad: g.cantidad,
+      caras: g.caras
+    }));
+    tirarDado(gruposMacro, macro.bonificador, {
+      forzarPublica: !macroSecreta,
+      forzarSecreta: macroSecreta,
+      nombreMacro: macro.nombre
+    });
+  }
+
   function tirarDado(
     gruposOverride?: GrupoDado[],
     bonificadorOverride?: number,
-    opciones?: { rapido?: boolean; forzarPublica?: boolean }
+    opciones?: {
+      rapido?: boolean;
+      forzarPublica?: boolean;
+      forzarSecreta?: boolean;
+      nombreMacro?: string;
+    }
   ): void {
     if (tirando) return;
 
@@ -1277,7 +1774,13 @@ export function Sala({
       cantidad: Math.round(limitar(g.cantidad, 1, 20))
     }));
     const mod = Math.round(limitar(bonificadorOverride ?? bonificador, -99, 99));
-    const esSecreta = opciones?.forzarPublica ? false : esMaster && tiradaSecreta;
+    const oculta = opciones?.forzarPublica
+      ? false
+      : opciones?.forzarSecreta
+        ? true
+        : tiradaSecreta;
+    const esSecretaMaster = esMaster && oculta;
+    const esSoloMaster = !esMaster && oculta;
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
@@ -1285,23 +1788,39 @@ export function Sala({
 
     setSelectorAbierto(false);
     setCompuestaAbierta(false);
+    setMacrosAbierto(false);
     setTirando(true);
     let pasos = 0;
 
     const tick = () => {
-      setTirada({ ...lanzarGruposDados(gruposActivos, mod), secreta: esSecreta });
+      setTirada({
+        ...lanzarGruposDados(gruposActivos, mod),
+        secreta: esSecretaMaster || esSoloMaster
+      });
       pasos += 1;
 
       if (pasos < totalPasos) {
         temporizador.current = window.setTimeout(tick, intervaloMs);
       } else {
-        const resultadoFinal = lanzarGruposDados(gruposActivos, mod);
-        setTirada({ ...resultadoFinal, secreta: esSecreta });
+        const resultadoBruto = lanzarGruposDados(gruposActivos, mod);
+        const resultadoFinal: ResultadoTirada = opciones?.nombreMacro
+          ? {
+              ...resultadoBruto,
+              formula: `${opciones.nombreMacro} · ${resultadoBruto.formula}`
+            }
+          : resultadoBruto;
+        setTirada({
+          ...resultadoFinal,
+          secreta: esSecretaMaster || esSoloMaster
+        });
         setTirando(false);
 
-        if (!esSecreta) {
+        if (!esSecretaMaster) {
           if (onTiradaPublica) {
-            void onTiradaPublica(resultadoFinal);
+            void onTiradaPublica({
+              ...resultadoFinal,
+              ...(esSoloMaster ? { soloMaster: true } : {})
+            });
           } else {
             const miAsiento =
               jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ??
@@ -1333,8 +1852,8 @@ export function Sala({
                 autorId: miUsuarioId,
                 autorNombre: autor?.nombre ?? "Máster",
                 texto: `Tiró ${resultadoFinal.formula} → ${resultadoFinal.total}`,
-                destinatarioId: null,
-                destinatarioNombre: null,
+                destinatarioId: esSoloMaster ? "master" : null,
+                destinatarioNombre: esSoloMaster ? (hostName ?? "Máster") : null,
                 createdAt: new Date().toISOString(),
                 esSistema: true
               }
@@ -1705,8 +2224,276 @@ export function Sala({
     setNuevoPositTexto("");
   }
 
+  function emitirDivisaLocal(delta: number, total: number): void {
+    if (delta === 0) return;
+    reproducirSonidoMonedas();
+    const miAsiento =
+      jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ?? "master";
+    const idDelta = `${Date.now()}-${Math.random()}`;
+    setDivisaAsientoLocales(prev => ({
+      ...prev,
+      [miAsiento]: { id: idDelta, delta }
+    }));
+    window.setTimeout(() => {
+      setDivisaAsientoLocales(prev => {
+        if (prev[miAsiento]?.id !== idDelta) return prev;
+        const copia = { ...prev };
+        delete copia[miAsiento];
+        return copia;
+      });
+    }, 3200);
+    const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
+    const signo = delta > 0 ? `+${delta}` : String(delta);
+    setMensajesLocales(prev => [
+      ...prev,
+      {
+        id: `divisa-${Date.now()}-${Math.random()}`,
+        autorId: miUsuarioId,
+        autorNombre: autor?.nombre ?? "Máster",
+        texto: `${signo} ${divisaNombre} (Total: ${total})`,
+        destinatarioId: null,
+        destinatarioNombre: null,
+        createdAt: new Date().toISOString(),
+        esSistema: true,
+        esDivisa: true
+      }
+    ]);
+  }
+
+  function modificarDivisa(deltaBruto: number, inmediato = false): void {
+    const actual = divisaActualRef.current;
+    const nuevo = Math.max(0, Math.min(999_999_999_999, Math.trunc(actual + deltaBruto)));
+    const deltaReal = nuevo - actual;
+    if (deltaReal === 0) return;
+
+    if (divisa === undefined) {
+      setDivisaLocal(nuevo);
+      guardarDivisaLocal(nuevo);
+    }
+
+    if (inmediato) {
+      if (divisaDebounceRef.current.timer !== null) {
+        window.clearTimeout(divisaDebounceRef.current.timer);
+        divisaDebounceRef.current.timer = null;
+      }
+      const deltaTotal = divisaDebounceRef.current.acumulado + deltaReal;
+      divisaDebounceRef.current.acumulado = 0;
+      if (onCambiarDivisaRef.current) {
+        void onCambiarDivisaRef.current(nuevo, deltaTotal);
+      } else {
+        emitirDivisaLocal(deltaTotal, nuevo);
+      }
+      return;
+    }
+
+    if (onCambiarDivisaRef.current && divisa !== undefined) {
+      // Actualización optimista pasando delta 0 hasta que venza el debounce
+      void onCambiarDivisaRef.current(nuevo, 0);
+    }
+
+    divisaDebounceRef.current.acumulado += deltaReal;
+    if (divisaDebounceRef.current.timer !== null) {
+      window.clearTimeout(divisaDebounceRef.current.timer);
+    }
+    divisaDebounceRef.current.timer = window.setTimeout(() => {
+      const deltaAcum = divisaDebounceRef.current.acumulado;
+      divisaDebounceRef.current.acumulado = 0;
+      divisaDebounceRef.current.timer = null;
+      if (deltaAcum === 0) return;
+      if (onCambiarDivisaRef.current) {
+        void onCambiarDivisaRef.current(divisaActualRef.current, deltaAcum);
+      } else {
+        emitirDivisaLocal(deltaAcum, divisaActualRef.current);
+      }
+    }, 750);
+  }
+
+  function actualizarListaMochila(updater: (prev: ObjetoMochila[]) => ObjetoMochila[]): void {
+    if (onMochila) {
+      onMochila(updater);
+    } else {
+      setMochilaLocal(prev => {
+        const next = updater(prev);
+        guardarMochilaLocal(next);
+        return next;
+      });
+    }
+  }
+
+  async function subirImagenObjeto(file: File): Promise<void> {
+    setSubiendoObjetoImg(true);
+    try {
+      const cuadrada = await recortarImagenCuadrada(file);
+      if (onCambiarDivisa) {
+        const subido = await archivosApi.subir(cuadrada);
+        setNuevoObjArchivo({
+          archivoId: subido.id,
+          archivoNombre: subido.nombre
+        });
+        onSolicitarArchivos?.();
+      } else {
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error("Error leyendo imagen"));
+          reader.readAsDataURL(cuadrada);
+        });
+        setNuevoObjArchivo({
+          archivoNombre: cuadrada.name,
+          imagenLocal: dataUrl
+        });
+      }
+    } catch (e) {
+      mostrarAviso(describeError(e));
+    } finally {
+      setSubiendoObjetoImg(false);
+    }
+  }
+
+  function crearObjetoMochila(evento: React.FormEvent): void {
+    evento.preventDefault();
+    const nombre = nuevoObjNombre.trim().slice(0, 60);
+    if (!nombre) return;
+    const cantidad = Math.max(1, Math.min(9999, Math.trunc(nuevoObjCantidad || 1)));
+    const nuevo: ObjetoMochila = {
+      id: nuevoIdElemento(),
+      nombre,
+      descripcion: nuevoObjDesc.trim().slice(0, 1000),
+      cantidad,
+      ...(nuevoObjArchivo?.archivoId
+        ? {
+            archivoId: nuevoObjArchivo.archivoId,
+            archivoNombre: nuevoObjArchivo.archivoNombre
+          }
+        : nuevoObjArchivo?.imagenLocal
+          ? {
+              imagenLocal: nuevoObjArchivo.imagenLocal,
+              archivoNombre: nuevoObjArchivo.archivoNombre
+            }
+          : { emoji: nuevoObjEmoji })
+    };
+    actualizarListaMochila(prev => [...prev, nuevo]);
+    setNuevoObjNombre("");
+    setNuevoObjDesc("");
+    setNuevoObjCantidad(1);
+    setNuevoObjArchivo(null);
+    setCreandoObjeto(false);
+    setObjetoMochilaId(nuevo.id);
+  }
+
+  function consumirObjetoMochila(id: string): void {
+    reproducirSonidoConsumir();
+    actualizarListaMochila(prev =>
+      prev.flatMap(item => {
+        if (item.id !== id) return [item];
+        const restante = item.cantidad - 1;
+        if (restante <= 0) {
+          setObjetoMochilaId(null);
+          return [];
+        }
+        return [{ ...item, cantidad: restante }];
+      })
+    );
+  }
+
+  function eliminarObjetoMochila(id: string): void {
+    actualizarListaMochila(prev => prev.filter(item => item.id !== id));
+    setObjetoMochilaId(actual => (actual === id ? null : actual));
+    setPasandoObjetoId(actual => (actual === id ? null : actual));
+  }
+
+  function ponerObjetoEnMesa(objeto: ObjetoMochila): void {
+    colocarEnMesa({
+      id: nuevoIdElemento(),
+      tipo: "objeto",
+      nombre: objeto.nombre,
+      descripcion: objeto.descripcion,
+      cantidad: objeto.cantidad,
+      ...(objeto.emoji ? { emoji: objeto.emoji } : {}),
+      ...(objeto.archivoId ? { archivoId: objeto.archivoId } : {}),
+      ...(objeto.archivoNombre ? { archivoNombre: objeto.archivoNombre } : {}),
+      ...(objeto.imagenLocal ? { imagenLocal: objeto.imagenLocal } : {}),
+      x: 78,
+      y: 78
+    });
+    eliminarObjetoMochila(objeto.id);
+    setMochilaAbierta(false);
+  }
+
+  function guardarObjetoMesaEnMochila(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    actualizarListaMochila(prev => [
+      ...prev,
+      {
+        id: nuevoIdElemento(),
+        nombre: obj.nombre,
+        descripcion: obj.descripcion,
+        cantidad: obj.cantidad,
+        ...(obj.emoji ? { emoji: obj.emoji } : {}),
+        ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
+        ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
+        ...(obj.imagenLocal ? { imagenLocal: obj.imagenLocal } : {})
+      }
+    ]);
+    onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+    setObjetoMesaActivo(null);
+  }
+
+  function consumirObjetoMesa(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    reproducirSonidoConsumir();
+    const restante = obj.cantidad - 1;
+    if (restante <= 0) {
+      onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+      setObjetoMesaActivo(null);
+    } else {
+      const actualizado = { ...obj, cantidad: restante };
+      onElementosMesa?.(prev =>
+        prev.map(el => (el.id === obj.id ? actualizado : el))
+      );
+      setObjetoMesaActivo(actualizado);
+    }
+  }
+
+  function iniciarObjetoMesa(
+    evento: ReactPointerEvent,
+    obj: { id: string; x: number; y: number }
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+    evento.stopPropagation();
+    setPositActivo(null);
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "objeto-mesa",
+      id: obj.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false,
+      base: { x: obj.x, y: obj.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+  }
+
+  function iniciarMochilaObjeto(
+    evento: ReactPointerEvent,
+    objeto: ObjetoMochila
+  ): void {
+    if (evento.button !== 0) return;
+    arrastre.current = {
+      tipo: "mochila-objeto",
+      objeto,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false
+    };
+  }
+
   const mensajesVisibles = mensajesChat ?? mensajesLocales;
   const tiradasVisibles = tiradasAsiento ?? tiradasAsientoLocales;
+  const divisaAsientoVisibles = divisaAsiento ?? divisaAsientoLocales;
   const positsVisibles = elementosMesa.filter(
     (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
       el.tipo === "posit" && !el.archivado
@@ -1718,6 +2505,12 @@ export function Sala({
     (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
       el.tipo === "archivo" && !el.archivado
   );
+  const objetosVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "objeto" }> =>
+      el.tipo === "objeto" && !el.archivado
+  );
+  const objetoSeleccionado =
+    mochilaActual.find(item => item.id === objetoMochilaId) ?? null;
 
   return (
     <div
@@ -1877,6 +2670,7 @@ export function Sala({
               const destinoValido = !ajuste && arrastrandoItemId !== null && !esMio;
               const destinoActivo = destinoValido && asientoSobreId === jugador.id;
               const tiradaSobreAsiento = tiradasVisibles[jugador.id];
+              const divisaDeltaSobreAsiento = divisaAsientoVisibles[jugador.id];
               const estilo = {
                 left: `${asiento.x}%`,
                 top: `${asiento.y}%`,
@@ -1948,6 +2742,17 @@ export function Sala({
                         caras={tiradaSobreAsiento.caras ?? 20}
                         valor={tiradaSobreAsiento.total}
                       />
+                    </div>
+                  )}
+                  {divisaDeltaSobreAsiento && !ajuste && (
+                    <div
+                      key={divisaDeltaSobreAsiento.id}
+                      className={`asiento-divisa-delta${divisaDeltaSobreAsiento.delta > 0 ? " positivo" : " negativo"}`}
+                      aria-label={`Cambio de divisa de ${jugador.nombre}: ${divisaDeltaSobreAsiento.delta}`}
+                    >
+                      {divisaDeltaSobreAsiento.delta > 0
+                        ? `+${divisaDeltaSobreAsiento.delta}`
+                        : divisaDeltaSobreAsiento.delta}
                     </div>
                   )}
                   <span className="esfera" />
@@ -2031,6 +2836,78 @@ export function Sala({
                 <span>{subiendoBarra ? "Subiendo…" : "Subir archivo"}</span>
               </button>
 
+              <button
+                type="button"
+                className={`sala-btn${sonidoSilenciado ? " activo" : ""}`}
+                onClick={alternarSilencio}
+                title={
+                  sonidoSilenciado
+                    ? "Sonidos silenciados (pulsa para activar)"
+                    : "Silenciar sonidos"
+                }
+                aria-label={
+                  sonidoSilenciado ? "Activar sonidos" : "Silenciar sonidos"
+                }
+                aria-pressed={sonidoSilenciado}
+              >
+                {sonidoSilenciado ? (
+                  <VolumeX size={14} strokeWidth={2.2} aria-hidden="true" />
+                ) : (
+                  <Volume2 size={14} strokeWidth={2.2} aria-hidden="true" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                className={`sala-btn hud-barra-movil${divisaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setMochilaAbierta(false);
+                  setDivisaAbierta(v => !v);
+                }}
+                title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
+              >
+                <IconoMonedasPixel size={20} />
+                <span>{formatearDivisaCompacta(divisaActual)}</span>
+              </button>
+
+              <button
+                type="button"
+                className={`sala-btn hud-barra-movil${mochilaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setDivisaAbierta(false);
+                  setMasterDivisasAbierto(false);
+                  setMasterMochilasAbierto(false);
+                  setMochilaAbierta(v => !v);
+                }}
+                title="Abrir mochila"
+              >
+                <IconoMochilaPixel size={20} />
+                <span>{mochilaActual.length}</span>
+              </button>
+
+              {esMaster && (
+                <>
+                  <button
+                    type="button"
+                    className={`sala-btn hud-barra-movil${masterDivisasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("divisas")}
+                    title={`Ver ${divisaNombre} de jugadores`}
+                    aria-label={`Ver ${divisaNombre} de jugadores`}
+                  >
+                    <IconoBilletePixel size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`sala-btn hud-barra-movil${masterMochilasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("mochilas")}
+                    title="Inspeccionar mochilas de jugadores"
+                    aria-label="Inspeccionar mochilas de jugadores"
+                  >
+                    <IconoLupaPixel size={18} />
+                  </button>
+                </>
+              )}
+
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
                   <span className="master-proyeccion-texto">
@@ -2073,6 +2950,780 @@ export function Sala({
             </div>
           </div>
 
+          {!ajuste && (
+            <div className="sala-hud-derecha" aria-label="Divisa y mochila">
+              <div className="hud-divisa-caja">
+                <span className="hud-divisa-titulo">{divisaNombre}</span>
+                <div className="hud-divisa-fila">
+                  <button
+                    type="button"
+                    className="hud-divisa-paso"
+                    onClick={() => modificarDivisa(-divisaPaso)}
+                    aria-label={`Restar ${divisaPaso} ${divisaNombre}`}
+                    title={`Restar ${divisaPaso}`}
+                  >
+                    <Minus size={13} strokeWidth={2.6} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`hud-divisa-centro${divisaAbierta ? " activo" : ""}`}
+                    onClick={() => {
+                      setMochilaAbierta(false);
+                      setDivisaAbierta(v => !v);
+                    }}
+                    title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
+                    aria-expanded={divisaAbierta}
+                  >
+                    <IconoMonedasPixel size={38} />
+                    <span className="hud-divisa-valor">
+                      {formatearDivisaCompacta(divisaActual)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="hud-divisa-paso"
+                    onClick={() => modificarDivisa(divisaPaso)}
+                    aria-label={`Sumar ${divisaPaso} ${divisaNombre}`}
+                    title={`Sumar ${divisaPaso}`}
+                  >
+                    <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`hud-mochila-btn${mochilaAbierta ? " activo" : ""}`}
+                onClick={() => {
+                  setDivisaAbierta(false);
+                  setMasterDivisasAbierto(false);
+                  setMasterMochilasAbierto(false);
+                  setMochilaAbierta(v => !v);
+                }}
+                aria-expanded={mochilaAbierta}
+                title="Abrir mochila"
+              >
+                <IconoMochilaPixel size={40} />
+                <span className="hud-mochila-texto">Mochila</span>
+                {mochilaActual.length > 0 && (
+                  <span className="hud-mochila-badge">{mochilaActual.length}</span>
+                )}
+              </button>
+
+              {esMaster && (
+                <div className="hud-master-fila" aria-label="Inspección del Máster">
+                  <button
+                    type="button"
+                    className={`hud-master-cuadro${masterDivisasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("divisas")}
+                    aria-expanded={masterDivisasAbierto}
+                    title={`Ver ${divisaNombre} de jugadores conectados`}
+                    aria-label={`Ver ${divisaNombre} de jugadores conectados`}
+                  >
+                    <IconoBilletePixel size={26} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`hud-master-cuadro${masterMochilasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("mochilas")}
+                    aria-expanded={masterMochilasAbierto}
+                    title="Inspeccionar mochila y objetos de jugadores conectados"
+                    aria-label="Inspeccionar mochila y objetos de jugadores conectados"
+                  >
+                    <IconoLupaPixel size={26} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {masterDivisasAbierto && esMaster && !ajuste && (
+            <div
+              className="divisa-popover master-resumen-popover"
+              role="dialog"
+              aria-label={`${divisaNombre} de jugadores conectados`}
+            >
+              <div className="dados-selector-cabecera">
+                <span>{divisaNombre} · Conectados</span>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="master-actualizar-btn"
+                    onClick={() => void cargarResumenMaster()}
+                    disabled={masterResumenCargando}
+                  >
+                    {masterResumenCargando ? "…" : "Actualizar"}
+                  </button>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setMasterDivisasAbierto(false)}
+                    aria-label="Cerrar resumen de divisa"
+                  >
+                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+                <p className="dados-ayuda">Consultando sala…</p>
+              ) : masterResumenJugadores.length === 0 ? (
+                <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
+              ) : (
+                <ul className="master-divisa-lista">
+                  {masterResumenJugadores.map(j => (
+                    <li key={j.userId} className="master-divisa-item">
+                      <span className="master-divisa-jugador">
+                        <span
+                          className="compartir-jugador-punto"
+                          style={{ backgroundColor: j.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{j.nombre}</span>
+                      </span>
+                      <span
+                        className="master-divisa-monto"
+                        title={`${j.divisa.toLocaleString("es-ES")} ${divisaNombre}`}
+                      >
+                        {formatearDivisaCompacta(j.divisa)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {masterMochilasAbierto && esMaster && !ajuste && (
+            <div
+              className="mochila-backdrop"
+              onClick={() => setMasterMochilasAbierto(false)}
+            >
+              <div
+                className="mochila-modal master-inspeccion-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Inspeccionar inventario de jugadores conectados"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mochila-cabecera">
+                  <span className="mochila-titulo">
+                    <IconoLupaPixel size={22} />
+                    <span>Inspeccionar jugadores</span>
+                  </span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="mochila-volver-btn"
+                      onClick={() => void cargarResumenMaster()}
+                      disabled={masterResumenCargando}
+                    >
+                      {masterResumenCargando ? "Actualizando…" : "Actualizar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="dados-cerrar"
+                      onClick={() => setMasterMochilasAbierto(false)}
+                      aria-label="Cerrar inspección"
+                    >
+                      <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">Consultando mochilas…</p>
+                ) : masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">
+                    No hay jugadores conectados en la sala ahora mismo.
+                  </p>
+                ) : (
+                  (() => {
+                    const seleccionado =
+                      masterResumenJugadores.find(
+                        j => j.userId === masterJugadorMochilaId
+                      ) ?? masterResumenJugadores[0];
+                    return (
+                      <>
+                        <div className="master-inspeccion-tabs">
+                          {masterResumenJugadores.map(j => (
+                            <button
+                              key={j.userId}
+                              type="button"
+                              className={`master-inspeccion-tab${
+                                seleccionado?.userId === j.userId ? " activo" : ""
+                              }`}
+                              onClick={() => setMasterJugadorMochilaId(j.userId)}
+                            >
+                              <span
+                                className="compartir-jugador-punto"
+                                style={{ backgroundColor: j.color }}
+                                aria-hidden="true"
+                              />
+                              <span>{j.nombre}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {seleccionado && (
+                          <div className="master-inspeccion-cuerpo">
+                            <div className="master-inspeccion-subcabecera">
+                              <span>
+                                {divisaNombre}:{" "}
+                                <strong>
+                                  {seleccionado.divisa.toLocaleString("es-ES")}
+                                </strong>
+                              </span>
+                            </div>
+
+                            <h4 className="master-inspeccion-seccion">
+                              En mochila ({seleccionado.mochila.length})
+                            </h4>
+                            {seleccionado.mochila.length === 0 ? (
+                              <p className="dados-ayuda">Mochila vacía.</p>
+                            ) : (
+                              <div className="mochila-grid">
+                                {seleccionado.mochila.map(obj => (
+                                  <div key={obj.id} className="mochila-item-celda">
+                                    <div
+                                      className="mochila-slot"
+                                      title={
+                                        obj.descripcion
+                                          ? `${obj.nombre}: ${obj.descripcion}`
+                                          : obj.nombre
+                                      }
+                                    >
+                                      {obj.archivoId ? (
+                                        <img
+                                          src={archivosApi.url(obj.archivoId)}
+                                          alt={obj.nombre}
+                                        />
+                                      ) : (
+                                        <span className="mochila-slot-emoji">
+                                          {obj.emoji ?? "🎒"}
+                                        </span>
+                                      )}
+                                      <span className="mochila-slot-cant">
+                                        {obj.cantidad}
+                                      </span>
+                                    </div>
+                                    <span className="mochila-slot-nombre" title={obj.nombre}>
+                                      {obj.nombre}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <h4 className="master-inspeccion-seccion">
+                              En su mesa ({seleccionado.objetosMesa.length})
+                            </h4>
+                            {seleccionado.objetosMesa.length === 0 ? (
+                              <p className="dados-ayuda">Sin objetos en mesa.</p>
+                            ) : (
+                              <div className="mochila-grid">
+                                {seleccionado.objetosMesa.map(obj => (
+                                  <div key={obj.id} className="mochila-item-celda">
+                                    <div
+                                      className="mochila-slot"
+                                      title={
+                                        obj.descripcion
+                                          ? `${obj.nombre}: ${obj.descripcion}`
+                                          : obj.nombre
+                                      }
+                                    >
+                                      {obj.archivoId ? (
+                                        <img
+                                          src={archivosApi.url(obj.archivoId)}
+                                          alt={obj.nombre}
+                                        />
+                                      ) : (
+                                        <span className="mochila-slot-emoji">
+                                          {obj.emoji ?? "🎒"}
+                                        </span>
+                                      )}
+                                      <span className="mochila-slot-cant">
+                                        {obj.cantidad}
+                                      </span>
+                                    </div>
+                                    <span className="mochila-slot-nombre" title={obj.nombre}>
+                                      {obj.nombre}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
+                )}
+              </div>
+            </div>
+          )}
+
+          {divisaAbierta && !ajuste && (
+            <div
+              className="divisa-popover"
+              role="dialog"
+              aria-label={`Gestionar ${divisaNombre}`}
+            >
+              <div className="dados-selector-cabecera">
+                <span>{divisaNombre}</span>
+                <button
+                  type="button"
+                  className="dados-cerrar"
+                  onClick={() => setDivisaAbierta(false)}
+                  aria-label="Cerrar panel de divisa"
+                >
+                  <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="divisa-exacto">
+                <IconoMonedasPixel size={22} />
+                <span>{divisaActual.toLocaleString("es-ES")}</span>
+              </div>
+
+              <div className="divisa-paso-row">
+                <span className="dados-campo-etiqueta">Paso +/-</span>
+                <div className="divisa-paso-btns">
+                  {([1, 10, 100] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`dado-tipo-btn${divisaPaso === p ? " activo" : ""}`}
+                      onClick={() => setDivisaPaso(p)}
+                    >
+                      x{p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="divisa-atajos">
+                {[-100, -10, 10, 100].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`divisa-atajo-btn${d < 0 ? " resta" : " suma"}`}
+                    onClick={() => modificarDivisa(d, true)}
+                  >
+                    {d > 0 ? `+${d}` : d}
+                  </button>
+                ))}
+              </div>
+
+              <form
+                className="divisa-custom-form"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const n = parseInt(divisaCustomTexto, 10);
+                  if (!Number.isNaN(n) && n > 0) {
+                    modificarDivisa(n, true);
+                    setDivisaCustomTexto("");
+                  }
+                }}
+              >
+                <input
+                  type="number"
+                  min={1}
+                  max={999_999_999}
+                  value={divisaCustomTexto}
+                  onChange={e => setDivisaCustomTexto(e.target.value)}
+                  placeholder="Cantidad..."
+                  aria-label="Cantidad personalizada"
+                />
+                <button
+                  type="button"
+                  className="divisa-emoji-btn resta"
+                  title="Restar cantidad"
+                  aria-label="Restar cantidad personalizada"
+                  onClick={() => {
+                    const n = parseInt(divisaCustomTexto, 10);
+                    if (!Number.isNaN(n) && n > 0) {
+                      modificarDivisa(-n, true);
+                      setDivisaCustomTexto("");
+                    }
+                  }}
+                >
+                  ➖
+                </button>
+                <button
+                  type="button"
+                  className="divisa-emoji-btn suma"
+                  title="Sumar cantidad"
+                  aria-label="Sumar cantidad personalizada"
+                  onClick={() => {
+                    const n = parseInt(divisaCustomTexto, 10);
+                    if (!Number.isNaN(n) && n > 0) {
+                      modificarDivisa(n, true);
+                      setDivisaCustomTexto("");
+                    }
+                  }}
+                >
+                  ➕
+                </button>
+              </form>
+
+              {esMaster && onCambiarDivisaNombre && (
+                <form
+                  className="divisa-master-nombre"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    void onCambiarDivisaNombre(divisaNombreEdit);
+                  }}
+                >
+                  <span className="dados-campo-etiqueta">Nombre (Máster)</span>
+                  <div className="divisa-master-nombre-fila">
+                    <input
+                      type="text"
+                      maxLength={24}
+                      value={divisaNombreEdit}
+                      onChange={e => setDivisaNombreEdit(e.target.value)}
+                      placeholder="Divisa, Oro, Créditos..."
+                    />
+                    <button type="submit" title="Guardar nombre" aria-label="Guardar nombre">
+                      <Check size={13} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
+          {mochilaAbierta && !ajuste && (
+            <div
+              className="mochila-backdrop"
+              onClick={() => setMochilaAbierta(false)}
+            >
+              <div
+                className="mochila-modal"
+                role="dialog"
+                aria-label="Mochila"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mochila-cabecera">
+                  <div className="mochila-titulo">
+                    <IconoMochilaPixel size={22} />
+                    <span>Mochila</span>
+                  </div>
+                  <div className="macros-cabecera-acciones">
+                    <button
+                      type="button"
+                      className="macros-crear-btn"
+                      onClick={() => {
+                        setCreandoObjeto(v => !v);
+                        setObjetoMochilaId(null);
+                      }}
+                    >
+                      <Plus size={12} strokeWidth={2.6} aria-hidden="true" />
+                      <span>{creandoObjeto ? "Volver" : "Nuevo"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dados-cerrar"
+                      onClick={() => setMochilaAbierta(false)}
+                      aria-label="Cerrar mochila"
+                    >
+                      <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {creandoObjeto ? (
+                  <form className="mochila-crear-form" onSubmit={crearObjetoMochila}>
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Nombre del objeto</span>
+                      <input
+                        type="text"
+                        maxLength={60}
+                        required
+                        value={nuevoObjNombre}
+                        onChange={e => setNuevoObjNombre(e.target.value)}
+                        placeholder="Ej. Poción curativa, Llave de hierro..."
+                        autoFocus
+                      />
+                    </label>
+
+                    <div className="mochila-crear-fila">
+                      <label className="macro-campo-nombre">
+                        <span className="dados-campo-etiqueta">Cantidad</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={9999}
+                          value={nuevoObjCantidad}
+                          onChange={e => {
+                            const v = parseInt(e.target.value, 10);
+                            setNuevoObjCantidad(Number.isNaN(v) ? 1 : limitar(v, 1, 9999));
+                          }}
+                        />
+                      </label>
+
+                      <div className="mochila-img-subida">
+                        <span className="dados-campo-etiqueta">Imagen (cuadrada)</span>
+                        <input
+                          ref={objetoImgInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/gif,image/webp"
+                          hidden
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) void subirImagenObjeto(f);
+                            e.target.value = "";
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="mochila-subir-btn"
+                          disabled={subiendoObjetoImg}
+                          onClick={() => objetoImgInputRef.current?.click()}
+                        >
+                          <Upload size={13} aria-hidden="true" />
+                          <span>
+                            {subiendoObjetoImg
+                              ? "Recortando..."
+                              : nuevoObjArchivo
+                                ? "Cambiar foto"
+                                : "Subir foto"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {!nuevoObjArchivo ? (
+                      <div className="mochila-emojis-grid" role="radiogroup" aria-label="Emoji del objeto">
+                        {EMOJIS_OBJETO_SUGERIDOS.map(em => (
+                          <button
+                            key={em}
+                            type="button"
+                            className={`mochila-emoji-btn${nuevoObjEmoji === em ? " activo" : ""}`}
+                            onClick={() => setNuevoObjEmoji(em)}
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mochila-preview-upload">
+                        <img
+                          src={
+                            nuevoObjArchivo.imagenLocal ??
+                            archivosApi.url(nuevoObjArchivo.archivoId ?? "")
+                          }
+                          alt="Vista previa"
+                        />
+                        <button
+                          type="button"
+                          className="mochila-quitar-img"
+                          onClick={() => setNuevoObjArchivo(null)}
+                        >
+                          Usar emoji en su lugar
+                        </button>
+                      </div>
+                    )}
+
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Descripción</span>
+                      <textarea
+                        rows={3}
+                        maxLength={1000}
+                        value={nuevoObjDesc}
+                        onChange={e => setNuevoObjDesc(e.target.value)}
+                        placeholder="Efecto, peso, notas..."
+                      />
+                    </label>
+
+                    <button type="submit" className="dados-lanzar">
+                      Guardar en mochila
+                    </button>
+                  </form>
+                ) : objetoSeleccionado ? (
+                  <div className="mochila-detalle">
+                    <div className="mochila-detalle-top">
+                      <button
+                        type="button"
+                        className="mochila-volver-btn"
+                        onClick={() => {
+                          setObjetoMochilaId(null);
+                          setPasandoObjetoId(null);
+                        }}
+                      >
+                        <ArrowLeft size={13} aria-hidden="true" />
+                        <span>Todos los objetos</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="mochila-eliminar-cruz"
+                        onClick={() => eliminarObjetoMochila(objetoSeleccionado.id)}
+                        title="Eliminar objeto de la mochila"
+                        aria-label="Eliminar objeto"
+                      >
+                        <X size={14} strokeWidth={2.6} aria-hidden="true" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+
+                    <div className="mochila-detalle-cabecera">
+                      <div className="mochila-detalle-cuadro">
+                        {objetoSeleccionado.imagenLocal || objetoSeleccionado.archivoId ? (
+                          <img
+                            src={
+                              objetoSeleccionado.imagenLocal ??
+                              archivosApi.url(objetoSeleccionado.archivoId ?? "")
+                            }
+                            alt={objetoSeleccionado.nombre}
+                          />
+                        ) : (
+                          <span className="mochila-detalle-emoji">
+                            {objetoSeleccionado.emoji ?? "🎒"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mochila-detalle-info">
+                        <h3>{objetoSeleccionado.nombre}</h3>
+                        <label className="mochila-cantidad-edit">
+                          <span className="dados-campo-etiqueta">Cantidad</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={9999}
+                            value={objetoSeleccionado.cantidad}
+                            onChange={e => {
+                              const v = parseInt(e.target.value, 10);
+                              const cant = Number.isNaN(v) ? 1 : limitar(v, 1, 9999);
+                              actualizarListaMochila(prev =>
+                                prev.map(it =>
+                                  it.id === objetoSeleccionado.id
+                                    ? { ...it, cantidad: cant }
+                                    : it
+                                )
+                              );
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Descripción</span>
+                      <textarea
+                        rows={4}
+                        maxLength={1000}
+                        value={objetoSeleccionado.descripcion}
+                        onChange={e => {
+                          const desc = e.target.value;
+                          actualizarListaMochila(prev =>
+                            prev.map(it =>
+                              it.id === objetoSeleccionado.id
+                                ? { ...it, descripcion: desc }
+                                : it
+                            )
+                          );
+                        }}
+                        placeholder="Añade una descripción..."
+                      />
+                    </label>
+
+                    <div className="mochila-detalle-acciones">
+                      <button
+                        type="button"
+                        className="mochila-accion-sec"
+                        onClick={() => ponerObjetoEnMesa(objetoSeleccionado)}
+                      >
+                        Poner en mesa
+                      </button>
+                      <button
+                        type="button"
+                        className="mochila-accion-sec"
+                        onClick={() =>
+                          setPasandoObjetoId(p =>
+                            p === objetoSeleccionado.id ? null : objetoSeleccionado.id
+                          )
+                        }
+                      >
+                        Pasar a jugador
+                      </button>
+                    </div>
+
+                    {pasandoObjetoId === objetoSeleccionado.id && (
+                      <div className="mochila-destinos">
+                        {jugadores
+                          .filter(j => j.activo && j.id !== yoAsientoId)
+                          .map(j => (
+                            <button
+                              key={j.id}
+                              type="button"
+                              className="mochila-destino-chip"
+                              onClick={() => {
+                                if (onEnviarObjetoMochila) {
+                                  void onEnviarObjetoMochila(j, objetoSeleccionado, 1);
+                                } else {
+                                  mostrarAviso(
+                                    `${objetoSeleccionado.nombre} enviado a ${j.nombre}.`
+                                  );
+                                }
+                                setPasandoObjetoId(null);
+                              }}
+                            >
+                              {j.nombre}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="mochila-consumir-btn"
+                      onClick={() => consumirObjetoMochila(objetoSeleccionado.id)}
+                    >
+                      Consumir (-1)
+                    </button>
+                  </div>
+                ) : mochilaActual.length === 0 ? (
+                  <p className="macros-vacio">
+                    Tu mochila está vacía. Pulsa <strong>+ Nuevo</strong> para añadir objetos o sube una imagen cuadrada.
+                  </p>
+                ) : (
+                  <div className="mochila-grid">
+                    {mochilaActual.map(item => (
+                      <div key={item.id} className="mochila-item-celda">
+                        <button
+                          type="button"
+                          className="mochila-slot"
+                          title={`${item.nombre} (x${item.cantidad}) — Arrastra a la mesa o pulsa para ver`}
+                          onPointerDown={e => iniciarMochilaObjeto(e, item)}
+                          onClick={() => {
+                            if (!arrastre.current) {
+                              setObjetoMochilaId(item.id);
+                            }
+                          }}
+                        >
+                          {item.imagenLocal || item.archivoId ? (
+                            <img
+                              src={
+                                item.imagenLocal ?? archivosApi.url(item.archivoId ?? "")
+                              }
+                              alt={item.nombre}
+                              draggable={false}
+                            />
+                          ) : (
+                            <span className="mochila-slot-emoji">{item.emoji ?? "🎒"}</span>
+                          )}
+                          <span className="mochila-slot-cant">{item.cantidad}</span>
+                        </button>
+                        <span className="mochila-slot-nombre" title={item.nombre}>
+                          {item.nombre}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {ajuste && (
             <div className="ajuste-panel">
               <p>
@@ -2097,7 +3748,7 @@ export function Sala({
 
           {selectorAbierto && !ajuste && (
             <form
-              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}`}
+              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}${tiradaSecreta ? " secreta" : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
               onSubmit={evento => {
                 evento.preventDefault();
@@ -2203,24 +3854,35 @@ export function Sala({
                 <span>Tirada compuesta</span>
               </button>
 
-              {esMaster && (
-                <button
-                  type="button"
-                  className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => setTiradaSecreta(s => !s)}
-                  aria-pressed={tiradaSecreta}
-                >
-                  <span className="dados-secreto-punto" aria-hidden="true" />
-                  <span>Dados negros (solo Máster)</span>
-                </button>
-              )}
+              <button
+                type="button"
+                className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
+                onClick={() => setTiradaSecreta(s => !s)}
+                aria-pressed={tiradaSecreta}
+              >
+                {esMaster ? (
+                  <>
+                    <span className="dados-secreto-punto" aria-hidden="true" />
+                    <span>Dados negros (solo Máster)</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Solo para el Máster (susurro)</span>
+                  </>
+                )}
+              </button>
 
               <button
                 type="submit"
-                className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
                 disabled={tirando}
               >
-                {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                {tiradaSecreta
+                  ? esMaster
+                    ? "Tirar en secreto "
+                    : "Tirar al Máster "
+                  : "Tirar "}
                 {formatearFormulaCompuesta(
                   [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
                   bonificador
@@ -2372,31 +4034,376 @@ export function Sala({
                   </div>
                 </div>
 
-                {esMaster && (
-                  <button
-                    type="button"
-                    className={`dados-secreto-toggle${tiradaSecreta ? " activo" : ""}`}
-                    onClick={() => setTiradaSecreta(s => !s)}
-                    aria-pressed={tiradaSecreta}
-                  >
-                    <span className="dados-secreto-punto" aria-hidden="true" />
-                    <span>Dados negros (solo Máster)</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => setTiradaSecreta(s => !s)}
+                  aria-pressed={tiradaSecreta}
+                >
+                  {esMaster ? (
+                    <>
+                      <span className="dados-secreto-punto" aria-hidden="true" />
+                      <span>Dados negros (solo Máster)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                      <span>Solo para el Máster (susurro)</span>
+                    </>
+                  )}
+                </button>
 
                 <button
                   type="submit"
-                  className={`dados-lanzar${esMaster && tiradaSecreta ? " secreta" : ""}`}
+                  className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
                   disabled={tirando}
                 >
-                  {esMaster && tiradaSecreta ? "Tirar en secreto " : "Tirar "}
+                  {tiradaSecreta
+                    ? esMaster
+                      ? "Tirar en secreto "
+                      : "Tirar al Máster "
+                    : "Tirar "}
                   {formatearFormulaCompuesta(gruposCompuesta, bonificadorCompuesta)}
                 </button>
               </form>
             </div>
           )}
 
-          {tirada !== null && !selectorAbierto && !compuestaAbierta && (
+          {macrosAbierto && !ajuste && (
+            <div
+              className={`dados-selector macros-selector${calibracion.dock.y < 30 ? " debajo" : ""}${macroSecreta ? " secreta" : ""}`}
+              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+              role="dialog"
+              aria-label="Macros de tirada"
+            >
+              <div className="dados-selector-cabecera">
+                <span>Macros</span>
+                <div className="macros-cabecera-acciones">
+                  <button
+                    type="button"
+                    className="macros-crear-btn"
+                    onClick={abrirNuevaMacro}
+                  >
+                    <Plus size={12} strokeWidth={2.6} aria-hidden="true" />
+                    <span>Crear</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setMacrosAbierto(false)}
+                    aria-label="Cerrar macros"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${macroSecreta ? " activo" : ""}`}
+                onClick={() => setMacroSecreta(s => !s)}
+                aria-pressed={macroSecreta}
+              >
+                {esMaster ? (
+                  <>
+                    <span className="dados-secreto-punto" aria-hidden="true" />
+                    <span>Tirada secreta (solo Máster)</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Solo para el Máster (susurro)</span>
+                  </>
+                )}
+              </button>
+
+              {macrosLista.length > 6 && (
+                <div className="macros-buscador">
+                  <Search size={13} strokeWidth={2.2} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={macroFiltro}
+                    onChange={e => setMacroFiltro(e.target.value)}
+                    placeholder="Buscar macro..."
+                    aria-label="Buscar macro"
+                  />
+                </div>
+              )}
+
+              <div className="macros-lista">
+                {macrosLista.length === 0 ? (
+                  <p className="macros-vacio">
+                    Aún no tienes macros guardadas. Pulsa Crear para configurar una tirada rápida.
+                  </p>
+                ) : (
+                  (() => {
+                    const filtro = macroFiltro.trim().toLowerCase();
+                    const visibles = filtro
+                      ? macrosLista.filter(m => m.nombre.toLowerCase().includes(filtro))
+                      : macrosLista;
+                    if (visibles.length === 0) {
+                      return (
+                        <p className="macros-vacio">
+                          Ninguna macro coincide con «{macroFiltro}».
+                        </p>
+                      );
+                    }
+                    return visibles.map(macro => {
+                      const formula = formatearFormulaCompuesta(
+                        macro.grupos.map((g, idx) => ({
+                          id: `${macro.id}-${idx}`,
+                          cantidad: g.cantidad,
+                          caras: g.caras
+                        })),
+                        macro.bonificador
+                      );
+                      return (
+                        <div key={macro.id} className="macro-fila">
+                          <button
+                            type="button"
+                            className="macro-lanzar-btn"
+                            onClick={() => lanzarMacro(macro)}
+                            disabled={tirando}
+                            title={`Lanzar ${macro.nombre} (${formula})`}
+                          >
+                            <span className="macro-icono-badge">
+                              <IconoMacro id={macro.icono} size={15} />
+                            </span>
+                            <span className="macro-texto">
+                              <span className="macro-nombre">{macro.nombre}</span>
+                              <span className="macro-formula">{formula}</span>
+                            </span>
+                          </button>
+                          <div className="macro-acciones">
+                            <button
+                              type="button"
+                              className="macro-accion-btn"
+                              onClick={() => abrirEditarMacro(macro)}
+                              title="Editar macro"
+                              aria-label={`Editar ${macro.nombre}`}
+                            >
+                              <Pencil size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="macro-accion-btn"
+                              onClick={() => duplicarMacro(macro)}
+                              title="Duplicar macro"
+                              aria-label={`Duplicar ${macro.nombre}`}
+                            >
+                              <Copy size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="macro-accion-btn borrar"
+                              onClick={() => eliminarMacro(macro.id)}
+                              title="Eliminar macro"
+                              aria-label={`Eliminar ${macro.nombre}`}
+                            >
+                              <Trash2 size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+            </div>
+          )}
+
+          {macroModalAbierto && !ajuste && (
+            <div
+              className="dados-compuesta-backdrop"
+              onClick={() => setMacroModalAbierto(false)}
+            >
+              <form
+                className="dados-compuesta-modal macros-modal"
+                role="dialog"
+                aria-label={macroEditandoId ? "Editar macro" : "Crear macro"}
+                onClick={evento => evento.stopPropagation()}
+                onSubmit={evento => {
+                  evento.preventDefault();
+                  guardarMacroFormulario();
+                }}
+              >
+                <div className="dados-selector-cabecera">
+                  <span>{macroEditandoId ? "Editar macro" : "Nueva macro"}</span>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setMacroModalAbierto(false)}
+                    aria-label="Cerrar editor de macro"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <label className="macro-campo-nombre">
+                  <span className="dados-campo-etiqueta">Nombre</span>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    value={macroNombre}
+                    onChange={e => setMacroNombre(e.target.value)}
+                    placeholder="Ej. Espada larga, Bola de fuego..."
+                    autoFocus
+                  />
+                </label>
+
+                <div className="macro-campo-icono">
+                  <span className="dados-campo-etiqueta">Icono</span>
+                  <div className="macro-icono-grid" role="radiogroup" aria-label="Icono de la macro">
+                    {ICONOS_MACROS.map(item => {
+                      const seleccionado = macroIcono === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`macro-icono-opcion${seleccionado ? " activo" : ""}`}
+                          onClick={() => setMacroIcono(item.id)}
+                          title={item.label}
+                          aria-label={item.label}
+                          aria-checked={seleccionado}
+                          role="radio"
+                        >
+                          <IconoMacro id={item.id} size={15} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="dados-grupos-lista">
+                  {macroGrupos.map((grupo, idx) => (
+                    <div key={grupo.id} className="dados-grupo-card">
+                      <div className="dados-grupo-top">
+                        <span className="dados-campo-etiqueta">Dado {idx + 1}</span>
+                        {macroGrupos.length > 1 && (
+                          <button
+                            type="button"
+                            className="dados-grupo-quitar"
+                            onClick={() => eliminarGrupoMacro(grupo.id)}
+                            aria-label={`Quitar dado ${idx + 1}`}
+                            title="Quitar este dado"
+                          >
+                            <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="dados-stepper">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            actualizarGrupoMacro(grupo.id, {
+                              cantidad: Math.max(1, grupo.cantidad - 1)
+                            })
+                          }
+                          aria-label="Menos dados"
+                        >
+                          <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={grupo.cantidad}
+                          onChange={e => {
+                            const valor = parseInt(e.target.value, 10);
+                            actualizarGrupoMacro(grupo.id, {
+                              cantidad: Number.isNaN(valor) ? 1 : limitar(valor, 1, 20)
+                            });
+                          }}
+                          aria-label="Número de dados"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            actualizarGrupoMacro(grupo.id, {
+                              cantidad: Math.min(20, grupo.cantidad + 1)
+                            })
+                          }
+                          aria-label="Más dados"
+                        >
+                          <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                        {TIPOS_DADO.map(caras => (
+                          <button
+                            key={caras}
+                            type="button"
+                            className={`dado-tipo-btn${grupo.caras === caras ? " activo" : ""}`}
+                            onClick={() => actualizarGrupoMacro(grupo.id, { caras })}
+                          >
+                            d{caras}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {macroGrupos.length < 6 && (
+                  <button
+                    type="button"
+                    className="dados-agregar-grupo"
+                    onClick={agregarGrupoMacro}
+                  >
+                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    <span>Añadir otro dado</span>
+                  </button>
+                )}
+
+                <div className="dados-fila">
+                  <span className="dados-campo-etiqueta">Bonificador</span>
+                  <div className="dados-stepper">
+                    <button
+                      type="button"
+                      onClick={() => setMacroBonificador(b => Math.max(-99, b - 1))}
+                      aria-label="Reducir bonificador"
+                    >
+                      <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                    <input
+                      type="number"
+                      min={-99}
+                      max={99}
+                      value={macroBonificador}
+                      onChange={e => {
+                        const valor = parseInt(e.target.value, 10);
+                        setMacroBonificador(
+                          Number.isNaN(valor) ? 0 : limitar(valor, -99, 99)
+                        );
+                      }}
+                      aria-label="Bonificador"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMacroBonificador(b => Math.min(99, b + 1))}
+                      aria-label="Aumentar bonificador"
+                    >
+                      <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="dados-lanzar">
+                  {macroEditandoId ? "Guardar macro (" : "Guardar "}
+                  {formatearFormulaCompuesta(macroGrupos, macroBonificador)}
+                  {macroEditandoId ? ")" : ""}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {tirada !== null &&
+            !selectorAbierto &&
+            !compuestaAbierta &&
+            !macrosAbierto &&
+            !macroModalAbierto && (
             <div
               className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
               style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
@@ -2589,6 +4596,35 @@ export function Sala({
                   </div>
                 );
               })}
+
+              {objetosVisibles.map(obj => (
+                <div
+                  key={obj.id}
+                  className="mesa-objeto"
+                  style={{ left: `${obj.x}%`, top: `${obj.y}%` }}
+                  title={`${obj.nombre} (x${obj.cantidad})`}
+                  onPointerDown={evento => iniciarObjetoMesa(evento, obj)}
+                  onClick={() => {
+                    if (!arrastreDocMovido.current) {
+                      setObjetoMesaActivo(obj);
+                    }
+                  }}
+                >
+                  <div className="mesa-objeto-cuadro">
+                    {obj.imagenLocal || obj.archivoId ? (
+                      <img
+                        src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
+                        alt={obj.nombre}
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+                    )}
+                    <span className="mochila-slot-cant">{obj.cantidad}</span>
+                  </div>
+                  <span className="mesa-objeto-nombre">{obj.nombre}</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -2602,6 +4638,7 @@ export function Sala({
                 type="button"
                 className={`dock-btn${selectorAbierto && !tiradaSecreta ? " activo" : ""}`}
                 onClick={() => {
+                  setMacrosAbierto(false);
                   if (selectorAbierto && !tiradaSecreta) {
                     setSelectorAbierto(false);
                   } else {
@@ -2618,12 +4655,31 @@ export function Sala({
               <span className="dock-etiqueta">Dados</span>
             </div>
 
+            <div className="dock-item">
+              <button
+                type="button"
+                className={`dock-btn${macrosAbierto ? " activo" : ""}`}
+                onClick={() => {
+                  setSelectorAbierto(false);
+                  setCompuestaAbierta(false);
+                  setMacrosAbierto(abierto => !abierto);
+                }}
+                aria-expanded={macrosAbierto}
+                title="Macros de tirada personalizadas"
+                aria-label="Macros"
+              >
+                <Bookmark size={18} strokeWidth={2.1} aria-hidden="true" />
+              </button>
+              <span className="dock-etiqueta">Macros</span>
+            </div>
+
             {esMaster && (
               <div className="dock-item">
                 <button
                   type="button"
                   className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
                   onClick={() => {
+                    setMacrosAbierto(false);
                     if (selectorAbierto && tiradaSecreta) {
                       setSelectorAbierto(false);
                     } else {
@@ -2700,34 +4756,37 @@ export function Sala({
           </div>
 
           {!ajuste && (
-            <div className="dados-rapidos" role="group" aria-label="Dados rápidos">
-              {DADOS_RAPIDOS.map(dado => (
-                <button
-                  key={dado.caras}
-                  type="button"
-                  className="dado-rapido-btn"
-                  style={
-                    {
-                      "--dado-color": dado.color,
-                      "--dado-glow": dado.glow
-                    } as CSSProperties
-                  }
-                  onClick={() =>
-                    tirarDado([{ id: `rapido-${dado.caras}`, cantidad: 1, caras: dado.caras }], 0, {
-                      rapido: true,
-                      forzarPublica: true
-                    })
-                  }
-                  disabled={tirando}
-                  title={`Tirada rápida 1d${dado.caras}`}
-                  aria-label={`Tirar 1d${dado.caras}`}
-                >
-                  <span className="dado-rapido-icono">
-                    <IconoDadoPoligono caras={dado.caras} />
-                  </span>
-                  <span className="dado-rapido-etiqueta">d{dado.caras}</span>
-                </button>
-              ))}
+            <div className="dados-rapidos-contenedor">
+              <span className="dados-rapidos-titulo">Dados rápidos</span>
+              <div className="dados-rapidos" role="group" aria-label="Dados rápidos">
+                {DADOS_RAPIDOS.map(dado => (
+                  <button
+                    key={dado.caras}
+                    type="button"
+                    className="dado-rapido-btn"
+                    style={
+                      {
+                        "--dado-color": dado.color,
+                        "--dado-glow": dado.glow
+                      } as CSSProperties
+                    }
+                    onClick={() =>
+                      tirarDado([{ id: `rapido-${dado.caras}`, cantidad: 1, caras: dado.caras }], 0, {
+                        rapido: true,
+                        forzarPublica: true
+                      })
+                    }
+                    disabled={tirando}
+                    title={`Tirada rápida 1d${dado.caras}`}
+                    aria-label={`Tirar 1d${dado.caras}`}
+                  >
+                    <span className="dado-rapido-icono">
+                      <IconoDadoPoligono caras={dado.caras} />
+                    </span>
+                    <span className="dado-rapido-etiqueta">d{dado.caras}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2900,6 +4959,52 @@ export function Sala({
           </div>
 
           <div className="compartir-seccion">
+            <span className="compartir-subtitulo">Objetos de tu mochila</span>
+            {mochilaActual.length === 0 ? (
+              <span className="compartir-subtitulo">
+                No tienes objetos en tu mochila todavía.
+              </span>
+            ) : (
+              <ul className="compartir-lista">
+                {mochilaActual.map(obj => (
+                  <li key={obj.id} className="compartir-item">
+                    <div
+                      className="compartir-item-arrastre"
+                      onPointerDown={e => iniciarMochilaObjeto(e, obj)}
+                      title="Arrastra hacia el círculo de un jugador o al recuadro"
+                    >
+                      <span className="mesa-elemento-badge">
+                        {obj.emoji ?? "🎒"}
+                      </span>
+                      <span className="compartir-item-nombre">
+                        {obj.nombre}
+                        {obj.cantidad > 1 ? ` (x${obj.cantidad})` : ""}
+                      </span>
+                    </div>
+                    {jugadorSeleccionado && (
+                      <button
+                        type="button"
+                        className="compartir-btn-sec"
+                        onClick={() => {
+                          if (onEnviarObjetoMochila) {
+                            void onEnviarObjetoMochila(jugadorSeleccionado, obj, 1);
+                          } else {
+                            mostrarAviso(
+                              `${obj.nombre} enviado a ${jugadorSeleccionado.nombre}.`
+                            );
+                          }
+                        }}
+                      >
+                        Enviar
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="compartir-seccion">
             <span className="compartir-subtitulo">Archivos</span>
             {archivosLista.length === 0 ? (
               <span className="compartir-subtitulo">
@@ -2972,6 +5077,15 @@ export function Sala({
               «{solicitudPendiente.textoPosit}»
             </p>
           )}
+          {solicitudPendiente.tipo === "objeto" && solicitudPendiente.objeto && (
+            <p className="transferencia-preview-posit">
+              {solicitudPendiente.objeto.emoji ? `${solicitudPendiente.objeto.emoji} ` : ""}
+              {solicitudPendiente.objeto.nombre}
+              {solicitudPendiente.objeto.cantidad > 1
+                ? ` (x${solicitudPendiente.objeto.cantidad})`
+                : ""}
+            </p>
+          )}
           <div className="transferencia-acciones">
             <button
               type="button"
@@ -2987,6 +5101,77 @@ export function Sala({
             >
               Aceptar
             </button>
+          </div>
+        </div>
+      )}
+
+      {objetoMesaActivo && (
+        <div className="archivo-visor" onClick={() => setObjetoMesaActivo(null)}>
+          <div
+            className="archivo-visor-caja mochila-mesa-visor"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="archivo-visor-cabecera">
+              <span className="archivo-visor-nombre">
+                {objetoMesaActivo.nombre} (x{objetoMesaActivo.cantidad})
+              </span>
+              <button
+                type="button"
+                className="archivo-visor-cerrar"
+                onClick={() => setObjetoMesaActivo(null)}
+                aria-label="Cerrar objeto"
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
+            </header>
+            <div className="mochila-mesa-cuerpo">
+              <div className="mochila-detalle-cuadro">
+                {objetoMesaActivo.imagenLocal || objetoMesaActivo.archivoId ? (
+                  <img
+                    src={
+                      objetoMesaActivo.imagenLocal ??
+                      archivosApi.url(objetoMesaActivo.archivoId ?? "")
+                    }
+                    alt={objetoMesaActivo.nombre}
+                  />
+                ) : (
+                  <span className="mochila-detalle-emoji">
+                    {objetoMesaActivo.emoji ?? "🎒"}
+                  </span>
+                )}
+              </div>
+              <div className="mochila-detalle-acciones">
+                <button
+                  type="button"
+                  className="mochila-consumir-btn"
+                  onClick={() => consumirObjetoMesa(objetoMesaActivo)}
+                >
+                  Consumir (-1)
+                </button>
+                <button
+                  type="button"
+                  className="mochila-accion-sec"
+                  onClick={() => guardarObjetoMesaEnMochila(objetoMesaActivo)}
+                >
+                  Guardar en mochila
+                </button>
+                <button
+                  type="button"
+                  className="transferencia-btn-rechazar"
+                  onClick={() => {
+                    onElementosMesa?.(prev =>
+                      prev.filter(el => el.id !== objetoMesaActivo.id)
+                    );
+                    setObjetoMesaActivo(null);
+                  }}
+                >
+                  Eliminar objeto
+                </button>
+              </div>
+              {objetoMesaActivo.descripcion && (
+                <p className="mochila-mesa-desc">{objetoMesaActivo.descripcion}</p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -3053,6 +5238,12 @@ export function Sala({
                     );
                   }}
                 />
+              ) : itemAbierto.tipo === "objeto" ? (
+                <div className="mochila-mesa-cuerpo">
+                  <p className="mochila-mesa-desc">
+                    {itemAbierto.descripcion || itemAbierto.nombre}
+                  </p>
+                </div>
               ) : itemAbierto.vista === "imagen" ? (
                 <img
                   src={

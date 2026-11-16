@@ -14,6 +14,11 @@ import {
   type UserRepository
 } from "./repositories/user.repository.js";
 import {
+  MemoryUserMacrosRepository,
+  type UserMacrosRepository
+} from "./repositories/user-macros.repository.js";
+import { PgUserMacrosRepository } from "./repositories/pg-user-macros.repository.js";
+import {
   MemoryArchivoRepository,
   type ArchivoRepository
 } from "./repositories/archivo.repository.js";
@@ -59,6 +64,7 @@ export interface Container {
 export async function createContainer(): Promise<Container> {
   let pool: Pool | undefined;
   let userRepository: UserRepository;
+  let userMacrosRepository: UserMacrosRepository;
   let mesaRepository: MemoryMesaRepository | PgMesaRepository;
   let archivoRepository: ArchivoRepository;
   let mesaEstadoRepository: MesaEstadoRepository;
@@ -70,6 +76,7 @@ export async function createContainer(): Promise<Container> {
     pool = createPool(config.databaseUrl);
     await ensureSchema(pool);
     userRepository = new PgUserRepository(pool);
+    userMacrosRepository = new PgUserMacrosRepository(pool);
     mesaRepository = new PgMesaRepository(pool);
     archivoRepository = new PgArchivoRepository(pool);
     mesaEstadoRepository = new PgMesaEstadoRepository(pool);
@@ -79,6 +86,7 @@ export async function createContainer(): Promise<Container> {
     logger.info("Persistencia habilitada en PostgreSQL");
   } else {
     userRepository = new MemoryUserRepository();
+    userMacrosRepository = new MemoryUserMacrosRepository();
     mesaRepository = new MemoryMesaRepository();
     archivoRepository = new MemoryArchivoRepository();
     mesaEstadoRepository = new MemoryMesaEstadoRepository();
@@ -145,6 +153,7 @@ export async function createContainer(): Promise<Container> {
     config,
     logger,
     userRepository,
+    userMacrosRepository,
     mesaRepository,
     mesaEstadoRepository,
     pizarraEstadoRepository,

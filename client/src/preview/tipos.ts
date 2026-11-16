@@ -59,6 +59,8 @@ export interface MensajeSala {
   createdAt: string;
   /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
   esSistema?: boolean;
+  /** Mensajes de cambio económico/divisa (aparecen en Todo y Chat, no en Dados). */
+  esDivisa?: boolean;
 }
 
 export type TipoEspecialTirada = "critico" | "pifia" | null;
@@ -118,18 +120,58 @@ export type ElementoMesa =
       archivado?: boolean;
       remitente?: string;
       contenidoLocal?: string;
+    }
+  | {
+      id: string;
+      tipo: "objeto";
+      nombre: string;
+      descripcion: string;
+      cantidad: number;
+      emoji?: string;
+      archivoId?: string;
+      archivoNombre?: string;
+      imagenLocal?: string;
+      x: number;
+      y: number;
+      archivado?: boolean;
+      remitente?: string;
     };
+
+export interface ObjetoMochila {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  cantidad: number;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+  imagenLocal?: string;
+}
+
+export interface DivisaAsientoDelta {
+  id: string;
+  delta: number;
+}
 
 export interface SolicitudTransferencia {
   id: string;
   emisorNombre: string;
-  tipo: "posit" | "archivo";
+  tipo: "posit" | "archivo" | "objeto";
   nombreArchivo?: string;
   mimeArchivo?: string;
   vistaArchivo?: string;
   textoPosit?: string;
   colorPosit?: string;
   giroPosit?: number;
+  objeto?: {
+    idOrigen?: string;
+    nombre: string;
+    descripcion: string;
+    cantidad: number;
+    emoji?: string;
+    archivoId?: string;
+    archivoNombre?: string;
+  };
 }
 
 export interface DocumentoMesa {
@@ -155,4 +197,26 @@ export interface ImagenEscenaPreview {
   id: string;
   titulo: string | null;
   url?: string;
+}
+
+export interface PingVisual {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  vista: "pizarra" | "escena" | "mapa";
+  autorNombre?: string;
+}
+
+export interface GrupoDadoMacro {
+  caras: number;
+  cantidad: number;
+}
+
+export interface MacroTirada {
+  id: string;
+  nombre: string;
+  icono: string;
+  grupos: GrupoDadoMacro[];
+  bonificador: number;
 }

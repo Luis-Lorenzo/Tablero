@@ -39,6 +39,7 @@ export interface PublicMesa {
   colores?: Record<string, string>;
   imagenEscena?: ImagenMaster | null;
   imagenProyectada?: ImagenMaster | null;
+  divisaNombre?: string;
   createdAt: string;
 }
 
@@ -67,6 +68,16 @@ export interface ArchivoTransferidoMeta {
   tamano: number;
 }
 
+export interface ObjetoTransferidoDto {
+  idOrigen?: string;
+  nombre: string;
+  descripcion: string;
+  cantidad: number;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+}
+
 export type PublicTransferencia =
   | {
       id: string;
@@ -87,6 +98,16 @@ export type PublicTransferencia =
       tipo: "archivo";
       archivo: ArchivoTransferidoMeta;
       createdAt: string;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "objeto";
+      objeto: ObjetoTransferidoDto;
+      createdAt: string;
     };
 
 export type ResultadoAceptarTransferencia =
@@ -97,6 +118,10 @@ export type ResultadoAceptarTransferencia =
   | {
       tipo: "archivo";
       archivo: PublicArchivo;
+    }
+  | {
+      tipo: "objeto";
+      objeto: ObjetoTransferidoDto;
     };
 
 export interface MensajeChat {
@@ -121,5 +146,25 @@ export interface EventoTirada {
   bonificador: number;
   caras?: number;
   especial?: "critico" | "pifia" | null;
+  soloMaster?: boolean;
   createdAt: string;
+}
+
+export interface PublicObjetoResumen {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  cantidad: number;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+}
+
+export interface PublicJugadorResumenInventario {
+  userId: string;
+  nombre: string;
+  color: string;
+  divisa: number;
+  mochila: PublicObjetoResumen[];
+  objetosMesa: PublicObjetoResumen[];
 }

@@ -7,6 +7,7 @@ import {
 import type { MesaVista } from "../services/mesa.service.js";
 import type {
   ArchivoTransferidoMeta,
+  ObjetoTransferido,
   PositTransferido,
   Transferencia
 } from "../services/transferencia.service.js";
@@ -60,6 +61,7 @@ export interface PublicMesa {
   colores: Record<string, string>;
   imagenEscena: PublicImagenMesa | null;
   imagenProyectada: PublicImagenMesa | null;
+  divisaNombre?: string;
   createdAt: string;
 }
 
@@ -78,6 +80,7 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     colores: mesa.colores ?? {},
     imagenEscena: mesa.imagenEscena ?? null,
     imagenProyectada: mesa.imagenProyectada ?? null,
+    divisaNombre: mesa.divisaNombre ?? "Divisa",
     createdAt: mesa.createdAt.toISOString()
   };
 }
@@ -123,6 +126,16 @@ export type PublicTransferencia =
       tipo: "archivo";
       archivo: ArchivoTransferidoMeta;
       createdAt: string;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "objeto";
+      objeto: ObjetoTransferido;
+      createdAt: string;
     };
 
 export function toPublicTransferencia(
@@ -139,6 +152,10 @@ export function toPublicTransferencia(
 
   if (transferencia.tipo === "posit") {
     return { ...base, tipo: "posit", posit: transferencia.posit };
+  }
+
+  if (transferencia.tipo === "objeto") {
+    return { ...base, tipo: "objeto", objeto: transferencia.objeto };
   }
 
   return { ...base, tipo: "archivo", archivo: transferencia.archivo };

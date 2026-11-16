@@ -14,6 +14,16 @@ export interface ArchivoTransferidoMeta {
   tamano: number;
 }
 
+export interface ObjetoTransferido {
+  idOrigen?: string;
+  nombre: string;
+  descripcion: string;
+  cantidad: number;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+}
+
 export type Transferencia =
   | {
       id: string;
@@ -33,6 +43,16 @@ export type Transferencia =
       receptorId: string;
       tipo: "archivo";
       archivo: ArchivoTransferidoMeta;
+      createdAt: Date;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "objeto";
+      objeto: ObjetoTransferido;
       createdAt: Date;
     };
 

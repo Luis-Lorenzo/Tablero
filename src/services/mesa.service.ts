@@ -44,6 +44,7 @@ export interface MesaVista {
   colores?: Record<string, string>;
   imagenEscena: ImagenMesa | null;
   imagenProyectada: ImagenMesa | null;
+  divisaNombre?: string;
   createdAt: Date;
 }
 
@@ -372,6 +373,7 @@ export class MesaService {
       colores: mesa.colores ?? {},
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
+      divisaNombre: mesa.divisaNombre?.trim() || "Divisa",
       createdAt: mesa.createdAt
     }));
   }
@@ -437,6 +439,21 @@ export class MesaService {
     } else {
       delete mesa.colores[actor.id];
     }
+    await this.mesas.save(mesa);
+    return this.vista(mesa);
+  }
+
+  async cambiarDivisaNombre(
+    actor: User,
+    mesaId: string,
+    nombreBruto: string
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+    if (mesa.hostId !== actor.id) throw errors.forbidden();
+
+    const limpio = nombreBruto.trim().slice(0, 24) || "Divisa";
+    mesa.divisaNombre = limpio;
     await this.mesas.save(mesa);
     return this.vista(mesa);
   }
