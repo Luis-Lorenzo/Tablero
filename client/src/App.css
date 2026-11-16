@@ -2431,8 +2431,9 @@ html.modo-claro .archivo-visor-caja {
   box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
 }
 
-html.modo-claro .topbar {
-  background: rgb(255 248 236 / 88%);
+html.modo-claro .topbar,
+html.modo-claro .topbar-nav {
+  background: rgb(255 248 236 / 90%);
   backdrop-filter: blur(8px);
   border-color: #B8862B;
   box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
@@ -2448,7 +2449,7 @@ html.modo-claro .muted,
 html.modo-claro .ayuda-campo,
 html.modo-claro .archivos-vacio,
 html.modo-claro .archivos-item-peso {
-  color: #6B5B85;
+  color: #534469;
 }
 
 html.modo-claro button.primary {
@@ -2463,8 +2464,22 @@ html.modo-claro button.primary:hover:not(:disabled) {
   border-color: #7C5CBF;
 }
 
+html.modo-claro button.danger {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro button.danger:hover:not(:disabled) {
+  background: #F7D4DC;
+  border-color: #A83242;
+  color: #701320;
+}
+
 html.modo-claro button.ghost,
 html.modo-claro .tab,
+html.modo-claro .tab.moderar,
 html.modo-claro .cuenta-boton,
 html.modo-claro .panel-icono-btn {
   background: #EEE8FA;
@@ -2474,14 +2489,55 @@ html.modo-claro .panel-icono-btn {
 }
 
 html.modo-claro button.ghost:hover:not(:disabled),
+html.modo-claro button.ghost:focus-visible:not(:disabled),
 html.modo-claro .tab:hover,
-html.modo-claro .cuenta-boton:hover {
+html.modo-claro .tab:focus-visible,
+html.modo-claro .tab.moderar:hover,
+html.modo-claro .tab.moderar:focus-visible,
+html.modo-claro .cuenta-boton:hover,
+html.modo-claro .cuenta-boton:focus-visible,
+html.modo-claro .cuenta-boton.abierto {
   border-color: #7C5CBF;
-  background: rgb(124 92 191 / 16%);
+  background: #E2D9F5;
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-chevron {
+  color: #5B4688;
+}
+
+html.modo-claro .archivo-pill.libro {
+  background: #F9EBC8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .archivo-pill.libro:hover:not(:disabled),
+html.modo-claro .archivo-pill.libro:focus-visible:not(:disabled) {
+  background: #F3DC9E;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+}
+
+html.modo-claro .archivo-pill.gafas {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .archivo-pill.gafas:hover,
+html.modo-claro .archivo-pill.gafas:focus-visible,
+html.modo-claro .archivo-pill.gafas.abierto {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
 }
 
 html.modo-claro .tab.active,
-html.modo-claro .tab.moderar.activa {
+html.modo-claro .tab.moderar.activa,
+html.modo-claro .tab.moderar.activa:hover {
   background: #E2A93B;
   border-color: #A8741A;
   color: #2A1F3D;
@@ -2594,8 +2650,6 @@ html.modo-claro .input-limpiar {
 }
 
 html.modo-claro .badge,
-html.modo-claro .mesa-dato,
-html.modo-claro .mesa-info,
 html.modo-claro .panel-titulo-pixel,
 html.modo-claro .emblema-subtitulo,
 html.modo-claro .taberna-stat-num,
@@ -2607,14 +2661,68 @@ html.modo-claro td {
   color: #2A1F3D;
 }
 
+html.modo-claro .mesa-info,
+html.modo-claro .mesa-dato {
+  color: #2A1F3D;
+  font-weight: 500;
+}
+
+html.modo-claro .mesa-info strong {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .mesa-dato svg {
+  color: #5B4688;
+}
+
+html.modo-claro .mesa-card:not(.vacia):hover {
+  border-color: #7C5CBF;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .mesa-card.mia {
+  border-color: #A8741A;
+  box-shadow: 0 5px 16px rgb(168 116 26 / 26%);
+}
+
+html.modo-claro .mesa-card.mia:hover {
+  border-color: #7C5CBF;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .mesa-card.vacia {
+  background: rgb(255 248 236 / 62%);
+  border-color: rgb(184 134 43 / 45%);
+  box-shadow: none;
+}
+
+html.modo-claro .mesa-badge-estado.en-curso {
+  background: rgb(30 158 120 / 16%);
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
+html.modo-claro .mesa-botones {
+  border-top-color: rgb(184 134 43 / 24%);
+}
+
 html.modo-claro .badge {
   background: #EEE8FA;
   border-color: #8E7CC3;
 }
 
 html.modo-claro .mesa-pista,
+html.modo-claro .mesa-pista.dentro {
+  color: #4A3B63;
+}
+
+html.modo-claro .mesa-pista.unete {
+  color: #5B4688;
+}
+
 html.modo-claro .taberna-stat-label {
-  color: #6B5B85;
+  color: #534469;
 }
 
 html.modo-claro .mesa-etiqueta {
@@ -2622,6 +2730,12 @@ html.modo-claro .mesa-etiqueta {
   border-color: #B8862B;
   color: #2A1F3D;
   box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .mesa-card.vacia .mesa-etiqueta {
+  background: #EFE4CE;
+  border-color: #A88D5B;
+  color: #4A3B63;
 }
 
 html.modo-claro .taberna-stat,
@@ -2633,11 +2747,69 @@ html.modo-claro .cesion-popup {
   box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
 }
 
+html.modo-claro .clicker-resultado {
+  color: #2A1F3D;
+  text-shadow: none;
+}
+
+html.modo-claro .clicker-resultado.critico {
+  color: #9E6800;
+  text-shadow: none;
+}
+
+html.modo-claro .clicker-resultado.pifia {
+  color: #B22D40;
+  text-shadow: none;
+}
+
+html.modo-claro .clicker-placeholder {
+  color: #534469;
+}
+
+html.modo-claro .clicker-contador {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #3B2A6B;
+}
+
 html.modo-claro .clicker-btn,
 html.modo-claro .clicker-dado-tag {
   background: #EEE8FA;
   border-color: #8E7CC3;
   color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-desplegable button,
+html.modo-claro .archivos-item-abrir {
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-desplegable button:hover:not(:disabled),
+html.modo-claro .archivos-item-abrir:hover {
+  background: #EEE8FA;
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-desplegable button.salir {
+  color: #9E2A38;
+}
+
+html.modo-claro .cuenta-desplegable button.salir:hover {
+  background: #FCE8EC;
+  color: #8F1D2C;
+}
+
+html.modo-claro .archivos-panel-titulo {
+  color: #5B4688;
+}
+
+html.modo-claro .archivos-contador {
+  background: #EEE8FA;
+  color: #2A1F3D;
+}
+
+html.modo-claro .modal-descripcion {
+  color: #4A3B63;
 }
 
 html.modo-claro .clicker-btn:hover {
