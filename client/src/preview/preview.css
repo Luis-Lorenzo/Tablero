@@ -2179,6 +2179,21 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   font-variant-numeric: tabular-nums;
 }
 
+.mapa-candado-btn {
+  background: rgb(14 16 22 / 85%);
+  color: #7b8294;
+}
+
+.mapa-candado-btn.activo {
+  background: rgb(232 197 106 / 24%);
+  color: #ffe8a3;
+  box-shadow: 0 0 10px rgb(232 197 106 / 45%);
+}
+
+.mapa-viewport.bloqueado {
+  cursor: default;
+}
+
 .mapa-viewport {
   position: absolute;
   top: 116px;

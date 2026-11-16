@@ -393,6 +393,7 @@ export function Mapa({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [espacioPulsado, setEspacioPulsado] = useState(false);
   const [paneando, setPaneando] = useState(false);
+  const [mapaBloqueado, setMapaBloqueado] = useState(true);
   const arrastrePanRef = useRef<ArrastrePan | null>(null);
 
   // Dimensiones naturales de la imagen de fondo
@@ -731,6 +732,11 @@ export function Mapa({
     }
 
     if (dibujandoActivo && evento.button === 0 && !espacioPulsado) {
+      return;
+    }
+
+    if (mapaBloqueado) {
+      setTokenSeleccionadoId(null);
       return;
     }
 
@@ -1514,59 +1520,59 @@ export function Mapa({
             </button>
 
             {esMaster && (
-              <>
-                <button
-                  type="button"
-                  className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
-                  disabled={!onCambiarDibujoCongelado}
-                  onClick={() => {
-                    void onCambiarDibujoCongelado?.(!dibujoCongelado);
-                  }}
-                  title={
-                    dibujoCongelado
-                      ? "Descongelar dibujo para los jugadores"
-                      : "Congelar dibujo para los jugadores"
+              <button
+                type="button"
+                className="pizarra-tool-btn"
+                disabled={trazos.length === 0 || !onBorrarTrazos}
+                onClick={() => {
+                  if (trazos.length > 0) {
+                    void onBorrarTrazos?.();
                   }
-                >
-                  <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
-                  <span>Congelar</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="pizarra-tool-btn"
-                  disabled={trazos.length === 0 || !onBorrarTrazos}
-                  onClick={() => {
-                    if (trazos.length > 0) {
-                      void onBorrarTrazos?.();
-                    }
-                  }}
-                  title="Borrar todos los trazos del mapa"
-                >
-                  <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
-                  <span>Borrar todo</span>
-                </button>
-              </>
+                }}
+                title="Borrar todos los trazos del mapa"
+              >
+                <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
+                <span>Borrar todo</span>
+              </button>
             )}
           </>
         )}
 
         {esMaster && (
-          <button
-            type="button"
-            className={`pizarra-tool-btn${panelAbierto === "fondo" ? " activo" : ""}`}
-            onClick={() => {
-              if (panelAbierto === "fondo") {
-                cerrarPanelFondoSinConfirmar();
-              } else {
-                abrirPanelFondo();
+          <>
+            <button
+              type="button"
+              className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
+              disabled={!onCambiarDibujoCongelado}
+              onClick={() => {
+                void onCambiarDibujoCongelado?.(!dibujoCongelado);
+              }}
+              title={
+                dibujoCongelado
+                  ? "Descongelar dibujo para los jugadores"
+                  : "Congelar dibujo para los jugadores"
               }
-            }}
-            title="Configurar imagen de fondo y rejilla táctica"
-          >
-            <Grid3x3 size={14} aria-hidden="true" />
-            <span>Fondo y rejilla</span>
-          </button>
+            >
+              <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Congelar</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pizarra-tool-btn${panelAbierto === "fondo" ? " activo" : ""}`}
+              onClick={() => {
+                if (panelAbierto === "fondo") {
+                  cerrarPanelFondoSinConfirmar();
+                } else {
+                  abrirPanelFondo();
+                }
+              }}
+              title="Configurar imagen de fondo y rejilla táctica"
+            >
+              <Grid3x3 size={14} aria-hidden="true" />
+              <span>Fondo y rejilla</span>
+            </button>
+          </>
         )}
 
         <span className="mapa-barra-sep" aria-hidden="true" />
@@ -1598,6 +1604,28 @@ export function Mapa({
             aria-label="Acercar"
           >
             <Plus size={13} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={`mapa-zoom-btn mapa-candado-btn${mapaBloqueado ? " activo" : ""}`}
+            onClick={() => setMapaBloqueado(prev => !prev)}
+            aria-pressed={mapaBloqueado}
+            title={
+              mapaBloqueado
+                ? "Mapa bloqueado (pulsa para mover el mapa)"
+                : "Mapa desbloqueado (pulsa para bloquear el movimiento)"
+            }
+            aria-label={
+              mapaBloqueado
+                ? "Desbloquear movimiento del mapa"
+                : "Bloquear movimiento del mapa"
+            }
+          >
+            {mapaBloqueado ? (
+              <Lock size={13} aria-hidden="true" />
+            ) : (
+              <Unlock size={13} aria-hidden="true" />
+            )}
           </button>
         </div>
 
@@ -2868,7 +2896,7 @@ export function Mapa({
         ref={viewportRef}
         className={`mapa-viewport${modoPing ? " modo-ping" : ""}${
           dibujandoActivo ? " modo-dibujo" : ""
-        }${espacioPulsado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
+        }${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
         onWheel={alGirarRueda}
         onPointerDown={alBajarPunteroViewport}
         onPointerMove={alMoverPunteroViewport}
