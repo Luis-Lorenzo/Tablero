@@ -310,7 +310,8 @@ function lanzarGruposDados(
   }
   const dados = desgloseDados.map(d => d.valor);
   const suma = dados.reduce((acc, valor) => acc + valor, 0);
-  const carasPrincipal = grupos[0]?.caras ?? 20;
+  const esMultiple = grupos.length > 1 || desgloseDados.length > 1;
+  const carasPrincipal = esMultiple ? 20 : (grupos[0]?.caras ?? 20);
   return {
     total: suma + bonificador,
     dados,

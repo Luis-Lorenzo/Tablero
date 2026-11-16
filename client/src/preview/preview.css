@@ -4533,10 +4533,10 @@
   z-index: 22;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 8px 11px;
   border: 1px solid rgb(138 118 173 / 38%);
-  border-radius: 14px;
+  border-radius: 18px;
   background: rgb(18 14 28 / 78%);
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 26px rgb(7 5 14 / 52%);
@@ -4547,12 +4547,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 44px;
-  height: 46px;
-  padding: 4px 7px;
+  gap: 3px;
+  min-width: 59px;
+  height: 61px;
+  padding: 5px 9px;
   border: 1px solid color-mix(in srgb, var(--dado-color) 48%, transparent);
-  border-radius: 10px;
+  border-radius: 13px;
   background: rgb(26 20 40 / 82%);
   color: var(--dado-color);
   cursor: pointer;
@@ -4582,17 +4582,17 @@
 .dado-rapido-icono {
   display: grid;
   place-items: center;
-  width: 19px;
-  height: 19px;
+  width: 25px;
+  height: 25px;
 }
 
 .dado-rapido-icono svg {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
 }
 
 .dado-rapido-etiqueta {
-  font-size: 0.68rem;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   line-height: 1;
