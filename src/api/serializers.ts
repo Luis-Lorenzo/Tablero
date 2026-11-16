@@ -1,5 +1,11 @@
 import type { Archivo } from "../repositories/archivo.repository.js";
 import {
+  resolverDivisasConfig,
+  type DivisaConfig,
+  type MusicaAmbienteMesa,
+  type PistaMusicaMesa
+} from "../repositories/mesa.repository.js";
+import {
   isActiveUser,
   isUserLocked,
   type User
@@ -63,8 +69,12 @@ export interface PublicMesa {
   imagenEscena: PublicImagenMesa | null;
   imagenProyectada: PublicImagenMesa | null;
   divisaNombre?: string;
+  divisasConfig?: DivisaConfig[];
+  musicaAmbiente?: MusicaAmbienteMesa | null;
   createdAt: string;
 }
+
+export type { MusicaAmbienteMesa, PistaMusicaMesa };
 
 export function toPublicMesa(mesa: MesaVista): PublicMesa {
   return {
@@ -83,6 +93,8 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     imagenEscena: mesa.imagenEscena ?? null,
     imagenProyectada: mesa.imagenProyectada ?? null,
     divisaNombre: mesa.divisaNombre ?? "Divisa",
+    divisasConfig: resolverDivisasConfig(mesa),
+    musicaAmbiente: mesa.musicaAmbiente ?? null,
     createdAt: mesa.createdAt.toISOString()
   };
 }

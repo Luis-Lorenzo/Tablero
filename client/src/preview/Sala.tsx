@@ -3,18 +3,27 @@ import {
   ArrowLeft,
   Bookmark,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Crown,
+  Disc3,
   Eye,
   Image as ImageIcon,
   Minus,
   Moon,
+  Pause,
   Pencil,
+  Play,
   Plus,
+  Repeat,
   Search,
+  Shuffle,
   Sparkles,
   Trash2,
   Upload,
+  Users,
+  VenetianMask,
   Volume2,
   VolumeX,
   X
@@ -50,6 +59,7 @@ import {
   IconoLupaPixel,
   IconoMochilaPixel,
   IconoMonedasPixel,
+  IconoPaloma,
   recortarImagenCuadrada
 } from "./inventario";
 import {
@@ -60,17 +70,21 @@ import {
 } from "./macros";
 import { Posit } from "./Pizarra";
 import {
+  establecerMusicaSilenciada,
   establecerSonidoSilenciado,
+  estaMusicaSilenciada,
   estaSonidoSilenciado,
   reproducirSonidoConsumir,
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion
 } from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
+import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   Asiento,
   Calibracion,
   DivisaAsientoDelta,
+  DivisaConfig,
   DocumentoMesa,
   ElementoMesa,
   ImagenEscenaPreview,
@@ -86,6 +100,29 @@ import type {
   TipoEspecialTirada,
   TiradaAsiento
 } from "./tipos";
+
+export interface PistaMusicaMesa {
+  archivoId: string;
+  nombre: string;
+}
+
+export interface MusicaAmbienteMesa {
+  pistas: PistaMusicaMesa[];
+  indiceActual: number;
+  reproduciendo: boolean;
+  loop: boolean;
+  aleatorio: boolean;
+  volumenMaster: number;
+}
+
+const MUSICA_VACIA: MusicaAmbienteMesa = {
+  pistas: [],
+  indiceActual: 0,
+  reproduciendo: false,
+  loop: false,
+  aleatorio: false,
+  volumenMaster: 0.7
+};
 
 interface SalaProps {
   jugadores: JugadorPreview[];
@@ -103,6 +140,8 @@ interface SalaProps {
   archivosDisponibles?: Array<PublicArchivo & { contenidoLocal?: string }>;
   onSolicitarArchivos?: () => void;
   onEnviarElemento?: (destino: JugadorPreview, elemento: ElementoMesa) => void | Promise<void>;
+  onEnviarAPizarra?: (elemento: ElementoMesa) => void | Promise<void>;
+  onCompartirATodos?: (elemento: ElementoMesa) => void | Promise<void>;
   solicitudPendiente?: SolicitudTransferencia | null;
   onAceptarSolicitud?: (solicitud: SolicitudTransferencia) => void;
   onRechazarSolicitud?: (solicitud: SolicitudTransferencia) => void;
@@ -133,7 +172,10 @@ interface SalaProps {
   onMacros?: (macros: MacroTirada[]) => void;
   divisa?: number;
   divisaNombre?: string;
-  onCambiarDivisa?: (nueva: number, delta: number) => void | Promise<void>;
+  divisasConfig?: DivisaConfig[];
+  divisasSaldos?: Record<string, number>;
+  onGuardarDivisasConfig?: (divisas: DivisaConfig[]) => void | Promise<void>;
+  onCambiarDivisa?: (nueva: number, delta: number, divisaId?: string) => void | Promise<void>;
   onCambiarDivisaNombre?: (nombre: string) => void | Promise<void>;
   divisaAsiento?: Record<string, DivisaAsientoDelta>;
   mochila?: ObjetoMochila[];
@@ -145,6 +187,9 @@ interface SalaProps {
   ) => void | Promise<void>;
   onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
   onCambiarApodo?: (apodo: string) => void | Promise<void>;
+  musicaAmbiente?: MusicaAmbienteMesa;
+  onActualizarMusica?: (musica: MusicaAmbienteMesa) => void | Promise<void>;
+  onSubirMusica?: (archivo: File) => void | Promise<void>;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -227,8 +272,24 @@ type Arrastre =
     medidas: Medidas;
   }
   | {
+    tipo: "macro-mesa";
+    id: string;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
+    base: Punto;
+    medidas: Medidas;
+  }
+  | {
     tipo: "mochila-objeto";
     objeto: ObjetoMochila;
+    inicioX: number;
+    inicioY: number;
+    movido: boolean;
+  }
+  | {
+    tipo: "macro-menu";
+    macro: MacroTirada;
     inicioX: number;
     inicioY: number;
     movido: boolean;
@@ -666,6 +727,8 @@ export function Sala({
   archivosDisponibles = [],
   onSolicitarArchivos,
   onEnviarElemento,
+  onEnviarAPizarra,
+  onCompartirATodos,
   solicitudPendiente = null,
   onAceptarSolicitud,
   onRechazarSolicitud,
@@ -688,6 +751,9 @@ export function Sala({
   onMacros,
   divisa,
   divisaNombre = "Divisa",
+  divisasConfig,
+  divisasSaldos,
+  onGuardarDivisasConfig,
   onCambiarDivisa,
   onCambiarDivisaNombre,
   divisaAsiento,
@@ -695,7 +761,10 @@ export function Sala({
   onMochila,
   onEnviarObjetoMochila,
   onConsultarResumenMaster,
-  onCambiarApodo
+  onCambiarApodo,
+  musicaAmbiente,
+  onActualizarMusica,
+  onSubirMusica
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -755,6 +824,69 @@ export function Sala({
     setSonidoSilenciado(siguiente);
     establecerSonidoSilenciado(siguiente);
   }
+
+  const [musicaSilenciada, setMusicaSilenciada] = useState<boolean>(
+    estaMusicaSilenciada
+  );
+  const [musicaPopoverAbierto, setMusicaPopoverAbierto] = useState(false);
+  const [subiendoMusica, setSubiendoMusica] = useState(false);
+  const musicaFileInputRef = useRef<HTMLInputElement | null>(null);
+  const musicaContenedorRef = useRef<HTMLDivElement | null>(null);
+  const musicaActual = musicaAmbiente ?? MUSICA_VACIA;
+
+  function alternarSilencioMusica(): void {
+    const siguiente = !musicaSilenciada;
+    setMusicaSilenciada(siguiente);
+    establecerMusicaSilenciada(siguiente);
+  }
+
+  useEffect(() => {
+    if (!musicaPopoverAbierto) return;
+    function alPulsarFuera(evento: PointerEvent) {
+      if (
+        musicaContenedorRef.current &&
+        !musicaContenedorRef.current.contains(evento.target as Node)
+      ) {
+        setMusicaPopoverAbierto(false);
+      }
+    }
+    window.addEventListener("pointerdown", alPulsarFuera);
+    return () => window.removeEventListener("pointerdown", alPulsarFuera);
+  }, [musicaPopoverAbierto]);
+
+  function emitirMusica(parcial: Partial<MusicaAmbienteMesa>): void {
+    if (!onActualizarMusica) return;
+    void onActualizarMusica({ ...musicaActual, ...parcial });
+  }
+
+  async function manejarSubidaMusica(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0 || !onSubirMusica) return;
+    setSubiendoMusica(true);
+    try {
+      for (const archivo of Array.from(files)) {
+        await onSubirMusica(archivo);
+      }
+    } finally {
+      setSubiendoMusica(false);
+    }
+  }
+
+  function quitarPistaMusica(indice: number): void {
+    const nuevas = musicaActual.pistas.filter((_, i) => i !== indice);
+    let siguienteIndice = musicaActual.indiceActual;
+    if (nuevas.length === 0) {
+      siguienteIndice = 0;
+    } else if (indice < musicaActual.indiceActual) {
+      siguienteIndice = musicaActual.indiceActual - 1;
+    } else if (siguienteIndice >= nuevas.length) {
+      siguienteIndice = nuevas.length - 1;
+    }
+    emitirMusica({
+      pistas: nuevas,
+      indiceActual: siguienteIndice,
+      reproduciendo: nuevas.length === 0 ? false : musicaActual.reproduciendo
+    });
+  }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
@@ -771,6 +903,9 @@ export function Sala({
   const [macroEditandoId, setMacroEditandoId] = useState<string | null>(null);
   const [macroNombre, setMacroNombre] = useState("");
   const [macroIcono, setMacroIcono] = useState("sword");
+  const [macroColor, setMacroColor] = useState("");
+  const [enviarPopoverAbierto, setEnviarPopoverAbierto] = useState(false);
+  const [enviarDestinoId, setEnviarDestinoId] = useState<string | null>(null);
   const [macroGrupos, setMacroGrupos] = useState<GrupoDado[]>([
     { id: "m-0", cantidad: 1, caras: 20 }
   ]);
@@ -778,8 +913,37 @@ export function Sala({
   const macrosLista = macros ?? macrosLocales;
 
   const [divisaLocal, setDivisaLocal] = useState<number>(cargarDivisaLocal);
-  const divisaActual = divisa ?? divisaLocal;
+  const [divisasConfigLocal, setDivisasConfigLocal] = useState<DivisaConfig[]>(() => [
+    { id: "principal", nombre: divisaNombre, color: COLORES_DIVISA[0].hex }
+  ]);
+  const [divisasSaldosLocal, setDivisasSaldosLocal] = useState<Record<string, number>>({});
+  const divisasLista: DivisaConfig[] =
+    divisasConfig && divisasConfig.length > 0
+      ? divisasConfig
+      : divisasConfigLocal.map((d, idx) =>
+          idx === 0 && d.id === "principal" ? { ...d, nombre: divisaNombre } : d
+        );
+  const [indiceDivisa, setIndiceDivisa] = useState(0);
+  const indiceDivisaSeguro =
+    divisasLista.length > 0 ? Math.min(indiceDivisa, divisasLista.length - 1) : 0;
+  const divisaActiva: DivisaConfig = divisasLista[indiceDivisaSeguro] ?? {
+    id: "principal",
+    nombre: divisaNombre,
+    color: COLORES_DIVISA[0].hex
+  };
+  const nombreDivisaActiva = divisaActiva.nombre || divisaNombre;
+  const divisaActual =
+    divisasSaldos && divisaActiva.id in divisasSaldos
+      ? divisasSaldos[divisaActiva.id]
+      : divisasSaldos && divisasConfig && divisasConfig.length > 0
+        ? (divisasSaldos[divisaActiva.id] ?? 0)
+        : divisaActiva.id === "principal"
+          ? (divisa ?? divisaLocal)
+          : (divisasSaldosLocal[divisaActiva.id] ?? 0);
   const [divisaAbierta, setDivisaAbierta] = useState(false);
+  const [huchaAbierta, setHuchaAbierta] = useState(false);
+  const [nuevaDivisaNombre, setNuevaDivisaNombre] = useState("");
+  const [nuevaDivisaColor, setNuevaDivisaColor] = useState<string>(COLORES_DIVISA[0].hex);
   const [divisaPaso, setDivisaPaso] = useState<1 | 10 | 100>(1);
   const [divisaCustomTexto, setDivisaCustomTexto] = useState("");
   const [divisaNombreEdit, setDivisaNombreEdit] = useState(divisaNombre);
@@ -877,6 +1041,8 @@ export function Sala({
   });
   const divisaActualRef = useRef(divisaActual);
   divisaActualRef.current = divisaActual;
+  const divisaActivaIdRef = useRef(divisaActiva.id);
+  divisaActivaIdRef.current = divisaActiva.id;
   const onCambiarDivisaRef = useRef(onCambiarDivisa);
   onCambiarDivisaRef.current = onCambiarDivisa;
   const onEnviarObjetoMochilaRef = useRef(onEnviarObjetoMochila);
@@ -916,6 +1082,7 @@ export function Sala({
   const yoAsientoIdRef = useRef(yoAsientoId);
   const onElementosMesaRef = useRef(onElementosMesa);
   const onEnviarElementoRef = useRef(onEnviarElemento);
+  const onEnviarAPizarraRef = useRef(onEnviarAPizarra);
   const elementosMesaRef = useRef(elementosMesa);
   const jugadorSeleccionadoRef = useRef<JugadorPreview | null>(null);
 
@@ -924,12 +1091,14 @@ export function Sala({
     yoAsientoIdRef.current = yoAsientoId;
     onElementosMesaRef.current = onElementosMesa;
     onEnviarElementoRef.current = onEnviarElemento;
+    onEnviarAPizarraRef.current = onEnviarAPizarra;
     elementosMesaRef.current = elementosMesa;
   }, [
     jugadores,
     yoAsientoId,
     onElementosMesa,
     onEnviarElemento,
+    onEnviarAPizarra,
     elementosMesa
   ]);
 
@@ -1022,6 +1191,45 @@ export function Sala({
   ]);
 
   useEffect(() => {
+    let ultimoSupr: { id: string; tipo: string } | null = null;
+    function alPointerDown(evento: globalThis.PointerEvent) {
+      const nodo = (evento.target as HTMLElement | null)?.closest<HTMLElement>("[data-supr-id]");
+      if (nodo?.dataset.suprId && nodo.dataset.suprTipo) {
+        ultimoSupr = { id: nodo.dataset.suprId, tipo: nodo.dataset.suprTipo };
+      } else {
+        ultimoSupr = null;
+      }
+    }
+    function alSuprimir(evento: KeyboardEvent) {
+      if (evento.key !== "Delete" || ajuste) return;
+      const target = evento.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const hoverNodo = document.querySelector<HTMLElement>("[data-supr-id]:hover");
+      const id = hoverNodo?.dataset.suprId ?? ultimoSupr?.id;
+      const tipo = hoverNodo?.dataset.suprTipo ?? ultimoSupr?.tipo;
+      if (!id || !tipo) return;
+      evento.preventDefault();
+      if (tipo === "posit") {
+        onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== id));
+        setPositActivo(actual => (actual === id ? null : actual));
+      } else if (tipo === "archivo") {
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === id ? { ...el, archivado: true } : el))
+        );
+      } else if (tipo === "objeto" || tipo === "macro") {
+        onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== id));
+      }
+      ultimoSupr = null;
+    }
+    window.addEventListener("pointerdown", alPointerDown);
+    window.addEventListener("keydown", alSuprimir);
+    return () => {
+      window.removeEventListener("pointerdown", alPointerDown);
+      window.removeEventListener("keydown", alSuprimir);
+    };
+  }, [ajuste]);
+
+  useEffect(() => {
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
       for (const jugador of jugadoresRef.current) {
         if (!jugador.activo || jugador.id === yoAsientoIdRef.current) continue;
@@ -1041,6 +1249,18 @@ export function Sala({
     function estaSobreDropzone(clientX: number, clientY: number): boolean {
       const rect = dropzoneRef.current?.getBoundingClientRect();
       if (!rect) return false;
+      return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      );
+    }
+
+    function estaSobrePizarra(clientX: number, clientY: number): boolean {
+      const nodo = document.querySelector('[data-hotspot-pizarra="true"], .hotspot-pizarra');
+      if (!nodo) return false;
+      const rect = nodo.getBoundingClientRect();
       return (
         clientX >= rect.left &&
         clientX <= rect.right &&
@@ -1088,6 +1308,24 @@ export function Sala({
         setFantasma({ x: evento.clientX, y: evento.clientY, etiqueta });
         setAsientoSobreId(buscarAsientoDestino(evento.clientX, evento.clientY));
         setPunteroSobreDropzone(estaSobreDropzone(evento.clientX, evento.clientY));
+        return;
+      }
+
+      if (actual.tipo === "macro-menu") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 6
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+          setMacrosAbierto(false);
+        }
+        if (!actual.movido) return;
+
+        setFantasma({ x: evento.clientX, y: evento.clientY, etiqueta: actual.macro.nombre });
         return;
       }
 
@@ -1204,6 +1442,27 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "macro-mesa") {
+        if (
+          !actual.movido &&
+          Math.hypot(
+            evento.clientX - actual.inicioX,
+            evento.clientY - actual.inicioY
+          ) > 5
+        ) {
+          actual.movido = true;
+          arrastreDocMovido.current = true;
+        }
+        if (!actual.movido) return;
+
+        const x = limitar(actual.base.x + dx, 6, 94);
+        const y = limitar(actual.base.y + dy, 12, 88);
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === actual.id ? { ...el, x, y } : el))
+        );
+        return;
+      }
+
       if (actual.tipo === "pizarra") {
         onCalibracion(prev => ({
           ...prev,
@@ -1266,6 +1525,23 @@ export function Sala({
           } else if (enDropzone) {
             mostrarAviso("Elige primero un jugador para enviarle el elemento.");
           }
+          return;
+        }
+
+        if (
+          actual.movido &&
+          actual.elemento.tipo !== "macro" &&
+          estaSobrePizarra(evento.clientX, evento.clientY) &&
+          onEnviarAPizarraRef.current
+        ) {
+          onElementosMesaRef.current?.(prev =>
+            prev.filter(item => item.id !== actual.id)
+          );
+          void onEnviarAPizarraRef.current({
+            ...actual.elemento,
+            x: actual.base.x,
+            y: actual.base.y
+          });
           return;
         }
 
@@ -1348,6 +1624,38 @@ export function Sala({
         return;
       }
 
+      if (actual.tipo === "macro-menu") {
+        if (actual.movido) {
+          const rectMesa = capaPosits.current?.getBoundingClientRect();
+          const x = rectMesa
+            ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
+            : 50;
+          const y = rectMesa
+            ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
+            : 55;
+          onElementosMesaRef.current?.(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "macro",
+              macroId: actual.macro.id,
+              nombre: actual.macro.nombre,
+              icono: actual.macro.icono,
+              ...(actual.macro.color ? { color: actual.macro.color } : {}),
+              grupos: actual.macro.grupos,
+              bonificador: actual.macro.bonificador,
+              x,
+              y
+            }
+          ]);
+          mostrarAviso(`Macro «${actual.macro.nombre}» colocada en la mesa.`);
+          window.setTimeout(() => {
+            arrastreDocMovido.current = false;
+          }, 0);
+        }
+        return;
+      }
+
       if (actual.tipo === "objeto-mesa") {
         if (!actual.movido) return;
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
@@ -1368,6 +1676,22 @@ export function Sala({
           } else if (enDropzone && !destino) {
             mostrarAviso("Elige primero un jugador para enviarle el objeto.");
           }
+          return;
+        }
+        if (
+          estaSobrePizarra(evento.clientX, evento.clientY) &&
+          onEnviarAPizarraRef.current
+        ) {
+          const item = elementosMesaRef.current.find(el => el.id === actual.id);
+          if (item && item.tipo === "objeto") {
+            onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== actual.id));
+            void onEnviarAPizarraRef.current({
+              ...item,
+              x: actual.base.x,
+              y: actual.base.y
+            });
+          }
+          arrastreDocMovido.current = false;
         }
         return;
       }
@@ -1375,11 +1699,6 @@ export function Sala({
       if (actual.tipo === "posit-mesa") {
         const destinoId = buscarAsientoDestino(evento.clientX, evento.clientY);
         if (destinoId || enDropzone) {
-          onElementosMesaRef.current?.(prev =>
-            prev.map(el =>
-              el.id === actual.id ? { ...el, x: actual.base.x, y: actual.base.y } : el
-            )
-          );
           const posit = elementosMesaRef.current.find(
             (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
               el.id === actual.id && el.tipo === "posit"
@@ -1388,13 +1707,43 @@ export function Sala({
             (enDropzone ? jugadorSeleccionadoRef.current : null) ??
             (destinoId ? jugadoresRef.current.find(j => j.id === destinoId) : null);
           if (posit && destino && onEnviarElementoRef.current) {
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === actual.id ? { ...el, x: actual.base.x, y: actual.base.y } : el
+              )
+            );
             void onEnviarElementoRef.current(destino, {
               ...posit,
               x: actual.base.x,
               y: actual.base.y
             });
-          } else if (enDropzone && !destino) {
-            mostrarAviso("Elige primero un jugador para enviarle la nota.");
+          } else {
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === actual.id ? { ...el, x: actual.base.x, y: actual.base.y } : el
+              )
+            );
+            if (enDropzone && !destino) {
+              mostrarAviso("Elige primero un jugador para enviarle la nota.");
+            }
+          }
+          return;
+        }
+        if (
+          estaSobrePizarra(evento.clientX, evento.clientY) &&
+          onEnviarAPizarraRef.current
+        ) {
+          const posit = elementosMesaRef.current.find(
+            (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+              el.id === actual.id && el.tipo === "posit"
+          );
+          if (posit) {
+            onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== actual.id));
+            void onEnviarAPizarraRef.current({
+              ...posit,
+              x: actual.base.x,
+              y: actual.base.y
+            });
           }
         }
         return;
@@ -1424,6 +1773,26 @@ export function Sala({
             });
           } else if (enDropzone && !destino) {
             mostrarAviso("Elige primero un jugador para enviarle el documento.");
+          }
+          arrastreDocMovido.current = false;
+          return;
+        }
+        if (
+          actual.movido &&
+          estaSobrePizarra(evento.clientX, evento.clientY) &&
+          onEnviarAPizarraRef.current
+        ) {
+          const doc = elementosMesaRef.current.find(
+            (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
+              el.id === actual.id && el.tipo === "archivo"
+          );
+          if (doc) {
+            onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== actual.id));
+            void onEnviarAPizarraRef.current({
+              ...doc,
+              x: actual.base.x,
+              y: actual.base.y
+            });
           }
           arrastreDocMovido.current = false;
           return;
@@ -1612,19 +1981,21 @@ export function Sala({
   }
 
   function abrirTiradaCompuesta(): void {
-    setGruposCompuesta([
-      { id: `c-${Date.now()}-0`, cantidad: 1, caras: 20 },
-      { id: `c-${Date.now()}-1`, cantidad: 1, caras: 6 }
-    ]);
-    setBonificadorCompuesta(0);
-    setSelectorAbierto(false);
+    setGruposCompuesta([{ id: `c-${Date.now()}-${tipoDado}`, cantidad: cantidadDados, caras: tipoDado }]);
+    setBonificadorCompuesta(bonificador);
     setCompuestaAbierta(true);
   }
 
-  function agregarGrupoCompuesta(): void {
+  function agregarDadoCompuesta(caras: number): void {
     setGruposCompuesta(prev => {
+      const existente = prev.find(g => g.caras === caras);
+      if (existente) {
+        return prev.map(g =>
+          g.caras === caras ? { ...g, cantidad: Math.min(20, g.cantidad + 1) } : g
+        );
+      }
       if (prev.length >= 6) return prev;
-      return [...prev, { id: `c-${Date.now()}-${prev.length}`, cantidad: 1, caras: 6 }];
+      return [...prev, { id: `c-${Date.now()}-${caras}`, cantidad: 1, caras }];
     });
   }
 
@@ -1654,6 +2025,7 @@ export function Sala({
     setMacroEditandoId(null);
     setMacroNombre("");
     setMacroIcono("sword");
+    setMacroColor("");
     setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
     setMacroBonificador(0);
     setMacrosAbierto(false);
@@ -1664,6 +2036,7 @@ export function Sala({
     setMacroEditandoId(macro.id);
     setMacroNombre(macro.nombre);
     setMacroIcono(macro.icono);
+    setMacroColor(macro.color ?? "");
     setMacroGrupos(
       macro.grupos.map((g, idx) => ({
         id: `m-${Date.now()}-${idx}`,
@@ -1727,6 +2100,7 @@ export function Sala({
                 ...m,
                 nombre: nombreLimpio,
                 icono: macroIcono,
+                ...(macroColor ? { color: macroColor } : { color: undefined }),
                 grupos: gruposLimpios,
                 bonificador: modLimpio
               }
@@ -1738,6 +2112,7 @@ export function Sala({
         id: nuevoId(),
         nombre: nombreLimpio,
         icono: macroIcono,
+        ...(macroColor ? { color: macroColor } : {}),
         grupos: gruposLimpios,
         bonificador: modLimpio
       };
@@ -1825,6 +2200,7 @@ export function Sala({
           secreta: esSecretaMaster || esSoloMaster
         });
         setTirando(false);
+        reproducirSonidoTirada(resultadoFinal.especial);
 
         if (!esSecretaMaster) {
           if (onTiradaPublica) {
@@ -1854,7 +2230,6 @@ export function Sala({
               resultadoFinal.caras,
               desglose
             );
-            reproducirSonidoTirada(resultadoFinal.especial);
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
               ...prev,
@@ -1947,6 +2322,14 @@ export function Sala({
     onElementosMesa?.(prev =>
       prev.map(el =>
         el.id === id && el.tipo === "posit" ? { ...el, color } : el
+      )
+    );
+  }
+
+  function redimensionarPositMesa(id: string, ancho: number, alto: number): void {
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id && el.tipo === "posit" ? { ...el, ancho, alto } : el
       )
     );
   }
@@ -2273,13 +2656,20 @@ export function Sala({
 
   function modificarDivisa(deltaBruto: number, inmediato = false): void {
     const actual = divisaActualRef.current;
+    const divisaIdActual = divisaActivaIdRef.current;
     const nuevo = Math.max(0, Math.min(999_999_999_999, Math.trunc(actual + deltaBruto)));
     const deltaReal = nuevo - actual;
     if (deltaReal === 0) return;
 
-    if (divisa === undefined) {
-      setDivisaLocal(nuevo);
-      guardarDivisaLocal(nuevo);
+    if (divisasSaldos === undefined) {
+      if (divisaIdActual === "principal") {
+        if (divisa === undefined) {
+          setDivisaLocal(nuevo);
+          guardarDivisaLocal(nuevo);
+        }
+      } else {
+        setDivisasSaldosLocal(prev => ({ ...prev, [divisaIdActual]: nuevo }));
+      }
     }
 
     if (inmediato) {
@@ -2290,16 +2680,16 @@ export function Sala({
       const deltaTotal = divisaDebounceRef.current.acumulado + deltaReal;
       divisaDebounceRef.current.acumulado = 0;
       if (onCambiarDivisaRef.current) {
-        void onCambiarDivisaRef.current(nuevo, deltaTotal);
+        void onCambiarDivisaRef.current(nuevo, deltaTotal, divisaIdActual);
       } else {
         emitirDivisaLocal(deltaTotal, nuevo);
       }
       return;
     }
 
-    if (onCambiarDivisaRef.current && divisa !== undefined) {
+    if (onCambiarDivisaRef.current && (divisa !== undefined || divisasSaldos !== undefined)) {
       // Actualización optimista pasando delta 0 hasta que venza el debounce
-      void onCambiarDivisaRef.current(nuevo, 0);
+      void onCambiarDivisaRef.current(nuevo, 0, divisaIdActual);
     }
 
     divisaDebounceRef.current.acumulado += deltaReal;
@@ -2312,11 +2702,19 @@ export function Sala({
       divisaDebounceRef.current.timer = null;
       if (deltaAcum === 0) return;
       if (onCambiarDivisaRef.current) {
-        void onCambiarDivisaRef.current(divisaActualRef.current, deltaAcum);
+        void onCambiarDivisaRef.current(divisaActualRef.current, deltaAcum, divisaIdActual);
       } else {
         emitirDivisaLocal(deltaAcum, divisaActualRef.current);
       }
     }, 750);
+  }
+
+  function actualizarDivisasConfig(siguiente: DivisaConfig[]): void {
+    if (onGuardarDivisasConfig) {
+      void onGuardarDivisasConfig(siguiente);
+    } else {
+      setDivisasConfigLocal(siguiente);
+    }
   }
 
   function actualizarListaMochila(updater: (prev: ObjetoMochila[]) => ObjetoMochila[]): void {
@@ -2488,6 +2886,26 @@ export function Sala({
     };
   }
 
+  function iniciarMacroMesa(
+    evento: ReactPointerEvent,
+    macroElem: { id: string; x: number; y: number }
+  ): void {
+    const rect = capaPosits.current?.getBoundingClientRect();
+    if (!rect) return;
+    evento.stopPropagation();
+    setPositActivo(null);
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "macro-mesa",
+      id: macroElem.id,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false,
+      base: { x: macroElem.x, y: macroElem.y },
+      medidas: { width: rect.width, height: rect.height }
+    };
+  }
+
   function iniciarMochilaObjeto(
     evento: ReactPointerEvent,
     objeto: ObjetoMochila
@@ -2496,6 +2914,21 @@ export function Sala({
     arrastre.current = {
       tipo: "mochila-objeto",
       objeto,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      movido: false
+    };
+  }
+
+  function iniciarMacroMenu(
+    evento: ReactPointerEvent,
+    macro: MacroTirada
+  ): void {
+    if (evento.button !== 0) return;
+    arrastreDocMovido.current = false;
+    arrastre.current = {
+      tipo: "macro-menu",
+      macro,
       inicioX: evento.clientX,
       inicioY: evento.clientY,
       movido: false
@@ -2520,6 +2953,10 @@ export function Sala({
     (el): el is Extract<ElementoMesa, { tipo: "objeto" }> =>
       el.tipo === "objeto" && !el.archivado
   );
+  const macrosVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "macro" }> =>
+      el.tipo === "macro" && !el.archivado
+  );
   const objetoSeleccionado =
     mochilaActual.find(item => item.id === objetoMochilaId) ?? null;
 
@@ -2527,7 +2964,7 @@ export function Sala({
     <div
       className="sala"
       onPointerDown={evento => {
-        if (!(evento.target as HTMLElement).closest(".posit")) {
+        if (!(evento.target as HTMLElement).closest(".posit, .mesa-posit-dar-todos")) {
           setPositActivo(null);
         }
       }}
@@ -2549,7 +2986,10 @@ export function Sala({
             </div>
           ) : imagenEscena ? (
             <div
-              className="sala-hotspot hotspot-pizarra con-escena"
+              className={`sala-hotspot hotspot-pizarra con-escena${
+                !ajuste && arrastrandoItemId !== null ? " destino-valido-pizarra" : ""
+              }`}
+              data-hotspot-pizarra="true"
               style={estiloRect(calibracion.pizarra)}
             >
               <button
@@ -2605,7 +3045,10 @@ export function Sala({
           ) : (
             <button
               type="button"
-              className="sala-hotspot hotspot-pizarra"
+              className={`sala-hotspot hotspot-pizarra${
+                !ajuste && arrastrandoItemId !== null ? " destino-valido-pizarra" : ""
+              }`}
+              data-hotspot-pizarra="true"
               style={estiloRect(calibracion.pizarra)}
               onClick={onAbrirPizarra}
               title="Abrir la pizarra"
@@ -2871,6 +3314,246 @@ export function Sala({
                 )}
               </button>
 
+              <div className="sala-musica-control" ref={musicaContenedorRef}>
+                <button
+                  type="button"
+                  className={`sala-btn sala-btn-disco${
+                    esMaster && musicaPopoverAbierto ? " activo" : ""
+                  }${musicaSilenciada ? " silenciada" : ""}${
+                    musicaActual.reproduciendo &&
+                    musicaActual.pistas.length > 0 &&
+                    !musicaSilenciada
+                      ? " reproduciendo"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    if (esMaster) {
+                      setMusicaPopoverAbierto(v => !v);
+                    } else {
+                      alternarSilencioMusica();
+                    }
+                  }}
+                  title={
+                    esMaster
+                      ? "Música ambiente de la sala"
+                      : musicaSilenciada
+                        ? "Música silenciada (pulsa para activar)"
+                        : "Silenciar música ambiente"
+                  }
+                  aria-label={
+                    esMaster
+                      ? "Configurar música ambiente"
+                      : musicaSilenciada
+                        ? "Activar música ambiente"
+                        : "Silenciar música ambiente"
+                  }
+                  aria-pressed={esMaster ? musicaPopoverAbierto : musicaSilenciada}
+                >
+                  <Disc3 size={14} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+
+                {esMaster && musicaPopoverAbierto && (
+                  <div
+                    className="sala-musica-popover"
+                    role="dialog"
+                    aria-label="Reproductor de música ambiente"
+                  >
+                    <div className="sala-musica-popover-cabecera">
+                      <span className="sala-musica-popover-titulo">
+                        Música ambiente
+                      </span>
+                      <div className="sala-musica-popover-acciones-cab">
+                        <button
+                          type="button"
+                          className={`sala-musica-mini-btn${
+                            musicaSilenciada ? " silenciada" : ""
+                          }`}
+                          onClick={alternarSilencioMusica}
+                          title={
+                            musicaSilenciada
+                              ? "Activar música localmente"
+                              : "Silenciar música localmente"
+                          }
+                          aria-label={
+                            musicaSilenciada
+                              ? "Activar música localmente"
+                              : "Silenciar música localmente"
+                          }
+                          aria-pressed={musicaSilenciada}
+                        >
+                          {musicaSilenciada ? (
+                            <VolumeX size={13} strokeWidth={2.2} aria-hidden="true" />
+                          ) : (
+                            <Volume2 size={13} strokeWidth={2.2} aria-hidden="true" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className="sala-musica-mini-btn"
+                          onClick={() => setMusicaPopoverAbierto(false)}
+                          aria-label="Cerrar panel de música"
+                        >
+                          <X size={13} strokeWidth={2.2} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <input
+                      ref={musicaFileInputRef}
+                      type="file"
+                      accept="audio/*,.mp3,.ogg,.wav,.m4a"
+                      multiple
+                      hidden
+                      onChange={e => {
+                        void manejarSubidaMusica(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="sala-musica-subir-btn"
+                      disabled={subiendoMusica || !onSubirMusica}
+                      onClick={() => musicaFileInputRef.current?.click()}
+                    >
+                      <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+                      <span>
+                        {subiendoMusica ? "Subiendo canción…" : "Subir canción"}
+                      </span>
+                    </button>
+
+                    <div className="sala-musica-lista">
+                      {musicaActual.pistas.length === 0 ? (
+                        <div className="sala-musica-vacia">
+                          No hay canciones en la lista.
+                        </div>
+                      ) : (
+                        musicaActual.pistas.map((pista, idx) => {
+                          const activa = idx === musicaActual.indiceActual;
+                          return (
+                            <div
+                              key={`${pista.archivoId}-${idx}`}
+                              className={`sala-musica-pista${
+                                activa ? " activa" : ""
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="sala-musica-pista-nombre"
+                                onClick={() =>
+                                  emitirMusica({
+                                    indiceActual: idx,
+                                    reproduciendo: true
+                                  })
+                                }
+                                title={pista.nombre}
+                              >
+                                <span className="sala-musica-pista-indice">
+                                  {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
+                                </span>
+                                <span>{pista.nombre}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="sala-musica-pista-quitar"
+                                onClick={() => quitarPistaMusica(idx)}
+                                title="Quitar canción de la lista"
+                                aria-label={`Quitar ${pista.nombre}`}
+                              >
+                                <Trash2 size={13} strokeWidth={2.1} aria-hidden="true" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="sala-musica-controles">
+                      <button
+                        type="button"
+                        className={`sala-musica-ctrl-btn${
+                          musicaActual.reproduciendo ? " activo" : ""
+                        }`}
+                        disabled={musicaActual.pistas.length === 0}
+                        onClick={() =>
+                          emitirMusica({
+                            reproduciendo: !musicaActual.reproduciendo
+                          })
+                        }
+                        title={musicaActual.reproduciendo ? "Pausar" : "Reproducir"}
+                        aria-label={
+                          musicaActual.reproduciendo ? "Pausar música" : "Reproducir música"
+                        }
+                      >
+                        {musicaActual.reproduciendo ? (
+                          <Pause size={14} strokeWidth={2.2} aria-hidden="true" />
+                        ) : (
+                          <Play size={14} strokeWidth={2.2} aria-hidden="true" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`sala-musica-ctrl-btn${
+                          musicaActual.loop ? " activo" : ""
+                        }`}
+                        onClick={() =>
+                          emitirMusica({ loop: !musicaActual.loop })
+                        }
+                        title={
+                          musicaActual.loop
+                            ? "Bucle activado"
+                            : "Activar bucle"
+                        }
+                        aria-label="Alternar bucle"
+                        aria-pressed={musicaActual.loop}
+                      >
+                        <Repeat size={14} strokeWidth={2.2} aria-hidden="true" />
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`sala-musica-ctrl-btn${
+                          musicaActual.aleatorio ? " activo" : ""
+                        }`}
+                        onClick={() =>
+                          emitirMusica({ aleatorio: !musicaActual.aleatorio })
+                        }
+                        title={
+                          musicaActual.aleatorio
+                            ? "Reproducción aleatoria"
+                            : "Reproducción ordenada"
+                        }
+                        aria-label="Alternar reproducción aleatoria"
+                        aria-pressed={musicaActual.aleatorio}
+                      >
+                        <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
+                      </button>
+
+                      <div className="sala-musica-volumen">
+                        <Volume2 size={13} strokeWidth={2.1} aria-hidden="true" />
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(
+                            (musicaActual.volumenMaster ?? 0.7) * 100
+                          )}
+                          onChange={e =>
+                            emitirMusica({
+                              volumenMaster: Number(e.target.value) / 100
+                            })
+                          }
+                          aria-label="Volumen de la música ambiente"
+                        />
+                        <span className="sala-musica-volumen-valor">
+                          {Math.round((musicaActual.volumenMaster ?? 0.7) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 className={`sala-btn hud-barra-movil${divisaAbierta ? " activo" : ""}`}
@@ -2922,90 +3605,6 @@ export function Sala({
                 </>
               )}
 
-              {!esMaster && onCambiarApodo && (
-                editandoApodo ? (
-                  <form
-                    className="sala-apodo-form"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px"
-                    }}
-                    onSubmit={async evento => {
-                      evento.preventDefault();
-                      if (guardandoApodo) return;
-                      setGuardandoApodo(true);
-                      try {
-                        await onCambiarApodo(apodoTexto.trim().slice(0, 24));
-                        setEditandoApodo(false);
-                      } finally {
-                        setGuardandoApodo(false);
-                      }
-                    }}
-                  >
-                    <input
-                      type="text"
-                      maxLength={24}
-                      value={apodoTexto}
-                      onChange={e => setApodoTexto(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Escape") {
-                          e.stopPropagation();
-                          setEditandoApodo(false);
-                        }
-                      }}
-                      placeholder="Nombre de PJ…"
-                      aria-label="Nombre de personaje"
-                      autoFocus
-                      style={{
-                        width: "120px",
-                        height: "28px",
-                        padding: "0 8px",
-                        borderRadius: "6px",
-                        border: "1px solid rgba(255, 255, 255, 0.22)",
-                        background: "rgba(18, 15, 28, 0.85)",
-                        color: "#f5efe0",
-                        fontSize: "12px"
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      className="sala-btn"
-                      disabled={guardandoApodo}
-                      title="Guardar apodo"
-                      aria-label="Guardar apodo"
-                      style={{ padding: "4px 8px" }}
-                    >
-                      <Check size={13} strokeWidth={2.4} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className="sala-btn"
-                      disabled={guardandoApodo}
-                      onClick={() => setEditandoApodo(false)}
-                      title="Cancelar"
-                      aria-label="Cancelar edición de apodo"
-                      style={{ padding: "4px 8px" }}
-                    >
-                      <X size={13} strokeWidth={2.2} aria-hidden="true" />
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    type="button"
-                    className="sala-btn"
-                    onClick={() => {
-                      setApodoTexto(miApodo);
-                      setEditandoApodo(true);
-                    }}
-                    title="Cambiar nombre de personaje en esta mesa"
-                  >
-                    <Pencil size={13} strokeWidth={2.2} aria-hidden="true" />
-                    <span>PJ: {miApodo || "Apodo"}</span>
-                  </button>
-                )
-              )}
-
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
                   <span className="master-proyeccion-texto">
@@ -3048,16 +3647,149 @@ export function Sala({
             </div>
           </div>
 
+          {!ajuste && !esMaster && onCambiarApodo && (
+            <div className="sala-apodo-flotante">
+              {editandoApodo ? (
+                <form
+                  className="sala-apodo-form"
+                  onSubmit={async evento => {
+                    evento.preventDefault();
+                    if (guardandoApodo) return;
+                    setGuardandoApodo(true);
+                    try {
+                      await onCambiarApodo(apodoTexto.trim().slice(0, 24));
+                      setEditandoApodo(false);
+                    } finally {
+                      setGuardandoApodo(false);
+                    }
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="sala-apodo-input"
+                    maxLength={24}
+                    value={apodoTexto}
+                    onChange={e => setApodoTexto(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Escape") {
+                        e.stopPropagation();
+                        setEditandoApodo(false);
+                      }
+                    }}
+                    placeholder="Nombre de PJ…"
+                    aria-label="Nombre de personaje"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="sala-apodo-accion"
+                    disabled={guardandoApodo}
+                    title="Guardar apodo"
+                    aria-label="Guardar apodo"
+                  >
+                    <Check size={13} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="sala-apodo-accion"
+                    disabled={guardandoApodo}
+                    onClick={() => setEditandoApodo(false)}
+                    title="Cancelar"
+                    aria-label="Cancelar edición de apodo"
+                  >
+                    <X size={13} strokeWidth={2.2} aria-hidden="true" />
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <span
+                    className={`sala-apodo-texto${miApodo ? "" : " vacio"}`}
+                    title={miApodo || "Sin apodo"}
+                  >
+                    {miApodo || "Sin apodo"}
+                  </span>
+                  <button
+                    type="button"
+                    className="sala-apodo-editar-btn"
+                    onClick={() => {
+                      setApodoTexto(miApodo);
+                      setEditandoApodo(true);
+                    }}
+                    title="Cambiar nombre de personaje en esta mesa"
+                    aria-label="Cambiar nombre de personaje en esta mesa"
+                  >
+                    <Pencil size={13} strokeWidth={2.2} aria-hidden="true" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {!ajuste && (
             <div className="sala-hud-derecha" aria-label="Divisa y mochila">
-              <div className="hud-divisa-caja">
-                <span className="hud-divisa-titulo">{divisaNombre}</span>
+              <div className="hud-economia-fila">
+                <button
+                  type="button"
+                  className={`hud-hucha-btn${huchaAbierta ? " activo" : ""}`}
+                  onClick={() => {
+                    setDivisaAbierta(false);
+                    setMochilaAbierta(false);
+                    setMasterDivisasAbierto(false);
+                    setMasterMochilasAbierto(false);
+                    setHuchaAbierta(v => !v);
+                  }}
+                  aria-expanded={huchaAbierta}
+                  title="Cartera (ver todas tus divisas)"
+                  aria-label="Cartera (ver todas tus divisas)"
+                >
+                  <span className="hud-hucha-label">Cartera</span>
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 16 16"
+                    shapeRendering="crispEdges"
+                    aria-hidden="true"
+                  >
+                    <rect x="4" y="2" width="8" height="2" fill="#d4a03a" />
+                    <rect x="2" y="4" width="12" height="9" fill="#8b5a2b" />
+                    <rect x="3" y="5" width="10" height="7" fill="#a86f38" />
+                    <rect x="2" y="4" width="12" height="1" fill="#181020" />
+                    <rect x="2" y="13" width="12" height="1" fill="#181020" />
+                    <rect x="1" y="5" width="1" height="8" fill="#181020" />
+                    <rect x="14" y="5" width="1" height="8" fill="#181020" />
+                    <rect x="10" y="7" width="4" height="3" fill="#f7d060" />
+                    <rect x="11" y="8" width="1" height="1" fill="#181020" />
+                  </svg>
+                </button>
+
+                <div className="hud-divisa-caja">
+                <span className="hud-divisa-titulo">
+                  <span
+                    className="hud-divisa-color-punto"
+                    style={{ backgroundColor: divisaActiva.color }}
+                    aria-hidden="true"
+                  />
+                  <span>{nombreDivisaActiva}</span>
+                </span>
                 <div className="hud-divisa-fila">
+                  {divisasLista.length > 1 && (
+                    <button
+                      type="button"
+                      className="hud-divisa-paso hud-divisa-flecha"
+                      onClick={() =>
+                        setIndiceDivisa(i => (i - 1 + divisasLista.length) % divisasLista.length)
+                      }
+                      aria-label="Divisa anterior"
+                      title="Divisa anterior"
+                    >
+                      <ChevronLeft size={13} strokeWidth={2.6} aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="hud-divisa-paso"
                     onClick={() => modificarDivisa(-divisaPaso)}
-                    aria-label={`Restar ${divisaPaso} ${divisaNombre}`}
+                    aria-label={`Restar ${divisaPaso} ${nombreDivisaActiva}`}
                     title={`Restar ${divisaPaso}`}
                   >
                     <Minus size={13} strokeWidth={2.6} aria-hidden="true" />
@@ -3067,12 +3799,15 @@ export function Sala({
                     className={`hud-divisa-centro${divisaAbierta ? " activo" : ""}`}
                     onClick={() => {
                       setMochilaAbierta(false);
+                      setHuchaAbierta(false);
                       setDivisaAbierta(v => !v);
                     }}
-                    title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
+                    title={`${nombreDivisaActiva}: ${divisaActual.toLocaleString("es-ES")}`}
                     aria-expanded={divisaAbierta}
                   >
-                    <IconoMonedasPixel size={38} />
+                    <span className="hud-divisa-icono-wrap">
+                      <IconoMonedasPixel size={38} color={divisaActiva.color} />
+                    </span>
                     <span className="hud-divisa-valor">
                       {formatearDivisaCompacta(divisaActual)}
                     </span>
@@ -3081,12 +3816,26 @@ export function Sala({
                     type="button"
                     className="hud-divisa-paso"
                     onClick={() => modificarDivisa(divisaPaso)}
-                    aria-label={`Sumar ${divisaPaso} ${divisaNombre}`}
+                    aria-label={`Sumar ${divisaPaso} ${nombreDivisaActiva}`}
                     title={`Sumar ${divisaPaso}`}
                   >
                     <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
                   </button>
+                  {divisasLista.length > 1 && (
+                    <button
+                      type="button"
+                      className="hud-divisa-paso hud-divisa-flecha"
+                      onClick={() =>
+                        setIndiceDivisa(i => (i + 1) % divisasLista.length)
+                      }
+                      aria-label="Divisa siguiente"
+                      title="Divisa siguiente"
+                    >
+                      <ChevronRight size={13} strokeWidth={2.6} aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
+              </div>
               </div>
 
               <button
@@ -3094,6 +3843,7 @@ export function Sala({
                 className={`hud-mochila-btn${mochilaAbierta ? " activo" : ""}`}
                 onClick={() => {
                   setDivisaAbierta(false);
+                  setHuchaAbierta(false);
                   setMasterDivisasAbierto(false);
                   setMasterMochilasAbierto(false);
                   setMochilaAbierta(v => !v);
@@ -3118,7 +3868,8 @@ export function Sala({
                     title={`Ver ${divisaNombre} de jugadores conectados`}
                     aria-label={`Ver ${divisaNombre} de jugadores conectados`}
                   >
-                    <IconoBilletePixel size={26} />
+                    <IconoBilletePixel size={24} />
+                    <span className="hud-master-label">Dinero mesa</span>
                   </button>
                   <button
                     type="button"
@@ -3128,66 +3879,391 @@ export function Sala({
                     title="Inspeccionar mochila y objetos de jugadores conectados"
                     aria-label="Inspeccionar mochila y objetos de jugadores conectados"
                   >
-                    <IconoLupaPixel size={26} />
+                    <IconoLupaPixel size={24} />
+                    <span className="hud-master-label">Objetos mesa</span>
                   </button>
                 </div>
               )}
+
+              <button
+                type="button"
+                className={`hud-enviar-btn${enviarPopoverAbierto ? " activo" : ""}`}
+                onClick={() => {
+                  setDivisaAbierta(false);
+                  setHuchaAbierta(false);
+                  setMochilaAbierta(false);
+                  setMasterDivisasAbierto(false);
+                  setMasterMochilasAbierto(false);
+                  setEnviarPopoverAbierto(v => {
+                    const siguiente = !v;
+                    const destinos = jugadores.filter(
+                      j => j.activo && j.id !== yoAsientoId && j.usuarioId !== miUsuarioId
+                    );
+                    if (siguiente && !enviarDestinoId && destinos.length > 0) {
+                      setEnviarDestinoId(destinos[0].id);
+                    }
+                    return siguiente;
+                  });
+                }}
+                aria-expanded={enviarPopoverAbierto}
+                title="Enviar objeto, nota o documento a otro jugador"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  padding: "7px 12px",
+                  border: enviarPopoverAbierto
+                    ? "2px solid #e8c56a"
+                    : "2px solid rgb(232 197 106 / 45%)",
+                  borderRadius: 10,
+                  background: enviarPopoverAbierto
+                    ? "rgb(28 22 38 / 95%)"
+                    : "rgb(14 11 20 / 92%)",
+                  color: "#f3e6c8",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  boxShadow: "2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%)",
+                  cursor: "pointer"
+                }}
+              >
+                <IconoPaloma size={20} />
+                <span>Enviar</span>
+              </button>
+            </div>
+          )}
+
+          {enviarPopoverAbierto && !ajuste && (() => {
+            const destinos = jugadores.filter(
+              j => j.activo && j.id !== yoAsientoId && j.usuarioId !== miUsuarioId
+            );
+            const enviables = elementosMesa.filter(
+              el => el.tipo !== "macro" && !el.archivado
+            );
+            return (
+              <div
+                className="divisa-popover hud-enviar-popover"
+                role="dialog"
+                aria-label="Enviar a jugador"
+                style={{
+                  top: 184,
+                  maxHeight: "65vh",
+                  overflowY: "auto"
+                }}
+              >
+                <div className="dados-selector-cabecera">
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <IconoPaloma size={16} />
+                    <span>Enviar a jugador</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setEnviarPopoverAbierto(false)}
+                    aria-label="Cerrar panel de envío"
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+
+                {destinos.length === 0 ? (
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                    No hay otros jugadores activos en la mesa.
+                  </p>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                        1. Destinatario
+                      </span>
+                      <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {destinos.map(j => {
+                          const seleccionado = (enviarDestinoId ?? destinos[0]?.id) === j.id;
+                          return (
+                            <button
+                              key={j.id}
+                              type="button"
+                              className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
+                              onClick={() => setEnviarDestinoId(j.id)}
+                              style={{
+                                borderColor: seleccionado ? j.color : undefined,
+                                boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
+                              }}
+                            >
+                              {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                        2. Elemento o item
+                      </span>
+                      {mochilaActual.length === 0 && enviables.length === 0 ? (
+                        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                          No tienes objetos en la mochila ni elementos en la mesa para enviar.
+                        </p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                          {mochilaActual.map(item => (
+                            <button
+                              key={`mochila-${item.id}`}
+                              type="button"
+                              className="macro-lanzar-btn"
+                              style={{ width: "100%", justifyContent: "space-between" }}
+                              onClick={() => {
+                                const destino =
+                                  destinos.find(
+                                    j => j.id === (enviarDestinoId ?? destinos[0]?.id)
+                                  ) ?? destinos[0];
+                                if (!destino) return;
+                                if (onEnviarObjetoMochila) {
+                                  void onEnviarObjetoMochila(destino, item, 1);
+                                } else {
+                                  mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
+                                }
+                                setEnviarPopoverAbierto(false);
+                              }}
+                            >
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <span>{item.emoji ?? "🎒"}</span>
+                                <span>{item.nombre}</span>
+                              </span>
+                              <span style={{ fontSize: 11, opacity: 0.75 }}>
+                                Mochila (x{item.cantidad})
+                              </span>
+                            </button>
+                          ))}
+
+                          {enviables.map(elem => {
+                            const etiqueta =
+                              elem.tipo === "posit"
+                                ? elem.texto.trim() || "Posit sin texto"
+                                : elem.nombre;
+                            const icono =
+                              elem.tipo === "posit"
+                                ? "📝"
+                                : elem.tipo === "archivo"
+                                  ? "📄"
+                                  : elem.tipo === "objeto"
+                                    ? elem.emoji ?? "🎒"
+                                    : "◆";
+                            const sub =
+                              elem.tipo === "posit"
+                                ? "Posit"
+                                : elem.tipo === "archivo"
+                                  ? "Doc"
+                                  : elem.tipo === "objeto"
+                                    ? `x${elem.cantidad}`
+                                    : "Macro";
+                            return (
+                              <button
+                                key={elem.id}
+                                type="button"
+                                className="macro-lanzar-btn"
+                                style={{ width: "100%", justifyContent: "space-between" }}
+                                onClick={() => {
+                                  const destino =
+                                    destinos.find(
+                                      j => j.id === (enviarDestinoId ?? destinos[0]?.id)
+                                    ) ?? destinos[0];
+                                  if (!destino) return;
+                                  if (onEnviarElemento) {
+                                    void onEnviarElemento(destino, elem);
+                                  } else {
+                                    mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
+                                  }
+                                  setEnviarPopoverAbierto(false);
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                >
+                                  <span>{icono}</span>
+                                  <span>{etiqueta}</span>
+                                </span>
+                                <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+                                  {sub}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {huchaAbierta && !ajuste && (
+            <div
+              className="divisa-popover hud-hucha-popover"
+              role="dialog"
+              aria-label="Hucha de divisas"
+            >
+              <div className="dados-selector-cabecera">
+                <span>Hucha</span>
+                <button
+                  type="button"
+                  className="dados-cerrar"
+                  onClick={() => setHuchaAbierta(false)}
+                  aria-label="Cerrar hucha"
+                >
+                  <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
+              <ul className="master-divisa-lista">
+                {divisasLista.map((d, idx) => {
+                  const saldo =
+                    divisasSaldos && d.id in divisasSaldos
+                      ? divisasSaldos[d.id]
+                      : divisasSaldos && divisasConfig && divisasConfig.length > 0
+                        ? (divisasSaldos[d.id] ?? 0)
+                        : d.id === "principal"
+                          ? (divisa ?? divisaLocal)
+                          : (divisasSaldosLocal[d.id] ?? 0);
+                  return (
+                    <li key={d.id} className="master-divisa-item">
+                      <button
+                        type="button"
+                        className="master-divisa-jugador"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "inherit",
+                          padding: 0,
+                          cursor: "pointer"
+                        }}
+                        onClick={() => {
+                          setIndiceDivisa(idx);
+                          setHuchaAbierta(false);
+                        }}
+                      >
+                        <span
+                          className="compartir-jugador-punto"
+                          style={{ backgroundColor: d.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{d.nombre}</span>
+                      </button>
+                      <span
+                        className="master-divisa-monto"
+                        title={`${saldo.toLocaleString("es-ES")} ${d.nombre}`}
+                      >
+                        {saldo.toLocaleString("es-ES")}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
 
           {masterDivisasAbierto && esMaster && !ajuste && (
             <div
-              className="divisa-popover master-resumen-popover"
-              role="dialog"
-              aria-label={`${divisaNombre} de jugadores conectados`}
+              className="mochila-backdrop"
+              onClick={() => setMasterDivisasAbierto(false)}
             >
-              <div className="dados-selector-cabecera">
-                <span>{divisaNombre} · Conectados</span>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <button
-                    type="button"
-                    className="master-actualizar-btn"
-                    onClick={() => void cargarResumenMaster()}
-                    disabled={masterResumenCargando}
-                  >
-                    {masterResumenCargando ? "…" : "Actualizar"}
-                  </button>
-                  <button
-                    type="button"
-                    className="dados-cerrar"
-                    onClick={() => setMasterDivisasAbierto(false)}
-                    aria-label="Cerrar resumen de divisa"
-                  >
-                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
+              <div
+                className="mochila-modal master-inspeccion-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Divisas de jugadores conectados"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mochila-cabecera">
+                  <span className="mochila-titulo">
+                    <IconoBilletePixel size={22} />
+                    <span>Dinero en mesa</span>
+                  </span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="mochila-volver-btn"
+                      onClick={() => void cargarResumenMaster()}
+                      disabled={masterResumenCargando}
+                    >
+                      {masterResumenCargando ? "Actualizando…" : "Actualizar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="dados-cerrar"
+                      onClick={() => setMasterDivisasAbierto(false)}
+                      aria-label="Cerrar resumen de divisa"
+                    >
+                      <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
+                {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">Consultando sala…</p>
+                ) : masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
+                ) : (
+                  <ul className="master-divisa-lista">
+                    {masterResumenJugadores.map(j => {
+                      const saldosJugador = (
+                        j as PublicJugadorResumenInventario & {
+                          divisasSaldos?: Record<string, number>;
+                        }
+                      ).divisasSaldos;
+                      return (
+                        <li key={j.userId} className="master-divisa-item master-divisa-item-multi">
+                          <span className="master-divisa-jugador">
+                            <span
+                              className="compartir-jugador-punto"
+                              style={{ backgroundColor: j.color }}
+                              aria-hidden="true"
+                            />
+                            <span>{j.nombre}</span>
+                          </span>
+                          <div className="master-divisa-saldos">
+                            {divisasLista.map((d, idx) => {
+                              const valor =
+                                saldosJugador && d.id in saldosJugador
+                                  ? saldosJugador[d.id]
+                                  : idx === 0
+                                    ? j.divisa
+                                    : 0;
+                              return (
+                                <span
+                                  key={d.id}
+                                  className="master-divisa-monto"
+                                  title={`${valor.toLocaleString("es-ES")} ${d.nombre}`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                >
+                                  <span
+                                    className="compartir-jugador-punto"
+                                    style={{ backgroundColor: d.color, width: "7px", height: "7px" }}
+                                    aria-hidden="true"
+                                  />
+                                  <span>{formatearDivisaCompacta(valor)}</span>
+                                  <small style={{ opacity: 0.72 }}>{d.nombre}</small>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-              {masterResumenCargando && masterResumenJugadores.length === 0 ? (
-                <p className="dados-ayuda">Consultando sala…</p>
-              ) : masterResumenJugadores.length === 0 ? (
-                <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
-              ) : (
-                <ul className="master-divisa-lista">
-                  {masterResumenJugadores.map(j => (
-                    <li key={j.userId} className="master-divisa-item">
-                      <span className="master-divisa-jugador">
-                        <span
-                          className="compartir-jugador-punto"
-                          style={{ backgroundColor: j.color }}
-                          aria-hidden="true"
-                        />
-                        <span>{j.nombre}</span>
-                      </span>
-                      <span
-                        className="master-divisa-monto"
-                        title={`${j.divisa.toLocaleString("es-ES")} ${divisaNombre}`}
-                      >
-                        {formatearDivisaCompacta(j.divisa)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           )}
 
@@ -3364,10 +4440,17 @@ export function Sala({
             <div
               className="divisa-popover"
               role="dialog"
-              aria-label={`Gestionar ${divisaNombre}`}
+              aria-label={`Gestionar ${nombreDivisaActiva}`}
             >
               <div className="dados-selector-cabecera">
-                <span>{divisaNombre}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    className="compartir-jugador-punto"
+                    style={{ backgroundColor: divisaActiva.color }}
+                    aria-hidden="true"
+                  />
+                  <span>{nombreDivisaActiva}</span>
+                </span>
                 <button
                   type="button"
                   className="dados-cerrar"
@@ -3379,7 +4462,12 @@ export function Sala({
               </div>
 
               <div className="divisa-exacto">
-                <IconoMonedasPixel size={22} />
+                <span
+                  className="hud-divisa-icono-wrap"
+                  style={{ filter: `drop-shadow(0 0 3px ${divisaActiva.color})` }}
+                >
+                  <IconoMonedasPixel size={22} />
+                </span>
                 <span>{divisaActual.toLocaleString("es-ES")}</span>
               </div>
 
@@ -3486,6 +4574,97 @@ export function Sala({
                     </button>
                   </div>
                 </form>
+              )}
+
+              {esMaster && (
+                <div className="divisa-master-gestion" style={{ marginTop: "8px", borderTop: "1px solid rgb(255 255 255 / 12%)", paddingTop: "8px" }}>
+                  <span className="dados-campo-etiqueta">Divisas de la mesa</span>
+                  {divisasLista.length > 1 && (
+                    <ul className="master-divisa-lista" style={{ marginTop: "4px", marginBottom: "6px" }}>
+                      {divisasLista.map((d, idx) => (
+                        <li key={d.id} className="master-divisa-item">
+                          <span className="master-divisa-jugador">
+                            <span
+                              className="compartir-jugador-punto"
+                              style={{ backgroundColor: d.color }}
+                              aria-hidden="true"
+                            />
+                            <span>{d.nombre}</span>
+                          </span>
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              className="macro-accion-btn borrar"
+                              title={`Eliminar ${d.nombre}`}
+                              aria-label={`Eliminar ${d.nombre}`}
+                              onClick={() => {
+                                const siguiente = divisasLista.filter(item => item.id !== d.id);
+                                actualizarDivisasConfig(siguiente);
+                                setIndiceDivisa(prev => Math.min(prev, Math.max(0, siguiente.length - 1)));
+                              }}
+                            >
+                              <Trash2 size={12} strokeWidth={2.2} aria-hidden="true" />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <form
+                    className="divisa-master-nombre"
+                    onSubmit={e => {
+                      e.preventDefault();
+                      const nombreLimpio = nuevaDivisaNombre.trim();
+                      if (!nombreLimpio) return;
+                      const nueva: DivisaConfig = {
+                        id: `div-${nuevoId()}`,
+                        nombre: nombreLimpio,
+                        color: nuevaDivisaColor
+                      };
+                      const siguiente = [...divisasLista, nueva];
+                      actualizarDivisasConfig(siguiente);
+                      setNuevaDivisaNombre("");
+                      setIndiceDivisa(siguiente.length - 1);
+                    }}
+                  >
+                    <div className="divisa-master-nombre-fila">
+                      <input
+                        type="text"
+                        maxLength={24}
+                        value={nuevaDivisaNombre}
+                        onChange={e => setNuevaDivisaNombre(e.target.value)}
+                        placeholder="Nueva divisa..."
+                        aria-label="Nombre de nueva divisa"
+                      />
+                      <button type="submit" title="Añadir divisa" aria-label="Añadir divisa">
+                        <Plus size={13} strokeWidth={2.5} aria-hidden="true" />
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+                      {COLORES_DIVISA.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          title={c.nombre}
+                          aria-label={c.nombre}
+                          onClick={() => setNuevaDivisaColor(c.hex)}
+                          style={{
+                            width: "16px",
+                            height: "16px",
+                            borderRadius: "4px",
+                            backgroundColor: c.hex,
+                            border:
+                              nuevaDivisaColor === c.hex
+                                ? "2px solid #fff"
+                                : "1px solid rgb(0 0 0 / 45%)",
+                            cursor: "pointer",
+                            padding: 0
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </form>
+                </div>
               )}
             </div>
           )}
@@ -3844,204 +5023,173 @@ export function Sala({
             </div>
           )}
 
-          {selectorAbierto && !ajuste && (
-            <form
-              className={`dados-selector${calibracion.dock.y < 30 ? " debajo" : ""}${tiradaSecreta ? " secreta" : ""}`}
-              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
-              onSubmit={evento => {
-                evento.preventDefault();
-                tirarDado();
-              }}
-            >
-              <div className="dados-selector-cabecera">
-                <span>Tirada de dados</span>
-                <button
-                  type="button"
-                  className="dados-cerrar"
-                  onClick={() => setSelectorAbierto(false)}
-                  aria-label="Cerrar selector de dados"
-                >
-                  <X size={13} strokeWidth={2.4} aria-hidden="true" />
-                </button>
-              </div>
-
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Dados</span>
-                <div className="dados-stepper">
-                  <button
-                    type="button"
-                    onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
-                    aria-label="Menos dados"
-                  >
-                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={cantidadDados}
-                    onChange={e => {
-                      const valor = parseInt(e.target.value, 10);
-                      setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
-                    }}
-                    aria-label="Número de dados"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
-                    aria-label="Más dados"
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Tipo</span>
-                <div className="dados-tipos" role="group" aria-label="Tipo de dado">
-                  {TIPOS_DADO.map(caras => (
-                    <button
-                      key={caras}
-                      type="button"
-                      className={`dado-tipo-btn${tipoDado === caras ? " activo" : ""}`}
-                      onClick={() => setTipoDado(caras)}
-                    >
-                      d{caras}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Bonificador</span>
-                <div className="dados-stepper">
-                  <button
-                    type="button"
-                    onClick={() => setBonificador(b => Math.max(-99, b - 1))}
-                    aria-label="Reducir bonificador"
-                  >
-                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                  <input
-                    type="number"
-                    min={-99}
-                    max={99}
-                    value={bonificador}
-                    onChange={e => {
-                      const valor = parseInt(e.target.value, 10);
-                      setBonificador(Number.isNaN(valor) ? 0 : limitar(valor, -99, 99));
-                    }}
-                    aria-label="Bonificador"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setBonificador(b => Math.min(99, b + 1))}
-                    aria-label="Aumentar bonificador"
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="dados-agregar-grupo"
-                onClick={abrirTiradaCompuesta}
-              >
-                <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                <span>Tirada compuesta</span>
-              </button>
-
-              <button
-                type="button"
-                className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
-                onClick={() => setTiradaSecreta(s => !s)}
-                aria-pressed={tiradaSecreta}
-              >
-                {esMaster ? (
-                  <>
-                    <span className="dados-secreto-punto" aria-hidden="true" />
-                    <span>Dados negros (solo Máster)</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
-                    <span>Solo para el Máster (susurro)</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="submit"
-                className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
-                disabled={tirando}
-              >
-                {tiradaSecreta
-                  ? esMaster
-                    ? "Tirar en secreto "
-                    : "Tirar al Máster "
-                  : "Tirar "}
-                {formatearFormulaCompuesta(
-                  [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
-                  bonificador
-                )}
-              </button>
-            </form>
-          )}
-
-          {compuestaAbierta && !ajuste && (
-            <div
-              className="dados-compuesta-backdrop"
-              onClick={() => setCompuestaAbierta(false)}
-            >
+          {selectorAbierto && !ajuste && (() => {
+            const formulaActual = formatearFormulaCompuesta(
+              compuestaAbierta
+                ? gruposCompuesta
+                : [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
+              compuestaAbierta ? bonificadorCompuesta : bonificador
+            );
+            return (
               <form
-                className="dados-compuesta-modal"
-                role="dialog"
-                aria-label="Tirada compuesta"
-                onClick={evento => evento.stopPropagation()}
+                className={`dados-selector dados-selector-unificado${tiradaSecreta ? " secreta" : ""}`}
+                style={{ bottom: "136px", left: "50%", top: "auto", transform: "translateX(-50%)" }}
                 onSubmit={evento => {
                   evento.preventDefault();
-                  tirarDado(gruposCompuesta, bonificadorCompuesta);
+                  if (compuestaAbierta) {
+                    tirarDado(gruposCompuesta, bonificadorCompuesta);
+                  } else {
+                    tirarDado();
+                  }
                 }}
               >
                 <div className="dados-selector-cabecera">
-                  <span>Tirada compuesta</span>
+                  <span>Tirada de dados</span>
                   <button
                     type="button"
                     className="dados-cerrar"
-                    onClick={() => setCompuestaAbierta(false)}
-                    aria-label="Cerrar tirada compuesta"
+                    onClick={() => setSelectorAbierto(false)}
+                    aria-label="Cerrar selector de dados"
                   >
-                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 </div>
 
-                <div className="dados-grupos-lista">
-                  {gruposCompuesta.map((grupo, idx) => (
-                    <div key={grupo.id} className="dados-grupo-card">
-                      <div className="dados-grupo-top">
-                        <span className="dados-campo-etiqueta">Dado {idx + 1}</span>
-                        {gruposCompuesta.length > 1 && (
+                <div className="dados-visibilidad-tabs" role="group" aria-label="Visibilidad de la tirada">
+                  <button
+                    type="button"
+                    className={`dados-visibilidad-tab${!tiradaSecreta ? " activo" : ""}`}
+                    onClick={() => setTiradaSecreta(false)}
+                    aria-pressed={!tiradaSecreta}
+                  >
+                    <Eye size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Pública</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`dados-visibilidad-tab secreta${tiradaSecreta ? " activo" : ""}`}
+                    onClick={() => setTiradaSecreta(true)}
+                    aria-pressed={tiradaSecreta}
+                  >
+                    <VenetianMask size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Privada</span>
+                  </button>
+                </div>
+
+                {tiradaSecreta && (
+                  <div className="dados-secreta-aviso">
+                    {esMaster
+                      ? "Tirada privada: solo visible para ti"
+                      : "Tirada privada: solo visible para el Máster"}
+                  </div>
+                )}
+
+                <div className="dados-formula-barra">
+                  <span className="dados-formula-texto" title={formulaActual}>
+                    {formulaActual}
+                  </span>
+                  <button
+                    type="button"
+                    className={`dados-compuesta-toggle${compuestaAbierta ? " activo" : ""}`}
+                    onClick={() => {
+                      if (compuestaAbierta) {
+                        setCompuestaAbierta(false);
+                      } else {
+                        abrirTiradaCompuesta();
+                      }
+                    }}
+                    aria-pressed={compuestaAbierta}
+                  >
+                    Tirada compuesta
+                  </button>
+                </div>
+
+                <div className="dados-fila">
+                  <span className="dados-campo-etiqueta">
+                    {compuestaAbierta ? "Pulsa para añadir a la tirada compuesta" : "Tipo de dado"}
+                  </span>
+                  <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                    {TIPOS_DADO.map(caras => {
+                      const grupo = compuestaAbierta
+                        ? gruposCompuesta.find(g => g.caras === caras)
+                        : null;
+                      const activo = compuestaAbierta ? Boolean(grupo) : tipoDado === caras;
+                      return (
+                        <button
+                          key={caras}
+                          type="button"
+                          className={`dado-tipo-btn${activo ? " activo" : ""}`}
+                          onClick={() => {
+                            if (compuestaAbierta) {
+                              agregarDadoCompuesta(caras);
+                            } else {
+                              setTipoDado(caras);
+                            }
+                          }}
+                        >
+                          d{caras}
+                          {grupo && <span className="dado-tipo-cant">×{grupo.cantidad}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {compuestaAbierta ? (
+                  <div className="dados-compuesta-items">
+                    {gruposCompuesta.map(grupo => (
+                      <div key={grupo.id} className="dados-compuesta-item">
+                        <span className="dados-compuesta-item-dado">
+                          {grupo.cantidad}d{grupo.caras}
+                        </span>
+                        <div className="dados-compuesta-item-controles">
                           <button
                             type="button"
-                            className="dados-grupo-quitar"
-                            onClick={() => eliminarGrupoCompuesta(grupo.id)}
-                            aria-label={`Quitar dado ${idx + 1}`}
-                            title="Quitar este dado"
+                            onClick={() =>
+                              actualizarGrupoCompuesta(grupo.id, {
+                                cantidad: Math.max(1, grupo.cantidad - 1)
+                              })
+                            }
+                            aria-label={`Menos d${grupo.caras}`}
                           >
-                            <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                            <Minus size={11} strokeWidth={2.5} aria-hidden="true" />
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              actualizarGrupoCompuesta(grupo.id, {
+                                cantidad: Math.min(20, grupo.cantidad + 1)
+                              })
+                            }
+                            aria-label={`Más d${grupo.caras}`}
+                          >
+                            <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
+                          </button>
+                          {gruposCompuesta.length > 1 && (
+                            <button
+                              type="button"
+                              className="quitar"
+                              onClick={() => eliminarGrupoCompuesta(grupo.id)}
+                              aria-label={`Quitar d${grupo.caras}`}
+                              title={`Quitar d${grupo.caras}`}
+                            >
+                              <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                ) : null}
 
+                <div className={compuestaAbierta ? "dados-fila" : "dados-steppers-par"}>
+                  {!compuestaAbierta && (
+                    <div className="dados-fila">
+                      <span className="dados-campo-etiqueta">Cantidad</span>
                       <div className="dados-stepper">
                         <button
                           type="button"
-                          onClick={() =>
-                            actualizarGrupoCompuesta(grupo.id, {
-                              cantidad: Math.max(1, grupo.cantidad - 1)
-                            })
-                          }
+                          onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
                           aria-label="Menos dados"
                         >
                           <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
@@ -4050,106 +5198,68 @@ export function Sala({
                           type="number"
                           min={1}
                           max={20}
-                          value={grupo.cantidad}
+                          value={cantidadDados}
                           onChange={e => {
                             const valor = parseInt(e.target.value, 10);
-                            actualizarGrupoCompuesta(grupo.id, {
-                              cantidad: Number.isNaN(valor) ? 1 : limitar(valor, 1, 20)
-                            });
+                            setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
                           }}
                           aria-label="Número de dados"
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            actualizarGrupoCompuesta(grupo.id, {
-                              cantidad: Math.min(20, grupo.cantidad + 1)
-                            })
-                          }
+                          onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
                           aria-label="Más dados"
                         >
                           <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
                         </button>
                       </div>
-
-                      <div className="dados-tipos" role="group" aria-label="Tipo de dado">
-                        {TIPOS_DADO.map(caras => (
-                          <button
-                            key={caras}
-                            type="button"
-                            className={`dado-tipo-btn${grupo.caras === caras ? " activo" : ""}`}
-                            onClick={() => actualizarGrupoCompuesta(grupo.id, { caras })}
-                          >
-                            d{caras}
-                          </button>
-                        ))}
-                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
 
-                {gruposCompuesta.length < 6 && (
-                  <button
-                    type="button"
-                    className="dados-agregar-grupo"
-                    onClick={agregarGrupoCompuesta}
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                    <span>Añadir otro dado</span>
-                  </button>
-                )}
-
-                <div className="dados-fila">
-                  <span className="dados-campo-etiqueta">Bonificador</span>
-                  <div className="dados-stepper">
-                    <button
-                      type="button"
-                      onClick={() => setBonificadorCompuesta(b => Math.max(-99, b - 1))}
-                      aria-label="Reducir bonificador"
-                    >
-                      <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                    </button>
-                    <input
-                      type="number"
-                      min={-99}
-                      max={99}
-                      value={bonificadorCompuesta}
-                      onChange={e => {
-                        const valor = parseInt(e.target.value, 10);
-                        setBonificadorCompuesta(
-                          Number.isNaN(valor) ? 0 : limitar(valor, -99, 99)
-                        );
-                      }}
-                      aria-label="Bonificador"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setBonificadorCompuesta(b => Math.min(99, b + 1))}
-                      aria-label="Aumentar bonificador"
-                    >
-                      <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                    </button>
+                  <div className="dados-fila">
+                    <span className="dados-campo-etiqueta">Bonificador</span>
+                    <div className="dados-stepper">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          compuestaAbierta
+                            ? setBonificadorCompuesta(b => Math.max(-99, b - 1))
+                            : setBonificador(b => Math.max(-99, b - 1))
+                        }
+                        aria-label="Reducir bonificador"
+                      >
+                        <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                      <input
+                        type="number"
+                        min={-99}
+                        max={99}
+                        value={compuestaAbierta ? bonificadorCompuesta : bonificador}
+                        onChange={e => {
+                          const valor = parseInt(e.target.value, 10);
+                          const limpio = Number.isNaN(valor) ? 0 : limitar(valor, -99, 99);
+                          if (compuestaAbierta) {
+                            setBonificadorCompuesta(limpio);
+                          } else {
+                            setBonificador(limpio);
+                          }
+                        }}
+                        aria-label="Bonificador"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          compuestaAbierta
+                            ? setBonificadorCompuesta(b => Math.min(99, b + 1))
+                            : setBonificador(b => Math.min(99, b + 1))
+                        }
+                        aria-label="Aumentar bonificador"
+                      >
+                        <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => setTiradaSecreta(s => !s)}
-                  aria-pressed={tiradaSecreta}
-                >
-                  {esMaster ? (
-                    <>
-                      <span className="dados-secreto-punto" aria-hidden="true" />
-                      <span>Dados negros (solo Máster)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
-                      <span>Solo para el Máster (susurro)</span>
-                    </>
-                  )}
-                </button>
 
                 <button
                   type="submit"
@@ -4158,19 +5268,18 @@ export function Sala({
                 >
                   {tiradaSecreta
                     ? esMaster
-                      ? "Tirar en secreto "
-                      : "Tirar al Máster "
-                    : "Tirar "}
-                  {formatearFormulaCompuesta(gruposCompuesta, bonificadorCompuesta)}
+                      ? `Tirar en secreto · ${formulaActual}`
+                      : `Tirar al Máster · ${formulaActual}`
+                    : `Tirar · ${formulaActual}`}
                 </button>
               </form>
-            </div>
-          )}
+            );
+          })()}
 
           {macrosAbierto && !ajuste && (
             <div
-              className={`dados-selector macros-selector${calibracion.dock.y < 30 ? " debajo" : ""}${macroSecreta ? " secreta" : ""}`}
-              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+              className={`dados-selector macros-selector${macroSecreta ? " secreta" : ""}`}
+              style={{ bottom: "136px", left: "50%", top: "auto", transform: "translateX(-50%)" }}
               role="dialog"
               aria-label="Macros de tirada"
             >
@@ -4260,9 +5369,13 @@ export function Sala({
                           <button
                             type="button"
                             className="macro-lanzar-btn"
-                            onClick={() => lanzarMacro(macro)}
+                            onPointerDown={evento => iniciarMacroMenu(evento, macro)}
+                            onClick={() => {
+                              if (arrastreDocMovido.current) return;
+                              lanzarMacro(macro);
+                            }}
                             disabled={tirando}
-                            title={`Lanzar ${macro.nombre} (${formula})`}
+                            title={`Clic para lanzar · Arrastra a la mesa (${formula})`}
                           >
                             <span className="macro-icono-badge">
                               <IconoMacro id={macro.icono} size={15} />
@@ -4367,6 +5480,28 @@ export function Sala({
                         >
                           <IconoMacro id={item.id} size={15} />
                         </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="macro-campo-icono">
+                  <span className="dados-campo-etiqueta">Color de fondo</span>
+                  <div className="macro-color-grid" role="radiogroup" aria-label="Color de la macro">
+                    {COLORES_MACRO.map(c => {
+                      const seleccionado = macroColor === c.hex;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`macro-color-opcion${seleccionado ? " activo" : ""}`}
+                          style={{ background: c.hex || "rgb(16 12 24 / 95%)" }}
+                          onClick={() => setMacroColor(c.hex)}
+                          title={c.nombre}
+                          aria-label={c.nombre}
+                          aria-checked={seleccionado}
+                          role="radio"
+                        />
                       );
                     })}
                   </div>
@@ -4503,8 +5638,12 @@ export function Sala({
             !macrosAbierto &&
             !macroModalAbierto && (
             <div
-              className={`tirada-panel${calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
-              style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+              className={`tirada-panel${ajuste && calibracion.dock.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
+              style={
+                ajuste
+                  ? { left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }
+                  : { bottom: "136px", left: "50%", top: "auto", transform: "translateX(-50%)" }
+              }
             >
               <span className="tirada-icono">
                 <IconoDadoPoligono caras={tirada.caras} />
@@ -4556,9 +5695,21 @@ export function Sala({
                   onActivar={setPositActivo}
                   onTexto={cambiarTextoPositMesa}
                   onColor={cambiarColorPositMesa}
+                  onCompartirATodos={
+                    esMaster && onCompartirATodos
+                      ? id => {
+                          const positElem = elementosMesa.find(
+                            (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+                              el.id === id && el.tipo === "posit" && !el.archivado
+                          );
+                          if (positElem) void onCompartirATodos(positElem);
+                        }
+                      : undefined
+                  }
                   onArchivar={archivarPositMesa}
                   onBorrar={borrarPositMesa}
                   onArrastrar={iniciarPositMesa}
+                  onRedimensionar={redimensionarPositMesa}
                 />
               ))}
 
@@ -4567,6 +5718,8 @@ export function Sala({
                 return (
                   <div
                     key={doc.id}
+                    data-supr-id={doc.id}
+                    data-supr-tipo="archivo"
                     className="ficha-doc"
                     style={
                       {
@@ -4643,6 +5796,20 @@ export function Sala({
                           />
                         </button>
                       )}
+                      {esMaster && onCompartirATodos && (
+                        <button
+                          type="button"
+                          className="doc-master-icono"
+                          title="Dar a todos"
+                          aria-label="Dar a todos"
+                          onClick={evento => {
+                            evento.stopPropagation();
+                            void onCompartirATodos(doc);
+                          }}
+                        >
+                          <Users size={13} strokeWidth={2.1} aria-hidden="true" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="posit-archivar"
@@ -4698,6 +5865,8 @@ export function Sala({
               {objetosVisibles.map(obj => (
                 <div
                   key={obj.id}
+                  data-supr-id={obj.id}
+                  data-supr-tipo="objeto"
                   className="mesa-objeto"
                   style={{ left: `${obj.x}%`, top: `${obj.y}%` }}
                   title={`${obj.nombre} (x${obj.cantidad})`}
@@ -4723,12 +5892,81 @@ export function Sala({
                   <span className="mesa-objeto-nombre">{obj.nombre}</span>
                 </div>
               ))}
+
+              {macrosVisibles.map(macroElem => (
+                <div
+                  key={macroElem.id}
+                  data-supr-id={macroElem.id}
+                  data-supr-tipo="macro"
+                  className="mesa-macro-rombo"
+                  style={{
+                    left: `${macroElem.x}%`,
+                    top: `${macroElem.y}%`
+                  }}
+                  onPointerDown={evento => iniciarMacroMesa(evento, macroElem)}
+                  onClick={() => {
+                    if (arrastreDocMovido.current) return;
+                    lanzarMacro({
+                      id: macroElem.macroId,
+                      nombre: macroElem.nombre,
+                      icono: macroElem.icono,
+                      grupos: macroElem.grupos,
+                      bonificador: macroElem.bonificador
+                    });
+                  }}
+                  title={`Lanzar ${macroElem.nombre}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Lanzar ${macroElem.nombre}`}
+                  onKeyDown={evento => {
+                    if (evento.key === "Enter" || evento.key === " ") {
+                      evento.preventDefault();
+                      lanzarMacro({
+                        id: macroElem.macroId,
+                        nombre: macroElem.nombre,
+                        icono: macroElem.icono,
+                        grupos: macroElem.grupos,
+                        bonificador: macroElem.bonificador
+                      });
+                    }
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="mesa-macro-rombo-cerrar"
+                    title="Quitar macro de la mesa"
+                    aria-label={`Quitar ${macroElem.nombre} de la mesa`}
+                    onPointerDown={evento => evento.stopPropagation()}
+                    onClick={evento => {
+                      evento.stopPropagation();
+                      onElementosMesa?.(prev =>
+                        prev.filter(el => el.id !== macroElem.id)
+                      );
+                    }}
+                  >
+                    <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                  </button>
+                  <div
+                    className="mesa-macro-rombo-cuadro"
+                    style={macroElem.color ? { background: macroElem.color } : undefined}
+                  >
+                    <span className="mesa-macro-rombo-icono">
+                      <IconoMacro id={macroElem.icono} size={22} />
+                    </span>
+                  </div>
+                  <span className="mesa-macro-rombo-nombre">{macroElem.nombre}</span>
+                </div>
+              ))}
             </div>
           )}
 
           <div
             className={`sala-dock${ajuste ? " ajustable" : ""}`}
-            style={{ left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }}
+            style={
+              ajuste
+                ? { left: `${calibracion.dock.x}%`, top: `${calibracion.dock.y}%` }
+                : { bottom: "64px", left: "50%", top: "auto", transform: "translateX(-50%)" }
+            }
             onPointerDown={ajuste ? iniciarDock : undefined}
           >
             <div className="dock-item">
@@ -5253,6 +6491,18 @@ export function Sala({
                 >
                   Guardar en mochila
                 </button>
+                {esMaster && onCompartirATodos && (
+                  <button
+                    type="button"
+                    className="mochila-accion-sec"
+                    onClick={() => {
+                      void onCompartirATodos(objetoMesaActivo);
+                      setObjetoMesaActivo(null);
+                    }}
+                  >
+                    Dar a todos
+                  </button>
+                )}
                 <button
                   type="button"
                   className="transferencia-btn-rechazar"
@@ -5290,6 +6540,18 @@ export function Sala({
                   >
                     Descargar
                   </a>
+                )}
+                {esMaster && onCompartirATodos && itemAbierto.tipo !== "macro" && (
+                  <button
+                    type="button"
+                    className="archivo-visor-descargar"
+                    onClick={() => {
+                      void onCompartirATodos(itemAbierto);
+                      setItemAbierto(null);
+                    }}
+                  >
+                    Dar a todos
+                  </button>
                 )}
                 {jugadorSeleccionado && onEnviarElemento && (
                   <button
@@ -5342,7 +6604,7 @@ export function Sala({
                     {itemAbierto.descripcion || itemAbierto.nombre}
                   </p>
                 </div>
-              ) : itemAbierto.vista === "imagen" ? (
+              ) : itemAbierto.tipo !== "archivo" ? null : itemAbierto.vista === "imagen" ? (
                 <img
                   src={
                     itemAbierto.contenidoLocal ??

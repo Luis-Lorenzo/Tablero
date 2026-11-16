@@ -1,6 +1,13 @@
 import { AwsClient } from "aws4fetch";
 import type { R2Config } from "./config.js";
 
+export interface StreamLectura {
+  stream: ReadableStream<Uint8Array>;
+  status?: number;
+  contentRange?: string;
+  contentLength?: number;
+}
+
 /**
  * Almacén de objetos (Cloudflare R2, compatible con S3). Guarda los bytes de
  * cada archivo bajo una clave única; los metadatos viven en la base de datos.
@@ -8,7 +15,7 @@ import type { R2Config } from "./config.js";
 export interface AlmacenArchivos {
   guardar(clave: string, datos: Uint8Array, tipo: string): Promise<void>;
   leer(clave: string): Promise<Uint8Array | undefined>;
-  leerStream?(clave: string): Promise<ReadableStream<Uint8Array> | undefined>;
+  leerStream?(clave: string, range?: string): Promise<StreamLectura | null>;
   borrar(clave: string): Promise<void>;
 }
 
@@ -23,6 +30,34 @@ export class MemoryAlmacen implements AlmacenArchivos {
   async leer(clave: string): Promise<Uint8Array | undefined> {
     const datos = this.objetos.get(clave);
     return datos ? Uint8Array.from(datos) : undefined;
+  }
+
+  async leerStream(clave: string, range?: string): Promise<StreamLectura | null> {
+    const datos = this.objetos.get(clave);
+    if (!datos) return null;
+
+    const total = datos.byteLength;
+    const match = range?.trim().match(/^bytes=(\d+)-(\d*)$/);
+    if (match && total > 0) {
+      const start = Number(match[1]);
+      const rawEnd = match[2] ? Number(match[2]) : total - 1;
+      const end = Math.min(rawEnd, total - 1);
+      if (Number.isFinite(start) && Number.isFinite(end) && start <= end && start < total) {
+        const slice = datos.slice(start, end + 1);
+        return {
+          stream: streamDeBytes(slice),
+          status: 206,
+          contentRange: `bytes ${start}-${end}/${total}`,
+          contentLength: slice.byteLength
+        };
+      }
+    }
+
+    return {
+      stream: streamDeBytes(Uint8Array.from(datos)),
+      status: 200,
+      contentLength: total
+    };
   }
 
   async borrar(clave: string): Promise<void> {
@@ -78,20 +113,40 @@ export class R2Almacen implements AlmacenArchivos {
     return new Uint8Array(await respuesta.arrayBuffer());
   }
 
-  async leerStream(clave: string): Promise<ReadableStream<Uint8Array> | undefined> {
+  async leerStream(clave: string, range?: string): Promise<StreamLectura | null> {
+    const headers: Record<string, string> = {};
+    if (range) {
+      headers.Range = range;
+    }
+
     const respuesta = await this.cliente.fetch(this.url(clave), {
-      method: "GET"
+      method: "GET",
+      ...(range ? { headers } : {})
     });
 
     if (respuesta.status === 404) {
-      return undefined;
+      return null;
     }
 
     if (!respuesta.ok) {
       throw new Error(`R2_GET_${respuesta.status}`);
     }
 
-    return respuesta.body ?? undefined;
+    if (!respuesta.body) {
+      return null;
+    }
+
+    const contentRange = respuesta.headers.get("content-range") ?? undefined;
+    const rawLength = respuesta.headers.get("content-length");
+    const parsedLength = rawLength !== null ? Number(rawLength) : NaN;
+    const contentLength = Number.isFinite(parsedLength) ? parsedLength : undefined;
+
+    return {
+      stream: respuesta.body,
+      status: respuesta.status,
+      ...(contentRange ? { contentRange } : {}),
+      ...(contentLength !== undefined ? { contentLength } : {})
+    };
   }
 
   async borrar(clave: string): Promise<void> {
@@ -113,4 +168,15 @@ function aBuffer(datos: Uint8Array): ArrayBuffer {
   const copia = new ArrayBuffer(datos.byteLength);
   new Uint8Array(copia).set(datos);
   return copia;
+}
+
+function streamDeBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (bytes.byteLength > 0) {
+        controller.enqueue(bytes);
+      }
+      controller.close();
+    }
+  });
 }

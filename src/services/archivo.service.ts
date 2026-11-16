@@ -100,19 +100,34 @@ export class ArchivoService {
 
   async obtenerStream(
     actor: User,
-    id: string
+    id: string,
+    range?: string
   ): Promise<
-    | { archivo: Archivo; stream: ReadableStream<Uint8Array> }
+    | {
+        archivo: Archivo;
+        stream: ReadableStream<Uint8Array>;
+        status?: number;
+        contentRange?: string;
+        contentLength?: number;
+      }
     | { archivo: Archivo; datos: Uint8Array }
   > {
     const archivo = await this.autorizadoLectura(actor, id);
 
     if (this.almacen.leerStream) {
-      const stream = await this.almacen.leerStream(archivo.clave);
-      if (!stream) {
+      const resultado = await this.almacen.leerStream(archivo.clave, range);
+      if (!resultado) {
         throw errors.archivoNotFound();
       }
-      return { archivo, stream };
+      return {
+        archivo,
+        stream: resultado.stream,
+        ...(resultado.status !== undefined ? { status: resultado.status } : {}),
+        ...(resultado.contentRange ? { contentRange: resultado.contentRange } : {}),
+        ...(resultado.contentLength !== undefined
+          ? { contentLength: resultado.contentLength }
+          : {})
+      };
     }
 
     const datos = await this.almacen.leer(archivo.clave);
@@ -208,7 +223,10 @@ export class ArchivoService {
           mesa.players.includes(archivo.ownerId);
         const usadoComoImagen =
           mesa.imagenEscena?.id === id || mesa.imagenProyectada?.id === id;
-        return duenoEnMesa || usadoComoImagen;
+        const usadoComoMusica = Boolean(
+          mesa.musicaAmbiente?.pistas.some(p => p.archivoId === id)
+        );
+        return duenoEnMesa || usadoComoImagen || usadoComoMusica;
       });
 
       if (compartidoEnMesa) {

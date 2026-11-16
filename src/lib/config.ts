@@ -26,8 +26,8 @@ export const config = {
     endpoint: read("R2_ENDPOINT")
   },
   archivos: {
-    /** Tamaño máximo por archivo subido (15 MiB por defecto). */
-    maxBytes: Number(process.env.ARCHIVO_MAX_BYTES) || 15 * 1024 * 1024
+    /** Tamaño máximo por archivo subido (30 MiB por defecto). */
+    maxBytes: Number(process.env.ARCHIVO_MAX_BYTES) || 30 * 1024 * 1024
   }
 } as const;
 

@@ -61,7 +61,7 @@ export interface MensajeSala {
   createdAt: string;
   /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
   esSistema?: boolean;
-  /** Mensajes de cambio económico/divisa (aparecen en Todo y Chat, no en Dados). */
+  /** Mensajes de cambio económico/divisa (aparecen solo en Todo). */
   esDivisa?: boolean;
 }
 
@@ -84,6 +84,9 @@ export interface PositPreview {
   y: number;
   /** Inclinación en grados, para que no parezcan pegados con regla. */
   giro: number;
+  /** Dimensiones personalizadas en píxeles (ancho 150..460, alto 110..420). */
+  ancho?: number;
+  alto?: number;
   /** Si está guardado en el archivador personal del jugador. */
   archivado?: boolean;
   /** Datos del creador para mostrar el aura de jugador o dorada del Máster. */
@@ -103,6 +106,8 @@ export type ElementoMesa =
       giro: number;
       x: number;
       y: number;
+      ancho?: number;
+      alto?: number;
       archivado?: boolean;
       remitente?: string;
       autorNombre?: string;
@@ -137,7 +142,38 @@ export type ElementoMesa =
       y: number;
       archivado?: boolean;
       remitente?: string;
+    }
+  | {
+      id: string;
+      tipo: "macro";
+      macroId: string;
+      nombre: string;
+      icono: string;
+      color?: string;
+      grupos: GrupoDadoMacro[];
+      bonificador: number;
+      x: number;
+      y: number;
+      archivado?: boolean;
     };
+
+export const COLORES_DIVISA = [
+  { id: "azul-electrico", nombre: "Azul eléctrico", hex: "#2563eb" },
+  { id: "magenta", nombre: "Magenta", hex: "#d946ef" },
+  { id: "blanco", nombre: "Blanco", hex: "#f8fafc" },
+  { id: "verde", nombre: "Verde", hex: "#22c55e" },
+  { id: "cobre", nombre: "Cobre", hex: "#b87333" },
+  { id: "plata", nombre: "Plata", hex: "#cbd5e1" },
+  { id: "negro-carbon", nombre: "Negro carbón", hex: "#27272a" },
+  { id: "rojo-rubi", nombre: "Rojo rubí", hex: "#e11d48" },
+  { id: "naranja", nombre: "Naranja", hex: "#f97316" }
+] as const;
+
+export interface DivisaConfig {
+  id: string;
+  nombre: string;
+  color: string;
+}
 
 export interface ObjetoMochila {
   id: string;
@@ -216,10 +252,34 @@ export interface GrupoDadoMacro {
   cantidad: number;
 }
 
+export const COLORES_MACRO = [
+  { id: "defecto", nombre: "Oscuro", hex: "" },
+  { id: "negro-carbon", nombre: "Negro carbón", hex: "#18181b" },
+  { id: "acero", nombre: "Gris acero", hex: "#334155" },
+  { id: "rojo", nombre: "Rojo oscuro", hex: "#7f1d1d" },
+  { id: "carmesi", nombre: "Carmesí", hex: "#b91c1c" },
+  { id: "naranja", nombre: "Naranja", hex: "#9a3412" },
+  { id: "ambar", nombre: "Ámbar", hex: "#b45309" },
+  { id: "dorado", nombre: "Dorado", hex: "#854d0e" },
+  { id: "lima", nombre: "Lima oscuro", hex: "#3f6212" },
+  { id: "verde", nombre: "Verde bosque", hex: "#14532d" },
+  { id: "esmeralda", nombre: "Esmeralda", hex: "#065f46" },
+  { id: "turquesa", nombre: "Turquesa", hex: "#115e59" },
+  { id: "cyan", nombre: "Cian", hex: "#155e75" },
+  { id: "azul", nombre: "Azul marino", hex: "#1e3a8a" },
+  { id: "cobalto", nombre: "Azul cobalto", hex: "#1d4ed8" },
+  { id: "indigo", nombre: "Índigo", hex: "#3730a3" },
+  { id: "morado", nombre: "Morado", hex: "#581c87" },
+  { id: "violeta", nombre: "Violeta", hex: "#6d28d9" },
+  { id: "magenta", nombre: "Magenta", hex: "#831843" },
+  { id: "rosa", nombre: "Rosa oscuro", hex: "#9d174d" }
+] as const;
+
 export interface MacroTirada {
   id: string;
   nombre: string;
   icono: string;
+  color?: string;
   grupos: GrupoDadoMacro[];
   bonificador: number;
 }

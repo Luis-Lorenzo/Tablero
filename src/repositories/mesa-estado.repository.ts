@@ -13,6 +13,7 @@ export interface ObjetoMochilaPersistido {
 export interface EstadoJugadorMesa {
   elementos: ElementoMesaPersistido[];
   divisa: number;
+  divisasSaldos?: Record<string, number>;
   mochila: ObjetoMochilaPersistido[];
 }
 
@@ -24,7 +25,17 @@ export interface MesaEstadoRepository {
     elementos: ElementoMesaPersistido[]
   ): Promise<void>;
   getEstadoCompleto?(mesaId: string, userId: string): Promise<EstadoJugadorMesa>;
+  getEstadosPorMesa?(
+    mesaId: string,
+    userIds: string[]
+  ): Promise<Map<string, EstadoJugadorMesa>>;
   saveDivisa?(mesaId: string, userId: string, divisa: number): Promise<number>;
+  saveDivisaSaldo?(
+    mesaId: string,
+    userId: string,
+    divisaId: string,
+    divisa: number
+  ): Promise<{ divisa: number; divisasSaldos: Record<string, number> }>;
   saveMochila?(
     mesaId: string,
     userId: string,
@@ -44,6 +55,23 @@ export function sanitizarDivisa(raw: unknown): number {
   return Math.max(0, Math.min(MAX_DIVISA, Math.trunc(raw)));
 }
 
+export function sanitizarDivisaId(raw: unknown): string {
+  if (typeof raw !== "string") return "principal";
+  const limpio = raw.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+  return limpio || "principal";
+}
+
+export function sanitizarDivisasSaldos(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const resultado: Record<string, number> = {};
+  for (const [clave, valor] of Object.entries(raw as Record<string, unknown>)) {
+    const id = clave.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+    if (!id) continue;
+    resultado[id] = sanitizarDivisa(valor);
+  }
+  return resultado;
+}
+
 /**
  * Elimina campos locales efímeros (base64 / blob URLs) para no almacenar
  * binarios en PostgreSQL.
@@ -56,6 +84,12 @@ export function sanitizarElementosMesa(raw: unknown): ElementoMesaPersistido[] {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const copia = { ...(item as Record<string, unknown>) };
     delete copia.contenidoLocal;
+    for (const campo of ["url", "imagenUrl", "imagenLocal"] as const) {
+      const valor = copia[campo];
+      if (typeof valor === "string" && valor.trimStart().toLowerCase().startsWith("data:")) {
+        delete copia[campo];
+      }
+    }
     if (typeof copia.id === "string" && typeof copia.tipo === "string") {
       limpios.push(copia);
     }
@@ -114,6 +148,7 @@ export function sanitizarMochila(raw: unknown): ObjetoMochilaPersistido[] {
 export class MemoryMesaEstadoRepository implements MesaEstadoRepository {
   private readonly estados = new Map<string, ElementoMesaPersistido[]>();
   private readonly divisas = new Map<string, number>();
+  private readonly divisasSaldos = new Map<string, Record<string, number>>();
   private readonly mochilas = new Map<string, ObjetoMochilaPersistido[]>();
 
   private clave(mesaId: string, userId: string): string {
@@ -143,14 +178,54 @@ export class MemoryMesaEstadoRepository implements MesaEstadoRepository {
     const k = this.clave(mesaId, userId);
     const elementos = await this.getElementos(mesaId, userId);
     const divisa = this.divisas.get(k) ?? 0;
+    const saldos = { ...(this.divisasSaldos.get(k) ?? {}) };
+    if (saldos.principal === undefined && divisa > 0) {
+      saldos.principal = divisa;
+    }
     const mochila = (this.mochilas.get(k) ?? []).map(item => ({ ...item }));
-    return { elementos, divisa, mochila };
+    return { elementos, divisa, divisasSaldos: saldos, mochila };
+  }
+
+  async getEstadosPorMesa(
+    mesaId: string,
+    userIds: string[]
+  ): Promise<Map<string, EstadoJugadorMesa>> {
+    const mapa = new Map<string, EstadoJugadorMesa>();
+    for (const userId of userIds) {
+      mapa.set(userId, await this.getEstadoCompleto(mesaId, userId));
+    }
+    return mapa;
   }
 
   async saveDivisa(mesaId: string, userId: string, divisa: number): Promise<number> {
+    const k = this.clave(mesaId, userId);
     const limpia = sanitizarDivisa(divisa);
-    this.divisas.set(this.clave(mesaId, userId), limpia);
+    this.divisas.set(k, limpia);
+    const saldos = { ...(this.divisasSaldos.get(k) ?? {}) };
+    saldos.principal = limpia;
+    this.divisasSaldos.set(k, saldos);
     return limpia;
+  }
+
+  async saveDivisaSaldo(
+    mesaId: string,
+    userId: string,
+    divisaId: string,
+    divisa: number
+  ): Promise<{ divisa: number; divisasSaldos: Record<string, number> }> {
+    const k = this.clave(mesaId, userId);
+    const id = sanitizarDivisaId(divisaId);
+    const limpia = sanitizarDivisa(divisa);
+    const saldos = { ...(this.divisasSaldos.get(k) ?? {}) };
+    saldos[id] = limpia;
+    this.divisasSaldos.set(k, saldos);
+    if (id === "principal") {
+      this.divisas.set(k, limpia);
+    }
+    return {
+      divisa: this.divisas.get(k) ?? 0,
+      divisasSaldos: { ...saldos }
+    };
   }
 
   async saveMochila(

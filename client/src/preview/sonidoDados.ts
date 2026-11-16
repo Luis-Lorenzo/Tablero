@@ -45,6 +45,21 @@ function tocarNota(
   osc.stop(inicio + duracion + 0.02);
 }
 
+function ejecutarConContexto(fn: (ctx: AudioContext) => void): void {
+  const ctx = obtenerContexto();
+  if (!ctx) return;
+  if (ctx.state === "suspended") {
+    void ctx
+      .resume()
+      .then(() => {
+        fn(ctx);
+      })
+      .catch(() => {});
+    return;
+  }
+  fn(ctx);
+}
+
 /**
  * Reproduce un efecto breve de dados rodando sobre la mesa (Web Audio API)
  * pensado para las tiradas rápidas.
@@ -52,21 +67,20 @@ function tocarNota(
 export function reproducirSonidoRoll(): void {
   if (estaSonidoSilenciado()) return;
   try {
-    const ctx = obtenerContexto();
-    if (!ctx) return;
+    ejecutarConContexto(ctx => {
+      const ahora = ctx.currentTime;
+      const golpes = [
+        { t: 0, freq: 290, dur: 0.045, vol: 0.07 },
+        { t: 0.055, freq: 380, dur: 0.04, vol: 0.065 },
+        { t: 0.11, freq: 250, dur: 0.045, vol: 0.06 },
+        { t: 0.165, freq: 440, dur: 0.038, vol: 0.055 },
+        { t: 0.225, freq: 320, dur: 0.045, vol: 0.045 },
+        { t: 0.29, freq: 265, dur: 0.055, vol: 0.035 }
+      ];
 
-    const ahora = ctx.currentTime;
-    const golpes = [
-      { t: 0, freq: 290, dur: 0.045, vol: 0.07 },
-      { t: 0.055, freq: 380, dur: 0.04, vol: 0.065 },
-      { t: 0.11, freq: 250, dur: 0.045, vol: 0.06 },
-      { t: 0.165, freq: 440, dur: 0.038, vol: 0.055 },
-      { t: 0.225, freq: 320, dur: 0.045, vol: 0.045 },
-      { t: 0.29, freq: 265, dur: 0.055, vol: 0.035 }
-    ];
-
-    golpes.forEach(g => {
-      tocarNota(ctx, g.freq, ahora + g.t, g.dur, "triangle", g.vol);
+      golpes.forEach(g => {
+        tocarNota(ctx, g.freq, ahora + g.t, g.dur, "triangle", g.vol);
+      });
     });
   } catch {
     // Sin soporte de audio o bloqueado por política del navegador: se ignora.
@@ -81,24 +95,23 @@ export function reproducirSonidoTirada(especial: TipoEspecialTirada | undefined)
   if (!especial || estaSonidoSilenciado()) return;
 
   try {
-    const ctx = obtenerContexto();
-    if (!ctx) return;
+    ejecutarConContexto(ctx => {
+      const ahora = ctx.currentTime;
 
-    const ahora = ctx.currentTime;
+      if (especial === "critico") {
+        // Acorde ascendente brillante de logro (Do5 - Mi5 - Sol5 - Do6).
+        const notas = [523.25, 659.25, 783.99, 1046.5];
+        notas.forEach((freq, i) => {
+          tocarNota(ctx, freq, ahora + i * 0.075, 0.24, "triangle", 0.16);
+        });
+        return;
+      }
 
-    if (especial === "critico") {
-      // Acorde ascendente brillante de logro (Do5 - Mi5 - Sol5 - Do6).
-      const notas = [523.25, 659.25, 783.99, 1046.5];
-      notas.forEach((freq, i) => {
-        tocarNota(ctx, freq, ahora + i * 0.075, 0.24, "triangle", 0.16);
-      });
-      return;
-    }
-
-    // Pifia: descenso grave de fallo.
-    tocarNota(ctx, 220, ahora, 0.18, "sawtooth", 0.11);
-    tocarNota(ctx, 185, ahora + 0.14, 0.18, "sawtooth", 0.11);
-    tocarNota(ctx, 138.59, ahora + 0.28, 0.3, "triangle", 0.14);
+      // Pifia: descenso grave de fallo.
+      tocarNota(ctx, 220, ahora, 0.18, "sawtooth", 0.11);
+      tocarNota(ctx, 185, ahora + 0.14, 0.18, "sawtooth", 0.11);
+      tocarNota(ctx, 138.59, ahora + 0.28, 0.3, "triangle", 0.14);
+    });
   } catch {
     // Sin soporte de audio o bloqueado por política del navegador: se ignora.
   }

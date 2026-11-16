@@ -6,10 +6,16 @@ import {
   toPublicTransferencia
 } from "./serializers.js";
 import { errors } from "../lib/errors.js";
+import { vistaDe } from "../lib/archivos.js";
+import {
+  resolverDivisasConfig,
+  sanitizarMusicaAmbiente
+} from "../repositories/mesa.repository.js";
 import { nombreDeUsuario } from "../repositories/user.repository.js";
 import {
   MemoryMesaEstadoRepository,
   sanitizarDivisa,
+  sanitizarDivisaId,
   sanitizarElementosMesa,
   sanitizarMochila
 } from "../repositories/mesa-estado.repository.js";
@@ -429,6 +435,119 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   );
 
+  router.post("/:id/compartir-todos", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      const esAdminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+      if (mesa.hostId !== actor.id && !esAdminLibre) {
+        throw errors.mesaForbidden();
+      }
+
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const tipo = body.tipo;
+      if (tipo !== "posit" && tipo !== "archivo" && tipo !== "objeto") {
+        throw errors.invalidRequest();
+      }
+
+      let elemento: Record<string, unknown>;
+
+      if (tipo === "posit") {
+        const rawPosit = (body.posit ?? {}) as {
+          texto?: unknown;
+          color?: unknown;
+          giro?: unknown;
+        };
+        const texto = typeof rawPosit.texto === "string" ? rawPosit.texto.slice(0, 2000) : "";
+        const color =
+          typeof rawPosit.color === "string" && rawPosit.color.trim()
+            ? rawPosit.color.trim()
+            : "#f7ffae";
+        const giro =
+          typeof rawPosit.giro === "number" && Number.isFinite(rawPosit.giro)
+            ? Math.max(-15, Math.min(15, rawPosit.giro))
+            : 0;
+        elemento = {
+          tipo: "posit",
+          posit: { texto, color, giro }
+        };
+      } else if (tipo === "archivo") {
+        const archivoId = typeof body.archivoId === "string" ? body.archivoId.trim() : "";
+        if (!archivoId) throw errors.invalidRequest();
+        const archivo = await context.archivoService.obtenerMetadatos(actor, archivoId);
+        elemento = {
+          tipo: "archivo",
+          archivo: {
+            id: archivo.id,
+            nombre: archivo.nombre,
+            tipo: archivo.tipo,
+            vista: vistaDe(archivo.tipo),
+            tamano: archivo.tamano
+          }
+        };
+      } else {
+        const rawObj = (body.objeto ?? {}) as Record<string, unknown>;
+        const nombre = typeof rawObj.nombre === "string" ? rawObj.nombre.trim().slice(0, 60) : "";
+        if (!nombre) throw errors.invalidRequest();
+        const descripcion =
+          typeof rawObj.descripcion === "string" ? rawObj.descripcion.slice(0, 1000) : "";
+        const cantidadBruta =
+          typeof rawObj.cantidad === "number" && Number.isFinite(rawObj.cantidad)
+            ? Math.trunc(rawObj.cantidad)
+            : 1;
+        const cantidad = Math.max(1, Math.min(9999, cantidadBruta));
+        const emoji =
+          typeof rawObj.emoji === "string" && rawObj.emoji.trim()
+            ? rawObj.emoji.trim().slice(0, 16)
+            : undefined;
+        const idOrigen =
+          typeof rawObj.idOrigen === "string" && rawObj.idOrigen.trim()
+            ? rawObj.idOrigen.trim().slice(0, 80)
+            : undefined;
+        let archivoId: string | undefined;
+        let archivoNombre: string | undefined;
+        if (typeof rawObj.archivoId === "string" && rawObj.archivoId.trim()) {
+          const archivo = await context.archivoService.obtenerMetadatos(
+            actor,
+            rawObj.archivoId.trim()
+          );
+          archivoId = archivo.id;
+          archivoNombre = archivo.nombre;
+        }
+        elemento = {
+          tipo: "objeto",
+          objeto: {
+            ...(idOrigen ? { idOrigen } : {}),
+            nombre,
+            descripcion,
+            cantidad,
+            ...(emoji ? { emoji } : {}),
+            ...(archivoId ? { archivoId } : {}),
+            ...(archivoNombre ? { archivoNombre } : {})
+          }
+        };
+      }
+
+      const destinatarios = [mesa.hostId, ...mesa.players].filter(id => id !== actor.id);
+      if (destinatarios.length > 0) {
+        context.mesasNotifier.enviarAUsuarios(destinatarios, {
+          type: "mesa:compartir-todos",
+          mesaId,
+          emisorId: actor.id,
+          emisorNombre: nombreDeUsuario(actor),
+          elemento
+        });
+      }
+
+      res.json({ ok: true, destinatarios: destinatarios.length, elemento });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.delete("/:id", requireAuth, async (req, res, next) => {
     try {
       await context.mesaService.cerrar(req.currentUser!, String(req.params.id));
@@ -533,19 +652,31 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           : true
       );
 
+      const estadosPorUsuario = mesaEstado.getEstadosPorMesa
+        ? await mesaEstado.getEstadosPorMesa(mesaId, conectados)
+        : null;
+
       const jugadores = await Promise.all(
         conectados.map(async playerId => {
           const usuario = await context.userRepository.findById(playerId);
           const nombre = usuario ? nombreDeUsuario(usuario) : "Jugador";
           const color = mesa.colores?.[playerId] ?? "#96fbc7";
 
-          const estado = mesaEstado.getEstadoCompleto
-            ? await mesaEstado.getEstadoCompleto(mesaId, playerId)
-            : {
-                elementos: await mesaEstado.getElementos(mesaId, playerId),
+          const estado = estadosPorUsuario
+            ? (estadosPorUsuario.get(playerId) ?? {
+                elementos: [],
                 divisa: 0,
+                divisasSaldos: {},
                 mochila: []
-              };
+              })
+            : mesaEstado.getEstadoCompleto
+              ? await mesaEstado.getEstadoCompleto(mesaId, playerId)
+              : {
+                  elementos: await mesaEstado.getElementos(mesaId, playerId),
+                  divisa: 0,
+                  divisasSaldos: {},
+                  mochila: []
+                };
 
           const objetosMesa = estado.elementos
             .filter(el => el.tipo === "objeto" && typeof el.nombre === "string")
@@ -571,13 +702,17 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
             nombre,
             color,
             divisa: estado.divisa,
+            divisasSaldos: estado.divisasSaldos ?? {},
             mochila: estado.mochila,
             objetosMesa
           };
         })
       );
 
-      res.json({ jugadores });
+      res.json({
+        divisasConfig: resolverDivisasConfig(mesa),
+        jugadores
+      });
     } catch (error) {
       next(error);
     }
@@ -596,12 +731,17 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
       if (mesaEstado.getEstadoCompleto) {
         const estado = await mesaEstado.getEstadoCompleto(mesaId, actorId);
-        res.json(estado);
+        res.json({
+          elementos: estado.elementos,
+          divisa: estado.divisa,
+          divisasSaldos: estado.divisasSaldos ?? {},
+          mochila: estado.mochila
+        });
         return;
       }
 
       const elementos = await mesaEstado.getElementos(mesaId, actorId);
-      res.json({ elementos, divisa: 0, mochila: [] });
+      res.json({ elementos, divisa: 0, divisasSaldos: {}, mochila: [] });
     } catch (error) {
       next(error);
     }
@@ -650,31 +790,59 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         throw errors.forbidden();
       }
 
-      const body = (req.body ?? {}) as { divisa?: unknown; delta?: unknown };
+      const body = (req.body ?? {}) as {
+        divisaId?: unknown;
+        divisa?: unknown;
+        delta?: unknown;
+      };
+      const divisaId = sanitizarDivisaId(body.divisaId);
       const limpia = sanitizarDivisa(body.divisa);
-      const guardada = mesaEstado.saveDivisa
-        ? await mesaEstado.saveDivisa(mesaId, actor.id, limpia)
-        : limpia;
+
+      let guardada = limpia;
+      let divisasSaldos: Record<string, number> = { [divisaId]: limpia };
+
+      if (mesaEstado.saveDivisaSaldo) {
+        const resSaldo = await mesaEstado.saveDivisaSaldo(
+          mesaId,
+          actor.id,
+          divisaId,
+          limpia
+        );
+        divisasSaldos = resSaldo.divisasSaldos;
+        guardada = divisasSaldos[divisaId] ?? limpia;
+      } else if (mesaEstado.saveDivisa && divisaId === "principal") {
+        guardada = await mesaEstado.saveDivisa(mesaId, actor.id, limpia);
+        divisasSaldos = { principal: guardada };
+      }
 
       const delta =
         typeof body.delta === "number" && Number.isFinite(body.delta)
           ? Math.trunc(body.delta)
           : 0;
       if (delta !== 0) {
+        const divisasConfig = resolverDivisasConfig(mesa);
+        const divisaMeta = divisasConfig.find(d => d.id === divisaId);
+        const divisaNombre = divisaMeta?.nombre ?? (mesa.divisaNombre ?? "Divisa");
+        const color = divisaMeta?.color ?? mesa.colores?.[actor.id] ?? "#e8c56a";
+        const actorNombre = nombreDeUsuario(actor);
         const miembros = [mesa.hostId, ...mesa.players];
         context.mesasNotifier.enviarAUsuarios(miembros, {
           type: "mesa:divisa",
           mesaId,
-          jugadorId: actor.id,
-          jugadorNombre: nombreDeUsuario(actor),
-          delta,
+          userId: actor.id,
+          nombre: actorNombre,
+          color,
+          divisaId,
           divisa: guardada,
-          divisaNombre: mesa.divisaNombre ?? "Divisa",
+          divisaNombre,
+          delta,
+          jugadorId: actor.id,
+          jugadorNombre: actorNombre,
           createdAt: new Date().toISOString()
         });
       }
 
-      res.json({ divisa: guardada });
+      res.json({ divisa: guardada, divisaId, divisasSaldos });
     } catch (error) {
       next(error);
     }
@@ -694,6 +862,79 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       );
       context.mesasNotifier.notificarCambio();
       res.json(toPublicMesa(vista));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/divisas", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const divisas = Array.isArray(req.body)
+        ? req.body
+        : (req.body as { divisas?: unknown } | undefined)?.divisas;
+      const vista = await context.mesaService.guardarDivisasConfig(
+        req.currentUser!,
+        mesaId,
+        divisas
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(vista));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/musica", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      const esAdminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+      if (mesa.hostId !== actor.id && !esAdminLibre) {
+        throw errors.mesaForbidden();
+      }
+
+      const rawBody =
+        req.body && typeof req.body === "object" && !Array.isArray(req.body) && "musica" in req.body
+          ? (req.body as { musica: unknown }).musica
+          : req.body;
+
+      const musica = sanitizarMusicaAmbiente(rawBody);
+      if (!musica) {
+        throw errors.invalidRequest();
+      }
+
+      const pistasExistentes = new Set(
+        (mesa.musicaAmbiente?.pistas ?? []).map(p => p.archivoId)
+      );
+      for (const pista of musica.pistas) {
+        if (pistasExistentes.has(pista.archivoId)) continue;
+        const archivo = await context.archivoService.obtenerMetadatos(
+          actor,
+          pista.archivoId
+        );
+        if (vistaDe(archivo.tipo) !== "audio") {
+          throw errors.archivoTipoInvalido();
+        }
+        if (pista.nombre === "Pista" && archivo.nombre) {
+          pista.nombre = archivo.nombre.slice(0, 180);
+        }
+      }
+
+      mesa.musicaAmbiente = musica;
+      await context.mesaRepository.save(mesa);
+
+      const miembros = [mesa.hostId, ...mesa.players];
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:musica-actualizada",
+        mesaId,
+        musica
+      });
+
+      res.json({ musica });
     } catch (error) {
       next(error);
     }

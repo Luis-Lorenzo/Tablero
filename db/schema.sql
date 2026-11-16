@@ -78,6 +78,8 @@ ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_escena_titulo TEXT;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_id UUID;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_titulo TEXT;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS divisa_nombre TEXT NOT NULL DEFAULT 'Divisa';
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS divisas_config JSONB;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS musica_ambiente JSONB;
 
 CREATE TABLE IF NOT EXISTS mesa_jugadores ( 
   mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
@@ -90,6 +92,9 @@ CREATE TABLE IF NOT EXISTS mesa_jugadores (
 ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS apodo TEXT;
 
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
+CREATE INDEX IF NOT EXISTS mesas_host_idx ON mesas (host_id);
+CREATE INDEX IF NOT EXISTS mesas_pending_host_idx ON mesas (pending_host_id) WHERE pending_host_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS mesas_players_gin_idx ON mesas USING GIN (players);
 
 -- Archivos personales de cada usuario. Los bytes viven en el almacén de objetos
 -- (Cloudflare R2) bajo `clave`; aquí solo se guardan los metadatos.
@@ -115,13 +120,15 @@ CREATE TABLE IF NOT EXISTS mesa_jugador_estado (
   mesa_id    UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
   user_id    UUID NOT NULL,
   elementos  JSONB NOT NULL DEFAULT '[]'::jsonb,
-  divisa     BIGINT NOT NULL DEFAULT 0,
-  mochila    JSONB NOT NULL DEFAULT '[]'::jsonb,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  divisa         BIGINT NOT NULL DEFAULT 0,
+  divisas_saldos JSONB NOT NULL DEFAULT '{}'::jsonb,
+  mochila        JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (mesa_id, user_id)
 );
 
 ALTER TABLE mesa_jugador_estado ADD COLUMN IF NOT EXISTS divisa BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE mesa_jugador_estado ADD COLUMN IF NOT EXISTS divisas_saldos JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE mesa_jugador_estado ADD COLUMN IF NOT EXISTS mochila JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- Historial de mensajes de chat por mesa (públicos o susurros).

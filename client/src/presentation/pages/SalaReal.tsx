@@ -20,7 +20,10 @@ import type {
 } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
-import { Sala } from "../../preview/Sala";
+import {
+  Sala,
+  type MusicaAmbienteMesa
+} from "../../preview/Sala";
 import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
@@ -36,6 +39,8 @@ import {
   nuevoIdElemento
 } from "../../preview/compartir";
 import {
+  estaMusicaSilenciada,
+  obtenerVolumenMusica,
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion,
   reproducirSonidoPing
@@ -43,6 +48,7 @@ import {
 import type {
   Calibracion,
   DivisaAsientoDelta,
+  DivisaConfig,
   DocumentoMesa,
   ElementoMesa,
   EstadoMapaCompartido,
@@ -73,6 +79,36 @@ interface SalaRealProps {
 }
 
 type Fase = "sala" | "pizarra" | "mapa" | "archivador";
+type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
+
+function elegirPosicionLibrePizarra(
+  existentes: Array<{ x: number; y: number }>
+): { x: number; y: number } {
+  const min = 12;
+  const max = 82;
+  const minDist = 13;
+  let mejor = {
+    x: Number((min + Math.random() * (max - min)).toFixed(2)),
+    y: Number((min + Math.random() * (max - min)).toFixed(2))
+  };
+  let mejorDist = -1;
+  for (let intento = 0; intento < 32; intento += 1) {
+    const x = Number((min + Math.random() * (max - min)).toFixed(2));
+    const y = Number((min + Math.random() * (max - min)).toFixed(2));
+    const distMin = existentes.reduce((acc, item) => {
+      const d = Math.hypot(item.x - x, item.y - y);
+      return Math.min(acc, d);
+    }, Number.POSITIVE_INFINITY);
+    if (distMin >= minDist) {
+      return { x, y };
+    }
+    if (distMin > mejorDist) {
+      mejorDist = distMin;
+      mejor = { x, y };
+    }
+  }
+  return mejor;
+}
 
 const PALETA_COLORES = [
   "#74569b",
@@ -116,6 +152,15 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
 }
 
 const DURACION_D20_ASIENTO = 3500;
+
+const MUSICA_DEFECTO: MusicaAmbienteMesa = {
+  pistas: [],
+  indiceActual: 0,
+  reproduciendo: false,
+  loop: false,
+  aleatorio: false,
+  volumenMaster: 0.7
+};
 
 const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
   fondo: null,
@@ -181,6 +226,7 @@ function SalaRealContent({
   const [estadoAviso, setEstadoAviso] = useState<string | null>(null);
   const [trazosPizarra, setTrazosPizarra] = useState<TrazoPizarra[]>([]);
   const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>([]);
+  const [objetosPizarra, setObjetosPizarra] = useState<ObjetoPizarra[]>([]);
   const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
@@ -190,18 +236,54 @@ function SalaRealContent({
   const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(false);
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
-  >(null);
+  >(() => {
+    try {
+      return window.localStorage.getItem(`pocketrol.proyeccion_oculta.${mesa.id}`);
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      const key = `pocketrol.proyeccion_oculta.${mesa.id}`;
+      if (proyeccionOcultadaId) {
+        window.localStorage.setItem(key, proyeccionOcultadaId);
+      } else {
+        window.localStorage.removeItem(key);
+      }
+    } catch {
+      // Ignora errores de almacenamiento local.
+    }
+  }, [mesa.id, proyeccionOcultadaId]);
   const [error, setError] = useState<string | null>(null);
   const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
   const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
   const [divisaAsiento, setDivisaAsiento] = useState<Record<string, DivisaAsientoDelta>>({});
   const [divisa, setDivisa] = useState<number>(0);
+  const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
   const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
+  const [musicaAmbiente, setMusicaAmbiente] = useState<MusicaAmbienteMesa>(() => {
+    const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
+    return rem ?? MUSICA_DEFECTO;
+  });
+  const [musicaSilenciadaLocal, setMusicaSilenciadaLocal] = useState<boolean>(
+    estaMusicaSilenciada
+  );
+  const [volumenMusicaLocal, setVolumenMusicaLocal] = useState<number>(
+    obtenerVolumenMusica
+  );
+  const [audioBloqueado, setAudioBloqueado] = useState(false);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioSrcActualRef = useRef<string>("");
+  const musicaAmbienteRef = useRef<MusicaAmbienteMesa>(musicaAmbiente);
+  musicaAmbienteRef.current = musicaAmbiente;
 
   const recepcionesRef = useRef(0);
+  const positsPendientesEnvioRef = useRef<Map<string, string>>(new Map());
   const avisoTimerRef = useRef<number | null>(null);
   const timersAsiento = useRef<Record<string, number>>({});
   const timersDivisa = useRef<Record<string, number>>({});
@@ -209,6 +291,17 @@ function SalaRealContent({
   const pizarraCargadaRef = useRef(false);
   const ignorarGuardadoPizarraRef = useRef(false);
   const esMaster = mesa.hostId === user.id;
+  const divisasConfig = useMemo<DivisaConfig[]>(() => {
+    const rem = (mesa as PublicMesa & { divisasConfig?: DivisaConfig[] }).divisasConfig;
+    if (Array.isArray(rem) && rem.length > 0) return rem;
+    return [
+      {
+        id: "principal",
+        nombre: mesa.divisaNombre ?? "Divisa",
+        color: "#e8c56a"
+      }
+    ];
+  }, [mesa]);
   const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
   const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
   const jugadorActual =
@@ -273,6 +366,8 @@ function SalaRealContent({
       posits?: unknown[];
       trazos?: unknown[];
       documentos?: unknown[];
+      objetos?: unknown[];
+      objetosPizarra?: unknown[];
       trazosEscena?: unknown[];
       positsEscena?: unknown[];
       docsEscena?: unknown[];
@@ -289,6 +384,12 @@ function SalaRealContent({
           ? (datos.documentos as DocumentoMesa[])
           : []
       );
+      const listaObjetos = Array.isArray(datos.objetos)
+        ? datos.objetos
+        : Array.isArray(datos.objetosPizarra)
+          ? datos.objetosPizarra
+          : [];
+      setObjetosPizarra(listaObjetos as ObjetoPizarra[]);
       setTrazosEscena(
         Array.isArray(datos.trazosEscena)
           ? (datos.trazosEscena as TrazoPizarra[])
@@ -388,17 +489,22 @@ function SalaRealContent({
     const timer = window.setTimeout(() => {
       const limpiarDocs = (lista: DocumentoMesa[]) =>
         lista.map(({ url: _url, ...resto }) => resto);
+      const limpiarObjetos = (lista: ObjetoPizarra[]) =>
+        lista.map(({ imagenLocal: _img, ...resto }) => resto);
+      const objetosLimpios = limpiarObjetos(objetosPizarra);
+      const payload = {
+        posits,
+        trazos: trazosPizarra,
+        documentos: limpiarDocs(documentosPizarra),
+        objetos: objetosLimpios,
+        trazosEscena,
+        positsEscena,
+        docsEscena: limpiarDocs(docsEscena),
+        tamanoImagenesEscena,
+        congelada: pizarraCongelada
+      };
       void mesasApi
-        .guardarPizarra(mesa.id, {
-          posits,
-          trazos: trazosPizarra,
-          documentos: limpiarDocs(documentosPizarra),
-          trazosEscena,
-          positsEscena,
-          docsEscena: limpiarDocs(docsEscena),
-          tamanoImagenesEscena,
-          congelada: pizarraCongelada
-        })
+        .guardarPizarra(mesa.id, payload)
         .catch(() => undefined);
     }, 450);
 
@@ -409,6 +515,7 @@ function SalaRealContent({
     posits,
     trazosPizarra,
     documentosPizarra,
+    objetosPizarra,
     trazosEscena,
     positsEscena,
     docsEscena,
@@ -423,13 +530,30 @@ function SalaRealContent({
       .obtenerEstado(mesa.id)
       .then(res => {
         if (!activo) return;
-        const cargados = Array.isArray(res.elementos)
-          ? (res.elementos as ElementoMesa[])
+        const rawRes = res as {
+          elementos: unknown[];
+          divisa?: number;
+          divisasSaldos?: Record<string, number>;
+          mochila?: unknown[];
+        };
+        const cargados = Array.isArray(rawRes.elementos)
+          ? (rawRes.elementos as ElementoMesa[])
           : [];
         setElementosMesa(cargados);
-        setDivisa(typeof res.divisa === "number" ? res.divisa : 0);
+        const saldos =
+          rawRes.divisasSaldos && typeof rawRes.divisasSaldos === "object"
+            ? rawRes.divisasSaldos
+            : typeof rawRes.divisa === "number"
+              ? { [divisasConfig[0]?.id ?? "principal"]: rawRes.divisa }
+              : {};
+        setDivisasSaldos(saldos);
+        setDivisa(
+          typeof rawRes.divisa === "number"
+            ? rawRes.divisa
+            : (saldos[divisasConfig[0]?.id ?? "principal"] ?? 0)
+        );
         setMochila(
-          Array.isArray(res.mochila) ? (res.mochila as ObjetoMochila[]) : []
+          Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
         );
       })
       .catch(() => undefined)
@@ -599,6 +723,16 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:musica-actualizada" && evento.mesaId === mesa.id) {
+        const siguiente = (evento.musica ?? evento.musicaAmbiente) as
+          | MusicaAmbienteMesa
+          | undefined;
+        if (siguiente) {
+          setMusicaAmbiente(siguiente);
+        }
+        return;
+      }
+
       if (evento.type === "transferencia:recibida" && evento.transferencia) {
         const transferencia = evento.transferencia as PublicTransferencia;
         if (transferencia.mesaId !== mesa.id) return;
@@ -616,8 +750,22 @@ function SalaRealContent({
         const jugadorNombre = String(evento.jugadorNombre ?? "Alguien");
         const delta = Number(evento.delta ?? 0);
         const total = Number(evento.divisa ?? 0);
-        const nombreDivisa = String(evento.divisaNombre ?? "Divisa");
+        const divisaId =
+          typeof evento.divisaId === "string"
+            ? evento.divisaId
+            : (divisasConfig[0]?.id ?? "principal");
+        const configDivisa = divisasConfig.find(d => d.id === divisaId);
+        const nombreDivisa = String(
+          evento.divisaNombre ?? configDivisa?.nombre ?? "Divisa"
+        );
         const creado = String(evento.createdAt ?? new Date().toISOString());
+
+        if (jugadorId === user.id) {
+          setDivisasSaldos(prev => ({ ...prev, [divisaId]: total }));
+          if (divisaId === (divisasConfig[0]?.id ?? "principal")) {
+            setDivisa(total);
+          }
+        }
 
         if (delta !== 0) {
           reproducirSonidoMonedas();
@@ -661,10 +809,99 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:compartir-todos" && evento.mesaId === mesa.id) {
+        if (evento.emisorId === user.id) return;
+        const emisorNombre = String(evento.emisorNombre ?? "Alguien");
+        const elem = (
+          evento.elemento && typeof evento.elemento === "object"
+            ? evento.elemento
+            : evento
+        ) as Record<string, unknown>;
+        const pos = calcularPosicionRecepcion(recepcionesRef.current);
+        recepcionesRef.current += 1;
+        reproducirSonidoNotificacion();
+
+        if (
+          elem.tipo === "posit" &&
+          elem.posit &&
+          typeof elem.posit === "object"
+        ) {
+          const p = elem.posit as {
+            texto?: string;
+            color?: string;
+            giro?: number;
+          };
+          setElementosMesa(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "posit",
+              texto: p.texto ?? "",
+              color: p.color ?? "#f7ffae",
+              giro: typeof p.giro === "number" ? p.giro : -1.5,
+              x: pos.x,
+              y: pos.y,
+              remitente: emisorNombre
+            }
+          ]);
+          mostrarAvisoBreve(`${emisorNombre} compartió una nota con todos.`);
+        } else if (
+          elem.tipo === "archivo" &&
+          elem.archivo &&
+          typeof elem.archivo === "object"
+        ) {
+          const arch = elem.archivo as PublicArchivo;
+          setElementosMesa(prev => [
+            ...prev,
+            crearElementoDesdeArchivo(arch, pos, emisorNombre)
+          ]);
+          cargarArchivos();
+          mostrarAvisoBreve(`${emisorNombre} compartió un archivo con todos.`);
+        } else if (
+          elem.tipo === "objeto" &&
+          elem.objeto &&
+          typeof elem.objeto === "object"
+        ) {
+          const obj = elem.objeto as {
+            nombre: string;
+            descripcion?: string;
+            cantidad?: number;
+            emoji?: string;
+            archivoId?: string;
+            archivoNombre?: string;
+          };
+          setElementosMesa(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "objeto",
+              nombre: obj.nombre,
+              descripcion: obj.descripcion ?? "",
+              cantidad: Math.max(1, obj.cantidad ?? 1),
+              ...(obj.emoji ? { emoji: obj.emoji } : {}),
+              ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
+              ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
+              x: pos.x,
+              y: pos.y,
+              remitente: emisorNombre
+            }
+          ]);
+          if (obj.archivoId) cargarArchivos();
+          mostrarAvisoBreve(`${emisorNombre} compartió un objeto con todos.`);
+        }
+        return;
+      }
+
       if (evento.type === "transferencia:resuelta") {
         const nombre = String(evento.receptorNombre ?? "El jugador");
+        const transferenciaId = typeof evento.id === "string" ? evento.id : "";
         if (evento.estado === "ACEPTADA") {
           mostrarAvisoBreve(`${nombre} aceptó lo que le pasaste.`);
+          if (transferenciaId && positsPendientesEnvioRef.current.has(transferenciaId)) {
+            const positLocalId = positsPendientesEnvioRef.current.get(transferenciaId)!;
+            positsPendientesEnvioRef.current.delete(transferenciaId);
+            setElementosMesa(prev => prev.filter(el => el.id !== positLocalId));
+          }
           if (evento.tipo === "objeto" && evento.objeto && typeof evento.objeto === "object") {
             const obj = evento.objeto as { idOrigen?: string; cantidad?: number };
             if (obj.idOrigen) {
@@ -686,6 +923,9 @@ function SalaRealContent({
             }
           }
         } else if (evento.estado === "RECHAZADA") {
+          if (transferenciaId) {
+            positsPendientesEnvioRef.current.delete(transferenciaId);
+          }
           mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
         }
       }
@@ -694,6 +934,8 @@ function SalaRealContent({
       mesa.id,
       user.id,
       jugadores,
+      divisasConfig,
+      cargarArchivos,
       aplicarEstadoPizarraRemoto,
       agregarPingVisual,
       mostrarAvisoBreve
@@ -705,7 +947,7 @@ function SalaRealContent({
     setError(null);
     try {
       if (elemento.tipo === "posit") {
-        await mesasApi.compartir(mesa.id, {
+        const transferencia = await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
           tipo: "posit",
           posit: {
@@ -714,6 +956,9 @@ function SalaRealContent({
             giro: elemento.giro
           }
         });
+        if (transferencia?.id) {
+          positsPendientesEnvioRef.current.set(transferencia.id, elemento.id);
+        }
       } else if (elemento.tipo === "objeto") {
         await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
@@ -728,7 +973,7 @@ function SalaRealContent({
             archivoNombre: elemento.archivoNombre
           }
         });
-      } else {
+      } else if (elemento.tipo === "archivo") {
         await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
           tipo: "archivo",
@@ -887,7 +1132,9 @@ function SalaRealContent({
         }, DURACION_D20_ASIENTO);
       }
 
-      reproducirSonidoTirada(roll.especial ?? null);
+      if (roll.jugadorId !== user.id) {
+        reproducirSonidoTirada(roll.especial ?? null);
+      }
 
       setMensajesChat(prev => {
         const idSistema = `roll-${roll.id}`;
@@ -909,6 +1156,194 @@ function SalaRealContent({
     },
     [jugadores, mesa.hostId, mesa.hostName, mesa.id]
   );
+
+  useEffect(() => {
+    const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
+    if (rem) {
+      setMusicaAmbiente(rem);
+    }
+  }, [mesa]);
+
+  useEffect(() => {
+    const sincronizarLocal = () => {
+      setMusicaSilenciadaLocal(estaMusicaSilenciada());
+      setVolumenMusicaLocal(obtenerVolumenMusica());
+    };
+    window.addEventListener("pocketrol:musica-local", sincronizarLocal);
+    window.addEventListener("storage", sincronizarLocal);
+    return () => {
+      window.removeEventListener("pocketrol:musica-local", sincronizarLocal);
+      window.removeEventListener("storage", sincronizarLocal);
+    };
+  }, []);
+
+  const actualizarMusica = useCallback(
+    async (siguiente: MusicaAmbienteMesa) => {
+      setMusicaAmbiente(siguiente);
+      try {
+        const api = mesasApi as unknown as {
+          actualizarMusica?: (id: string, musica: MusicaAmbienteMesa) => Promise<PublicMesa>;
+        };
+        if (api.actualizarMusica) {
+          const actualizada = await api.actualizarMusica(mesa.id, siguiente);
+          const rem = (
+            actualizada as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }
+          ).musicaAmbiente;
+          if (rem) {
+            setMusicaAmbiente(rem);
+          }
+        }
+      } catch (musicaError) {
+        setError(describeError(musicaError));
+      }
+    },
+    [mesa.id]
+  );
+
+  const subirMusica = useCallback(
+    async (archivo: File) => {
+      try {
+        const subido = await archivosApi.subir(archivo);
+        setArchivosDisponibles(prev =>
+          prev.some(item => item.id === subido.id) ? prev : [subido, ...prev]
+        );
+        const actual = musicaAmbienteRef.current;
+        const estabaVacia = actual.pistas.length === 0;
+        const siguiente: MusicaAmbienteMesa = {
+          ...actual,
+          pistas: [
+            ...actual.pistas,
+            { archivoId: subido.id, nombre: subido.nombre }
+          ],
+          indiceActual: estabaVacia ? 0 : actual.indiceActual,
+          reproduciendo: estabaVacia ? true : actual.reproduciendo
+        };
+        await actualizarMusica(siguiente);
+      } catch (subidaError) {
+        setError(describeError(subidaError));
+      }
+    },
+    [actualizarMusica]
+  );
+
+  const pistaActual = musicaAmbiente.pistas[musicaAmbiente.indiceActual] ?? null;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.loop = musicaAmbiente.pistas.length === 1 && musicaAmbiente.loop;
+    audio.muted = musicaSilenciadaLocal;
+    audio.volume = Math.max(
+      0,
+      Math.min(1, (musicaAmbiente.volumenMaster ?? 0.7) * volumenMusicaLocal)
+    );
+
+    if (!pistaActual) {
+      audio.pause();
+      if (audioSrcActualRef.current) {
+        audioSrcActualRef.current = "";
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      setAudioBloqueado(false);
+      return;
+    }
+
+    const siguienteSrc = archivosApi.url(pistaActual.archivoId);
+    if (audioSrcActualRef.current !== siguienteSrc) {
+      audioSrcActualRef.current = siguienteSrc;
+      audio.src = siguienteSrc;
+    }
+
+    if (!musicaAmbiente.reproduciendo) {
+      audio.pause();
+      setAudioBloqueado(false);
+      return;
+    }
+
+    void audio
+      .play()
+      .then(() => {
+        setAudioBloqueado(false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          setAudioBloqueado(true);
+        }
+      });
+  }, [
+    pistaActual,
+    musicaAmbiente.pistas.length,
+    musicaAmbiente.loop,
+    musicaAmbiente.reproduciendo,
+    musicaAmbiente.volumenMaster,
+    musicaSilenciadaLocal,
+    volumenMusicaLocal
+  ]);
+
+  const reintentarAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !musicaAmbienteRef.current.reproduciendo) {
+      setAudioBloqueado(false);
+      return;
+    }
+    void audio
+      .play()
+      .then(() => {
+        setAudioBloqueado(false);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!audioBloqueado) return;
+    const alInteractuar = () => {
+      reintentarAudio();
+    };
+    window.addEventListener("pointerdown", alInteractuar, { capture: true });
+    window.addEventListener("keydown", alInteractuar, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", alInteractuar, { capture: true });
+      window.removeEventListener("keydown", alInteractuar, { capture: true });
+    };
+  }, [audioBloqueado, reintentarAudio]);
+
+  const alTerminarPista = useCallback(() => {
+    const actual = musicaAmbienteRef.current;
+    if (!esMaster || actual.pistas.length === 0) return;
+
+    if (actual.pistas.length === 1) {
+      if (!actual.loop) {
+        void actualizarMusica({ ...actual, reproduciendo: false });
+      }
+      return;
+    }
+
+    let siguienteIndice = actual.indiceActual;
+    let sigueReproduciendo = true;
+
+    if (actual.aleatorio) {
+      const candidatos = actual.pistas
+        .map((_, idx) => idx)
+        .filter(idx => idx !== actual.indiceActual);
+      siguienteIndice =
+        candidatos[Math.floor(Math.random() * candidatos.length)] ?? 0;
+    } else if (actual.indiceActual + 1 < actual.pistas.length) {
+      siguienteIndice = actual.indiceActual + 1;
+    } else if (actual.loop) {
+      siguienteIndice = 0;
+    } else {
+      siguienteIndice = 0;
+      sigueReproduciendo = false;
+    }
+
+    void actualizarMusica({
+      ...actual,
+      indiceActual: siguienteIndice,
+      reproduciendo: sigueReproduciendo
+    });
+  }, [esMaster, actualizarMusica]);
 
   useMesasLive(
     refrescar,
@@ -952,15 +1387,191 @@ function SalaRealContent({
     }
   }
 
-  async function cambiarDivisa(nueva: number, delta: number): Promise<void> {
+  async function cambiarDivisa(
+    nueva: number,
+    delta: number,
+    divisaId?: string
+  ): Promise<void> {
+    const idDivisa = divisaId ?? divisasConfig[0]?.id ?? "principal";
     const limpia = Math.max(0, Math.trunc(nueva));
-    setDivisa(limpia);
+    if (idDivisa === (divisasConfig[0]?.id ?? "principal")) {
+      setDivisa(limpia);
+    }
+    setDivisasSaldos(prev => ({ ...prev, [idDivisa]: limpia }));
     try {
-      await mesasApi.guardarDivisa(mesa.id, limpia, delta);
+      const api = mesasApi as unknown as {
+        cambiarDivisa?: (
+          id: string,
+          divisa: number,
+          delta?: number,
+          divisaId?: string
+        ) => Promise<unknown>;
+        guardarDivisa: (
+          id: string,
+          divisa: number,
+          delta?: number,
+          divisaId?: string
+        ) => Promise<unknown>;
+      };
+      if (typeof api.cambiarDivisa === "function") {
+        await api.cambiarDivisa(mesa.id, limpia, delta, idDivisa);
+      } else {
+        await api.guardarDivisa(mesa.id, limpia, delta, idDivisa);
+      }
     } catch (divisaError) {
       setError(describeError(divisaError));
     }
   }
+
+  async function guardarDivisasConfig(config: DivisaConfig[]): Promise<void> {
+    try {
+      const api = mesasApi as unknown as {
+        guardarDivisasConfig?: (
+          id: string,
+          divisasConfig: DivisaConfig[]
+        ) => Promise<PublicMesa>;
+      };
+      if (typeof api.guardarDivisasConfig === "function") {
+        const actualizada = await api.guardarDivisasConfig(mesa.id, config);
+        onActualizarMesa(actualizada);
+      }
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+    }
+  }
+
+  async function compartirATodos(elemento: ElementoMesa): Promise<void> {
+    if (elemento.tipo === "macro") return;
+    setError(null);
+    try {
+      const payload =
+        elemento.tipo === "posit"
+          ? {
+              tipo: "posit" as const,
+              posit: {
+                texto: elemento.texto,
+                color: elemento.color,
+                giro: elemento.giro
+              }
+            }
+          : elemento.tipo === "objeto"
+            ? {
+                tipo: "objeto" as const,
+                objeto: {
+                  idOrigen: elemento.id,
+                  nombre: elemento.nombre,
+                  descripcion: elemento.descripcion,
+                  cantidad: elemento.cantidad,
+                  emoji: elemento.emoji,
+                  archivoId: elemento.archivoId,
+                  archivoNombre: elemento.archivoNombre
+                }
+              }
+            : {
+                tipo: "archivo" as const,
+                archivoId: elemento.archivoId
+              };
+      const api = mesasApi as unknown as {
+        compartirATodos?: (
+          id: string,
+          body: typeof payload
+        ) => Promise<{ destinatarios?: number } | undefined>;
+      };
+      if (typeof api.compartirATodos === "function") {
+        const res = await api.compartirATodos(mesa.id, payload);
+        if (res && res.destinatarios === 0) {
+          mostrarAvisoBreve("No hay otros jugadores en la mesa para compartir.");
+        } else {
+          mostrarAvisoBreve("Compartido con todos los jugadores de la mesa.");
+        }
+      } else {
+        mostrarAvisoBreve("Compartido con toda la mesa.");
+      }
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  const enviarAPizarra = useCallback(
+    (elemento: ElementoMesa) => {
+      if (elemento.tipo === "macro") return;
+      const existentes = [
+        ...posits.map(p => ({ x: p.x, y: p.y })),
+        ...documentosPizarra.map(d => ({ x: d.x, y: d.y })),
+        ...objetosPizarra.map(o => ({ x: o.x, y: o.y }))
+      ];
+      const pos = elegirPosicionLibrePizarra(existentes);
+      setElementosMesa(prev => prev.filter(el => el.id !== elemento.id));
+      if (elemento.tipo === "posit") {
+        setPosits(prev => [
+          ...prev,
+          {
+            id: elemento.id,
+            texto: elemento.texto,
+            color: elemento.color,
+            giro: elemento.giro,
+            x: pos.x,
+            y: pos.y,
+            ...(elemento.autorNombre ? { autorNombre: elemento.autorNombre } : {}),
+            ...(elemento.autorColor ? { autorColor: elemento.autorColor } : {}),
+            ...(elemento.esMaster !== undefined ? { esMaster: elemento.esMaster } : {})
+          }
+        ]);
+      } else if (elemento.tipo === "archivo") {
+        setDocumentosPizarra(prev => [
+          ...prev,
+          {
+            id: elemento.archivoId,
+            nombre: elemento.nombre,
+            tipo: elemento.mime,
+            vista: elemento.vista,
+            tamano: elemento.tamano,
+            x: pos.x,
+            y: pos.y,
+            url: elemento.contenidoLocal ?? archivosApi.url(elemento.archivoId)
+          }
+        ]);
+      } else if (elemento.tipo === "objeto") {
+        setObjetosPizarra(prev => [
+          ...prev,
+          {
+            ...elemento,
+            x: pos.x,
+            y: pos.y
+          }
+        ]);
+      }
+      mostrarAvisoBreve("Enviado a la pizarra.");
+    },
+    [posits, documentosPizarra, objetosPizarra, mostrarAvisoBreve]
+  );
+
+  const sacarDePizarraAMesa = useCallback(
+    (elemento: ElementoMesa) => {
+      const tipo = (elemento as { tipo?: string }).tipo ?? "objeto";
+      if (tipo === "objeto") {
+        setObjetosPizarra(prev => prev.filter(o => o.id !== elemento.id));
+      } else if (tipo === "posit") {
+        setPosits(prev => prev.filter(p => p.id !== elemento.id));
+      } else if (tipo === "archivo") {
+        setDocumentosPizarra(prev => prev.filter(d => d.id !== elemento.id));
+      }
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+      const paraMesa: ElementoMesa =
+        tipo === "objeto"
+          ? {
+              ...(elemento as ObjetoPizarra),
+              tipo: "objeto",
+              x: pos.x,
+              y: pos.y
+            }
+          : { ...elemento, x: pos.x, y: pos.y };
+      setElementosMesa(prev => [...prev, paraMesa]);
+      mostrarAvisoBreve("Devuelto a tu mesa.");
+    },
+    [mostrarAvisoBreve]
+  );
 
   async function cambiarDivisaNombre(nombre: string): Promise<void> {
     try {
@@ -1256,6 +1867,9 @@ function SalaRealContent({
         onTrazos={setTrazosPizarra}
         documentosPizarra={documentosPizarra}
         onDocumentosPizarra={setDocumentosPizarra}
+        objetosPizarra={objetosPizarra}
+        onObjetosPizarra={setObjetosPizarra}
+        onSacarDePizarraAMesa={sacarDePizarraAMesa}
         trazosEscena={trazosEscena}
         onTrazosEscena={setTrazosEscena}
         positsEscena={positsEscena}
@@ -1322,6 +1936,9 @@ function SalaRealContent({
           onMacros={actualizarMacros}
           divisa={divisa}
           divisaNombre={mesa.divisaNombre ?? "Divisa"}
+          divisasConfig={divisasConfig}
+          divisasSaldos={divisasSaldos}
+          onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
           onCambiarDivisa={cambiarDivisa}
           onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
           mochila={mochila}
@@ -1336,6 +1953,12 @@ function SalaRealContent({
               : undefined
           }
           onSolicitarArchivos={cargarArchivos}
+          elementosMesa={elementosMesa}
+          onElementosMesa={setElementosMesa}
+          archivosDisponibles={archivosDisponibles}
+          onEnviarElemento={enviarElemento}
+          onAbrirArchivador={() => setFase("archivador")}
+          onCompartirATodos={compartirATodos}
         />
       </>
     );
@@ -1394,8 +2017,13 @@ function SalaRealContent({
         onMacros={actualizarMacros}
         divisa={divisa}
         divisaNombre={mesa.divisaNombre ?? "Divisa"}
+        divisasConfig={divisasConfig}
+        divisasSaldos={divisasSaldos}
+        onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
         onCambiarDivisa={cambiarDivisa}
         onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
+        onCompartirATodos={compartirATodos}
+        onEnviarAPizarra={enviarAPizarra}
         divisaAsiento={divisaAsiento}
         mochila={mochila}
         onMochila={setMochila}
@@ -1409,13 +2037,27 @@ function SalaRealContent({
             : undefined
         }
         onCambiarApodo={!esMaster ? cambiarApodo : undefined}
+        musicaAmbiente={musicaAmbiente}
+        onActualizarMusica={esMaster ? actualizarMusica : undefined}
+        onSubirMusica={esMaster ? subirMusica : undefined}
       />
     );
   }
 
   return (
     <div>
+      <audio ref={audioRef} onEnded={alTerminarPista} hidden />
       {contenido}
+
+      {audioBloqueado && musicaAmbiente.reproduciendo && pistaActual && (
+        <button
+          type="button"
+          className="proyeccion-reabrir-flotante"
+          onClick={reintentarAudio}
+        >
+          Activar música ambiente
+        </button>
+      )}
 
       {imagenProyectada && !proyeccionOculta && (
         <ProyeccionMasterModal

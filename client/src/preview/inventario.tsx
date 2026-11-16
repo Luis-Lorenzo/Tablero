@@ -30,10 +30,40 @@ export function formatearDivisaCompacta(valor: number): string {
   return `${Number.isInteger(millones) ? millones.toFixed(0) : millones.toFixed(1)}M`;
 }
 
+function ajustarColorHex(hex: string, factor: number): string {
+  const limpio = hex.trim().replace(/^#/, "");
+  if (!/^[0-9a-fA-F]{6}$/.test(limpio)) return hex;
+  const r = parseInt(limpio.slice(0, 2), 16);
+  const g = parseInt(limpio.slice(2, 4), 16);
+  const b = parseInt(limpio.slice(4, 6), 16);
+  const calc = (c: number) =>
+    Math.max(
+      0,
+      Math.min(
+        255,
+        Math.round(factor >= 0 ? c + (255 - c) * factor : c * (1 + factor))
+      )
+    );
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${toHex(calc(r))}${toHex(calc(g))}${toHex(calc(b))}`;
+}
+
 /**
- * Icono pixel retro de monedas de oro amontonadas (cuadrícula 16x16).
+ * Icono pixel retro de monedas amontonadas (cuadrícula 16x16).
  */
-export function IconoMonedasPixel({ size = 28 }: { size?: number }) {
+export function IconoMonedasPixel({
+  size = 28,
+  color
+}: {
+  size?: number;
+  color?: string;
+}) {
+  const base = color && /^#[0-9a-fA-F]{6}$/.test(color.trim()) ? color.trim() : null;
+  const fillBase = base ?? "#f7d060";
+  const fillBrillo = base ? ajustarColorHex(base, 0.52) : "#fff3b0";
+  const fillMedio = base ? ajustarColorHex(base, -0.28) : "#c9851e";
+  const fillOscuro = base ? ajustarColorHex(base, -0.52) : "#8f5710";
+
   return (
     <svg
       width={size}
@@ -53,26 +83,26 @@ export function IconoMonedasPixel({ size = 28 }: { size?: number }) {
       <rect x="8" y="12" width="5" height="1" fill="#181020" />
 
       {/* Pila trasera izquierda (alta) */}
-      <rect x="3" y="3" width="6" height="2" fill="#f7d060" />
-      <rect x="4" y="3" width="3" height="1" fill="#fff3b0" />
-      <rect x="3" y="5" width="6" height="1" fill="#c9851e" />
-      <rect x="3" y="6" width="6" height="1" fill="#f7d060" />
-      <rect x="3" y="7" width="5" height="1" fill="#8f5710" />
+      <rect x="3" y="3" width="6" height="2" fill={fillBase} />
+      <rect x="4" y="3" width="3" height="1" fill={fillBrillo} />
+      <rect x="3" y="5" width="6" height="1" fill={fillMedio} />
+      <rect x="3" y="6" width="6" height="1" fill={fillBase} />
+      <rect x="3" y="7" width="5" height="1" fill={fillOscuro} />
 
       {/* Pila delantera derecha */}
-      <rect x="8" y="6" width="5" height="2" fill="#f7d060" />
-      <rect x="9" y="6" width="2" height="1" fill="#fff3b0" />
-      <rect x="8" y="8" width="5" height="1" fill="#c9851e" />
-      <rect x="8" y="9" width="5" height="1" fill="#f7d060" />
-      <rect x="8" y="10" width="5" height="1" fill="#c9851e" />
-      <rect x="8" y="11" width="5" height="1" fill="#8f5710" />
+      <rect x="8" y="6" width="5" height="2" fill={fillBase} />
+      <rect x="9" y="6" width="2" height="1" fill={fillBrillo} />
+      <rect x="8" y="8" width="5" height="1" fill={fillMedio} />
+      <rect x="8" y="9" width="5" height="1" fill={fillBase} />
+      <rect x="8" y="10" width="5" height="1" fill={fillMedio} />
+      <rect x="8" y="11" width="5" height="1" fill={fillOscuro} />
 
       {/* Pila delantera izquierda */}
-      <rect x="2" y="8" width="6" height="2" fill="#f7d060" />
-      <rect x="3" y="8" width="3" height="1" fill="#fff3b0" />
-      <rect x="2" y="10" width="6" height="1" fill="#c9851e" />
-      <rect x="2" y="11" width="6" height="1" fill="#f7d060" />
-      <rect x="2" y="12" width="6" height="1" fill="#8f5710" />
+      <rect x="2" y="8" width="6" height="2" fill={fillBase} />
+      <rect x="3" y="8" width="3" height="1" fill={fillBrillo} />
+      <rect x="2" y="10" width="6" height="1" fill={fillMedio} />
+      <rect x="2" y="11" width="6" height="1" fill={fillBase} />
+      <rect x="2" y="12" width="6" height="1" fill={fillOscuro} />
     </svg>
   );
 }
@@ -188,6 +218,45 @@ export function IconoLupaPixel({ size = 24 }: { size?: number }) {
       <rect x="11" y="10" width="2" height="2" fill="#8c542b" />
       <rect x="12" y="11" width="2" height="2" fill="#6b3e1e" />
       <rect x="13" y="12" width="2" height="2" fill="#181020" />
+    </svg>
+  );
+}
+
+/** Icono SVG de paloma mensajera con carta para el botón de enviar objetos/notas. */
+export function IconoPaloma({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 12c2.5-1.2 4.4-3.6 5.5-7 1.7 2.2 3.3 3.7 5.2 4.3 1.4-1.2 3.2-1.4 4.5-.5.7.5 1.2 1.2 1.3 2 .7.2 1.4.4 2 .7-.6.6-1.4 1-2.2 1.1-.4 2.8-2.3 5-5.3 6.1-2.2.8-4.7.8-7.2.2-1.8-.4-3.4-1.2-4.6-2.2 1.3-.3 2.4-.9 3.3-1.8-1-.3-1.8-.9-2.5-2.9z"
+        fill="#f5f1e6"
+        stroke="#2a1f36"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <circle cx="17.8" cy="10.2" r="0.8" fill="#1c1226" />
+      <rect
+        x="19.2"
+        y="12.2"
+        width="4"
+        height="3"
+        rx="0.5"
+        fill="#f7d060"
+        stroke="#7a5318"
+        strokeWidth="0.8"
+      />
+      <path
+        d="M19.4 12.4l1.8 1.4 1.8-1.4"
+        fill="none"
+        stroke="#7a5318"
+        strokeWidth="0.7"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

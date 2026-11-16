@@ -362,6 +362,12 @@ export function Mapa({
   // Viewport, zoom y pan
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const limboRef = useRef<HTMLElement>(null);
+  const [sobreLimbo, setSobreLimbo] = useState(false);
+  const [redimensionToken, setRedimensionToken] = useState<{
+    tokenId: string;
+    escala: number;
+  } | null>(null);
   const [tamanoViewport, setTamanoViewport] = useState({ w: 1280, h: 720 });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -778,7 +784,19 @@ export function Mapa({
       };
       arrastreTokenRef.current = actualizado;
       setArrastreToken(actualizado);
+      setSobreLimbo(movido && estaSobreLimbo(evento.clientX, evento.clientY));
     }
+  }
+
+  function estaSobreLimbo(clientX: number, clientY: number): boolean {
+    const rect = limboRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    );
   }
 
   function alSoltarPunteroViewport(
@@ -797,16 +815,63 @@ export function Mapa({
     if (tokActivo && tokActivo.pointerId === evento.pointerId) {
       arrastreTokenRef.current = null;
       setArrastreToken(null);
+      setSobreLimbo(false);
       if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
         evento.currentTarget.releasePointerCapture(evento.pointerId);
       }
       if (tokActivo.movido) {
+        if (estaSobreLimbo(evento.clientX, evento.clientY)) {
+          setTokenSeleccionadoId(prev => (prev === tokActivo.tokenId ? null : prev));
+          void onActualizarToken(tokActivo.tokenId, { enLimbo: true });
+          return;
+        }
         void onActualizarToken(tokActivo.tokenId, {
           x: Number(tokActivo.xActual.toFixed(3)),
           y: Number(tokActivo.yActual.toFixed(3))
         });
       }
     }
+  }
+
+  function iniciarRedimensionToken(
+    evento: ReactPointerEvent<HTMLSpanElement>,
+    token: TokenMapa
+  ): void {
+    if (evento.button !== 0 || !puedeEditarToken(token, esMaster, miUsuarioId)) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+
+    const nodoToken = evento.currentTarget.closest<HTMLElement>(".mapa-token");
+    const rect = nodoToken?.getBoundingClientRect();
+    const baseSize = rect ? Math.max(24, (rect.width + rect.height) / 2) : 60;
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    const escalaBase = token.escala;
+    let escalaActual = escalaBase;
+
+    setTokenSeleccionadoId(token.id);
+    setRedimensionToken({ tokenId: token.id, escala: escalaBase });
+
+    function alMover(ev: globalThis.PointerEvent): void {
+      const delta = (ev.clientX - inicioX + (ev.clientY - inicioY)) / 2;
+      const factor = Math.max(0.25, (baseSize + delta * 2) / baseSize);
+      escalaActual = Number(limitar(escalaBase * factor, 0.5, 4).toFixed(2));
+      setRedimensionToken({ tokenId: token.id, escala: escalaActual });
+    }
+
+    function alSoltar(): void {
+      window.removeEventListener("pointermove", alMover);
+      window.removeEventListener("pointerup", alSoltar);
+      window.removeEventListener("pointercancel", alSoltar);
+      setRedimensionToken(null);
+      if (Math.abs(escalaActual - escalaBase) >= 0.02) {
+        void onActualizarToken(token.id, { escala: escalaActual });
+      }
+    }
+
+    window.addEventListener("pointermove", alMover);
+    window.addEventListener("pointerup", alSoltar);
+    window.addEventListener("pointercancel", alSoltar);
   }
 
   function alBajarPunteroToken(
@@ -957,16 +1022,14 @@ export function Mapa({
         const res = await onSubirImagenMapa(archivo, "token");
         setPreviewUrlToken(res.url);
         setArchivoIdToken(res.archivoId);
-        if (!nombreToken.trim()) {
-          setNombreToken(res.titulo.replace(/\.[^.]+$/, ""));
-        }
+        const nombreBase = (res.titulo || archivo.name).replace(/\.[^.]+$/, "");
+        setNombreToken(prev => (prev.trim() ? prev : nombreBase));
       } else {
         const url = await leerArchivoComoDataUrl(archivo);
         setPreviewUrlToken(url);
         setArchivoIdToken(undefined);
-        if (!nombreToken.trim()) {
-          setNombreToken(archivo.name.replace(/\.[^.]+$/, ""));
-        }
+        const nombreBase = archivo.name.replace(/\.[^.]+$/, "");
+        setNombreToken(prev => (prev.trim() ? prev : nombreBase));
       }
     } catch (err) {
       setErrorPanel(
@@ -1009,6 +1072,9 @@ export function Mapa({
     setNombreToken("");
     setPreviewUrlToken(null);
     setArchivoIdToken(undefined);
+    if (guardarPlantilla) {
+      setPanelAbierto("bandeja");
+    }
   }
 
   async function alInvocarPlantilla(
@@ -1366,7 +1432,7 @@ export function Mapa({
 
       {/* Barra flotante superior izquierda (deja libre arriba-derecha y abajo) */}
       <div className="mapa-barra-flotante">
-        <button type="button" className="pizarra-btn" onClick={onVolver}>
+        <button type="button" className="pizarra-btn mapa-btn-volver" onClick={onVolver}>
           <ArrowLeft size={14} aria-hidden="true" />
           <span>Volver</span>
         </button>
@@ -1411,54 +1477,58 @@ export function Mapa({
           <span>Dibujar</span>
         </button>
 
-        <button
-          type="button"
-          className="pizarra-tool-btn"
-          disabled={!ultimoTrazoDeshacer || dibujoBloqueado || !onEliminarTrazo}
-          onClick={() => {
-            if (ultimoTrazoDeshacer && onEliminarTrazo) {
-              void onEliminarTrazo(ultimoTrazoDeshacer.id);
-            }
-          }}
-          title="Deshacer tu último trazo"
-        >
-          <Undo2 size={14} strokeWidth={2.1} aria-hidden="true" />
-          <span>Deshacer</span>
-        </button>
-
-        {esMaster && (
+        {dibujandoActivo && (
           <>
             <button
               type="button"
-              className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
-              disabled={!onCambiarDibujoCongelado}
-              onClick={() => {
-                void onCambiarDibujoCongelado?.(!dibujoCongelado);
-              }}
-              title={
-                dibujoCongelado
-                  ? "Descongelar dibujo para los jugadores"
-                  : "Congelar dibujo para los jugadores"
-              }
-            >
-              <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
-              <span>Congelar</span>
-            </button>
-
-            <button
-              type="button"
               className="pizarra-tool-btn"
-              disabled={trazos.length === 0 || !onBorrarTrazos}
+              disabled={!ultimoTrazoDeshacer || dibujoBloqueado || !onEliminarTrazo}
               onClick={() => {
-                if (trazos.length > 0) {
-                  void onBorrarTrazos?.();
+                if (ultimoTrazoDeshacer && onEliminarTrazo) {
+                  void onEliminarTrazo(ultimoTrazoDeshacer.id);
                 }
               }}
-              title="Borrar todos los trazos del mapa"
+              title="Deshacer tu último trazo"
             >
-              <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
-              <span>Borrar todo</span>
+              <Undo2 size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Deshacer</span>
             </button>
+
+            {esMaster && (
+              <>
+                <button
+                  type="button"
+                  className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
+                  disabled={!onCambiarDibujoCongelado}
+                  onClick={() => {
+                    void onCambiarDibujoCongelado?.(!dibujoCongelado);
+                  }}
+                  title={
+                    dibujoCongelado
+                      ? "Descongelar dibujo para los jugadores"
+                      : "Congelar dibujo para los jugadores"
+                  }
+                >
+                  <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>Congelar</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="pizarra-tool-btn"
+                  disabled={trazos.length === 0 || !onBorrarTrazos}
+                  onClick={() => {
+                    if (trazos.length > 0) {
+                      void onBorrarTrazos?.();
+                    }
+                  }}
+                  title="Borrar todos los trazos del mapa"
+                >
+                  <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>Borrar todo</span>
+                </button>
+              </>
+            )}
           </>
         )}
 
@@ -1479,38 +1549,6 @@ export function Mapa({
             <span>Fondo y rejilla</span>
           </button>
         )}
-
-        <span className="mapa-barra-sep" aria-hidden="true" />
-
-        <div className="mapa-zoom-grupo" role="group" aria-label="Zoom del mapa">
-          <button
-            type="button"
-            className="mapa-zoom-btn"
-            onClick={() => aplicarZoom(1 / 1.2)}
-            title="Alejar"
-            aria-label="Alejar"
-          >
-            <Minus size={13} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="mapa-zoom-btn mapa-zoom-reset"
-            onClick={() => centrarVista(1)}
-            title="Restablecer zoom al 100% y centrar"
-          >
-            <RotateCcw size={12} aria-hidden="true" />
-            <span>{Math.round(zoom * 100)}%</span>
-          </button>
-          <button
-            type="button"
-            className="mapa-zoom-btn"
-            onClick={() => aplicarZoom(1.2)}
-            title="Acercar"
-            aria-label="Acercar"
-          >
-            <Plus size={13} aria-hidden="true" />
-          </button>
-        </div>
 
         {dibujandoActivo && (
           <div
@@ -1883,10 +1921,16 @@ export function Mapa({
               tiradasAsiento?.[j.id] ??
               (j.usuarioId ? tiradasAsiento?.[j.usuarioId] : undefined);
 
+            const esMioJugador = Boolean(
+              miUsuarioId && (j.usuarioId === miUsuarioId || j.id === miUsuarioId)
+            );
+
             return (
               <div
                 key={j.id}
-                className={`mapa-jugador-item${j.esMaster ? " master" : ""}`}
+                className={`mapa-jugador-item${j.esMaster ? " master" : ""}${esMioJugador ? " es-mio" : ""}`}
+                data-jugador-id={j.id}
+                data-jugador-usuario-id={j.usuarioId ?? j.id}
                 style={{ "--jugador-color": j.color } as CSSProperties}
               >
                 <div className="mapa-jugador-ficha">
@@ -2164,32 +2208,68 @@ export function Mapa({
         </aside>
       )}
 
-      {/* Panel flotante: Crear token */}
-      {panelAbierto === "tokens" && (
+      {/* Panel flotante unificado: Almacén | + Nuevo */}
+      {(panelAbierto === "tokens" || panelAbierto === "bandeja") && (
         <aside
           className="mapa-panel en-abajo"
-          aria-label="Creación de tokens"
+          aria-label="Tokens y almacén"
         >
           <header className="mapa-panel-cabecera">
             <span className="mapa-panel-titulo">
-              <Users size={14} aria-hidden="true" />
-              Crear token
+              {panelAbierto === "bandeja" ? (
+                <IconoCofre size={14} />
+              ) : (
+                <Users size={14} aria-hidden="true" />
+              )}
+              Tokens
             </span>
             <button
               type="button"
               className="mapa-panel-cerrar"
-              onClick={() => setPanelAbierto(null)}
+              onClick={() => {
+                setPlantillaEditandoCatId(null);
+                setPanelAbierto(null);
+              }}
               aria-label="Cerrar panel"
             >
               <X size={14} />
             </button>
           </header>
 
+          <div className="mapa-panel-tabs" role="tablist" aria-label="Vista de tokens">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panelAbierto === "bandeja"}
+              className={`mapa-panel-tab${panelAbierto === "bandeja" ? " activo" : ""}`}
+              onClick={() => {
+                setErrorPanel(null);
+                setPanelAbierto("bandeja");
+              }}
+            >
+              <IconoCofre size={13} />
+              <span>Almacén ({plantillasVisibles.length})</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panelAbierto === "tokens"}
+              className={`mapa-panel-tab${panelAbierto === "tokens" ? " activo" : ""}`}
+              onClick={() => {
+                setErrorPanel(null);
+                setPlantillaEditandoCatId(null);
+                setPanelAbierto("tokens");
+              }}
+            >
+              <Plus size={13} aria-hidden="true" />
+              <span>Nuevo</span>
+            </button>
+          </div>
+
           <div className="mapa-panel-cuerpo">
             {errorPanel && <p className="mapa-panel-error">{errorPanel}</p>}
 
-            <section className="mapa-panel-bloque">
-              <div className="mapa-panel-subtitulo">Crear nuevo token</div>
+            {panelAbierto === "tokens" ? (
               <div className="mapa-token-form">
                 <div className="mapa-token-preview-fila">
                   <button
@@ -2220,7 +2300,7 @@ export function Mapa({
                       value={nombreToken}
                       onChange={e => setNombreToken(e.target.value)}
                     />
-                    <div className="mapa-tamano-presets">
+                    <div className="mapa-tamano-presets" role="group" aria-label="Tamaño en casillas">
                       {PRESETS_TAMANO.map(n => (
                         <button
                           key={n}
@@ -2237,26 +2317,37 @@ export function Mapa({
                   </div>
                 </div>
 
-                <div className="mapa-panel-fila-check">
-                  {esMaster && (
-                    <label className="mapa-check">
-                      <input
-                        type="checkbox"
-                        checked={esMonstruo}
-                        onChange={e => setEsMonstruo(e.target.checked)}
-                      />
-                      <span>Monstruo / PNJ</span>
-                    </label>
-                  )}
-                  <label className="mapa-check">
-                    <input
-                      type="checkbox"
-                      checked={guardarPlantilla}
-                      onChange={e => setGuardarPlantilla(e.target.checked)}
-                    />
-                    <span>Guardar en bandeja</span>
-                  </label>
-                </div>
+                {esMaster && (
+                  <div className="mapa-token-tipo-grupo" role="group" aria-label="Tipo de token">
+                    <button
+                      type="button"
+                      className={`mapa-token-tipo-btn aliado${!esMonstruo ? " activo" : ""}`}
+                      onClick={() => setEsMonstruo(false)}
+                    >
+                      Aliado
+                    </button>
+                    <button
+                      type="button"
+                      className={`mapa-token-tipo-btn enemigo${esMonstruo ? " activo" : ""}`}
+                      onClick={() => setEsMonstruo(true)}
+                    >
+                      Enemigo
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={guardarPlantilla}
+                  className={`mapa-toggle-fila${guardarPlantilla ? " activo" : ""}`}
+                  onClick={() => setGuardarPlantilla(prev => !prev)}
+                >
+                  <span>Guardar en Almacén</span>
+                  <span className="mapa-toggle-switch" aria-hidden="true">
+                    <span className="mapa-toggle-thumb" />
+                  </span>
+                </button>
 
                 {esMaster && guardarPlantilla && (
                   <div className="mapa-bandeja-cat-campo">
@@ -2279,7 +2370,7 @@ export function Mapa({
                     <input
                       type="text"
                       className="mapa-input mapa-bandeja-cat-input"
-                      placeholder="Categoría (opcional, ej. Monstruos)..."
+                      placeholder="Categoría opcional (ej. Monstruos)..."
                       value={categoriaToken}
                       onChange={e => setCategoriaToken(e.target.value)}
                     />
@@ -2296,189 +2387,164 @@ export function Mapa({
                   <span>Añadir al mapa</span>
                 </button>
               </div>
-            </section>
-          </div>
-        </aside>
-      )}
-
-      {/* Panel flotante: Almacén */}
-      {panelAbierto === "bandeja" && (
-        <aside className="mapa-panel en-abajo" aria-label="Almacén">
-          <header className="mapa-panel-cabecera">
-            <span className="mapa-panel-titulo">
-              <IconoCofre size={14} />
-              Almacén ({plantillasVisibles.length})
-            </span>
-            <button
-              type="button"
-              className="mapa-panel-cerrar"
-              onClick={() => {
-                setPlantillaEditandoCatId(null);
-                setPanelAbierto(null);
-              }}
-              aria-label="Cerrar panel"
-            >
-              <X size={14} />
-            </button>
-          </header>
-
-          <div className="mapa-panel-cuerpo">
-            {errorPanel && <p className="mapa-panel-error">{errorPanel}</p>}
-
-            {esMaster && (
-              <div
-                className="mapa-bandeja-filtros"
-                role="tablist"
-                aria-label="Filtrar por categoría"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={filtroCategoriaBandeja === "Todas"}
-                  className={`mapa-bandeja-filtro-btn${
-                    filtroCategoriaBandeja === "Todas" ? " activo" : ""
-                  }`}
-                  onClick={() => setFiltroCategoriaBandeja("Todas")}
-                >
-                  Todas
-                </button>
-                {categoriasBandeja.map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    role="tab"
-                    aria-selected={filtroCategoriaBandeja === cat}
-                    className={`mapa-bandeja-filtro-btn${
-                      filtroCategoriaBandeja === cat ? " activo" : ""
-                    }`}
-                    onClick={() => setFiltroCategoriaBandeja(cat)}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {plantillasFiltradas.length === 0 ? (
-              <p className="mapa-panel-vacio">
-                {plantillasVisibles.length === 0
-                  ? "Aún no hay tokens en tu bandeja. Crea un token con “Guardar en bandeja” activado."
-                  : "No hay tokens en esta categoría."}
-              </p>
             ) : (
-              <div className="mapa-plantillas-grid">
-                {plantillasFiltradas.map(pl => {
-                  const puedeBorrarPl =
-                    esMaster ||
-                    (!miUsuarioId
-                      ? !pl.autorId || pl.autorId === "local"
-                      : pl.autorId === miUsuarioId);
-                  const editandoCat =
-                    esMaster && plantillaEditandoCatId === pl.id;
-                  return (
-                    <div key={pl.id} className="mapa-plantilla-card">
+              <>
+                {esMaster && (
+                  <div
+                    className="mapa-bandeja-filtros"
+                    role="tablist"
+                    aria-label="Filtrar por categoría"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={filtroCategoriaBandeja === "Todas"}
+                      className={`mapa-bandeja-filtro-btn${
+                        filtroCategoriaBandeja === "Todas" ? " activo" : ""
+                      }`}
+                      onClick={() => setFiltroCategoriaBandeja("Todas")}
+                    >
+                      Todas
+                    </button>
+                    {categoriasBandeja.map(cat => (
                       <button
+                        key={cat}
                         type="button"
-                        className="mapa-plantilla-invocar"
-                        onClick={() => void alInvocarPlantilla(pl)}
-                        title={`Colocar ${pl.nombre} (${pl.celdasAncho}×${pl.celdasAlto}) en el centro`}
+                        role="tab"
+                        aria-selected={filtroCategoriaBandeja === cat}
+                        className={`mapa-bandeja-filtro-btn${
+                          filtroCategoriaBandeja === cat ? " activo" : ""
+                        }`}
+                        onClick={() => setFiltroCategoriaBandeja(cat)}
                       >
-                        <img src={pl.imagenUrl} alt={pl.nombre} />
-                        <span className="mapa-plantilla-nombre">
-                          {pl.nombre}
-                        </span>
-                        <span className="mapa-plantilla-tam">
-                          {pl.celdasAncho}×{pl.celdasAlto}
-                        </span>
+                        {cat}
                       </button>
+                    ))}
+                  </div>
+                )}
 
-                      {esMaster &&
-                        (editandoCat ? (
-                          <input
-                            type="text"
-                            list="mapa-bandeja-cats-datalist"
-                            className="mapa-input mapa-bandeja-cat-input"
-                            placeholder="Categoría..."
-                            autoFocus
-                            value={categoriaEdicionValor}
-                            onChange={e =>
-                              setCategoriaEdicionValor(e.target.value)
-                            }
-                            onBlur={() => {
-                              const cat = categoriaEdicionValor.trim();
-                              setPlantillaEditandoCatId(null);
-                              if (
-                                onActualizarPlantilla &&
-                                cat !== (pl.categoria?.trim() || "")
-                              ) {
-                                void onActualizarPlantilla(pl.id, {
-                                  categoria: cat
-                                });
-                              }
-                            }}
-                            onKeyDown={e => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                const cat = categoriaEdicionValor.trim();
-                                setPlantillaEditandoCatId(null);
-                                if (
-                                  onActualizarPlantilla &&
-                                  cat !== (pl.categoria?.trim() || "")
-                                ) {
-                                  void onActualizarPlantilla(pl.id, {
-                                    categoria: cat
-                                  });
-                                }
-                              } else if (e.key === "Escape") {
-                                setPlantillaEditandoCatId(null);
-                              }
-                            }}
-                          />
-                        ) : onActualizarPlantilla ? (
+                {plantillasFiltradas.length === 0 ? (
+                  <p className="mapa-panel-vacio">
+                    {plantillasVisibles.length === 0
+                      ? "Aún no hay tokens en el Almacén. Crea uno en “+ Nuevo” con “Guardar en Almacén” activado."
+                      : "No hay tokens en esta categoría."}
+                  </p>
+                ) : (
+                  <div className="mapa-plantillas-grid">
+                    {plantillasFiltradas.map(pl => {
+                      const puedeBorrarPl =
+                        esMaster ||
+                        (!miUsuarioId
+                          ? !pl.autorId || pl.autorId === "local"
+                          : pl.autorId === miUsuarioId);
+                      const editandoCat =
+                        esMaster && plantillaEditandoCatId === pl.id;
+                      return (
+                        <div key={pl.id} className="mapa-plantilla-card">
                           <button
                             type="button"
-                            className={`mapa-bandeja-cat-badge${
-                              pl.categoria ? "" : " vacia"
-                            }`}
-                            onClick={() => {
-                              setPlantillaEditandoCatId(pl.id);
-                              setCategoriaEdicionValor(pl.categoria || "");
-                            }}
-                            title="Cambiar categoría"
+                            className="mapa-plantilla-invocar"
+                            onClick={() => void alInvocarPlantilla(pl)}
+                            title={`Colocar ${pl.nombre} (${pl.celdasAncho}×${pl.celdasAlto}) en el centro`}
                           >
-                            {pl.categoria || "Sin cat."}
-                          </button>
-                        ) : (
-                          pl.categoria && (
-                            <span className="mapa-bandeja-cat-badge">
-                              {pl.categoria}
+                            <img src={pl.imagenUrl} alt={pl.nombre} />
+                            <span className="mapa-plantilla-nombre">
+                              {pl.nombre}
                             </span>
-                          )
-                        ))}
+                            <span className="mapa-plantilla-tam">
+                              {pl.celdasAncho}×{pl.celdasAlto}
+                            </span>
+                          </button>
 
-                      {onEliminarPlantilla && puedeBorrarPl && (
-                        <button
-                          type="button"
-                          className="mapa-plantilla-borrar"
-                          onClick={() => void onEliminarPlantilla(pl.id)}
-                          title="Eliminar plantilla"
-                          aria-label={`Eliminar plantilla ${pl.nombre}`}
-                        >
-                          <X size={11} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                          {esMaster &&
+                            (editandoCat ? (
+                              <input
+                                type="text"
+                                list="mapa-bandeja-cats-datalist"
+                                className="mapa-input mapa-bandeja-cat-input"
+                                placeholder="Categoría..."
+                                autoFocus
+                                value={categoriaEdicionValor}
+                                onChange={e =>
+                                  setCategoriaEdicionValor(e.target.value)
+                                }
+                                onBlur={() => {
+                                  const cat = categoriaEdicionValor.trim();
+                                  setPlantillaEditandoCatId(null);
+                                  if (
+                                    onActualizarPlantilla &&
+                                    cat !== (pl.categoria?.trim() || "")
+                                  ) {
+                                    void onActualizarPlantilla(pl.id, {
+                                      categoria: cat
+                                    });
+                                  }
+                                }}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const cat = categoriaEdicionValor.trim();
+                                    setPlantillaEditandoCatId(null);
+                                    if (
+                                      onActualizarPlantilla &&
+                                      cat !== (pl.categoria?.trim() || "")
+                                    ) {
+                                      void onActualizarPlantilla(pl.id, {
+                                        categoria: cat
+                                      });
+                                    }
+                                  } else if (e.key === "Escape") {
+                                    setPlantillaEditandoCatId(null);
+                                  }
+                                }}
+                              />
+                            ) : onActualizarPlantilla ? (
+                              <button
+                                type="button"
+                                className={`mapa-bandeja-cat-badge${
+                                  pl.categoria ? "" : " vacia"
+                                }`}
+                                onClick={() => {
+                                  setPlantillaEditandoCatId(pl.id);
+                                  setCategoriaEdicionValor(pl.categoria || "");
+                                }}
+                                title="Cambiar categoría"
+                              >
+                                {pl.categoria || "Sin cat."}
+                              </button>
+                            ) : (
+                              pl.categoria && (
+                                <span className="mapa-bandeja-cat-badge">
+                                  {pl.categoria}
+                                </span>
+                              )
+                            ))}
 
-            {esMaster && (
-              <datalist id="mapa-bandeja-cats-datalist">
-                {categoriasBandeja.map(cat => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
+                          {onEliminarPlantilla && puedeBorrarPl && (
+                            <button
+                              type="button"
+                              className="mapa-plantilla-borrar"
+                              onClick={() => void onEliminarPlantilla(pl.id)}
+                              title="Eliminar plantilla"
+                              aria-label={`Eliminar plantilla ${pl.nombre}`}
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {esMaster && (
+                  <datalist id="mapa-bandeja-cats-datalist">
+                    {categoriasBandeja.map(cat => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                )}
+              </>
             )}
           </div>
         </aside>
@@ -2714,16 +2780,20 @@ export function Mapa({
               const seleccionado = token.id === tokenSeleccionadoId;
               const enArrastre =
                 arrastreToken?.tokenId === token.id ? arrastreToken : null;
+              const escalaActual =
+                redimensionToken?.tokenId === token.id
+                  ? redimensionToken.escala
+                  : token.escala;
               const posX = enArrastre ? enArrastre.xActual : token.x;
               const posY = enArrastre ? enArrastre.yActual : token.y;
               const anchoPct =
                 (token.celdasAncho / Math.max(4, rejillaActiva.columnas)) *
                 100 *
-                token.escala;
+                escalaActual;
               const altoPct =
                 (token.celdasAlto / Math.max(4, rejillaActiva.filas)) *
                 100 *
-                token.escala;
+                escalaActual;
 
               return (
                 <div
@@ -2758,6 +2828,14 @@ export function Mapa({
                     draggable={false}
                   />
                   <span className="mapa-token-etiqueta">{token.nombre}</span>
+                  {editable && (
+                    <span
+                      className="mapa-token-tirador"
+                      title="Arrastra para redimensionar token"
+                      aria-label={`Redimensionar ${token.nombre}`}
+                      onPointerDown={e => iniciarRedimensionToken(e, token)}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -2784,7 +2862,8 @@ export function Mapa({
 
           {/* Contenedor vertical derecho: Limbo de tokens justo al lado del mapa */}
           <aside
-            className="mapa-limbo"
+            ref={limboRef}
+            className={`mapa-limbo${sobreLimbo ? " destino-limbo" : ""}`}
             style={{ height: `${tamanoCanvas.h}px` }}
             aria-label="Limbo de tokens"
             onPointerDown={e => e.stopPropagation()}
@@ -2846,20 +2925,20 @@ export function Mapa({
       <div className="mapa-tokens-dock" role="toolbar" aria-label="Crear token y almacén">
         <button
           type="button"
-          className={`pizarra-tool-btn${panelAbierto === "tokens" ? " activo" : ""}`}
+          className={`pizarra-tool-btn mapa-btn-crear-token${panelAbierto === "tokens" ? " activo" : ""}`}
           onClick={() => {
             setErrorPanel(null);
             setPanelAbierto(prev => (prev === "tokens" ? null : "tokens"));
           }}
           title="Crear nuevos tokens en el mapa"
         >
-          <Users size={14} aria-hidden="true" />
+          <Users size={22} aria-hidden="true" />
           <span>Crear token</span>
         </button>
 
         <button
           type="button"
-          className={`pizarra-tool-btn${panelAbierto === "bandeja" ? " activo" : ""}`}
+          className={`pizarra-tool-btn mapa-btn-almacen${panelAbierto === "bandeja" ? " activo" : ""}`}
           onClick={() => {
             setErrorPanel(null);
             setPlantillaEditandoCatId(null);
@@ -2867,13 +2946,44 @@ export function Mapa({
           }}
           title="Abrir almacén de tokens guardados"
         >
-          <IconoCofre size={14} />
+          <IconoCofre size={22} />
           <span>Almacén</span>
           {plantillasVisibles.length > 0 && (
             <span className="mapa-bandeja-badge">
               {plantillasVisibles.length}
             </span>
           )}
+        </button>
+      </div>
+
+      {/* Zoom flotante abajo a la derecha (no tapa la barra de iniciativa) */}
+      <div className="mapa-zoom-grupo mapa-zoom-flotante" role="group" aria-label="Zoom del mapa">
+        <button
+          type="button"
+          className="mapa-zoom-btn"
+          onClick={() => aplicarZoom(1 / 1.2)}
+          title="Alejar"
+          aria-label="Alejar"
+        >
+          <Minus size={13} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="mapa-zoom-btn mapa-zoom-reset"
+          onClick={() => centrarVista(1)}
+          title="Restablecer zoom al 100% y centrar"
+        >
+          <RotateCcw size={12} aria-hidden="true" />
+          <span>{Math.round(zoom * 100)}%</span>
+        </button>
+        <button
+          type="button"
+          className="mapa-zoom-btn"
+          onClick={() => aplicarZoom(1.2)}
+          title="Acercar"
+          aria-label="Acercar"
+        >
+          <Plus size={13} aria-hidden="true" />
         </button>
       </div>
 
