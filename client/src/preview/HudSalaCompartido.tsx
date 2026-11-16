@@ -476,6 +476,40 @@ function guardarChatMapaRect(rect: RectPizarra): void {
     window.addEventListener("pointercancel", soltar);
   }
 
+  function iniciarRedimensionChat(evento: ReactPointerEvent): void {
+    if (evento.button !== 0) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    const base = chatPos;
+    let ultimo = base;
+
+    function mover(ev: globalThis.PointerEvent): void {
+      const vw = Math.max(1, window.innerWidth);
+      const vh = Math.max(1, window.innerHeight);
+      const dx = ((ev.clientX - inicioX) / vw) * 100;
+      const dy = ((ev.clientY - inicioY) / vh) * 100;
+      ultimo = {
+        ...base,
+        w: limitar(base.w + dx, 14, Math.max(14, 99.5 - base.x)),
+        h: limitar(base.h + dy, 14, Math.max(14, 99.5 - base.y))
+      };
+      setChatPos(ultimo);
+    }
+
+    function soltar(): void {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+      guardarChatMapaRect(ultimo);
+    }
+
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+  }
+
   const [divisaLocal, setDivisaLocal] = useState<number>(cargarDivisaLocal);
   const [divisaAbierta, setDivisaAbierta] = useState(false);
   const [divisaPaso, setDivisaPaso] = useState<1 | 10 | 100>(1);
@@ -1076,6 +1110,7 @@ function guardarChatMapaRect(rect: RectPizarra): void {
           mensajes={mensajesVisibles}
           onEnviarMensaje={onEnviarChat ?? enviarChatLocal}
           onIniciarArrastre={iniciarArrastreChat}
+          onIniciarRedimension={iniciarRedimensionChat}
         />
       </div>
 

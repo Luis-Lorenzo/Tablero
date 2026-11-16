@@ -3442,8 +3442,8 @@
 .sala-chat.en-mapa,
 .chat-sala.en-mapa,
 .chat-en-mapa .sala-chat {
-  max-width: 300px;
-  max-height: 260px;
+  max-width: 90vw;
+  max-height: 85vh;
   min-width: 205px;
   min-height: 125px;
   border-color: #3c424f;
