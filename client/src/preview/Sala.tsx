@@ -3321,7 +3321,7 @@ export function Sala({
                         ? "drop-shadow(0 0 6px #3ddc84) drop-shadow(0 0 15px rgb(61 220 132 / 92%))"
                         : tiradaSobreAsiento.especial === "pifia"
                           ? "drop-shadow(0 0 6px #ff5c77) drop-shadow(0 0 15px rgb(255 92 119 / 92%))"
-                          : `drop-shadow(0 0 10px ${colorDadoAsiento})`;
+                          : undefined;
                     return (
                       <div
                         key={tiradaSobreAsiento.id}
@@ -3331,7 +3331,7 @@ export function Sala({
                             color: colorAristasAsiento,
                             "--dado-color": colorDadoAsiento,
                             "--dado-aristas": colorAristasAsiento,
-                            filter: auraEspecial
+                            ...(auraEspecial ? { filter: auraEspecial } : {})
                           } as CSSProperties
                         }
                         aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}

@@ -826,7 +826,7 @@ export function Mapa({
     evento: ReactPointerEvent<HTMLButtonElement>,
     token: TokenMapa
   ): void {
-    if (!puedeEditarToken(token) || evento.button !== 0) return;
+    if (!puedeEditarToken(token, esMaster, miUsuarioId) || evento.button !== 0) return;
     evento.preventDefault();
     evento.stopPropagation();
 
@@ -2995,7 +2995,7 @@ export function Mapa({
           if (!tokenId) return;
           e.preventDefault();
           const token = tokensEnLimbo.find(t => t.id === tokenId);
-          if (!token || !puedeEditarToken(token)) return;
+          if (!token || !puedeEditarToken(token, esMaster, miUsuarioId)) return;
           const canvas = canvasRef.current;
           if (!canvas) return;
           const rect = canvas.getBoundingClientRect();
@@ -3247,7 +3247,7 @@ export function Mapa({
         ) : (
           <div className="mapa-limbo-lista">
             {tokensEnLimbo.map(token => {
-              const editable = puedeEditarToken(token);
+              const editable = puedeEditarToken(token, esMaster, miUsuarioId);
               return (
                 <div
                   key={token.id}

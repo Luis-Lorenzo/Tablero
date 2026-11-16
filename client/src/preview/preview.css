@@ -6183,7 +6183,6 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   width: 44px;
   height: 44px;
   color: #f6e3b0;
-  filter: drop-shadow(0 0 10px rgb(232 197 106 / 75%));
   animation: asiento-d20-pop 3.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
 }
