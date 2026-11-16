@@ -2781,60 +2781,66 @@ export function Mapa({
               </div>
             ))}
           </div>
+
+          {/* Contenedor vertical derecho: Limbo de tokens justo al lado del mapa */}
+          <aside
+            className="mapa-limbo"
+            style={{ height: `${tamanoCanvas.h}px` }}
+            aria-label="Limbo de tokens"
+            onPointerDown={e => e.stopPropagation()}
+            onWheel={e => e.stopPropagation()}
+          >
+            <span className="mapa-limbo-titulo">Limbo</span>
+            {tokensEnLimbo.length === 0 ? (
+              <span className="mapa-limbo-vacio">—</span>
+            ) : (
+              <div className="mapa-limbo-lista">
+                {tokensEnLimbo.map(token => {
+                  const editable = puedeEditarToken(token);
+                  return (
+                    <div
+                      key={token.id}
+                      className={`mapa-limbo-item${editable ? " editable" : ""}`}
+                      title={
+                        editable
+                          ? `${token.nombre} — Clic para devolver al mapa`
+                          : `${token.nombre} (${token.autorNombre})`
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="mapa-limbo-token-btn"
+                        disabled={!editable}
+                        onClick={() =>
+                          void onActualizarToken(token.id, {
+                            enLimbo: false,
+                            x: 50,
+                            y: 50
+                          })
+                        }
+                      >
+                        <img src={token.imagenUrl} alt={token.nombre} />
+                        <span className="mapa-limbo-nombre">{token.nombre}</span>
+                      </button>
+                      {editable && (
+                        <button
+                          type="button"
+                          className="mapa-limbo-borrar"
+                          onClick={() => void onEliminarToken(token.id)}
+                          aria-label={`Eliminar ${token.nombre} del Limbo`}
+                          title="Eliminar definitivamente al Almacén"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </aside>
         </div>
       </div>
-
-      {/* Contenedor vertical derecho: Limbo de tokens fuera del mapa */}
-      <aside className="mapa-limbo" aria-label="Limbo de tokens">
-        <span className="mapa-limbo-titulo">Limbo</span>
-        {tokensEnLimbo.length === 0 ? (
-          <span className="mapa-limbo-vacio">—</span>
-        ) : (
-          <div className="mapa-limbo-lista">
-            {tokensEnLimbo.map(token => {
-              const editable = puedeEditarToken(token);
-              return (
-                <div
-                  key={token.id}
-                  className={`mapa-limbo-item${editable ? " editable" : ""}`}
-                  title={
-                    editable
-                      ? `${token.nombre} — Clic para devolver al mapa`
-                      : `${token.nombre} (${token.autorNombre})`
-                  }
-                >
-                  <button
-                    type="button"
-                    className="mapa-limbo-token-btn"
-                    disabled={!editable}
-                    onClick={() =>
-                      void onActualizarToken(token.id, {
-                        enLimbo: false,
-                        x: 50,
-                        y: 50
-                      })
-                    }
-                  >
-                    <img src={token.imagenUrl} alt={token.nombre} />
-                    <span className="mapa-limbo-nombre">{token.nombre}</span>
-                  </button>
-                  {editable && (
-                    <button
-                      type="button"
-                      className="mapa-limbo-borrar"
-                      onClick={() => void onEliminarToken(token.id)}
-                      aria-label={`Eliminar ${token.nombre} del Limbo`}
-                      title="Eliminar definitivamente al Almacén"
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </aside>
 
       {/* Dock inferior izquierdo: Crear token y Almacén encima de Dados rápidos */}
       <div className="mapa-tokens-dock" role="toolbar" aria-label="Crear token y almacén">

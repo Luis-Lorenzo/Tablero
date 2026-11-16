@@ -2118,6 +2118,9 @@
 
 .mapa-transform {
   position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
   flex-shrink: 0;
   max-width: 100%;
   max-height: 100%;
@@ -8367,22 +8370,17 @@
   }
 
   .mapa-limbo {
-    right: 8px;
-    top: 132px;
     width: 64px;
-    max-height: calc(100vh - 280px);
   }
 }
 
-/* Contenedor vertical derecho: Limbo de tokens fuera del mapa */
+/* Contenedor vertical derecho: Limbo de tokens justo al lado del mapa */
 
 .mapa-limbo {
-  position: fixed;
-  right: 14px;
-  top: 174px;
-  z-index: 23;
+  position: relative;
+  flex-shrink: 0;
   width: 78px;
-  max-height: calc(100vh - 410px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
