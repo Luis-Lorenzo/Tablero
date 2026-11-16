@@ -5867,6 +5867,7 @@
 
 .mochila-modal .dados-ayuda,
 .mochila-modal .dados-campo-etiqueta,
+.mochila-modal .macros-vacio,
 .mochila-modal .mochila-slot-nombre,
 .mochila-modal .mochila-detalle-info h3,
 .mochila-modal .mochila-volver-btn,
@@ -5880,14 +5881,17 @@
   color: #111111;
 }
 
-.mochila-modal .dados-crear-btn {
+.mochila-modal .dados-crear-btn,
+.mochila-modal .macros-crear-btn {
   background: #5b3820;
   border-color: #3f2412;
   color: #ffffff;
 }
 
-.mochila-modal .dados-crear-btn:hover {
+.mochila-modal .dados-crear-btn:hover,
+.mochila-modal .macros-crear-btn:hover {
   background: #482b17;
+  border-color: #2f1a0c;
 }
 
 .mochila-modal .macro-campo span {
