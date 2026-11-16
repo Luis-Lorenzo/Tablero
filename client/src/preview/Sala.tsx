@@ -38,6 +38,7 @@ import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
+import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
 import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
 import { ChatSala } from "./ChatSala";
 import {
@@ -176,6 +177,11 @@ interface SalaProps {
   divisasSaldos?: Record<string, number>;
   onGuardarDivisasConfig?: (divisas: DivisaConfig[]) => void | Promise<void>;
   onCambiarDivisa?: (nueva: number, delta: number, divisaId?: string) => void | Promise<void>;
+  onTransferirDivisa?: (
+    destino: JugadorPreview,
+    divisaId: string,
+    cantidad: number
+  ) => void | Promise<boolean | void>;
   onCambiarDivisaNombre?: (nombre: string) => void | Promise<void>;
   divisaAsiento?: Record<string, DivisaAsientoDelta>;
   mochila?: ObjetoMochila[];
@@ -188,8 +194,18 @@ interface SalaProps {
   onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
   onCambiarApodo?: (apodo: string) => void | Promise<void>;
   musicaAmbiente?: MusicaAmbienteMesa;
+  musicaTiempo?: number;
+  musicaDuracion?: number;
   onActualizarMusica?: (musica: MusicaAmbienteMesa) => void | Promise<void>;
   onSubirMusica?: (archivo: File) => void | Promise<void>;
+}
+
+function formatearTiempoMusica(segundos: number): string {
+  if (!Number.isFinite(segundos) || segundos < 0) return "00:00";
+  const total = Math.floor(segundos);
+  const mins = Math.floor(total / 60);
+  const segs = total % 60;
+  return `${String(mins).padStart(2, "0")}:${String(segs).padStart(2, "0")}`;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -755,6 +771,7 @@ export function Sala({
   divisasSaldos,
   onGuardarDivisasConfig,
   onCambiarDivisa,
+  onTransferirDivisa,
   onCambiarDivisaNombre,
   divisaAsiento,
   mochila,
@@ -763,6 +780,8 @@ export function Sala({
   onConsultarResumenMaster,
   onCambiarApodo,
   musicaAmbiente,
+  musicaTiempo = 0,
+  musicaDuracion = 0,
   onActualizarMusica,
   onSubirMusica
 }: SalaProps) {
@@ -3352,6 +3371,21 @@ export function Sala({
                   <Disc3 size={14} strokeWidth={2.2} aria-hidden="true" />
                 </button>
 
+                {musicaActual.pistas.length > 0 && (
+                  <span
+                    className={`sala-musica-estado${musicaActual.loop ? " bucle" : ""}`}
+                    aria-label={
+                      musicaActual.loop
+                        ? "Reproducción en bucle"
+                        : `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}`
+                    }
+                  >
+                    {musicaActual.loop
+                      ? "BUCLE"
+                      : `${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
+                  </span>
+                )}
+
                 {esMaster && musicaPopoverAbierto && (
                   <div
                     className="sala-musica-popover"
@@ -3945,168 +3979,36 @@ export function Sala({
               el => el.tipo !== "macro" && !el.archivado
             );
             return (
-              <div
-                className="divisa-popover hud-enviar-popover"
-                role="dialog"
-                aria-label="Enviar a jugador"
+              <PopoverPalomaEnviar
+                esMaster={esMaster}
+                hostName={hostName}
+                destinatarios={destinos}
+                destinoId={enviarDestinoId}
+                onCambiarDestinoId={setEnviarDestinoId}
+                mochila={mochilaActual}
+                elementosEnviables={enviables}
+                divisasLista={divisasLista}
+                saldoDeDivisa={idDivisa =>
+                  divisasSaldos && idDivisa in divisasSaldos
+                    ? divisasSaldos[idDivisa]
+                    : divisasSaldos && divisasConfig && divisasConfig.length > 0
+                      ? (divisasSaldos[idDivisa] ?? 0)
+                      : idDivisa === "principal"
+                        ? (divisa ?? divisaLocal)
+                        : (divisasSaldosLocal[idDivisa] ?? 0)
+                }
+                onEnviarChat={onEnviarChat ?? enviarChatLocal}
+                onEnviarObjetoMochila={onEnviarObjetoMochila}
+                onEnviarElemento={onEnviarElemento}
+                onTransferirDivisa={onTransferirDivisa}
+                onMostrarAviso={mostrarAviso}
+                onCerrar={() => setEnviarPopoverAbierto(false)}
                 style={{
                   top: 184,
                   maxHeight: "65vh",
                   overflowY: "auto"
                 }}
-              >
-                <div className="dados-selector-cabecera">
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <IconoPaloma size={16} />
-                    <span>Enviar a jugador</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="dados-cerrar"
-                    onClick={() => setEnviarPopoverAbierto(false)}
-                    aria-label="Cerrar panel de envío"
-                  >
-                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
-
-                {destinos.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-                    No hay otros jugadores activos en la mesa.
-                  </p>
-                ) : (
-                  <>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                        1. Destinatario
-                      </span>
-                      <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {destinos.map(j => {
-                          const seleccionado = (enviarDestinoId ?? destinos[0]?.id) === j.id;
-                          return (
-                            <button
-                              key={j.id}
-                              type="button"
-                              className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
-                              onClick={() => setEnviarDestinoId(j.id)}
-                              style={{
-                                borderColor: seleccionado ? j.color : undefined,
-                                boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
-                              }}
-                            >
-                              {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                        2. Elemento o item
-                      </span>
-                      {mochilaActual.length === 0 && enviables.length === 0 ? (
-                        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-                          No tienes objetos en la mochila ni elementos en la mesa para enviar.
-                        </p>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                          {mochilaActual.map(item => (
-                            <button
-                              key={`mochila-${item.id}`}
-                              type="button"
-                              className="macro-lanzar-btn"
-                              style={{ width: "100%", justifyContent: "space-between" }}
-                              onClick={() => {
-                                const destino =
-                                  destinos.find(
-                                    j => j.id === (enviarDestinoId ?? destinos[0]?.id)
-                                  ) ?? destinos[0];
-                                if (!destino) return;
-                                if (onEnviarObjetoMochila) {
-                                  void onEnviarObjetoMochila(destino, item, 1);
-                                } else {
-                                  mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
-                                }
-                                setEnviarPopoverAbierto(false);
-                              }}
-                            >
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                <span>{item.emoji ?? "🎒"}</span>
-                                <span>{item.nombre}</span>
-                              </span>
-                              <span style={{ fontSize: 11, opacity: 0.75 }}>
-                                Mochila (x{item.cantidad})
-                              </span>
-                            </button>
-                          ))}
-
-                          {enviables.map(elem => {
-                            const etiqueta =
-                              elem.tipo === "posit"
-                                ? elem.texto.trim() || "Posit sin texto"
-                                : elem.nombre;
-                            const icono =
-                              elem.tipo === "posit"
-                                ? "📝"
-                                : elem.tipo === "archivo"
-                                  ? "📄"
-                                  : elem.tipo === "objeto"
-                                    ? elem.emoji ?? "🎒"
-                                    : "◆";
-                            const sub =
-                              elem.tipo === "posit"
-                                ? "Posit"
-                                : elem.tipo === "archivo"
-                                  ? "Doc"
-                                  : elem.tipo === "objeto"
-                                    ? `x${elem.cantidad}`
-                                    : "Macro";
-                            return (
-                              <button
-                                key={elem.id}
-                                type="button"
-                                className="macro-lanzar-btn"
-                                style={{ width: "100%", justifyContent: "space-between" }}
-                                onClick={() => {
-                                  const destino =
-                                    destinos.find(
-                                      j => j.id === (enviarDestinoId ?? destinos[0]?.id)
-                                    ) ?? destinos[0];
-                                  if (!destino) return;
-                                  if (onEnviarElemento) {
-                                    void onEnviarElemento(destino, elem);
-                                  } else {
-                                    mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
-                                  }
-                                  setEnviarPopoverAbierto(false);
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap"
-                                  }}
-                                >
-                                  <span>{icono}</span>
-                                  <span>{etiqueta}</span>
-                                </span>
-                                <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
-                                  {sub}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+              />
             );
           })()}
 

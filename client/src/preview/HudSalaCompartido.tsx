@@ -37,6 +37,7 @@ import { crearElementoDesdeArchivo, nuevoIdElemento } from "./compartir";
 import { COLORES_POSIT } from "./datos";
 import type { ArchivoItem } from "./Mapa";
 import { Posit } from "./Pizarra";
+import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
 import {
   cargarDivisaLocal,
   cargarMochilaLocal,
@@ -100,6 +101,11 @@ export interface HudSalaCompartidoProps {
   divisasSaldos?: Record<string, number>;
   onGuardarDivisasConfig?: (divisas: DivisaConfig[]) => void | Promise<void>;
   onCambiarDivisa?: (nueva: number, delta: number, divisaId?: string) => void | Promise<void>;
+  onTransferirDivisa?: (
+    destino: JugadorPreview,
+    divisaId: string,
+    cantidad: number
+  ) => void | Promise<boolean | void>;
   onCambiarDivisaNombre?: (nuevo: string) => void | Promise<void>;
   mochila?: ObjetoMochila[];
   onMochila?: Dispatch<SetStateAction<ObjetoMochila[]>>;
@@ -442,6 +448,7 @@ export function HudSalaCompartido({
   divisasSaldos,
   onGuardarDivisasConfig,
   onCambiarDivisa,
+  onTransferirDivisa,
   onCambiarDivisaNombre,
   mochila,
   onMochila,
@@ -1583,19 +1590,6 @@ export function HudSalaCompartido({
     mostrarAviso(`«${obj.nombre}» guardado en la mochila.`);
   }
 
-  function enviarElementoDesdePopover(
-    destino: JugadorPreview,
-    elem: ElementoMesa
-  ): void {
-    if (onEnviarElemento) {
-      void onEnviarElemento(destino, elem);
-    } else {
-      const etiqueta = elem.tipo === "posit" ? "nota" : elem.nombre;
-      mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
-    }
-    setEnviarPopoverAbierto(false);
-  }
-
   return (
     <div
       className="hud-mapa-capa"
@@ -2049,168 +2043,37 @@ export function HudSalaCompartido({
       </div>
 
       {enviarPopoverAbierto && (
-        <div
-          className="divisa-popover hud-enviar-popover"
-          role="dialog"
-          aria-label="Enviar a jugador"
+        <PopoverPalomaEnviar
+          esMaster={esMaster}
+          hostName={hostName}
+          destinatarios={destinatariosDisponibles}
+          destinoId={enviarDestinoId}
+          onCambiarDestinoId={setEnviarDestinoId}
+          mochila={mochilaActual}
+          elementosEnviables={elementosEnviables}
+          divisasLista={divisasLista}
+          saldoDeDivisa={idDivisa =>
+            divisasSaldos && idDivisa in divisasSaldos
+              ? divisasSaldos[idDivisa]
+              : divisasSaldos && divisasConfig && divisasConfig.length > 0
+                ? (divisasSaldos[idDivisa] ?? 0)
+                : idDivisa === "principal"
+                  ? (divisa ?? divisaLocal)
+                  : (divisasSaldosLocal[idDivisa] ?? 0)
+          }
+          onEnviarChat={onEnviarChat ?? enviarChatLocal}
+          onEnviarObjetoMochila={onEnviarObjetoMochila}
+          onEnviarElemento={onEnviarElemento}
+          onTransferirDivisa={onTransferirDivisa}
+          onMostrarAviso={mostrarAviso}
+          onCerrar={() => setEnviarPopoverAbierto(false)}
           style={{
             pointerEvents: "auto",
             top: 184,
             maxHeight: "65vh",
             overflowY: "auto"
           }}
-        >
-          <div className="dados-selector-cabecera">
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <IconoPaloma size={16} />
-              <span>Enviar a jugador</span>
-            </span>
-            <button
-              type="button"
-              className="dados-cerrar"
-              onClick={() => setEnviarPopoverAbierto(false)}
-              aria-label="Cerrar panel de envío"
-            >
-              <X size={14} strokeWidth={2.4} aria-hidden="true" />
-            </button>
-          </div>
-
-          {destinatariosDisponibles.length === 0 ? (
-            <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-              No hay otros jugadores activos en la mesa.
-            </p>
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                  1. Destinatario
-                </span>
-                <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {destinatariosDisponibles.map(j => {
-                    const seleccionado =
-                      (enviarDestinoId ?? destinatariosDisponibles[0]?.id) === j.id;
-                    return (
-                      <button
-                        key={j.id}
-                        type="button"
-                        className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
-                        onClick={() => setEnviarDestinoId(j.id)}
-                        style={{
-                          borderColor: seleccionado ? j.color : undefined,
-                          boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
-                        }}
-                      >
-                        {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                  2. Elemento o item
-                </span>
-                {mochilaActual.length === 0 && elementosEnviables.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-                    No tienes objetos en la mochila ni elementos en el mapa para enviar.
-                  </p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {mochilaActual.map(item => (
-                      <button
-                        key={`mochila-${item.id}`}
-                        type="button"
-                        className="macro-lanzar-btn"
-                        style={{ width: "100%", justifyContent: "space-between" }}
-                        onClick={() => {
-                          const destino =
-                            destinatariosDisponibles.find(
-                              j => j.id === (enviarDestinoId ?? destinatariosDisponibles[0]?.id)
-                            ) ?? destinatariosDisponibles[0];
-                          if (!destino) return;
-                          if (onEnviarObjetoMochila) {
-                            void onEnviarObjetoMochila(destino, item, 1);
-                          } else {
-                            mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
-                          }
-                          setEnviarPopoverAbierto(false);
-                        }}
-                      >
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <span>{item.emoji ?? "🎒"}</span>
-                          <span>{item.nombre}</span>
-                        </span>
-                        <span style={{ fontSize: 11, opacity: 0.75 }}>
-                          Mochila (x{item.cantidad})
-                        </span>
-                      </button>
-                    ))}
-
-                    {elementosEnviables.map(elem => {
-                      const etiqueta =
-                        elem.tipo === "posit"
-                          ? elem.texto.trim() || "Posit sin texto"
-                          : elem.nombre;
-                      const icono =
-                        elem.tipo === "posit"
-                          ? "📝"
-                          : elem.tipo === "archivo"
-                            ? "📄"
-                            : elem.tipo === "objeto"
-                              ? elem.emoji ?? "🎒"
-                              : "◆";
-                      const sub =
-                        elem.tipo === "posit"
-                          ? "Posit"
-                          : elem.tipo === "archivo"
-                            ? "Doc"
-                            : elem.tipo === "objeto"
-                              ? `Objeto x${elem.cantidad}`
-                              : "Macro";
-                      return (
-                        <button
-                          key={`elem-${elem.id}`}
-                          type="button"
-                          className="macro-lanzar-btn"
-                          style={{ width: "100%", justifyContent: "space-between" }}
-                          onClick={() => {
-                            const destino =
-                              destinatariosDisponibles.find(
-                                j => j.id === (enviarDestinoId ?? destinatariosDisponibles[0]?.id)
-                              ) ?? destinatariosDisponibles[0];
-                            if (!destino) return;
-                            enviarElementoDesdePopover(destino, elem);
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 6,
-                              minWidth: 0,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            <span>{icono}</span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {etiqueta}
-                            </span>
-                          </span>
-                          <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
-                            {sub}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+        />
       )}
 
       {huchaAbierta && (
