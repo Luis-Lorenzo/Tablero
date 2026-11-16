@@ -43,6 +43,7 @@ import {
 import type {
   Calibracion,
   DivisaAsientoDelta,
+  DivisaConfig,
   DocumentoMesa,
   ElementoMesa,
   EstadoMapaCompartido,
@@ -73,6 +74,36 @@ interface SalaRealProps {
 }
 
 type Fase = "sala" | "pizarra" | "mapa" | "archivador";
+type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
+
+function elegirPosicionLibrePizarra(
+  existentes: Array<{ x: number; y: number }>
+): { x: number; y: number } {
+  const min = 12;
+  const max = 82;
+  const minDist = 13;
+  let mejor = {
+    x: Number((min + Math.random() * (max - min)).toFixed(2)),
+    y: Number((min + Math.random() * (max - min)).toFixed(2))
+  };
+  let mejorDist = -1;
+  for (let intento = 0; intento < 32; intento += 1) {
+    const x = Number((min + Math.random() * (max - min)).toFixed(2));
+    const y = Number((min + Math.random() * (max - min)).toFixed(2));
+    const distMin = existentes.reduce((acc, item) => {
+      const d = Math.hypot(item.x - x, item.y - y);
+      return Math.min(acc, d);
+    }, Number.POSITIVE_INFINITY);
+    if (distMin >= minDist) {
+      return { x, y };
+    }
+    if (distMin > mejorDist) {
+      mejorDist = distMin;
+      mejor = { x, y };
+    }
+  }
+  return mejor;
+}
 
 const PALETA_COLORES = [
   "#74569b",
@@ -181,6 +212,7 @@ function SalaRealContent({
   const [estadoAviso, setEstadoAviso] = useState<string | null>(null);
   const [trazosPizarra, setTrazosPizarra] = useState<TrazoPizarra[]>([]);
   const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>([]);
+  const [objetosPizarra, setObjetosPizarra] = useState<ObjetoPizarra[]>([]);
   const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
@@ -196,6 +228,7 @@ function SalaRealContent({
   const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
   const [divisaAsiento, setDivisaAsiento] = useState<Record<string, DivisaAsientoDelta>>({});
   const [divisa, setDivisa] = useState<number>(0);
+  const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
@@ -209,6 +242,17 @@ function SalaRealContent({
   const pizarraCargadaRef = useRef(false);
   const ignorarGuardadoPizarraRef = useRef(false);
   const esMaster = mesa.hostId === user.id;
+  const divisasConfig = useMemo<DivisaConfig[]>(() => {
+    const rem = (mesa as PublicMesa & { divisasConfig?: DivisaConfig[] }).divisasConfig;
+    if (Array.isArray(rem) && rem.length > 0) return rem;
+    return [
+      {
+        id: "principal",
+        nombre: mesa.divisaNombre ?? "Divisa",
+        color: "#e8c56a"
+      }
+    ];
+  }, [mesa]);
   const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
   const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
   const jugadorActual =
@@ -273,6 +317,8 @@ function SalaRealContent({
       posits?: unknown[];
       trazos?: unknown[];
       documentos?: unknown[];
+      objetos?: unknown[];
+      objetosPizarra?: unknown[];
       trazosEscena?: unknown[];
       positsEscena?: unknown[];
       docsEscena?: unknown[];
@@ -289,6 +335,12 @@ function SalaRealContent({
           ? (datos.documentos as DocumentoMesa[])
           : []
       );
+      const listaObjetos = Array.isArray(datos.objetos)
+        ? datos.objetos
+        : Array.isArray(datos.objetosPizarra)
+          ? datos.objetosPizarra
+          : [];
+      setObjetosPizarra(listaObjetos as ObjetoPizarra[]);
       setTrazosEscena(
         Array.isArray(datos.trazosEscena)
           ? (datos.trazosEscena as TrazoPizarra[])
@@ -388,17 +440,22 @@ function SalaRealContent({
     const timer = window.setTimeout(() => {
       const limpiarDocs = (lista: DocumentoMesa[]) =>
         lista.map(({ url: _url, ...resto }) => resto);
+      const limpiarObjetos = (lista: ObjetoPizarra[]) =>
+        lista.map(({ imagenLocal: _img, ...resto }) => resto);
+      const objetosLimpios = limpiarObjetos(objetosPizarra);
+      const payload = {
+        posits,
+        trazos: trazosPizarra,
+        documentos: limpiarDocs(documentosPizarra),
+        objetos: objetosLimpios,
+        trazosEscena,
+        positsEscena,
+        docsEscena: limpiarDocs(docsEscena),
+        tamanoImagenesEscena,
+        congelada: pizarraCongelada
+      };
       void mesasApi
-        .guardarPizarra(mesa.id, {
-          posits,
-          trazos: trazosPizarra,
-          documentos: limpiarDocs(documentosPizarra),
-          trazosEscena,
-          positsEscena,
-          docsEscena: limpiarDocs(docsEscena),
-          tamanoImagenesEscena,
-          congelada: pizarraCongelada
-        })
+        .guardarPizarra(mesa.id, payload)
         .catch(() => undefined);
     }, 450);
 
@@ -409,6 +466,7 @@ function SalaRealContent({
     posits,
     trazosPizarra,
     documentosPizarra,
+    objetosPizarra,
     trazosEscena,
     positsEscena,
     docsEscena,
@@ -423,13 +481,30 @@ function SalaRealContent({
       .obtenerEstado(mesa.id)
       .then(res => {
         if (!activo) return;
-        const cargados = Array.isArray(res.elementos)
-          ? (res.elementos as ElementoMesa[])
+        const rawRes = res as {
+          elementos: unknown[];
+          divisa?: number;
+          divisasSaldos?: Record<string, number>;
+          mochila?: unknown[];
+        };
+        const cargados = Array.isArray(rawRes.elementos)
+          ? (rawRes.elementos as ElementoMesa[])
           : [];
         setElementosMesa(cargados);
-        setDivisa(typeof res.divisa === "number" ? res.divisa : 0);
+        const saldos =
+          rawRes.divisasSaldos && typeof rawRes.divisasSaldos === "object"
+            ? rawRes.divisasSaldos
+            : typeof rawRes.divisa === "number"
+              ? { [divisasConfig[0]?.id ?? "principal"]: rawRes.divisa }
+              : {};
+        setDivisasSaldos(saldos);
+        setDivisa(
+          typeof rawRes.divisa === "number"
+            ? rawRes.divisa
+            : (saldos[divisasConfig[0]?.id ?? "principal"] ?? 0)
+        );
         setMochila(
-          Array.isArray(res.mochila) ? (res.mochila as ObjetoMochila[]) : []
+          Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
         );
       })
       .catch(() => undefined)
@@ -616,8 +691,22 @@ function SalaRealContent({
         const jugadorNombre = String(evento.jugadorNombre ?? "Alguien");
         const delta = Number(evento.delta ?? 0);
         const total = Number(evento.divisa ?? 0);
-        const nombreDivisa = String(evento.divisaNombre ?? "Divisa");
+        const divisaId =
+          typeof evento.divisaId === "string"
+            ? evento.divisaId
+            : (divisasConfig[0]?.id ?? "principal");
+        const configDivisa = divisasConfig.find(d => d.id === divisaId);
+        const nombreDivisa = String(
+          evento.divisaNombre ?? configDivisa?.nombre ?? "Divisa"
+        );
         const creado = String(evento.createdAt ?? new Date().toISOString());
+
+        if (jugadorId === user.id) {
+          setDivisasSaldos(prev => ({ ...prev, [divisaId]: total }));
+          if (divisaId === (divisasConfig[0]?.id ?? "principal")) {
+            setDivisa(total);
+          }
+        }
 
         if (delta !== 0) {
           reproducirSonidoMonedas();
@@ -661,6 +750,84 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:compartir-todos" && evento.mesaId === mesa.id) {
+        if (evento.emisorId === user.id) return;
+        const emisorNombre = String(evento.emisorNombre ?? "Alguien");
+        const pos = calcularPosicionRecepcion(recepcionesRef.current);
+        recepcionesRef.current += 1;
+        reproducirSonidoNotificacion();
+
+        if (
+          evento.tipo === "posit" &&
+          evento.posit &&
+          typeof evento.posit === "object"
+        ) {
+          const p = evento.posit as {
+            texto?: string;
+            color?: string;
+            giro?: number;
+          };
+          setElementosMesa(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "posit",
+              texto: p.texto ?? "",
+              color: p.color ?? "#f7ffae",
+              giro: typeof p.giro === "number" ? p.giro : -1.5,
+              x: pos.x,
+              y: pos.y,
+              remitente: emisorNombre
+            }
+          ]);
+          mostrarAvisoBreve(`${emisorNombre} compartió una nota con todos.`);
+        } else if (
+          evento.tipo === "archivo" &&
+          evento.archivo &&
+          typeof evento.archivo === "object"
+        ) {
+          const arch = evento.archivo as PublicArchivo;
+          setElementosMesa(prev => [
+            ...prev,
+            crearElementoDesdeArchivo(arch, pos, emisorNombre)
+          ]);
+          cargarArchivos();
+          mostrarAvisoBreve(`${emisorNombre} compartió un archivo con todos.`);
+        } else if (
+          evento.tipo === "objeto" &&
+          evento.objeto &&
+          typeof evento.objeto === "object"
+        ) {
+          const obj = evento.objeto as {
+            nombre: string;
+            descripcion?: string;
+            cantidad?: number;
+            emoji?: string;
+            archivoId?: string;
+            archivoNombre?: string;
+          };
+          setElementosMesa(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "objeto",
+              nombre: obj.nombre,
+              descripcion: obj.descripcion ?? "",
+              cantidad: Math.max(1, obj.cantidad ?? 1),
+              ...(obj.emoji ? { emoji: obj.emoji } : {}),
+              ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
+              ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
+              x: pos.x,
+              y: pos.y,
+              remitente: emisorNombre
+            }
+          ]);
+          if (obj.archivoId) cargarArchivos();
+          mostrarAvisoBreve(`${emisorNombre} compartió un objeto con todos.`);
+        }
+        return;
+      }
+
       if (evento.type === "transferencia:resuelta") {
         const nombre = String(evento.receptorNombre ?? "El jugador");
         if (evento.estado === "ACEPTADA") {
@@ -694,6 +861,8 @@ function SalaRealContent({
       mesa.id,
       user.id,
       jugadores,
+      divisasConfig,
+      cargarArchivos,
       aplicarEstadoPizarraRemoto,
       agregarPingVisual,
       mostrarAvisoBreve
@@ -728,7 +897,7 @@ function SalaRealContent({
             archivoNombre: elemento.archivoNombre
           }
         });
-      } else {
+      } else if (elemento.tipo === "archivo") {
         await mesasApi.compartir(mesa.id, {
           receptorId: destino.usuarioId,
           tipo: "archivo",
@@ -952,15 +1121,182 @@ function SalaRealContent({
     }
   }
 
-  async function cambiarDivisa(nueva: number, delta: number): Promise<void> {
+  async function cambiarDivisa(
+    nueva: number,
+    delta: number,
+    divisaId?: string
+  ): Promise<void> {
+    const idDivisa = divisaId ?? divisasConfig[0]?.id ?? "principal";
     const limpia = Math.max(0, Math.trunc(nueva));
-    setDivisa(limpia);
+    if (idDivisa === (divisasConfig[0]?.id ?? "principal")) {
+      setDivisa(limpia);
+    }
+    setDivisasSaldos(prev => ({ ...prev, [idDivisa]: limpia }));
     try {
-      await mesasApi.guardarDivisa(mesa.id, limpia, delta);
+      const api = mesasApi as unknown as {
+        cambiarDivisa?: (
+          id: string,
+          divisa: number,
+          delta?: number,
+          divisaId?: string
+        ) => Promise<unknown>;
+        guardarDivisa: (
+          id: string,
+          divisa: number,
+          delta?: number,
+          divisaId?: string
+        ) => Promise<unknown>;
+      };
+      if (typeof api.cambiarDivisa === "function") {
+        await api.cambiarDivisa(mesa.id, limpia, delta, idDivisa);
+      } else {
+        await api.guardarDivisa(mesa.id, limpia, delta, idDivisa);
+      }
     } catch (divisaError) {
       setError(describeError(divisaError));
     }
   }
+
+  async function guardarDivisasConfig(config: DivisaConfig[]): Promise<void> {
+    try {
+      const api = mesasApi as unknown as {
+        guardarDivisasConfig?: (
+          id: string,
+          divisasConfig: DivisaConfig[]
+        ) => Promise<PublicMesa>;
+      };
+      if (typeof api.guardarDivisasConfig === "function") {
+        const actualizada = await api.guardarDivisasConfig(mesa.id, config);
+        onActualizarMesa(actualizada);
+      }
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+    }
+  }
+
+  async function compartirATodos(elemento: ElementoMesa): Promise<void> {
+    if (elemento.tipo === "macro") return;
+    setError(null);
+    try {
+      const payload =
+        elemento.tipo === "posit"
+          ? {
+              tipo: "posit" as const,
+              posit: {
+                texto: elemento.texto,
+                color: elemento.color,
+                giro: elemento.giro
+              }
+            }
+          : elemento.tipo === "objeto"
+            ? {
+                tipo: "objeto" as const,
+                objeto: {
+                  idOrigen: elemento.id,
+                  nombre: elemento.nombre,
+                  descripcion: elemento.descripcion,
+                  cantidad: elemento.cantidad,
+                  emoji: elemento.emoji,
+                  archivoId: elemento.archivoId,
+                  archivoNombre: elemento.archivoNombre
+                }
+              }
+            : {
+                tipo: "archivo" as const,
+                archivoId: elemento.archivoId
+              };
+      const api = mesasApi as unknown as {
+        compartirATodos?: (id: string, body: typeof payload) => Promise<unknown>;
+      };
+      if (typeof api.compartirATodos === "function") {
+        await api.compartirATodos(mesa.id, payload);
+      }
+      mostrarAvisoBreve("Compartido con toda la mesa.");
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  const enviarAPizarra = useCallback(
+    (elemento: ElementoMesa) => {
+      if (elemento.tipo === "macro") return;
+      const existentes = [
+        ...posits.map(p => ({ x: p.x, y: p.y })),
+        ...documentosPizarra.map(d => ({ x: d.x, y: d.y })),
+        ...objetosPizarra.map(o => ({ x: o.x, y: o.y }))
+      ];
+      const pos = elegirPosicionLibrePizarra(existentes);
+      setElementosMesa(prev => prev.filter(el => el.id !== elemento.id));
+      if (elemento.tipo === "posit") {
+        setPosits(prev => [
+          ...prev,
+          {
+            id: elemento.id,
+            texto: elemento.texto,
+            color: elemento.color,
+            giro: elemento.giro,
+            x: pos.x,
+            y: pos.y,
+            ...(elemento.autorNombre ? { autorNombre: elemento.autorNombre } : {}),
+            ...(elemento.autorColor ? { autorColor: elemento.autorColor } : {}),
+            ...(elemento.esMaster !== undefined ? { esMaster: elemento.esMaster } : {})
+          }
+        ]);
+      } else if (elemento.tipo === "archivo") {
+        setDocumentosPizarra(prev => [
+          ...prev,
+          {
+            id: elemento.id,
+            nombre: elemento.nombre,
+            tipo: elemento.mime,
+            vista: elemento.vista,
+            tamano: elemento.tamano,
+            x: pos.x,
+            y: pos.y,
+            ...(elemento.contenidoLocal ? { url: elemento.contenidoLocal } : {})
+          }
+        ]);
+      } else if (elemento.tipo === "objeto") {
+        setObjetosPizarra(prev => [
+          ...prev,
+          {
+            ...elemento,
+            x: pos.x,
+            y: pos.y
+          }
+        ]);
+      }
+      mostrarAvisoBreve("Enviado a la pizarra.");
+    },
+    [posits, documentosPizarra, objetosPizarra, mostrarAvisoBreve]
+  );
+
+  const sacarDePizarraAMesa = useCallback(
+    (elemento: ElementoMesa) => {
+      const tipo = (elemento as { tipo?: string }).tipo ?? "objeto";
+      if (tipo === "objeto") {
+        setObjetosPizarra(prev => prev.filter(o => o.id !== elemento.id));
+      } else if (tipo === "posit") {
+        setPosits(prev => prev.filter(p => p.id !== elemento.id));
+      } else if (tipo === "archivo") {
+        setDocumentosPizarra(prev => prev.filter(d => d.id !== elemento.id));
+      }
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+      const paraMesa: ElementoMesa =
+        tipo === "objeto"
+          ? {
+              ...(elemento as ObjetoPizarra),
+              tipo: "objeto",
+              x: pos.x,
+              y: pos.y
+            }
+          : { ...elemento, x: pos.x, y: pos.y };
+      setElementosMesa(prev => [...prev, paraMesa]);
+      mostrarAvisoBreve("Devuelto a tu mesa.");
+    },
+    [mostrarAvisoBreve]
+  );
 
   async function cambiarDivisaNombre(nombre: string): Promise<void> {
     try {
@@ -1256,6 +1592,9 @@ function SalaRealContent({
         onTrazos={setTrazosPizarra}
         documentosPizarra={documentosPizarra}
         onDocumentosPizarra={setDocumentosPizarra}
+        objetosPizarra={objetosPizarra}
+        onObjetosPizarra={setObjetosPizarra}
+        onSacarDePizarraAMesa={sacarDePizarraAMesa}
         trazosEscena={trazosEscena}
         onTrazosEscena={setTrazosEscena}
         positsEscena={positsEscena}
@@ -1322,6 +1661,9 @@ function SalaRealContent({
           onMacros={actualizarMacros}
           divisa={divisa}
           divisaNombre={mesa.divisaNombre ?? "Divisa"}
+          divisasConfig={divisasConfig}
+          divisasSaldos={divisasSaldos}
+          onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
           onCambiarDivisa={cambiarDivisa}
           onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
           mochila={mochila}
@@ -1336,6 +1678,12 @@ function SalaRealContent({
               : undefined
           }
           onSolicitarArchivos={cargarArchivos}
+          elementosMesa={elementosMesa}
+          onElementosMesa={setElementosMesa}
+          archivosDisponibles={archivosDisponibles}
+          onEnviarElemento={enviarElemento}
+          onAbrirArchivador={() => setFase("archivador")}
+          onCompartirATodos={compartirATodos}
         />
       </>
     );
@@ -1394,8 +1742,13 @@ function SalaRealContent({
         onMacros={actualizarMacros}
         divisa={divisa}
         divisaNombre={mesa.divisaNombre ?? "Divisa"}
+        divisasConfig={divisasConfig}
+        divisasSaldos={divisasSaldos}
+        onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
         onCambiarDivisa={cambiarDivisa}
         onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
+        onCompartirATodos={compartirATodos}
+        onEnviarAPizarra={enviarAPizarra}
         divisaAsiento={divisaAsiento}
         mochila={mochila}
         onMochila={setMochila}

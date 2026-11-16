@@ -6,6 +6,57 @@ export interface ImagenMesa {
   titulo: string | null;
 }
 
+export interface DivisaConfig {
+  id: string;
+  nombre: string;
+  color: string;
+}
+
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+export const MAX_DIVISAS_MESA = 12;
+
+export function sanitizarDivisasConfig(raw: unknown): DivisaConfig[] {
+  if (!Array.isArray(raw)) return [];
+  const limpias: DivisaConfig[] = [];
+  const vistos = new Set<string>();
+
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    const rawId = typeof obj.id === "string" ? obj.id.trim() : "";
+    const id = rawId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+    if (!id || vistos.has(id)) continue;
+
+    const rawNombre = typeof obj.nombre === "string" ? obj.nombre.trim() : "";
+    const nombre = rawNombre.slice(0, 24) || "Divisa";
+
+    const rawColor = typeof obj.color === "string" ? obj.color.trim() : "";
+    const color = HEX_COLOR_RE.test(rawColor) ? rawColor : "#e8c56a";
+
+    vistos.add(id);
+    limpias.push({ id, nombre, color });
+    if (limpias.length >= MAX_DIVISAS_MESA) break;
+  }
+
+  return limpias;
+}
+
+export function resolverDivisasConfig(mesa: {
+  divisaNombre?: string;
+  divisasConfig?: DivisaConfig[];
+}): DivisaConfig[] {
+  if (Array.isArray(mesa.divisasConfig) && mesa.divisasConfig.length > 0) {
+    return mesa.divisasConfig.map(d => ({ ...d }));
+  }
+  return [
+    {
+      id: "principal",
+      nombre: mesa.divisaNombre?.trim() || "Divisa",
+      color: "#e8c56a"
+    }
+  ];
+}
+
 export interface Mesa {
   id: string;
   hostId: string;
@@ -28,6 +79,8 @@ export interface Mesa {
   imagenProyectada?: ImagenMesa | null;
   /** Nombre configurable de la moneda de la mesa (por defecto "Divisa"). */
   divisaNombre?: string;
+  /** Configuración de múltiples divisas de la mesa. */
+  divisasConfig?: DivisaConfig[];
   createdAt: Date;
 }
 
@@ -86,7 +139,10 @@ export class MemoryMesaRepository implements MesaRepository {
       colores: { ...(mesa.colores ?? {}) },
       apodos: { ...(mesa.apodos ?? {}) },
       imagenEscena: mesa.imagenEscena ?? null,
-      imagenProyectada: mesa.imagenProyectada ?? null
+      imagenProyectada: mesa.imagenProyectada ?? null,
+      ...(mesa.divisasConfig
+        ? { divisasConfig: mesa.divisasConfig.map(d => ({ ...d })) }
+        : {})
     });
   }
 

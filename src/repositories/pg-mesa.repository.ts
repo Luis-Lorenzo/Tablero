@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
-import type { EstadoMesa, Mesa, MesaRepository } from "./mesa.repository.js";
+import {
+  sanitizarDivisasConfig,
+  type EstadoMesa,
+  type Mesa,
+  type MesaRepository
+} from "./mesa.repository.js";
 
 interface MesaRow {
   id: string;
@@ -13,6 +18,7 @@ interface MesaRow {
   imagen_proyectada_id: string | null;
   imagen_proyectada_titulo: string | null;
   divisa_nombre: string | null;
+  divisas_config: unknown;
   created_at: Date;
 }
 
@@ -28,12 +34,13 @@ interface JugadoresMesaDatos {
 }
 
 const SELECT_COLUMNS =
-  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, created_at";
+  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, created_at";
 
 function toMesa(
   row: MesaRow,
   datos: JugadoresMesaDatos = { colores: {}, apodos: {} }
 ): Mesa {
+  const divisasLimpias = sanitizarDivisasConfig(row.divisas_config);
   return {
     id: row.id,
     hostId: row.host_id,
@@ -50,6 +57,7 @@ function toMesa(
       ? { id: row.imagen_proyectada_id, titulo: row.imagen_proyectada_titulo }
       : null,
     divisaNombre: row.divisa_nombre?.trim() || "Divisa",
+    ...(divisasLimpias.length > 0 ? { divisasConfig: divisasLimpias } : {}),
     createdAt: new Date(row.created_at)
   };
 }
@@ -124,8 +132,8 @@ export class PgMesaRepository implements MesaRepository {
 
   async save(mesa: Mesa) {
     await this.pool.query(
-      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, created_at)
-       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, created_at)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
        ON CONFLICT(id) DO UPDATE SET
          host_id = EXCLUDED.host_id,
       players = EXCLUDED.players,
@@ -136,7 +144,8 @@ export class PgMesaRepository implements MesaRepository {
          imagen_escena_titulo = EXCLUDED.imagen_escena_titulo,
          imagen_proyectada_id = EXCLUDED.imagen_proyectada_id,
          imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo,
-         divisa_nombre = EXCLUDED.divisa_nombre`,
+         divisa_nombre = EXCLUDED.divisa_nombre,
+         divisas_config = EXCLUDED.divisas_config`,
       [
         mesa.id,
         mesa.hostId,
@@ -149,6 +158,7 @@ export class PgMesaRepository implements MesaRepository {
         mesa.imagenProyectada?.id ?? null,
         mesa.imagenProyectada?.titulo ?? null,
         mesa.divisaNombre?.trim() || "Divisa",
+        mesa.divisasConfig ? JSON.stringify(mesa.divisasConfig) : null,
         mesa.createdAt
       ]
     );

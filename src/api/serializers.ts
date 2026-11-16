@@ -1,5 +1,9 @@
 import type { Archivo } from "../repositories/archivo.repository.js";
 import {
+  resolverDivisasConfig,
+  type DivisaConfig
+} from "../repositories/mesa.repository.js";
+import {
   isActiveUser,
   isUserLocked,
   type User
@@ -63,6 +67,7 @@ export interface PublicMesa {
   imagenEscena: PublicImagenMesa | null;
   imagenProyectada: PublicImagenMesa | null;
   divisaNombre?: string;
+  divisasConfig?: DivisaConfig[];
   createdAt: string;
 }
 
@@ -83,6 +88,7 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     imagenEscena: mesa.imagenEscena ?? null,
     imagenProyectada: mesa.imagenProyectada ?? null,
     divisaNombre: mesa.divisaNombre ?? "Divisa",
+    divisasConfig: resolverDivisasConfig(mesa),
     createdAt: mesa.createdAt.toISOString()
   };
 }

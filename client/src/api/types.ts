@@ -27,6 +27,12 @@ export interface ImagenMaster {
   url?: string;
 }
 
+export interface DivisaConfig {
+  id: string;
+  nombre: string;
+  color: string;
+}
+
 export interface PublicMesa {
   id: string;
   hostId: string;
@@ -41,6 +47,7 @@ export interface PublicMesa {
   imagenEscena?: ImagenMaster | null;
   imagenProyectada?: ImagenMaster | null;
   divisaNombre?: string;
+  divisasConfig?: DivisaConfig[];
   createdAt: string;
 }
 
@@ -166,6 +173,7 @@ export interface PublicJugadorResumenInventario {
   nombre: string;
   color: string;
   divisa: number;
+  divisasSaldos?: Record<string, number>;
   mochila: PublicObjetoResumen[];
   objetosMesa: PublicObjetoResumen[];
 }

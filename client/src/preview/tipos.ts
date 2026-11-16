@@ -61,7 +61,7 @@ export interface MensajeSala {
   createdAt: string;
   /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
   esSistema?: boolean;
-  /** Mensajes de cambio económico/divisa (aparecen en Todo y Chat, no en Dados). */
+  /** Mensajes de cambio económico/divisa (aparecen solo en Todo). */
   esDivisa?: boolean;
 }
 
@@ -137,7 +137,37 @@ export type ElementoMesa =
       y: number;
       archivado?: boolean;
       remitente?: string;
+    }
+  | {
+      id: string;
+      tipo: "macro";
+      macroId: string;
+      nombre: string;
+      icono: string;
+      grupos: GrupoDadoMacro[];
+      bonificador: number;
+      x: number;
+      y: number;
+      archivado?: boolean;
     };
+
+export const COLORES_DIVISA = [
+  { id: "azul-electrico", nombre: "Azul eléctrico", hex: "#2563eb" },
+  { id: "magenta", nombre: "Magenta", hex: "#d946ef" },
+  { id: "blanco", nombre: "Blanco", hex: "#f8fafc" },
+  { id: "verde", nombre: "Verde", hex: "#22c55e" },
+  { id: "cobre", nombre: "Cobre", hex: "#b87333" },
+  { id: "plata", nombre: "Plata", hex: "#cbd5e1" },
+  { id: "negro-carbon", nombre: "Negro carbón", hex: "#27272a" },
+  { id: "rojo-rubi", nombre: "Rojo rubí", hex: "#e11d48" },
+  { id: "naranja", nombre: "Naranja", hex: "#f97316" }
+] as const;
+
+export interface DivisaConfig {
+  id: string;
+  nombre: string;
+  color: string;
+}
 
 export interface ObjetoMochila {
   id: string;

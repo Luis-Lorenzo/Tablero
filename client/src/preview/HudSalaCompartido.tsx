@@ -3,7 +3,10 @@ import {
   ArrowLeft,
   Bookmark,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
+  FileText,
   Minus,
   Moon,
   Pencil,
@@ -12,6 +15,7 @@ import {
   Snowflake,
   Trash2,
   Upload,
+  Users,
   X
 } from "lucide-react";
 import type {
@@ -24,9 +28,13 @@ import type {
 import { archivosApi } from "../api/archivos.api";
 import type { PublicJugadorResumenInventario } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
-import { nuevoId } from "./calibracion";
+import { DocumentoVisorModal } from "./Archivador";
+import { infoFormatoArchivo, nuevoId } from "./calibracion";
 import { ChatSala } from "./ChatSala";
-import { nuevoIdElemento } from "./compartir";
+import { crearElementoDesdeArchivo, nuevoIdElemento } from "./compartir";
+import { COLORES_POSIT } from "./datos";
+import type { ArchivoItem } from "./Mapa";
+import { Posit } from "./Pizarra";
 import {
   cargarDivisaLocal,
   cargarMochilaLocal,
@@ -48,7 +56,11 @@ import {
 } from "./macros";
 import { reproducirSonidoConsumir, reproducirSonidoMonedas } from "./sonido";
 import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
+import { COLORES_DIVISA } from "./tipos";
 import type {
+  DivisaConfig,
+  DocumentoMesa,
+  ElementoMesa,
   JugadorPreview,
   MacroTirada,
   MensajeSala,
@@ -78,9 +90,13 @@ export interface HudSalaCompartidoProps {
   onTiradaLocal?: (tirada: TiradaAsiento) => void;
   macros?: MacroTirada[];
   onMacros?: (macros: MacroTirada[]) => void;
+  onSacarMacroAMesa?: (macro: MacroTirada) => void;
   divisa?: number;
   divisaNombre?: string;
-  onCambiarDivisa?: (nueva: number, delta: number) => void | Promise<void>;
+  divisasConfig?: DivisaConfig[];
+  divisasSaldos?: Record<string, number>;
+  onGuardarDivisasConfig?: (divisas: DivisaConfig[]) => void | Promise<void>;
+  onCambiarDivisa?: (nueva: number, delta: number, divisaId?: string) => void | Promise<void>;
   onCambiarDivisaNombre?: (nuevo: string) => void | Promise<void>;
   mochila?: ObjetoMochila[];
   onMochila?: Dispatch<SetStateAction<ObjetoMochila[]>>;
@@ -91,6 +107,12 @@ export interface HudSalaCompartidoProps {
   ) => void | Promise<void>;
   onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
   onSolicitarArchivos?: () => void;
+  elementosMesa?: ElementoMesa[];
+  onElementosMesa?: Dispatch<SetStateAction<ElementoMesa[]>>;
+  archivosDisponibles?: ArchivoItem[];
+  onEnviarElemento?: (destino: JugadorPreview, elemento: ElementoMesa) => void | Promise<void>;
+  onAbrirArchivador?: () => void;
+  onCompartirATodos?: (elemento: ElementoMesa) => void | Promise<void>;
   onAviso?: (texto: string) => void;
   chatRect?: RectPizarra;
   dockPos?: { x: number; y: number };
@@ -351,6 +373,90 @@ export function IconoDadoPoligono({
   return <IconoD20 valor={valor} />;
 }
 
+function IconoPosit() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M5 4h14v11l-5 5H5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 15v5l5-5h-5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconoArchivador() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 13h6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Icono SVG de paloma mensajera con carta para el botón de enviar objetos/notas. */
+function IconoPaloma({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {/* Alas y cuerpo de la paloma mensajera */}
+      <path
+        d="M3 12c2.5-1.2 4.4-3.6 5.5-7 1.7 2.2 3.3 3.7 5.2 4.3 1.4-1.2 3.2-1.4 4.5-.5.7.5 1.2 1.2 1.3 2 .7.2 1.4.4 2 .7-.6.6-1.4 1-2.2 1.1-.4 2.8-2.3 5-5.3 6.1-2.2.8-4.7.8-7.2.2-1.8-.4-3.4-1.2-4.6-2.2 1.3-.3 2.4-.9 3.3-1.8-1-.3-1.8-.9-2.5-2.9z"
+        fill="#f5f1e6"
+        stroke="#2a1f36"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      {/* Ojo */}
+      <circle cx="17.8" cy="10.2" r="0.8" fill="#1c1226" />
+      {/* Pequeña carta/pergamino en el pico */}
+      <rect
+        x="19.2"
+        y="12.2"
+        width="4"
+        height="3"
+        rx="0.5"
+        fill="#f7d060"
+        stroke="#7a5318"
+        strokeWidth="0.8"
+      />
+      <path
+        d="M19.4 12.4l1.8 1.4 1.8-1.4"
+        fill="none"
+        stroke="#7a5318"
+        strokeWidth="0.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * Superposición compartida del HUD de sala (Chat compacto, Dados, Macros,
  * Dados rápidos, Tirada flotante, Dinero, Mochila e inspección del Máster)
@@ -368,8 +474,12 @@ export function HudSalaCompartido({
   onTiradaLocal,
   macros,
   onMacros,
+  onSacarMacroAMesa,
   divisa,
   divisaNombre = "Divisa",
+  divisasConfig,
+  divisasSaldos,
+  onGuardarDivisasConfig,
   onCambiarDivisa,
   onCambiarDivisaNombre,
   mochila,
@@ -377,6 +487,12 @@ export function HudSalaCompartido({
   onEnviarObjetoMochila,
   onConsultarResumenMaster,
   onSolicitarArchivos,
+  elementosMesa = [],
+  onElementosMesa,
+  archivosDisponibles,
+  onEnviarElemento,
+  onAbrirArchivador,
+  onCompartirATodos,
   onAviso,
   chatRect = { x: 76.5, y: 66, w: 22, h: 28 },
   dockPos = { x: 50, y: 92 },
@@ -511,7 +627,15 @@ export function HudSalaCompartido({
   }
 
   const [divisaLocal, setDivisaLocal] = useState<number>(cargarDivisaLocal);
+  const [divisasConfigLocal, setDivisasConfigLocal] = useState<DivisaConfig[]>(() => [
+    { id: "principal", nombre: divisaNombre, color: COLORES_DIVISA[0].hex }
+  ]);
+  const [divisasSaldosLocal, setDivisasSaldosLocal] = useState<Record<string, number>>({});
   const [divisaAbierta, setDivisaAbierta] = useState(false);
+  const [huchaAbierta, setHuchaAbierta] = useState(false);
+  const [indiceDivisa, setIndiceDivisa] = useState(0);
+  const [nuevaDivisaNombre, setNuevaDivisaNombre] = useState("");
+  const [nuevaDivisaColor, setNuevaDivisaColor] = useState<string>(COLORES_DIVISA[0].hex);
   const [divisaPaso, setDivisaPaso] = useState<1 | 10 | 100>(1);
   const [divisaCustomTexto, setDivisaCustomTexto] = useState("");
   const [divisaNombreEdit, setDivisaNombreEdit] = useState(divisaNombre);
@@ -553,7 +677,28 @@ export function HudSalaCompartido({
   const objetoImgInputRef = useRef<HTMLInputElement>(null);
 
   const macrosLista = macros ?? macrosLocales;
-  const divisaActual = divisa ?? divisaLocal;
+  const divisasLista: DivisaConfig[] =
+    divisasConfig && divisasConfig.length > 0
+      ? divisasConfig
+      : divisasConfigLocal.map((d, idx) =>
+          idx === 0 && d.id === "principal" ? { ...d, nombre: divisaNombre } : d
+        );
+  const indiceDivisaSeguro =
+    divisasLista.length > 0 ? Math.min(indiceDivisa, divisasLista.length - 1) : 0;
+  const divisaActiva: DivisaConfig = divisasLista[indiceDivisaSeguro] ?? {
+    id: "principal",
+    nombre: divisaNombre,
+    color: COLORES_DIVISA[0].hex
+  };
+  const nombreDivisaActiva = divisaActiva.nombre || divisaNombre;
+  const divisaActual =
+    divisasSaldos && divisaActiva.id in divisasSaldos
+      ? divisasSaldos[divisaActiva.id]
+      : divisasSaldos && divisasConfig && divisasConfig.length > 0
+        ? (divisasSaldos[divisaActiva.id] ?? 0)
+        : divisaActiva.id === "principal"
+          ? (divisa ?? divisaLocal)
+          : (divisasSaldosLocal[divisaActiva.id] ?? 0);
   const mochilaActual = mochila ?? mochilaLocal;
   const mensajesVisibles = mensajesChat ?? mensajesLocales;
   const objetoSeleccionado =
@@ -565,6 +710,8 @@ export function HudSalaCompartido({
   });
   const divisaActualRef = useRef(divisaActual);
   divisaActualRef.current = divisaActual;
+  const divisaActivaIdRef = useRef(divisaActiva.id);
+  divisaActivaIdRef.current = divisaActiva.id;
   const onCambiarDivisaRef = useRef(onCambiarDivisa);
   onCambiarDivisaRef.current = onCambiarDivisa;
 
@@ -957,13 +1104,20 @@ export function HudSalaCompartido({
 
   function modificarDivisa(deltaBruto: number, inmediato = false): void {
     const actual = divisaActualRef.current;
+    const divisaIdActual = divisaActivaIdRef.current;
     const nuevo = Math.max(0, Math.min(999_999_999_999, Math.trunc(actual + deltaBruto)));
     const deltaReal = nuevo - actual;
     if (deltaReal === 0) return;
 
-    if (divisa === undefined) {
-      setDivisaLocal(nuevo);
-      guardarDivisaLocal(nuevo);
+    if (divisasSaldos === undefined) {
+      if (divisaIdActual === "principal") {
+        if (divisa === undefined) {
+          setDivisaLocal(nuevo);
+          guardarDivisaLocal(nuevo);
+        }
+      } else {
+        setDivisasSaldosLocal(prev => ({ ...prev, [divisaIdActual]: nuevo }));
+      }
     }
 
     if (inmediato) {
@@ -974,15 +1128,15 @@ export function HudSalaCompartido({
       const deltaTotal = divisaDebounceRef.current.acumulado + deltaReal;
       divisaDebounceRef.current.acumulado = 0;
       if (onCambiarDivisaRef.current) {
-        void onCambiarDivisaRef.current(nuevo, deltaTotal);
+        void onCambiarDivisaRef.current(nuevo, deltaTotal, divisaIdActual);
       } else {
         emitirDivisaLocal(deltaTotal, nuevo);
       }
       return;
     }
 
-    if (onCambiarDivisaRef.current && divisa !== undefined) {
-      void onCambiarDivisaRef.current(nuevo, 0);
+    if (onCambiarDivisaRef.current && (divisa !== undefined || divisasSaldos !== undefined)) {
+      void onCambiarDivisaRef.current(nuevo, 0, divisaIdActual);
     }
 
     divisaDebounceRef.current.acumulado += deltaReal;
@@ -995,11 +1149,19 @@ export function HudSalaCompartido({
       divisaDebounceRef.current.timer = null;
       if (deltaAcum === 0) return;
       if (onCambiarDivisaRef.current) {
-        void onCambiarDivisaRef.current(divisaActualRef.current, deltaAcum);
+        void onCambiarDivisaRef.current(divisaActualRef.current, deltaAcum, divisaIdActual);
       } else {
         emitirDivisaLocal(deltaAcum, divisaActualRef.current);
       }
     }, 750);
+  }
+
+  function actualizarDivisasConfig(siguiente: DivisaConfig[]): void {
+    if (onGuardarDivisasConfig) {
+      void onGuardarDivisasConfig(siguiente);
+    } else {
+      setDivisasConfigLocal(siguiente);
+    }
   }
 
   function actualizarListaMochila(updater: (prev: ObjetoMochila[]) => ObjetoMochila[]): void {
@@ -1096,11 +1258,486 @@ export function HudSalaCompartido({
     setPasandoObjetoId(actual => (actual === id ? null : actual));
   }
 
+  // --- Posits, documentos, objetos y macros sobre el mapa ---
+  const [positActivo, setPositActivo] = useState<string | null>(null);
+  const [visorDoc, setVisorDoc] = useState<DocumentoMesa | null>(null);
+  const [objetoMesaActivo, setObjetoMesaActivo] = useState<
+    Extract<ElementoMesa, { tipo: "objeto" }> | null
+  >(null);
+  const [archivadorMapaAbierto, setArchivadorMapaAbierto] = useState(false);
+  const [enviarPopoverAbierto, setEnviarPopoverAbierto] = useState(false);
+  const [enviarDestinoId, setEnviarDestinoId] = useState<string | null>(null);
+
+  const onElementosMesaRef = useRef(onElementosMesa);
+  const onEnviarElementoRef = useRef(onEnviarElemento);
+  const jugadoresRef = useRef(jugadores);
+  const arrastreElementoMovido = useRef(false);
+
+  useEffect(() => {
+    onElementosMesaRef.current = onElementosMesa;
+    onEnviarElementoRef.current = onEnviarElemento;
+    jugadoresRef.current = jugadores;
+  }, [onElementosMesa, onEnviarElemento, jugadores]);
+
+  const positsVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+      el.tipo === "posit" && !el.archivado
+  );
+  const docsVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
+      el.tipo === "archivo" && !el.archivado
+  );
+  const objetosVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "objeto" }> =>
+      el.tipo === "objeto" && !el.archivado
+  );
+  const macrosVisibles = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "macro" }> =>
+      el.tipo === "macro" && !el.archivado
+  );
+  const elementosArchivados = elementosMesa.filter(el => Boolean(el.archivado));
+  const elementosEnviables = elementosMesa.filter(
+    el => el.tipo !== "macro" && !el.archivado
+  );
+  const destinatariosDisponibles = jugadores.filter(
+    j => j.activo && j.id !== yoAsientoId && j.usuarioId !== miUsuarioId
+  );
+
+  function detectarJugadorEnPunto(clientX: number, clientY: number): JugadorPreview | null {
+    const nodos = document.querySelectorAll<HTMLElement>("[data-jugador-id]");
+    for (const nodo of nodos) {
+      const rect = nodo.getBoundingClientRect();
+      if (
+        clientX >= rect.left - 6 &&
+        clientX <= rect.right + 6 &&
+        clientY >= rect.top - 6 &&
+        clientY <= rect.bottom + 6
+      ) {
+        const jid = nodo.dataset.jugadorId;
+        const juid = nodo.dataset.jugadorUsuarioId;
+        const encontrado = jugadoresRef.current.find(
+          j =>
+            (j.id === jid || (juid && j.usuarioId === juid)) &&
+            j.activo &&
+            j.id !== yoAsientoId &&
+            j.usuarioId !== miUsuarioId
+        );
+        if (encontrado) return encontrado;
+      }
+    }
+    return null;
+  }
+
+  function iniciarArrastreElemento(
+    evento: ReactPointerEvent,
+    elemento: ElementoMesa
+  ): void {
+    if (evento.button !== 0) return;
+    if (
+      elemento.tipo === "posit" &&
+      (evento.target as HTMLElement | null)?.closest("textarea, button, input")
+    ) {
+      return;
+    }
+    evento.preventDefault();
+    evento.stopPropagation();
+
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    const baseX = elemento.x;
+    const baseY = elemento.y;
+    arrastreElementoMovido.current = false;
+    if (elemento.tipo === "posit") {
+      setPositActivo(elemento.id);
+    }
+
+    function mover(ev: globalThis.PointerEvent): void {
+      if (
+        !arrastreElementoMovido.current &&
+        Math.hypot(ev.clientX - inicioX, ev.clientY - inicioY) > 4
+      ) {
+        arrastreElementoMovido.current = true;
+      }
+      if (!arrastreElementoMovido.current) return;
+      const vw = Math.max(1, window.innerWidth);
+      const vh = Math.max(1, window.innerHeight);
+      const nx = limitar(baseX + ((ev.clientX - inicioX) / vw) * 100, 3, 97);
+      const ny = limitar(baseY + ((ev.clientY - inicioY) / vh) * 100, 3, 97);
+      onElementosMesaRef.current?.(prev =>
+        prev.map(el => (el.id === elemento.id ? { ...el, x: nx, y: ny } : el))
+      );
+    }
+
+    function soltar(ev: globalThis.PointerEvent): void {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+
+      if (
+        arrastreElementoMovido.current &&
+        elemento.tipo !== "macro" &&
+        onEnviarElementoRef.current
+      ) {
+        const destino = detectarJugadorEnPunto(ev.clientX, ev.clientY);
+        if (destino) {
+          if (elemento.tipo === "posit" || elemento.tipo === "objeto") {
+            onElementosMesaRef.current?.(prev =>
+              prev.filter(el => el.id !== elemento.id)
+            );
+          }
+          void onEnviarElementoRef.current(destino, elemento);
+        }
+      }
+
+      window.setTimeout(() => {
+        arrastreElementoMovido.current = false;
+      }, 0);
+    }
+
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+  }
+
+  function crearPositMapa(): void {
+    if (!onElementosMesa) {
+      mostrarAviso("No se pueden crear posits en esta vista.");
+      return;
+    }
+    const posit: Extract<ElementoMesa, { tipo: "posit" }> = {
+      id: `posit-${nuevoId()}`,
+      tipo: "posit",
+      texto: "",
+      color: COLORES_POSIT[3].valor,
+      x: 46 + (Math.random() - 0.5) * 14,
+      y: 44 + (Math.random() - 0.5) * 14,
+      giro: (Math.random() - 0.5) * 4
+    };
+    onElementosMesa(prev => [...prev, posit]);
+    setPositActivo(posit.id);
+  }
+
+  function cambiarTextoPositMapa(id: string, texto: string): void {
+    onElementosMesa?.(prev =>
+      prev.map(el => (el.id === id && el.tipo === "posit" ? { ...el, texto } : el))
+    );
+  }
+
+  function cambiarColorPositMapa(id: string, color: string): void {
+    onElementosMesa?.(prev =>
+      prev.map(el => (el.id === id && el.tipo === "posit" ? { ...el, color } : el))
+    );
+  }
+
+  function archivarPositMapa(id: string): void {
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id && el.tipo === "posit" ? { ...el, archivado: true } : el
+      )
+    );
+    setPositActivo(actual => (actual === id ? null : actual));
+    mostrarAviso("Posit guardado en el archivador.");
+  }
+
+  function borrarPositMapa(id: string): void {
+    onElementosMesa?.(prev => prev.filter(el => el.id !== id));
+    setPositActivo(actual => (actual === id ? null : actual));
+  }
+
+  function archivarDocMapa(id: string): void {
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id && el.tipo === "archivo" ? { ...el, archivado: true } : el
+      )
+    );
+    setVisorDoc(actual => (actual?.id === id ? null : actual));
+  }
+
+  function sacarArchivoAMapa(archivo: ArchivoItem): void {
+    if (!onElementosMesa) return;
+    const elemento = crearElementoDesdeArchivo(
+      { ...archivo, createdAt: new Date().toISOString() },
+      {
+        x: 46 + (Math.random() - 0.5) * 14,
+        y: 44 + (Math.random() - 0.5) * 14
+      }
+    );
+    onElementosMesa(prev => [...prev, elemento]);
+    setArchivadorMapaAbierto(false);
+    mostrarAviso(`«${archivo.nombre}» sacado al mapa.`);
+  }
+
+  function desarchivarElementoMapa(id: string): void {
+    onElementosMesa?.(prev =>
+      prev.map(el => (el.id === id ? { ...el, archivado: false } : el))
+    );
+    setArchivadorMapaAbierto(false);
+  }
+
+  function guardarObjetoMapaEnMochila(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    actualizarListaMochila(prev => [
+      ...prev,
+      {
+        id: `obj-${nuevoId()}`,
+        nombre: obj.nombre,
+        descripcion: obj.descripcion,
+        cantidad: obj.cantidad,
+        emoji: obj.emoji,
+        archivoId: obj.archivoId,
+        archivoNombre: obj.archivoNombre,
+        imagenLocal: obj.imagenLocal
+      }
+    ]);
+    onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+    setObjetoMesaActivo(null);
+    mostrarAviso(`«${obj.nombre}» guardado en la mochila.`);
+  }
+
+  function enviarElementoDesdePopover(
+    destino: JugadorPreview,
+    elem: ElementoMesa
+  ): void {
+    if (elem.tipo === "posit" || elem.tipo === "objeto") {
+      onElementosMesa?.(prev => prev.filter(e => e.id !== elem.id));
+    }
+    if (onEnviarElemento) {
+      void onEnviarElemento(destino, elem);
+    } else {
+      const etiqueta = elem.tipo === "posit" ? "nota" : elem.nombre;
+      mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
+    }
+    setEnviarPopoverAbierto(false);
+  }
+
   return (
     <div
       className="hud-mapa-capa"
       style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 24 }}
     >
+      {/* Capa flotante de posits, documentos, objetos y rombos de macros */}
+      <div
+        className="mapa-elementos-capa"
+        style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 23 }}
+      >
+        {positsVisibles.map(posit => (
+          <Posit
+            key={posit.id}
+            posit={posit}
+            enMesa
+            activo={positActivo === posit.id}
+            onActivar={setPositActivo}
+            onTexto={cambiarTextoPositMapa}
+            onColor={cambiarColorPositMapa}
+            onArchivar={archivarPositMapa}
+            onBorrar={borrarPositMapa}
+            onArrastrar={evento => iniciarArrastreElemento(evento, posit)}
+          />
+        ))}
+
+        {esMaster &&
+          onCompartirATodos &&
+          positActivo &&
+          (() => {
+            const positElem = positsVisibles.find(el => el.id === positActivo);
+            if (!positElem) return null;
+            return (
+              <button
+                type="button"
+                className="mesa-posit-dar-todos"
+                style={{
+                  position: "absolute",
+                  left: `${positElem.x}%`,
+                  top: `${Math.max(4, positElem.y - 8)}%`,
+                  transform: "translate(-50%, -100%)",
+                  pointerEvents: "auto"
+                }}
+                onClick={() => void onCompartirATodos(positElem)}
+                title="Enviar copia de esta nota a todos los jugadores"
+              >
+                <Users size={12} strokeWidth={2.2} aria-hidden="true" />
+                <span>Dar a todos</span>
+              </button>
+            );
+          })()}
+
+        {docsVisibles.map(doc => {
+          const formato = infoFormatoArchivo(doc.vista);
+          return (
+            <div
+              key={doc.id}
+              className="ficha-doc"
+              style={
+                {
+                  left: `${doc.x}%`,
+                  top: `${doc.y}%`,
+                  "--doc-color": formato.color,
+                  pointerEvents: "auto"
+                } as CSSProperties
+              }
+              onPointerDown={evento => iniciarArrastreElemento(evento, doc)}
+            >
+              <div
+                className="ficha-doc-barra"
+                onPointerDown={evento => evento.stopPropagation()}
+              >
+                {esMaster && onCompartirATodos && (
+                  <button
+                    type="button"
+                    className="doc-master-icono"
+                    title="Dar a todos"
+                    aria-label="Dar a todos"
+                    onClick={evento => {
+                      evento.stopPropagation();
+                      void onCompartirATodos(doc);
+                    }}
+                  >
+                    <Users size={13} strokeWidth={2.1} aria-hidden="true" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="posit-archivar"
+                  title="Archivar documento"
+                  aria-label="Archivar documento"
+                  onClick={evento => {
+                    evento.stopPropagation();
+                    archivarDocMapa(doc.id);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className={`ficha-doc-hoja ${formato.clase}`}
+                title={`Abrir ${doc.nombre}`}
+                aria-label={`Abrir ${doc.nombre}`}
+                onClick={() => {
+                  if (arrastreElementoMovido.current) return;
+                  setVisorDoc({
+                    id: doc.archivoId,
+                    nombre: doc.nombre,
+                    tipo: doc.mime,
+                    vista: doc.vista,
+                    tamano: doc.tamano,
+                    x: doc.x,
+                    y: doc.y,
+                    url: doc.contenidoLocal
+                  });
+                }}
+              >
+                <span className="ficha-doc-codigo">{formato.codigo}</span>
+              </button>
+
+              <span className="ficha-doc-nombre" title={doc.nombre}>
+                {doc.nombre}
+              </span>
+            </div>
+          );
+        })}
+
+        {objetosVisibles.map(obj => (
+          <div
+            key={obj.id}
+            className="mesa-objeto"
+            style={{ left: `${obj.x}%`, top: `${obj.y}%`, pointerEvents: "auto" }}
+            title={`${obj.nombre} (x${obj.cantidad})`}
+            onPointerDown={evento => iniciarArrastreElemento(evento, obj)}
+            onClick={() => {
+              if (!arrastreElementoMovido.current) {
+                setObjetoMesaActivo(obj);
+              }
+            }}
+          >
+            <div className="mesa-objeto-cuadro">
+              {obj.imagenLocal || obj.archivoId ? (
+                <img
+                  src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
+                  alt={obj.nombre}
+                  draggable={false}
+                />
+              ) : (
+                <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+              )}
+              <span className="mochila-slot-cant">{obj.cantidad}</span>
+            </div>
+            <span className="mesa-objeto-nombre">{obj.nombre}</span>
+          </div>
+        ))}
+
+        {macrosVisibles.map(macroElem => (
+          <div
+            key={macroElem.id}
+            className="mesa-macro-rombo"
+            style={{
+              left: `${macroElem.x}%`,
+              top: `${macroElem.y}%`,
+              pointerEvents: "auto"
+            }}
+            onPointerDown={evento => iniciarArrastreElemento(evento, macroElem)}
+            onClick={() => {
+              if (arrastreElementoMovido.current) return;
+              lanzarMacro({
+                id: macroElem.macroId,
+                nombre: macroElem.nombre,
+                icono: macroElem.icono,
+                grupos: macroElem.grupos,
+                bonificador: macroElem.bonificador
+              });
+            }}
+            title={`Lanzar ${macroElem.nombre}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`Lanzar ${macroElem.nombre}`}
+            onKeyDown={evento => {
+              if (evento.key === "Enter" || evento.key === " ") {
+                evento.preventDefault();
+                lanzarMacro({
+                  id: macroElem.macroId,
+                  nombre: macroElem.nombre,
+                  icono: macroElem.icono,
+                  grupos: macroElem.grupos,
+                  bonificador: macroElem.bonificador
+                });
+              }
+            }}
+          >
+            <div className="mesa-macro-rombo-cuadro">
+              <button
+                type="button"
+                className="mesa-macro-rombo-cerrar"
+                title="Quitar macro de la mesa"
+                aria-label={`Quitar ${macroElem.nombre} de la mesa`}
+                onPointerDown={evento => evento.stopPropagation()}
+                onClick={evento => {
+                  evento.stopPropagation();
+                  onElementosMesa?.(prev =>
+                    prev.filter(el => el.id !== macroElem.id)
+                  );
+                }}
+              >
+                <X size={11} strokeWidth={2.5} aria-hidden="true" />
+              </button>
+              <span className="mesa-macro-rombo-icono">
+                <IconoMacro id={macroElem.icono} size={20} />
+              </span>
+            </div>
+            <span className="mesa-macro-rombo-nombre">{macroElem.nombre}</span>
+          </div>
+        ))}
+      </div>
       <div className="chat-en-mapa" style={{ pointerEvents: "none" }}>
         <ChatSala
           rect={chatPos}
@@ -1127,14 +1764,67 @@ export function HudSalaCompartido({
             <Snowflake size={44} strokeWidth={2.2} aria-hidden="true" />
           </span>
         )}
+        <button
+          type="button"
+          className={`hud-hucha-btn${huchaAbierta ? " activo" : ""}`}
+          onClick={() => {
+            setDivisaAbierta(false);
+            setMochilaAbierta(false);
+            setMasterDivisasAbierto(false);
+            setMasterMochilasAbierto(false);
+            setHuchaAbierta(v => !v);
+          }}
+          aria-expanded={huchaAbierta}
+          title="Hucha (ver todas tus divisas)"
+          aria-label="Hucha (ver todas tus divisas)"
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 16 16"
+            shapeRendering="crispEdges"
+            aria-hidden="true"
+          >
+            <rect x="4" y="2" width="8" height="2" fill="#d4a03a" />
+            <rect x="2" y="4" width="12" height="9" fill="#8b5a2b" />
+            <rect x="3" y="5" width="10" height="7" fill="#a86f38" />
+            <rect x="2" y="4" width="12" height="1" fill="#181020" />
+            <rect x="2" y="13" width="12" height="1" fill="#181020" />
+            <rect x="1" y="5" width="1" height="8" fill="#181020" />
+            <rect x="14" y="5" width="1" height="8" fill="#181020" />
+            <rect x="10" y="7" width="4" height="3" fill="#f7d060" />
+            <rect x="11" y="8" width="1" height="1" fill="#181020" />
+          </svg>
+        </button>
+
         <div className="hud-divisa-caja">
-          <span className="hud-divisa-titulo">{divisaNombre}</span>
+          <span className="hud-divisa-titulo">
+            <span
+              className="hud-divisa-color-punto"
+              style={{ backgroundColor: divisaActiva.color }}
+              aria-hidden="true"
+            />
+            <span>{nombreDivisaActiva}</span>
+          </span>
           <div className="hud-divisa-fila">
+            {divisasLista.length > 1 && (
+              <button
+                type="button"
+                className="hud-divisa-paso hud-divisa-flecha"
+                onClick={() =>
+                  setIndiceDivisa(i => (i - 1 + divisasLista.length) % divisasLista.length)
+                }
+                aria-label="Divisa anterior"
+                title="Divisa anterior"
+              >
+                <ChevronLeft size={13} strokeWidth={2.6} aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               className="hud-divisa-paso"
               onClick={() => modificarDivisa(-divisaPaso)}
-              aria-label={`Restar ${divisaPaso} ${divisaNombre}`}
+              aria-label={`Restar ${divisaPaso} ${nombreDivisaActiva}`}
               title={`Restar ${divisaPaso}`}
             >
               <Minus size={13} strokeWidth={2.6} aria-hidden="true" />
@@ -1144,12 +1834,21 @@ export function HudSalaCompartido({
               className={`hud-divisa-centro${divisaAbierta ? " activo" : ""}`}
               onClick={() => {
                 setMochilaAbierta(false);
+                setHuchaAbierta(false);
                 setDivisaAbierta(v => !v);
               }}
-              title={`${divisaNombre}: ${divisaActual.toLocaleString("es-ES")}`}
+              title={`${nombreDivisaActiva}: ${divisaActual.toLocaleString("es-ES")}`}
               aria-expanded={divisaAbierta}
             >
-              <IconoMonedasPixel size={38} />
+              <span
+                className="hud-divisa-icono-wrap"
+                style={{
+                  filter: `drop-shadow(0 0 4px ${divisaActiva.color})`,
+                  borderBottom: `2px solid ${divisaActiva.color}`
+                }}
+              >
+                <IconoMonedasPixel size={38} />
+              </span>
               <span className="hud-divisa-valor">
                 {formatearDivisaCompacta(divisaActual)}
               </span>
@@ -1158,11 +1857,24 @@ export function HudSalaCompartido({
               type="button"
               className="hud-divisa-paso"
               onClick={() => modificarDivisa(divisaPaso)}
-              aria-label={`Sumar ${divisaPaso} ${divisaNombre}`}
+              aria-label={`Sumar ${divisaPaso} ${nombreDivisaActiva}`}
               title={`Sumar ${divisaPaso}`}
             >
               <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
             </button>
+            {divisasLista.length > 1 && (
+              <button
+                type="button"
+                className="hud-divisa-paso hud-divisa-flecha"
+                onClick={() =>
+                  setIndiceDivisa(i => (i + 1) % divisasLista.length)
+                }
+                aria-label="Divisa siguiente"
+                title="Divisa siguiente"
+              >
+                <ChevronRight size={13} strokeWidth={2.6} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1171,8 +1883,10 @@ export function HudSalaCompartido({
           className={`hud-mochila-btn${mochilaAbierta ? " activo" : ""}`}
           onClick={() => {
             setDivisaAbierta(false);
+            setHuchaAbierta(false);
             setMasterDivisasAbierto(false);
             setMasterMochilasAbierto(false);
+            setEnviarPopoverAbierto(false);
             setMochilaAbierta(v => !v);
           }}
           aria-expanded={mochilaAbierta}
@@ -1183,6 +1897,53 @@ export function HudSalaCompartido({
           {mochilaActual.length > 0 && (
             <span className="hud-mochila-badge">{mochilaActual.length}</span>
           )}
+        </button>
+
+        <button
+          type="button"
+          className={`hud-enviar-btn${enviarPopoverAbierto ? " activo" : ""}`}
+          onClick={() => {
+            setDivisaAbierta(false);
+            setHuchaAbierta(false);
+            setMochilaAbierta(false);
+            setMasterDivisasAbierto(false);
+            setMasterMochilasAbierto(false);
+            setEnviarPopoverAbierto(v => {
+              const siguiente = !v;
+              if (siguiente && !enviarDestinoId && destinatariosDisponibles.length > 0) {
+                setEnviarDestinoId(destinatariosDisponibles[0].id);
+              }
+              return siguiente;
+            });
+          }}
+          aria-expanded={enviarPopoverAbierto}
+          title="Enviar objeto, nota o documento a otro jugador"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "7px 12px",
+            border: enviarPopoverAbierto
+              ? "2px solid #e8c56a"
+              : "2px solid rgb(232 197 106 / 45%)",
+            borderRadius: 10,
+            background: enviarPopoverAbierto
+              ? "rgb(28 22 38 / 95%)"
+              : "rgb(14 11 20 / 92%)",
+            color: "#f3e6c8",
+            fontSize: 12,
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            boxShadow: "2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%)",
+            cursor: "pointer"
+          }}
+        >
+          <IconoPaloma size={20} />
+          <span>Enviar</span>
         </button>
 
         {esMaster && (
@@ -1211,15 +1972,245 @@ export function HudSalaCompartido({
         )}
       </div>
 
+      {enviarPopoverAbierto && (
+        <div
+          className="divisa-popover hud-enviar-popover"
+          role="dialog"
+          aria-label="Enviar a jugador"
+          style={{
+            pointerEvents: "auto",
+            top: 184,
+            maxHeight: "65vh",
+            overflowY: "auto"
+          }}
+        >
+          <div className="dados-selector-cabecera">
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <IconoPaloma size={16} />
+              <span>Enviar a jugador</span>
+            </span>
+            <button
+              type="button"
+              className="dados-cerrar"
+              onClick={() => setEnviarPopoverAbierto(false)}
+              aria-label="Cerrar panel de envío"
+            >
+              <X size={14} strokeWidth={2.4} aria-hidden="true" />
+            </button>
+          </div>
+
+          {destinatariosDisponibles.length === 0 ? (
+            <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+              No hay otros jugadores activos en la mesa.
+            </p>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                  1. Destinatario
+                </span>
+                <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {destinatariosDisponibles.map(j => {
+                    const seleccionado =
+                      (enviarDestinoId ?? destinatariosDisponibles[0]?.id) === j.id;
+                    return (
+                      <button
+                        key={j.id}
+                        type="button"
+                        className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
+                        onClick={() => setEnviarDestinoId(j.id)}
+                        style={{
+                          borderColor: seleccionado ? j.color : undefined,
+                          boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
+                        }}
+                      >
+                        {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                  2. Elemento o item
+                </span>
+                {mochilaActual.length === 0 && elementosEnviables.length === 0 ? (
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                    No tienes objetos en la mochila ni elementos en el mapa para enviar.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {mochilaActual.map(item => (
+                      <button
+                        key={`mochila-${item.id}`}
+                        type="button"
+                        className="macro-lanzar-btn"
+                        style={{ width: "100%", justifyContent: "space-between" }}
+                        onClick={() => {
+                          const destino =
+                            destinatariosDisponibles.find(
+                              j => j.id === (enviarDestinoId ?? destinatariosDisponibles[0]?.id)
+                            ) ?? destinatariosDisponibles[0];
+                          if (!destino) return;
+                          if (onEnviarObjetoMochila) {
+                            void onEnviarObjetoMochila(destino, item, 1);
+                          } else {
+                            mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
+                          }
+                          setEnviarPopoverAbierto(false);
+                        }}
+                      >
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span>{item.emoji ?? "🎒"}</span>
+                          <span>{item.nombre}</span>
+                        </span>
+                        <span style={{ fontSize: 11, opacity: 0.75 }}>
+                          Mochila (x{item.cantidad})
+                        </span>
+                      </button>
+                    ))}
+
+                    {elementosEnviables.map(elem => {
+                      const etiqueta =
+                        elem.tipo === "posit"
+                          ? elem.texto.trim() || "Posit sin texto"
+                          : elem.nombre;
+                      const icono =
+                        elem.tipo === "posit"
+                          ? "📝"
+                          : elem.tipo === "archivo"
+                            ? "📄"
+                            : elem.tipo === "objeto"
+                              ? elem.emoji ?? "🎒"
+                              : "◆";
+                      const sub =
+                        elem.tipo === "posit"
+                          ? "Posit"
+                          : elem.tipo === "archivo"
+                            ? "Doc"
+                            : elem.tipo === "objeto"
+                              ? `Objeto x${elem.cantidad}`
+                              : "Macro";
+                      return (
+                        <button
+                          key={`elem-${elem.id}`}
+                          type="button"
+                          className="macro-lanzar-btn"
+                          style={{ width: "100%", justifyContent: "space-between" }}
+                          onClick={() => {
+                            const destino =
+                              destinatariosDisponibles.find(
+                                j => j.id === (enviarDestinoId ?? destinatariosDisponibles[0]?.id)
+                              ) ?? destinatariosDisponibles[0];
+                            if (!destino) return;
+                            enviarElementoDesdePopover(destino, elem);
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            <span>{icono}</span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {etiqueta}
+                            </span>
+                          </span>
+                          <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+                            {sub}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {huchaAbierta && (
+        <div
+          className="divisa-popover hud-hucha-popover"
+          role="dialog"
+          aria-label="Hucha de divisas"
+          style={{ pointerEvents: "auto" }}
+        >
+          <div className="dados-selector-cabecera">
+            <span>Hucha</span>
+            <button
+              type="button"
+              className="dados-cerrar"
+              onClick={() => setHuchaAbierta(false)}
+              aria-label="Cerrar hucha"
+            >
+              <X size={14} strokeWidth={2.4} aria-hidden="true" />
+            </button>
+          </div>
+          <ul className="master-divisa-lista">
+            {divisasLista.map((d, idx) => {
+              const saldo =
+                divisasSaldos && d.id in divisasSaldos
+                  ? divisasSaldos[d.id]
+                  : divisasSaldos && divisasConfig && divisasConfig.length > 0
+                    ? (divisasSaldos[d.id] ?? 0)
+                    : d.id === "principal"
+                      ? (divisa ?? divisaLocal)
+                      : (divisasSaldosLocal[d.id] ?? 0);
+              return (
+                <li key={d.id} className="master-divisa-item">
+                  <button
+                    type="button"
+                    className="master-divisa-jugador"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "inherit",
+                      padding: 0,
+                      cursor: "pointer"
+                    }}
+                    onClick={() => {
+                      setIndiceDivisa(idx);
+                      setHuchaAbierta(false);
+                    }}
+                  >
+                    <span
+                      className="compartir-jugador-punto"
+                      style={{ backgroundColor: d.color }}
+                      aria-hidden="true"
+                    />
+                    <span>{d.nombre}</span>
+                  </button>
+                  <span
+                    className="master-divisa-monto"
+                    title={`${saldo.toLocaleString("es-ES")} ${d.nombre}`}
+                  >
+                    {saldo.toLocaleString("es-ES")}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {masterDivisasAbierto && esMaster && (
         <div
           className="divisa-popover master-resumen-popover"
           role="dialog"
-          aria-label={`${divisaNombre} de jugadores conectados`}
+          aria-label="Divisas de jugadores conectados"
           style={{ pointerEvents: "auto" }}
         >
           <div className="dados-selector-cabecera">
-            <span>{divisaNombre} · Conectados</span>
+            <span>Divisas · Conectados</span>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <button
                 type="button"
@@ -1245,24 +2236,51 @@ export function HudSalaCompartido({
             <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
           ) : (
             <ul className="master-divisa-lista">
-              {masterResumenJugadores.map(j => (
-                <li key={j.userId} className="master-divisa-item">
-                  <span className="master-divisa-jugador">
-                    <span
-                      className="compartir-jugador-punto"
-                      style={{ backgroundColor: j.color }}
-                      aria-hidden="true"
-                    />
-                    <span>{j.nombre}</span>
-                  </span>
-                  <span
-                    className="master-divisa-monto"
-                    title={`${j.divisa.toLocaleString("es-ES")} ${divisaNombre}`}
-                  >
-                    {formatearDivisaCompacta(j.divisa)}
-                  </span>
-                </li>
-              ))}
+              {masterResumenJugadores.map(j => {
+                const saldosJugador = (
+                  j as PublicJugadorResumenInventario & {
+                    divisasSaldos?: Record<string, number>;
+                  }
+                ).divisasSaldos;
+                return (
+                  <li key={j.userId} className="master-divisa-item master-divisa-item-multi">
+                    <span className="master-divisa-jugador">
+                      <span
+                        className="compartir-jugador-punto"
+                        style={{ backgroundColor: j.color }}
+                        aria-hidden="true"
+                      />
+                      <span>{j.nombre}</span>
+                    </span>
+                    <div className="master-divisa-saldos">
+                      {divisasLista.map((d, idx) => {
+                        const valor =
+                          saldosJugador && d.id in saldosJugador
+                            ? saldosJugador[d.id]
+                            : idx === 0
+                              ? j.divisa
+                              : 0;
+                        return (
+                          <span
+                            key={d.id}
+                            className="master-divisa-monto"
+                            title={`${valor.toLocaleString("es-ES")} ${d.nombre}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                          >
+                            <span
+                              className="compartir-jugador-punto"
+                              style={{ backgroundColor: d.color, width: "7px", height: "7px" }}
+                              aria-hidden="true"
+                            />
+                            <span>{formatearDivisaCompacta(valor)}</span>
+                            <small style={{ opacity: 0.72 }}>{d.nombre}</small>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -1441,11 +2459,18 @@ export function HudSalaCompartido({
         <div
           className="divisa-popover"
           role="dialog"
-          aria-label={`Gestionar ${divisaNombre}`}
+          aria-label={`Gestionar ${nombreDivisaActiva}`}
           style={{ pointerEvents: "auto" }}
         >
           <div className="dados-selector-cabecera">
-            <span>{divisaNombre}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <span
+                className="compartir-jugador-punto"
+                style={{ backgroundColor: divisaActiva.color }}
+                aria-hidden="true"
+              />
+              <span>{nombreDivisaActiva}</span>
+            </span>
             <button
               type="button"
               className="dados-cerrar"
@@ -1457,7 +2482,12 @@ export function HudSalaCompartido({
           </div>
 
           <div className="divisa-exacto">
-            <IconoMonedasPixel size={22} />
+            <span
+              className="hud-divisa-icono-wrap"
+              style={{ filter: `drop-shadow(0 0 3px ${divisaActiva.color})` }}
+            >
+              <IconoMonedasPixel size={22} />
+            </span>
             <span>{divisaActual.toLocaleString("es-ES")}</span>
           </div>
 
@@ -1564,6 +2594,97 @@ export function HudSalaCompartido({
                 </button>
               </div>
             </form>
+          )}
+
+          {esMaster && (
+            <div className="divisa-master-gestion" style={{ marginTop: "8px", borderTop: "1px solid rgb(255 255 255 / 12%)", paddingTop: "8px" }}>
+              <span className="dados-campo-etiqueta">Divisas de la mesa</span>
+              {divisasLista.length > 1 && (
+                <ul className="master-divisa-lista" style={{ marginTop: "4px", marginBottom: "6px" }}>
+                  {divisasLista.map((d, idx) => (
+                    <li key={d.id} className="master-divisa-item">
+                      <span className="master-divisa-jugador">
+                        <span
+                          className="compartir-jugador-punto"
+                          style={{ backgroundColor: d.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{d.nombre}</span>
+                      </span>
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          className="macro-accion-btn borrar"
+                          title={`Eliminar ${d.nombre}`}
+                          aria-label={`Eliminar ${d.nombre}`}
+                          onClick={() => {
+                            const siguiente = divisasLista.filter(item => item.id !== d.id);
+                            actualizarDivisasConfig(siguiente);
+                            setIndiceDivisa(prev => Math.min(prev, Math.max(0, siguiente.length - 1)));
+                          }}
+                        >
+                          <Trash2 size={12} strokeWidth={2.2} aria-hidden="true" />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form
+                className="divisa-master-nombre"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const nombreLimpio = nuevaDivisaNombre.trim();
+                  if (!nombreLimpio) return;
+                  const nueva: DivisaConfig = {
+                    id: `div-${nuevoId()}`,
+                    nombre: nombreLimpio,
+                    color: nuevaDivisaColor
+                  };
+                  const siguiente = [...divisasLista, nueva];
+                  actualizarDivisasConfig(siguiente);
+                  setNuevaDivisaNombre("");
+                  setIndiceDivisa(siguiente.length - 1);
+                }}
+              >
+                <div className="divisa-master-nombre-fila">
+                  <input
+                    type="text"
+                    maxLength={24}
+                    value={nuevaDivisaNombre}
+                    onChange={e => setNuevaDivisaNombre(e.target.value)}
+                    placeholder="Nueva divisa..."
+                    aria-label="Nombre de nueva divisa"
+                  />
+                  <button type="submit" title="Añadir divisa" aria-label="Añadir divisa">
+                    <Plus size={13} strokeWidth={2.5} aria-hidden="true" />
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+                  {COLORES_DIVISA.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      title={c.nombre}
+                      aria-label={c.nombre}
+                      onClick={() => setNuevaDivisaColor(c.hex)}
+                      style={{
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "4px",
+                        backgroundColor: c.hex,
+                        border:
+                          nuevaDivisaColor === c.hex
+                            ? "2px solid #fff"
+                            : "1px solid rgb(0 0 0 / 45%)",
+                        cursor: "pointer",
+                        padding: 0
+                      }}
+                    />
+                  ))}
+                </div>
+              </form>
+            </div>
           )}
         </div>
       )}
@@ -2321,6 +3442,37 @@ export function HudSalaCompartido({
                       <div className="macro-acciones">
                         <button
                           type="button"
+                          className="macro-accion-btn macro-sacar-btn"
+                          onClick={() => {
+                            if (onElementosMesa) {
+                              onElementosMesa(prev => [
+                                ...prev,
+                                {
+                                  id: nuevoIdElemento(),
+                                  tipo: "macro",
+                                  macroId: macro.id,
+                                  nombre: macro.nombre,
+                                  icono: macro.icono,
+                                  grupos: macro.grupos,
+                                  bonificador: macro.bonificador,
+                                  x: 50,
+                                  y: 70
+                                }
+                              ]);
+                              mostrarAviso(`Macro «${macro.nombre}» sacada al mapa.`);
+                            } else if (onSacarMacroAMesa) {
+                              onSacarMacroAMesa(macro);
+                            } else {
+                              mostrarAviso("Ve a la sala para sacar macros a la mesa.");
+                            }
+                          }}
+                          title="Sacar a mesa"
+                          aria-label={`Sacar ${macro.nombre} a mesa`}
+                        >
+                          Sacar a mesa
+                        </button>
+                        <button
+                          type="button"
                           className="macro-accion-btn"
                           onClick={() => abrirEditarMacro(macro)}
                           title="Editar macro"
@@ -2636,6 +3788,57 @@ export function HudSalaCompartido({
           <span className="dock-etiqueta">Macros</span>
         </div>
 
+        <div className="dock-item">
+          <button
+            type="button"
+            className="dock-btn"
+            onClick={() => {
+              setSelectorAbierto(false);
+              setCompuestaAbierta(false);
+              setMacrosAbierto(false);
+              setArchivadorMapaAbierto(false);
+              crearPositMapa();
+            }}
+            title="Crear posit personal"
+            aria-label="Crear posit"
+          >
+            <IconoPosit />
+          </button>
+          <span className="dock-etiqueta">Posits</span>
+        </div>
+
+        {(onAbrirArchivador || archivosDisponibles !== undefined || onElementosMesa) && (
+          <div className="dock-item">
+            <button
+              type="button"
+              className={`dock-btn${archivadorMapaAbierto ? " activo" : ""}`}
+              onClick={() => {
+                setSelectorAbierto(false);
+                setCompuestaAbierta(false);
+                setMacrosAbierto(false);
+                if (archivosDisponibles !== undefined || onElementosMesa) {
+                  setArchivadorMapaAbierto(abierto => {
+                    const siguiente = !abierto;
+                    if (siguiente) onSolicitarArchivos?.();
+                    return siguiente;
+                  });
+                } else {
+                  onAbrirArchivador?.();
+                }
+              }}
+              aria-expanded={archivadorMapaAbierto}
+              title="Abrir archivador y documentos"
+              aria-label="Archivador"
+            >
+              <IconoArchivador />
+              {elementosArchivados.length > 0 && (
+                <span className="dock-badge">{elementosArchivados.length}</span>
+              )}
+            </button>
+            <span className="dock-etiqueta">Archivador</span>
+          </div>
+        )}
+
         {esMaster && (
           <div className="dock-item">
             <button
@@ -2693,6 +3896,217 @@ export function HudSalaCompartido({
           ))}
         </div>
       </div>
+
+      {archivadorMapaAbierto && (
+        <div
+          className="divisa-popover mapa-archivador-popover"
+          role="dialog"
+          aria-label="Archivador rápido en mapa"
+          style={{
+            pointerEvents: "auto",
+            left: "50%",
+            bottom: 106,
+            top: "auto",
+            right: "auto",
+            transform: "translateX(-50%)",
+            width: "min(360px, 92vw)",
+            maxHeight: "55vh",
+            overflowY: "auto"
+          }}
+        >
+          <div className="dados-selector-cabecera">
+            <span>Archivador</span>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {onAbrirArchivador && (
+                <button
+                  type="button"
+                  className="macro-accion-btn"
+                  onClick={() => {
+                    setArchivadorMapaAbierto(false);
+                    onAbrirArchivador();
+                  }}
+                  title="Ir al archivador completo"
+                >
+                  Abrir todo
+                </button>
+              )}
+              <button
+                type="button"
+                className="dados-cerrar"
+                onClick={() => setArchivadorMapaAbierto(false)}
+                aria-label="Cerrar archivador"
+              >
+                <X size={14} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          {elementosArchivados.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+                Archivados en mesa
+              </span>
+              {elementosArchivados.map(el => {
+                const etiqueta =
+                  el.tipo === "posit"
+                    ? el.texto.trim() || "Posit sin texto"
+                    : el.tipo === "macro"
+                      ? el.nombre
+                      : el.nombre;
+                return (
+                  <button
+                    key={el.id}
+                    type="button"
+                    className="macro-lanzar-btn"
+                    style={{ width: "100%", justifyContent: "space-between" }}
+                    onClick={() => desarchivarElementoMapa(el.id)}
+                  >
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {etiqueta}
+                    </span>
+                    <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+                      Sacar
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
+              Documentos disponibles
+            </span>
+            {!archivosDisponibles || archivosDisponibles.length === 0 ? (
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                No hay archivos subidos todavía.
+              </p>
+            ) : (
+              archivosDisponibles.map(archivo => (
+                <button
+                  key={archivo.id}
+                  type="button"
+                  className="macro-lanzar-btn"
+                  style={{ width: "100%", justifyContent: "space-between" }}
+                  onClick={() => sacarArchivoAMapa(archivo)}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      minWidth: 0,
+                      overflow: "hidden"
+                    }}
+                  >
+                    <FileText size={14} aria-hidden="true" />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {archivo.nombre}
+                    </span>
+                  </span>
+                  <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+                    {archivo.vista.toUpperCase()}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {visorDoc && (
+        <div style={{ pointerEvents: "auto" }}>
+          <DocumentoVisorModal
+            archivo={visorDoc}
+            esMaster={esMaster}
+            onCerrar={() => setVisorDoc(null)}
+          />
+        </div>
+      )}
+
+      {objetoMesaActivo && (
+        <div
+          className="archivo-visor"
+          style={{ pointerEvents: "auto" }}
+          onClick={() => setObjetoMesaActivo(null)}
+        >
+          <div
+            className="archivo-visor-ventana mochila-mesa-modal"
+            role="dialog"
+            aria-label={objetoMesaActivo.nombre}
+            onClick={evento => evento.stopPropagation()}
+          >
+            <header className="archivo-visor-barra">
+              <span className="archivo-visor-titulo">
+                {objetoMesaActivo.nombre} (x{objetoMesaActivo.cantidad})
+              </span>
+              <button
+                type="button"
+                className="archivo-visor-cerrar"
+                onClick={() => setObjetoMesaActivo(null)}
+              >
+                Cerrar
+              </button>
+            </header>
+            <div className="archivo-visor-marco">
+              <div className="mochila-mesa-cuerpo">
+                {objetoMesaActivo.imagenLocal || objetoMesaActivo.archivoId ? (
+                  <img
+                    className="mochila-mesa-img"
+                    src={
+                      objetoMesaActivo.imagenLocal ??
+                      archivosApi.url(objetoMesaActivo.archivoId ?? "")
+                    }
+                    alt={objetoMesaActivo.nombre}
+                  />
+                ) : (
+                  <span className="mochila-mesa-emoji">
+                    {objetoMesaActivo.emoji ?? "🎒"}
+                  </span>
+                )}
+                {objetoMesaActivo.descripcion && (
+                  <p className="mochila-mesa-desc">
+                    {objetoMesaActivo.descripcion}
+                  </p>
+                )}
+                <div className="mochila-mesa-acciones">
+                  <button
+                    type="button"
+                    className="archivo-visor-descargar"
+                    onClick={() => guardarObjetoMapaEnMochila(objetoMesaActivo)}
+                  >
+                    Guardar en mochila
+                  </button>
+                  {esMaster && onCompartirATodos && (
+                    <button
+                      type="button"
+                      className="archivo-visor-descargar"
+                      onClick={() => {
+                        void onCompartirATodos(objetoMesaActivo);
+                        setObjetoMesaActivo(null);
+                      }}
+                    >
+                      Dar a todos
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="archivo-visor-cerrar"
+                    onClick={() => {
+                      onElementosMesa?.(prev =>
+                        prev.filter(el => el.id !== objetoMesaActivo.id)
+                      );
+                      setObjetoMesaActivo(null);
+                    }}
+                  >
+                    Retirar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {avisoLocal && (
         <div className="sala-aviso sala-aviso-ok" style={{ pointerEvents: "auto" }}>

@@ -3,6 +3,7 @@ import type {
   ActualizarPlantillaMapaPayload,
   ActualizarTokenMapaPayload,
   CrearTokenMapaPayload,
+  DivisaConfig,
   EstadoMapaCompartido,
   EventoTirada,
   GuardarMapaFondoPayload,
@@ -133,6 +134,36 @@ export const mesasApi = {
       `/api/mesas/${id}/compartir/${encodeURIComponent(transferenciaId)}/rechazar`
     ),
 
+  /** Difunde un posit, archivo u objeto a todos los demás participantes (solo Máster). */
+  compartirATodos: (
+    id: string,
+    payload:
+      | {
+          tipo: "posit";
+          posit: { texto: string; color: string; giro?: number };
+        }
+      | {
+          tipo: "archivo";
+          archivoId: string;
+        }
+      | {
+          tipo: "objeto";
+          objeto: {
+            idOrigen?: string;
+            nombre: string;
+            descripcion: string;
+            cantidad: number;
+            emoji?: string;
+            archivoId?: string;
+            archivoNombre?: string;
+          };
+        }
+  ) =>
+    http.post<{ ok: boolean; destinatarios: number; elemento: unknown }>(
+      `/api/mesas/${id}/compartir-todos`,
+      payload
+    ),
+
   /** Historial reciente del chat de la mesa. */
   listarChat: (id: string) => http.get<MensajeChat[]>(`/api/mesas/${id}/chat`),
 
@@ -178,9 +209,12 @@ export const mesasApi = {
 
   /** Carga los elementos en mesa, divisa y mochila del jugador actual. */
   obtenerEstado: (id: string) =>
-    http.get<{ elementos: unknown[]; divisa?: number; mochila?: unknown[] }>(
-      `/api/mesas/${id}/estado`
-    ),
+    http.get<{
+      elementos: unknown[];
+      divisa?: number;
+      divisasSaldos?: Record<string, number>;
+      mochila?: unknown[];
+    }>(`/api/mesas/${id}/estado`),
 
   /** Guarda los elementos en mesa y/o mochila del jugador actual. */
   guardarEstado: (id: string, elementos: unknown[], mochila?: unknown[]) =>
@@ -190,15 +224,24 @@ export const mesasApi = {
     }),
 
   /** Actualiza la divisa del jugador actual y difunde el cambio delta. */
-  guardarDivisa: (id: string, divisa: number, delta?: number) =>
-    http.patch<{ divisa: number }>(`/api/mesas/${id}/divisa`, {
+  guardarDivisa: (id: string, divisa: number, delta?: number, divisaId?: string) =>
+    http.patch<{
+      divisa: number;
+      divisaId?: string;
+      divisasSaldos?: Record<string, number>;
+    }>(`/api/mesas/${id}/divisa`, {
       divisa,
-      ...(delta !== undefined ? { delta } : {})
+      ...(delta !== undefined ? { delta } : {}),
+      ...(divisaId !== undefined ? { divisaId } : {})
     }),
 
   /** Cambia el nombre de la divisa de la mesa (solo Máster). */
   cambiarDivisaNombre: (id: string, nombre: string) =>
     http.patch<PublicMesa>(`/api/mesas/${id}/divisa-nombre`, { nombre }),
+
+  /** Configura las divisas de la mesa (solo Máster/Admin, máx. 12). */
+  guardarDivisasConfig: (id: string, divisas: DivisaConfig[]) =>
+    putJson<PublicMesa>(`/api/mesas/${id}/divisas`, { divisas }),
 
   /** Carga el estado compartido de la pizarra y vista escena de la mesa. */
   obtenerPizarra: (id: string) =>
@@ -211,6 +254,7 @@ export const mesasApi = {
       docsEscena: unknown[];
       tamanoImagenesEscena: Record<string, { w: number; h: number }>;
       congelada: boolean;
+      objetos?: Array<Record<string, unknown>>;
     }>(`/api/mesas/${id}/pizarra`),
 
   /** Guarda y difunde el estado compartido de la pizarra y vista escena. */
@@ -225,6 +269,7 @@ export const mesasApi = {
       docsEscena: unknown[];
       tamanoImagenesEscena: Record<string, { w: number; h: number }>;
       congelada: boolean;
+      objetos?: Array<Record<string, unknown>>;
     }
   ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos),
 
@@ -242,11 +287,13 @@ export const mesasApi = {
   /** Resumen de divisa, mochila y objetos en mesa de jugadores conectados (solo Máster). */
   resumenInventarioMaster: (id: string) =>
     http.get<{
+      divisasConfig?: DivisaConfig[];
       jugadores: Array<{
         userId: string;
         nombre: string;
         color: string;
         divisa: number;
+        divisasSaldos?: Record<string, number>;
         mochila: Array<{
           id: string;
           nombre: string;

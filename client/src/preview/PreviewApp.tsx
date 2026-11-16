@@ -32,6 +32,7 @@ import {
 import { reproducirSonidoNotificacion } from "./sonido";
 import type {
   Calibracion,
+  DivisaConfig,
   DocumentoMesa,
   ElementoMesa,
   EstadoMapaCompartido,
@@ -54,6 +55,48 @@ import "./preview.css";
  * datos falsos. Se abre en desarrollo con `?preview=1`.
  */
 const MAPA_PREVIEW_KEY = "tablero.preview.mapa.v1";
+const OBJETOS_PIZARRA_KEY = "pocketrol.pizarra.objetos.v1";
+type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
+
+function cargarObjetosPizarraPreview(): ObjetoPizarra[] {
+  try {
+    const raw = window.localStorage.getItem(OBJETOS_PIZARRA_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ObjetoPizarra[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function elegirPosicionLibrePizarra(
+  existentes: Array<{ x: number; y: number }>
+): { x: number; y: number } {
+  const min = 12;
+  const max = 82;
+  const minDist = 13;
+  let mejor = {
+    x: Number((min + Math.random() * (max - min)).toFixed(2)),
+    y: Number((min + Math.random() * (max - min)).toFixed(2))
+  };
+  let mejorDist = -1;
+  for (let intento = 0; intento < 32; intento += 1) {
+    const x = Number((min + Math.random() * (max - min)).toFixed(2));
+    const y = Number((min + Math.random() * (max - min)).toFixed(2));
+    const distMin = existentes.reduce((acc, item) => {
+      const d = Math.hypot(item.x - x, item.y - y);
+      return Math.min(acc, d);
+    }, Number.POSITIVE_INFINITY);
+    if (distMin >= minDist) {
+      return { x, y };
+    }
+    if (distMin > mejorDist) {
+      mejorDist = distMin;
+      mejor = { x, y };
+    }
+  }
+  return mejor;
+}
 
 const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
   fondo: null,
@@ -213,6 +256,15 @@ export default function PreviewApp() {
   const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
     cargarDocumentosPizarra
   );
+  const [objetosPizarra, setObjetosPizarra] = useState<ObjetoPizarra[]>(
+    cargarObjetosPizarraPreview
+  );
+  const [divisasConfig, setDivisasConfig] = useState<DivisaConfig[]>([
+    { id: "principal", nombre: "Divisa", color: "#e8c56a" }
+  ]);
+  const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({
+    principal: 0
+  });
   const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
     cargarPizarraCongelada
   );
@@ -247,6 +299,17 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarDocumentosPizarra(documentosPizarra);
   }, [documentosPizarra]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        OBJETOS_PIZARRA_KEY,
+        JSON.stringify(objetosPizarra)
+      );
+    } catch {
+      // Sin espacio o bloqueado en navegador privado.
+    }
+  }, [objetosPizarra]);
 
   useEffect(() => {
     guardarPizarraCongelada(pizarraCongelada);
@@ -500,6 +563,109 @@ export default function PreviewApp() {
     []
   );
 
+  const guardarDivisasConfigPreview = useCallback((config: DivisaConfig[]) => {
+    setDivisasConfig(config);
+  }, []);
+
+  const cambiarDivisaPreview = useCallback(
+    (nuevo: number, _delta: number, divisaId?: string) => {
+      const idDivisa = divisaId ?? divisasConfig[0]?.id ?? "principal";
+      const limpia = Math.max(0, Math.trunc(nuevo));
+      setDivisasSaldos(prev => ({ ...prev, [idDivisa]: limpia }));
+    },
+    [divisasConfig]
+  );
+
+  const compartirATodosPreview = useCallback(
+    (elemento: ElementoMesa) => {
+      if (elemento.tipo === "macro") return;
+      const etiqueta = elemento.tipo === "posit" ? "nota" : elemento.nombre;
+      mostrarAvisoPreview(`Compartido (${etiqueta}) con toda la mesa (modo preview).`);
+    },
+    [mostrarAvisoPreview]
+  );
+
+  const enviarAPizarraPreview = useCallback(
+    (elemento: ElementoMesa) => {
+      if (elemento.tipo === "macro") return;
+      const existentes = [
+        ...posits.map(p => ({ x: p.x, y: p.y })),
+        ...documentosPizarra.map(d => ({ x: d.x, y: d.y })),
+        ...objetosPizarra.map(o => ({ x: o.x, y: o.y }))
+      ];
+      const pos = elegirPosicionLibrePizarra(existentes);
+      setElementosMesa(prev => prev.filter(el => el.id !== elemento.id));
+      if (elemento.tipo === "posit") {
+        setPosits(prev => [
+          ...prev,
+          {
+            id: elemento.id,
+            texto: elemento.texto,
+            color: elemento.color,
+            giro: elemento.giro,
+            x: pos.x,
+            y: pos.y,
+            ...(elemento.autorNombre ? { autorNombre: elemento.autorNombre } : {}),
+            ...(elemento.autorColor ? { autorColor: elemento.autorColor } : {}),
+            ...(elemento.esMaster !== undefined ? { esMaster: elemento.esMaster } : {})
+          }
+        ]);
+      } else if (elemento.tipo === "archivo") {
+        setDocumentosPizarra(prev => [
+          ...prev,
+          {
+            id: elemento.id,
+            nombre: elemento.nombre,
+            tipo: elemento.mime,
+            vista: elemento.vista,
+            tamano: elemento.tamano,
+            x: pos.x,
+            y: pos.y,
+            ...(elemento.contenidoLocal ? { url: elemento.contenidoLocal } : {})
+          }
+        ]);
+      } else if (elemento.tipo === "objeto") {
+        setObjetosPizarra(prev => [
+          ...prev,
+          {
+            ...elemento,
+            x: pos.x,
+            y: pos.y
+          }
+        ]);
+      }
+      mostrarAvisoPreview("Enviado a la pizarra.");
+    },
+    [posits, documentosPizarra, objetosPizarra, mostrarAvisoPreview]
+  );
+
+  const sacarDePizarraAMesaPreview = useCallback(
+    (elemento: ElementoMesa) => {
+      const tipo = (elemento as { tipo?: string }).tipo ?? "objeto";
+      if (tipo === "objeto") {
+        setObjetosPizarra(prev => prev.filter(o => o.id !== elemento.id));
+      } else if (tipo === "posit") {
+        setPosits(prev => prev.filter(p => p.id !== elemento.id));
+      } else if (tipo === "archivo") {
+        setDocumentosPizarra(prev => prev.filter(d => d.id !== elemento.id));
+      }
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+      const paraMesa: ElementoMesa =
+        tipo === "objeto"
+          ? {
+              ...(elemento as ObjetoPizarra),
+              tipo: "objeto",
+              x: pos.x,
+              y: pos.y
+            }
+          : { ...elemento, x: pos.x, y: pos.y };
+      setElementosMesa(prev => [...prev, paraMesa]);
+      mostrarAvisoPreview("Devuelto a tu mesa.");
+    },
+    [mostrarAvisoPreview]
+  );
+
   const volverASala = useCallback(() => setFase("sala"), []);
   const proyectar = useCallback((imagen: ImagenEscenaPreview | null) => {
     setProyeccionOcultadaId(null);
@@ -528,6 +694,9 @@ export default function PreviewApp() {
         onTrazos={setTrazosPizarra}
         documentosPizarra={documentosPizarra}
         onDocumentosPizarra={setDocumentosPizarra}
+        objetosPizarra={objetosPizarra}
+        onObjetosPizarra={setObjetosPizarra}
+        onSacarDePizarraAMesa={sacarDePizarraAMesaPreview}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={volverASala}
@@ -572,8 +741,22 @@ export default function PreviewApp() {
           miUsuarioId="master"
           hostName="Máster"
           yoAsientoId="master"
+          divisasConfig={divisasConfig}
+          divisasSaldos={divisasSaldos}
+          onGuardarDivisasConfig={guardarDivisasConfigPreview}
+          onCambiarDivisa={cambiarDivisaPreview}
           onAviso={mostrarAvisoPreview}
           dibujoCongelado={Boolean(estadoMapa.dibujoCongelado)}
+          elementosMesa={elementosMesa}
+          onElementosMesa={setElementosMesa}
+          archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
+          onEnviarElemento={(destino, elemento) => {
+            const etiqueta =
+              elemento.tipo === "posit" ? "nota" : elemento.nombre;
+            mostrarAvisoPreview(`Enviado (${etiqueta}) a ${destino.nombre} (modo preview).`);
+          }}
+          onAbrirArchivador={() => setFase("archivador")}
+          onCompartirATodos={compartirATodosPreview}
         />
       </>
     );
@@ -624,6 +807,12 @@ export default function PreviewApp() {
         onAceptarSolicitud={aceptarSolicitudPreview}
         onRechazarSolicitud={() => setSolicitudPendiente(null)}
         onSimularRecepcion={simularRecepcion}
+        divisasConfig={divisasConfig}
+        divisasSaldos={divisasSaldos}
+        onGuardarDivisasConfig={guardarDivisasConfigPreview}
+        onCambiarDivisa={cambiarDivisaPreview}
+        onCompartirATodos={compartirATodosPreview}
+        onEnviarAPizarra={enviarAPizarraPreview}
         onCambiarApodo={cambiarApodoPreview}
       />
     );

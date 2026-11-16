@@ -12,6 +12,7 @@ export interface PizarraEstadoPersistido {
   docsEscena: unknown[];
   tamanoImagenesEscena: Record<string, TamanoImagenEscena>;
   congelada: boolean;
+  objetos?: Array<Record<string, unknown>>;
 }
 
 export function crearPizarraEstadoVacio(): PizarraEstadoPersistido {
@@ -23,7 +24,8 @@ export function crearPizarraEstadoVacio(): PizarraEstadoPersistido {
     positsEscena: [],
     docsEscena: [],
     tamanoImagenesEscena: {},
-    congelada: false
+    congelada: false,
+    objetos: []
   };
 }
 
@@ -56,6 +58,22 @@ function sanitizarTamanos(raw: unknown): Record<string, TamanoImagenEscena> {
   return resultado;
 }
 
+function sanitizarObjetosPizarra(raw: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(raw)) return [];
+  const limpios: Array<Record<string, unknown>> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const copia = { ...(item as Record<string, unknown>) };
+    delete copia.contenidoLocal;
+    delete copia.url;
+    if (typeof copia.id === "string" && copia.id.trim()) {
+      limpios.push(copia);
+    }
+    if (limpios.length >= 200) break;
+  }
+  return limpios;
+}
+
 export function sanitizarPizarraEstado(raw: unknown): PizarraEstadoPersistido {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return crearPizarraEstadoVacio();
@@ -69,7 +87,8 @@ export function sanitizarPizarraEstado(raw: unknown): PizarraEstadoPersistido {
     positsEscena: Array.isArray(obj.positsEscena) ? obj.positsEscena : [],
     docsEscena: sanitizarDocumentosLista(obj.docsEscena),
     tamanoImagenesEscena: sanitizarTamanos(obj.tamanoImagenesEscena),
-    congelada: Boolean(obj.congelada)
+    congelada: Boolean(obj.congelada),
+    objetos: sanitizarObjetosPizarra(obj.objetos)
   };
 }
 

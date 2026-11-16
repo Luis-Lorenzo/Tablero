@@ -25,12 +25,13 @@ interface Destinatario {
   nombre: string;
 }
 
-type FiltroChat = "todo" | "chat" | "dados";
+type FiltroChat = "todo" | "chat" | "dados" | "urls";
 
 const FILTROS_CHAT: ReadonlyArray<{ id: FiltroChat; etiqueta: string }> = [
   { id: "todo", etiqueta: "Todo" },
   { id: "chat", etiqueta: "Chat" },
-  { id: "dados", etiqueta: "Dados" }
+  { id: "dados", etiqueta: "Dados" },
+  { id: "urls", etiqueta: "URLs" }
 ];
 
 function formatearHora(iso: string): string {
@@ -66,8 +67,9 @@ export function ChatSala({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mensajesFiltrados = mensajes.filter(msg => {
-    if (filtro === "chat") return !msg.esSistema || Boolean(msg.esDivisa);
+    if (filtro === "chat") return !msg.esSistema && !msg.esDivisa;
     if (filtro === "dados") return Boolean(msg.esSistema) && !msg.esDivisa;
+    if (filtro === "urls") return /https?:\/\/[^\s]+/i.test(msg.texto);
     return true;
   });
 
@@ -232,6 +234,8 @@ export function ChatSala({
               <p className="chat-vacio">
                 {filtro === "dados" ? (
                   "No hay tiradas de dados todavía."
+                ) : filtro === "urls" ? (
+                  "No hay enlaces compartidos todavía."
                 ) : (
                   <>
                     Escribe un mensaje o usa <code>@</code> para susurrar en privado.

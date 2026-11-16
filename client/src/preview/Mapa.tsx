@@ -1887,6 +1887,8 @@ export function Mapa({
               <div
                 key={j.id}
                 className={`mapa-jugador-item${j.esMaster ? " master" : ""}`}
+                data-jugador-id={j.id}
+                data-jugador-usuario-id={j.usuarioId ?? j.id}
                 style={{ "--jugador-color": j.color } as CSSProperties}
               >
                 <div className="mapa-jugador-ficha">
@@ -2846,20 +2848,20 @@ export function Mapa({
       <div className="mapa-tokens-dock" role="toolbar" aria-label="Crear token y almacén">
         <button
           type="button"
-          className={`pizarra-tool-btn${panelAbierto === "tokens" ? " activo" : ""}`}
+          className={`pizarra-tool-btn mapa-btn-crear-token${panelAbierto === "tokens" ? " activo" : ""}`}
           onClick={() => {
             setErrorPanel(null);
             setPanelAbierto(prev => (prev === "tokens" ? null : "tokens"));
           }}
           title="Crear nuevos tokens en el mapa"
         >
-          <Users size={14} aria-hidden="true" />
+          <Users size={22} aria-hidden="true" />
           <span>Crear token</span>
         </button>
 
         <button
           type="button"
-          className={`pizarra-tool-btn${panelAbierto === "bandeja" ? " activo" : ""}`}
+          className={`pizarra-tool-btn mapa-btn-almacen${panelAbierto === "bandeja" ? " activo" : ""}`}
           onClick={() => {
             setErrorPanel(null);
             setPlantillaEditandoCatId(null);
@@ -2867,7 +2869,7 @@ export function Mapa({
           }}
           title="Abrir almacén de tokens guardados"
         >
-          <IconoCofre size={14} />
+          <IconoCofre size={22} />
           <span>Almacén</span>
           {plantillasVisibles.length > 0 && (
             <span className="mapa-bandeja-badge">
