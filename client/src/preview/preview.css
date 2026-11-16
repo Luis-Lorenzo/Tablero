@@ -9978,3 +9978,43 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   min-width: 30px;
   text-align: right;
 }
+
+/* --------------------------------------------------------------- Ocultar spinners nativos en inputs numéricos con controles propios */
+
+.dados-stepper input[type="number"],
+.dados-selector input[type="number"],
+.divisa-custom-form input[type="number"],
+.divisa-popover input[type="number"],
+.mochila-modal input[type="number"],
+.mochila-cantidad-edit input[type="number"],
+.sala-hud input[type="number"],
+.sala-hud-derecha input[type="number"],
+.hud-mapa-capa input[type="number"],
+.mapa-panel input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.dados-stepper input[type="number"]::-webkit-outer-spin-button,
+.dados-stepper input[type="number"]::-webkit-inner-spin-button,
+.dados-selector input[type="number"]::-webkit-outer-spin-button,
+.dados-selector input[type="number"]::-webkit-inner-spin-button,
+.divisa-custom-form input[type="number"]::-webkit-outer-spin-button,
+.divisa-custom-form input[type="number"]::-webkit-inner-spin-button,
+.divisa-popover input[type="number"]::-webkit-outer-spin-button,
+.divisa-popover input[type="number"]::-webkit-inner-spin-button,
+.mochila-modal input[type="number"]::-webkit-outer-spin-button,
+.mochila-modal input[type="number"]::-webkit-inner-spin-button,
+.mochila-cantidad-edit input[type="number"]::-webkit-outer-spin-button,
+.mochila-cantidad-edit input[type="number"]::-webkit-inner-spin-button,
+.sala-hud input[type="number"]::-webkit-outer-spin-button,
+.sala-hud input[type="number"]::-webkit-inner-spin-button,
+.sala-hud-derecha input[type="number"]::-webkit-outer-spin-button,
+.sala-hud-derecha input[type="number"]::-webkit-inner-spin-button,
+.hud-mapa-capa input[type="number"]::-webkit-outer-spin-button,
+.hud-mapa-capa input[type="number"]::-webkit-inner-spin-button,
+.mapa-panel input[type="number"]::-webkit-outer-spin-button,
+.mapa-panel input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

@@ -3818,7 +3818,15 @@ export function Sala({
           </div>
 
           {!ajuste && !esMaster && onCambiarApodo && (
-            <div className="sala-apodo-flotante">
+            <div
+              className="sala-apodo-flotante"
+              style={{
+                border: "none",
+                background: "transparent",
+                boxShadow: "none",
+                padding: 0,
+              }}
+            >
               {editandoApodo ? (
                 <form
                   className="sala-apodo-form"
@@ -3874,6 +3882,7 @@ export function Sala({
                 <>
                   <span
                     className={`sala-apodo-texto${miApodo ? "" : " vacio"}`}
+                    style={{ fontSize: "14px" }}
                     title={miApodo || "Sin apodo"}
                   >
                     {miApodo || "Sin apodo"}
@@ -3888,7 +3897,7 @@ export function Sala({
                     title="Cambiar nombre de personaje en esta mesa"
                     aria-label="Cambiar nombre de personaje en esta mesa"
                   >
-                    <Pencil size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <Pencil size={15} strokeWidth={2.2} aria-hidden="true" />
                   </button>
                 </>
               )}
