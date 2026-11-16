@@ -579,7 +579,7 @@ function centroide(quad: QuadMapa): Punto {
   return { x: suma.x / 4, y: suma.y / 4 };
 }
 
-function IconoD20({ valor = 20 }: { valor?: number | string }) {
+function IconoD20({ valor }: { valor?: number | string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -589,17 +589,32 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
         strokeWidth="1.4"
         strokeLinejoin="round"
       />
-      <text
-        x="12"
-        y="14.5"
-        textAnchor="middle"
-        fontSize="5.6"
-        fill="currentColor"
-        stroke="none"
-        fontFamily="'Press Start 2P', monospace"
-      >
-        {valor}
-      </text>
+      <polygon
+        points="12,6.5 17.5,15.5 6.5,15.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.05"
+        strokeLinejoin="round"
+        opacity="0.7"
+      />
+      <line x1="12" y1="2" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="21" y1="7" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="3" y1="7" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="12" y1="22" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="12" y1="22" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      {valor !== undefined && (
+        <text
+          x="12"
+          y="14.5"
+          textAnchor="middle"
+          fontSize="5.6"
+          fill="currentColor"
+          stroke="none"
+          fontFamily="'Press Start 2P', monospace"
+        >
+          {valor}
+        </text>
+      )}
     </svg>
   );
 }

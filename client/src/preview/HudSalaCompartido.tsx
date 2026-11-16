@@ -223,7 +223,7 @@ function lanzarGruposDados(
   };
 }
 
-function IconoD20({ valor = 20 }: { valor?: number | string }) {
+function IconoD20({ valor }: { valor?: number | string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -246,16 +246,18 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
       <line x1="3" y1="7" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
       <line x1="12" y1="22" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
       <line x1="12" y1="22" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
-      <text
-        x="12"
-        y="14"
-        textAnchor="middle"
-        fontSize="5.4"
-        fill="currentColor"
-        fontFamily="'Press Start 2P', monospace"
-      >
-        {valor}
-      </text>
+      {valor !== undefined && (
+        <text
+          x="12"
+          y="14"
+          textAnchor="middle"
+          fontSize="5.4"
+          fill="currentColor"
+          fontFamily="'Press Start 2P', monospace"
+        >
+          {valor}
+        </text>
+      )}
     </svg>
   );
 }
