@@ -10468,27 +10468,100 @@ html.modo-claro .hud-enviar-btn.activo svg {
 
 /* Chat e Inputs en modo claro */
 
-html.modo-claro .sala-chat {
-  background: rgb(255 248 236 / 80%);
-  backdrop-filter: blur(8px);
-  border-color: #B8862B;
+html.modo-claro .sala-chat,
+html.modo-claro .sala-chat.en-mapa,
+html.modo-claro .chat-sala.en-mapa,
+html.modo-claro .chat-en-mapa .sala-chat {
+  background: rgb(255 248 236 / 52%);
+  backdrop-filter: blur(5px);
+  border-color: rgb(184 134 43 / 75%);
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 18%);
 }
 
 html.modo-claro .chat-cabecera,
-html.modo-claro .chat-pie {
-  border-color: rgb(184 134 43 / 35%);
+html.modo-claro .sala-chat.en-mapa .chat-cabecera,
+html.modo-claro .chat-sala.en-mapa .chat-cabecera,
+html.modo-claro .chat-en-mapa .chat-cabecera {
+  background: rgb(255 248 236 / 38%);
+  border-bottom-color: rgb(184 134 43 / 32%);
 }
 
-html.modo-claro .chat-cabecera {
-  background: rgb(255 248 236 / 65%);
-}
-
-html.modo-claro .chat-mensajes {
+html.modo-claro .chat-mensajes,
+html.modo-claro .sala-chat.en-mapa .chat-mensajes,
+html.modo-claro .chat-sala.en-mapa .chat-mensajes,
+html.modo-claro .chat-en-mapa .chat-mensajes {
   background: transparent;
+}
+
+html.modo-claro .chat-pie,
+html.modo-claro .sala-chat.en-mapa .chat-pie,
+html.modo-claro .chat-sala.en-mapa .chat-pie,
+html.modo-claro .chat-en-mapa .chat-pie {
+  background: rgb(255 248 236 / 35%);
+  border-top-color: rgb(184 134 43 / 32%);
+}
+
+html.modo-claro .chat-msg,
+html.modo-claro .sala-chat.en-mapa .chat-msg,
+html.modo-claro .chat-sala.en-mapa .chat-msg,
+html.modo-claro .chat-en-mapa .chat-msg {
+  background: rgb(255 253 248 / 42%);
 }
 
 html.modo-claro .chat-vacio {
   color: #6B5B85;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-titulo,
+html.modo-claro .chat-sala.en-mapa .chat-titulo,
+html.modo-claro .chat-en-mapa .chat-titulo,
+html.modo-claro .sala-chat.en-mapa .chat-msg-texto,
+html.modo-claro .chat-sala.en-mapa .chat-msg-texto,
+html.modo-claro .chat-en-mapa .chat-msg-texto {
+  color: #2A1F3D;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-msg-hora,
+html.modo-claro .chat-sala.en-mapa .chat-msg-hora,
+html.modo-claro .chat-en-mapa .chat-msg-hora {
+  color: #6B5B85;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-compartir-btn,
+html.modo-claro .sala-chat.en-mapa .chat-plegar-btn,
+html.modo-claro .chat-sala.en-mapa .chat-compartir-btn,
+html.modo-claro .chat-sala.en-mapa .chat-plegar-btn,
+html.modo-claro .chat-en-mapa .chat-compartir-btn,
+html.modo-claro .chat-en-mapa .chat-plegar-btn {
+  background: rgb(255 253 248 / 72%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-enviar-btn,
+html.modo-claro .chat-sala.en-mapa .chat-enviar-btn,
+html.modo-claro .chat-en-mapa .chat-enviar-btn {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-menciones,
+html.modo-claro .chat-sala.en-mapa .chat-menciones,
+html.modo-claro .chat-en-mapa .chat-menciones {
+  background: rgb(255 248 236 / 94%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-destinatario-chip,
+html.modo-claro .sala-chat.en-mapa .chat-destinatario-chip,
+html.modo-claro .chat-sala.en-mapa .chat-destinatario-chip,
+html.modo-claro .chat-en-mapa .chat-destinatario-chip {
+  background: rgb(226 169 59 / 24%);
+  border-color: #B8862B;
+  color: #2A1F3D;
 }
 
 html.modo-claro .chat-msg-autor,
@@ -10497,12 +10570,18 @@ html.modo-claro .chat-en-mapa .chat-msg-autor {
   font-weight: 700;
 }
 
-html.modo-claro .chat-msg-privado-etiqueta {
+html.modo-claro .chat-msg-privado-etiqueta,
+html.modo-claro .sala-chat.en-mapa .chat-msg-privado-etiqueta,
+html.modo-claro .chat-sala.en-mapa .chat-msg-privado-etiqueta,
+html.modo-claro .chat-en-mapa .chat-msg-privado-etiqueta {
   color: #5B6BBF;
   font-weight: 700;
 }
 
-html.modo-claro .chat-filtro-btn {
+html.modo-claro .chat-filtro-btn,
+html.modo-claro .sala-chat.en-mapa .chat-filtro-btn,
+html.modo-claro .chat-sala.en-mapa .chat-filtro-btn,
+html.modo-claro .chat-en-mapa .chat-filtro-btn {
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -10512,14 +10591,20 @@ html.modo-claro .chat-filtro-btn {
   padding: 3px 6px;
 }
 
-html.modo-claro .chat-filtro-btn:hover {
+html.modo-claro .chat-filtro-btn:hover,
+html.modo-claro .sala-chat.en-mapa .chat-filtro-btn:hover,
+html.modo-claro .chat-sala.en-mapa .chat-filtro-btn:hover,
+html.modo-claro .chat-en-mapa .chat-filtro-btn:hover {
   background: transparent;
   border: none;
   border-bottom: 2px solid #7C5CBF;
   color: #2A1F3D;
 }
 
-html.modo-claro .chat-filtro-btn.activo {
+html.modo-claro .chat-filtro-btn.activo,
+html.modo-claro .sala-chat.en-mapa .chat-filtro-btn.activo,
+html.modo-claro .chat-sala.en-mapa .chat-filtro-btn.activo,
+html.modo-claro .chat-en-mapa .chat-filtro-btn.activo {
   background: rgb(226 169 59 / 22%);
   border: none;
   border-bottom: 2.5px solid #B8862B;
@@ -10547,7 +10632,6 @@ html.modo-claro .chat-msg.privado {
   color: #2A1F3D;
 }
 
-html.modo-claro .chat-input,
 html.modo-claro .dados-stepper input,
 html.modo-claro .divisa-custom-form input,
 html.modo-claro .mochila-modal input,
@@ -10564,6 +10648,15 @@ html.modo-claro .archivador-input,
 html.modo-claro .sala-apodo-input {
   background: rgb(255 253 248 / 96%);
   border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-input,
+html.modo-claro .sala-chat.en-mapa .chat-input,
+html.modo-claro .chat-sala.en-mapa .chat-input,
+html.modo-claro .chat-en-mapa .chat-input {
+  background: rgb(255 253 248 / 68%);
+  border-color: rgb(142 124 195 / 65%);
   color: #2A1F3D;
 }
 
