@@ -3048,7 +3048,7 @@ export function Sala({
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <button
                     type="button"
-                    className="compartir-btn-sec"
+                    className="master-actualizar-btn"
                     onClick={() => void cargarResumenMaster()}
                     disabled={masterResumenCargando}
                   >

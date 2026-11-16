@@ -5851,24 +5851,39 @@
   color: #3a2110;
 }
 
+.mochila-modal .mochila-titulo {
+  color: #111111;
+}
+
 .mochila-modal .dados-cerrar {
   background: rgb(77 47 26 / 16%);
-  border-color: rgb(77 47 26 / 40%);
-  color: #2b180b;
+  border-color: rgb(77 47 26 / 45%);
+  color: #111111;
 }
 
 .mochila-modal .dados-cerrar:hover {
   background: rgb(77 47 26 / 28%);
 }
 
-.mochila-modal .dados-ayuda {
-  color: #4a2e1a;
+.mochila-modal .dados-ayuda,
+.mochila-modal .dados-campo-etiqueta,
+.mochila-modal .mochila-slot-nombre,
+.mochila-modal .mochila-detalle-info h3,
+.mochila-modal .mochila-volver-btn,
+.mochila-modal .mochila-accion-sec,
+.mochila-modal .mochila-subir-btn,
+.mochila-modal .mochila-quitar-img,
+.mochila-modal .mochila-destino-chip,
+.mochila-modal .master-inspeccion-subcabecera,
+.mochila-modal .master-inspeccion-seccion,
+.mochila-modal .master-inspeccion-tab:not(.activo) {
+  color: #111111;
 }
 
 .mochila-modal .dados-crear-btn {
   background: #5b3820;
   border-color: #3f2412;
-  color: #f9ebd2;
+  color: #ffffff;
 }
 
 .mochila-modal .dados-crear-btn:hover {
@@ -5876,13 +5891,21 @@
 }
 
 .mochila-modal .macro-campo span {
-  color: #3a2110;
+  color: #111111;
 }
 
-.mochila-modal .macro-campo input {
-  border: 1.5px solid rgb(77 47 26 / 38%);
-  background: rgb(255 248 236 / 72%);
-  color: #2b180b;
+.mochila-modal .macro-campo input,
+.mochila-modal .mochila-cantidad-edit input,
+.mochila-modal .mochila-crear-form textarea,
+.mochila-modal .mochila-detalle textarea {
+  border: 1.5px solid rgb(77 47 26 / 45%);
+  background: rgb(255 248 236 / 82%);
+  color: #111111;
+}
+
+.mochila-modal input::placeholder,
+.mochila-modal textarea::placeholder {
+  color: #55473a;
 }
 
 .mochila-grid {
@@ -6336,6 +6359,32 @@
 
 .master-resumen-popover {
   top: 196px;
+}
+
+.master-actualizar-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(232 197 106 / 45%);
+  background: rgb(232 197 106 / 14%);
+  color: #f3e6c8;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.master-actualizar-btn:hover:not(:disabled) {
+  background: rgb(232 197 106 / 28%);
+  border-color: #e8c56a;
+}
+
+.master-actualizar-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .master-divisa-lista {
