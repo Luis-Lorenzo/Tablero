@@ -53,26 +53,63 @@ export function createArchivoRouter(
 
   router.get("/:id", requireAuth, async (req, res, next) => {
     try {
+      const range =
+        typeof req.headers.range === "string" ? req.headers.range : undefined;
       const resultado = await context.archivoService.obtenerStream(
         req.currentUser!,
-        String(req.params.id)
+        String(req.params.id),
+        range
       );
       const { archivo } = resultado;
+
+      const etag = `"${archivo.id}"`;
+      res.setHeader("ETag", etag);
+      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      res.setHeader("Accept-Ranges", "bytes");
+
+      const ifNoneMatch = req.headers["if-none-match"];
+      if (
+        typeof ifNoneMatch === "string" &&
+        (ifNoneMatch === etag || ifNoneMatch.includes(archivo.id))
+      ) {
+        if ("stream" in resultado) {
+          void resultado.stream.cancel().catch(() => {});
+        }
+        res.status(304).end();
+        return;
+      }
 
       const ascii = archivo.nombre.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
       const disposicion = req.query.descarga ? "attachment" : "inline";
 
       res.setHeader("Content-Type", archivo.tipo);
       res.setHeader(
-        "Content-Length",
-        String("datos" in resultado ? resultado.datos.length : archivo.tamano)
-      );
-      res.setHeader(
         "Content-Disposition",
         `${disposicion}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(archivo.nombre)}`
       );
       res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Cache-Control", "private, max-age=300");
+
+      if (
+        "stream" in resultado &&
+        resultado.status === 206 &&
+        resultado.contentRange
+      ) {
+        res.status(206);
+        res.setHeader("Content-Range", resultado.contentRange);
+        res.setHeader(
+          "Content-Length",
+          String(resultado.contentLength ?? archivo.tamano)
+        );
+      } else {
+        res.setHeader(
+          "Content-Length",
+          String(
+            "datos" in resultado
+              ? resultado.datos.length
+              : (resultado.contentLength ?? archivo.tamano)
+          )
+        );
+      }
 
       if ("stream" in resultado) {
         const nodeStream = Readable.fromWeb(resultado.stream as never);

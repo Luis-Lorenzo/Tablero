@@ -43,6 +43,26 @@ export class PgMesaEstadoRepository implements MesaEstadoRepository {
     );
   }
 
+  private toEstadoJugadorMesa(row?: {
+    elementos: unknown;
+    divisa: string | number | null;
+    divisas_saldos: unknown;
+    mochila: unknown;
+  }): EstadoJugadorMesa {
+    const divisa = sanitizarDivisa(row?.divisa);
+    const divisasSaldos = sanitizarDivisasSaldos(row?.divisas_saldos);
+    if (divisasSaldos.principal === undefined && divisa > 0) {
+      divisasSaldos.principal = divisa;
+    }
+
+    return {
+      elementos: sanitizarElementosMesa(row?.elementos),
+      divisa,
+      divisasSaldos,
+      mochila: sanitizarMochila(row?.mochila)
+    };
+  }
+
   async getEstadoCompleto(mesaId: string, userId: string): Promise<EstadoJugadorMesa> {
     const { rows } = await this.pool.query<{
       elementos: unknown;
@@ -55,18 +75,39 @@ export class PgMesaEstadoRepository implements MesaEstadoRepository {
       [mesaId, userId]
     );
 
-    const divisa = sanitizarDivisa(rows[0]?.divisa);
-    const divisasSaldos = sanitizarDivisasSaldos(rows[0]?.divisas_saldos);
-    if (divisasSaldos.principal === undefined && divisa > 0) {
-      divisasSaldos.principal = divisa;
+    return this.toEstadoJugadorMesa(rows[0]);
+  }
+
+  async getEstadosPorMesa(
+    mesaId: string,
+    userIds: string[]
+  ): Promise<Map<string, EstadoJugadorMesa>> {
+    const mapa = new Map<string, EstadoJugadorMesa>();
+    if (userIds.length === 0) return mapa;
+
+    const { rows } = await this.pool.query<{
+      user_id: string;
+      elementos: unknown;
+      divisa: string | number | null;
+      divisas_saldos: unknown;
+      mochila: unknown;
+    }>(
+      `SELECT user_id, elementos, divisa, divisas_saldos, mochila
+       FROM mesa_jugador_estado
+       WHERE mesa_id = $1 AND user_id = ANY($2)`,
+      [mesaId, userIds]
+    );
+
+    const porUsuario = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      porUsuario.set(row.user_id, row);
     }
 
-    return {
-      elementos: sanitizarElementosMesa(rows[0]?.elementos),
-      divisa,
-      divisasSaldos,
-      mochila: sanitizarMochila(rows[0]?.mochila)
-    };
+    for (const userId of userIds) {
+      mapa.set(userId, this.toEstadoJugadorMesa(porUsuario.get(userId)));
+    }
+
+    return mapa;
   }
 
   async saveDivisa(mesaId: string, userId: string, divisa: number): Promise<number> {

@@ -36,6 +36,13 @@ function sanitizarDocumentosLista(raw: unknown): unknown[] {
     .map(doc => {
       const copia = { ...doc };
       delete copia.url;
+      delete copia.contenidoLocal;
+      if (
+        typeof copia.imagenLocal === "string" &&
+        copia.imagenLocal.trim().toLowerCase().startsWith("data:")
+      ) {
+        delete copia.imagenLocal;
+      }
       return copia;
     });
 }
@@ -66,6 +73,12 @@ function sanitizarObjetosPizarra(raw: unknown): Array<Record<string, unknown>> {
     const copia = { ...(item as Record<string, unknown>) };
     delete copia.contenidoLocal;
     delete copia.url;
+    if (
+      typeof copia.imagenLocal === "string" &&
+      copia.imagenLocal.trim().toLowerCase().startsWith("data:")
+    ) {
+      delete copia.imagenLocal;
+    }
     if (typeof copia.id === "string" && copia.id.trim()) {
       limpios.push(copia);
     }

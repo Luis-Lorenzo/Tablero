@@ -25,6 +25,10 @@ export interface MesaEstadoRepository {
     elementos: ElementoMesaPersistido[]
   ): Promise<void>;
   getEstadoCompleto?(mesaId: string, userId: string): Promise<EstadoJugadorMesa>;
+  getEstadosPorMesa?(
+    mesaId: string,
+    userIds: string[]
+  ): Promise<Map<string, EstadoJugadorMesa>>;
   saveDivisa?(mesaId: string, userId: string, divisa: number): Promise<number>;
   saveDivisaSaldo?(
     mesaId: string,
@@ -80,6 +84,12 @@ export function sanitizarElementosMesa(raw: unknown): ElementoMesaPersistido[] {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const copia = { ...(item as Record<string, unknown>) };
     delete copia.contenidoLocal;
+    for (const campo of ["url", "imagenUrl", "imagenLocal"] as const) {
+      const valor = copia[campo];
+      if (typeof valor === "string" && valor.trimStart().toLowerCase().startsWith("data:")) {
+        delete copia[campo];
+      }
+    }
     if (typeof copia.id === "string" && typeof copia.tipo === "string") {
       limpios.push(copia);
     }
@@ -174,6 +184,17 @@ export class MemoryMesaEstadoRepository implements MesaEstadoRepository {
     }
     const mochila = (this.mochilas.get(k) ?? []).map(item => ({ ...item }));
     return { elementos, divisa, divisasSaldos: saldos, mochila };
+  }
+
+  async getEstadosPorMesa(
+    mesaId: string,
+    userIds: string[]
+  ): Promise<Map<string, EstadoJugadorMesa>> {
+    const mapa = new Map<string, EstadoJugadorMesa>();
+    for (const userId of userIds) {
+      mapa.set(userId, await this.getEstadoCompleto(mesaId, userId));
+    }
+    return mapa;
   }
 
   async saveDivisa(mesaId: string, userId: string, divisa: number): Promise<number> {

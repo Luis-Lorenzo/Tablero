@@ -652,20 +652,31 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           : true
       );
 
+      const estadosPorUsuario = mesaEstado.getEstadosPorMesa
+        ? await mesaEstado.getEstadosPorMesa(mesaId, conectados)
+        : null;
+
       const jugadores = await Promise.all(
         conectados.map(async playerId => {
           const usuario = await context.userRepository.findById(playerId);
           const nombre = usuario ? nombreDeUsuario(usuario) : "Jugador";
           const color = mesa.colores?.[playerId] ?? "#96fbc7";
 
-          const estado = mesaEstado.getEstadoCompleto
-            ? await mesaEstado.getEstadoCompleto(mesaId, playerId)
-            : {
-                elementos: await mesaEstado.getElementos(mesaId, playerId),
+          const estado = estadosPorUsuario
+            ? (estadosPorUsuario.get(playerId) ?? {
+                elementos: [],
                 divisa: 0,
                 divisasSaldos: {},
                 mochila: []
-              };
+              })
+            : mesaEstado.getEstadoCompleto
+              ? await mesaEstado.getEstadoCompleto(mesaId, playerId)
+              : {
+                  elementos: await mesaEstado.getElementos(mesaId, playerId),
+                  divisa: 0,
+                  divisasSaldos: {},
+                  mochila: []
+                };
 
           const objetosMesa = estado.elementos
             .filter(el => el.tipo === "objeto" && typeof el.nombre === "string")

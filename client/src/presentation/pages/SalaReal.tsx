@@ -236,7 +236,25 @@ function SalaRealContent({
   const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(false);
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
-  >(null);
+  >(() => {
+    try {
+      return window.localStorage.getItem(`pocketrol.proyeccion_oculta.${mesa.id}`);
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      const key = `pocketrol.proyeccion_oculta.${mesa.id}`;
+      if (proyeccionOcultadaId) {
+        window.localStorage.setItem(key, proyeccionOcultadaId);
+      } else {
+        window.localStorage.removeItem(key);
+      }
+    } catch {
+      // Ignora errores de almacenamiento local.
+    }
+  }, [mesa.id, proyeccionOcultadaId]);
   const [error, setError] = useState<string | null>(null);
   const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
   const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
@@ -1503,14 +1521,14 @@ function SalaRealContent({
         setDocumentosPizarra(prev => [
           ...prev,
           {
-            id: elemento.id,
+            id: elemento.archivoId,
             nombre: elemento.nombre,
             tipo: elemento.mime,
             vista: elemento.vista,
             tamano: elemento.tamano,
             x: pos.x,
             y: pos.y,
-            ...(elemento.contenidoLocal ? { url: elemento.contenidoLocal } : {})
+            url: elemento.contenidoLocal ?? archivosApi.url(elemento.archivoId)
           }
         ]);
       } else if (elemento.tipo === "objeto") {

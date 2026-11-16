@@ -135,61 +135,75 @@ export class PgMesaRepository implements MesaRepository {
   }
 
   async save(mesa: Mesa) {
-    await this.pool.query(
-      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, created_at)
-       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14)
-       ON CONFLICT(id) DO UPDATE SET
-         host_id = EXCLUDED.host_id,
-      players = EXCLUDED.players,
-      expulsados = EXCLUDED.expulsados,
-      pending_host_id = EXCLUDED.pending_host_id,
-         estado = EXCLUDED.estado,
-         imagen_escena_id = EXCLUDED.imagen_escena_id,
-         imagen_escena_titulo = EXCLUDED.imagen_escena_titulo,
-         imagen_proyectada_id = EXCLUDED.imagen_proyectada_id,
-         imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo,
-         divisa_nombre = EXCLUDED.divisa_nombre,
-         divisas_config = EXCLUDED.divisas_config,
-         musica_ambiente = EXCLUDED.musica_ambiente`,
-      [
-        mesa.id,
-        mesa.hostId,
-        mesa.players,
-        mesa.expulsados,
-        mesa.pendingHostId,
-        mesa.estado,
-        mesa.imagenEscena?.id ?? null,
-        mesa.imagenEscena?.titulo ?? null,
-        mesa.imagenProyectada?.id ?? null,
-        mesa.imagenProyectada?.titulo ?? null,
-        mesa.divisaNombre?.trim() || "Divisa",
-        mesa.divisasConfig ? JSON.stringify(mesa.divisasConfig) : null,
-        mesa.musicaAmbiente ? JSON.stringify(mesa.musicaAmbiente) : null,
-        mesa.createdAt
-      ]
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, created_at)
+         VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14)
+         ON CONFLICT(id) DO UPDATE SET
+           host_id = EXCLUDED.host_id,
+           players = EXCLUDED.players,
+           expulsados = EXCLUDED.expulsados,
+           pending_host_id = EXCLUDED.pending_host_id,
+           estado = EXCLUDED.estado,
+           imagen_escena_id = EXCLUDED.imagen_escena_id,
+           imagen_escena_titulo = EXCLUDED.imagen_escena_titulo,
+           imagen_proyectada_id = EXCLUDED.imagen_proyectada_id,
+           imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo,
+           divisa_nombre = EXCLUDED.divisa_nombre,
+           divisas_config = EXCLUDED.divisas_config,
+           musica_ambiente = EXCLUDED.musica_ambiente`,
+        [
+          mesa.id,
+          mesa.hostId,
+          mesa.players,
+          mesa.expulsados,
+          mesa.pendingHostId,
+          mesa.estado,
+          mesa.imagenEscena?.id ?? null,
+          mesa.imagenEscena?.titulo ?? null,
+          mesa.imagenProyectada?.id ?? null,
+          mesa.imagenProyectada?.titulo ?? null,
+          mesa.divisaNombre?.trim() || "Divisa",
+          mesa.divisasConfig ? JSON.stringify(mesa.divisasConfig) : null,
+          mesa.musicaAmbiente ? JSON.stringify(mesa.musicaAmbiente) : null,
+          mesa.createdAt
+        ]
+      );
 
-    if (mesa.colores || mesa.apodos) {
-      const userIds = new Set<string>();
-      for (const [userId, color] of Object.entries(mesa.colores ?? {})) {
-        if (color) userIds.add(userId);
+      if (mesa.colores || mesa.apodos) {
+        const userIds = new Set<string>();
+        for (const [userId, color] of Object.entries(mesa.colores ?? {})) {
+          if (color) userIds.add(userId);
+        }
+        for (const [userId, apodo] of Object.entries(mesa.apodos ?? {})) {
+          if (apodo) userIds.add(userId);
+        }
+        await client.query(`DELETE FROM mesa_jugadores WHERE mesa_id = $1`, [mesa.id]);
+        if (userIds.size > 0) {
+          const ids: string[] = [];
+          const colores: (string | null)[] = [];
+          const apodos: (string | null)[] = [];
+          for (const userId of userIds) {
+            ids.push(userId);
+            colores.push(mesa.colores?.[userId] || null);
+            apodos.push(mesa.apodos?.[userId] || null);
+          }
+          await client.query(
+            `INSERT INTO mesa_jugadores (mesa_id, user_id, color, apodo)
+             SELECT $1, * FROM UNNEST($2::uuid[], $3::text[], $4::text[])`,
+            [mesa.id, ids, colores, apodos]
+          );
+        }
       }
-      for (const [userId, apodo] of Object.entries(mesa.apodos ?? {})) {
-        if (apodo) userIds.add(userId);
-      }
-      await this.pool.query(`DELETE FROM mesa_jugadores WHERE mesa_id = $1`, [mesa.id]);
-      for (const userId of userIds) {
-        const color = mesa.colores?.[userId] || null;
-        const apodo = mesa.apodos?.[userId] || null;
-        await this.pool.query(
-          `INSERT INTO mesa_jugadores (mesa_id, user_id, color, apodo)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (mesa_id, user_id) DO UPDATE SET
-             color = EXCLUDED.color,
-             apodo = EXCLUDED.apodo`,
-          [mesa.id, userId, color, apodo]
-        );
-      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
     }
   }
 
