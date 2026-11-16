@@ -3489,12 +3489,17 @@ export function Sala({
                                 type="button"
                                 className="sala-musica-pista-nombre"
                                 onClick={() =>
-                                  emitirMusica({
-                                    indiceActual: idx,
-                                    reproduciendo: true
-                                  })
+                                  emitirMusica(
+                                    activa && musicaActual.reproduciendo
+                                      ? { reproduciendo: false }
+                                      : { indiceActual: idx, reproduciendo: true }
+                                  )
                                 }
-                                title={pista.nombre}
+                                title={
+                                  activa && musicaActual.reproduciendo
+                                    ? `Pausar ${pista.nombre}`
+                                    : `Reproducir ${pista.nombre}`
+                                }
                               >
                                 <span className="sala-musica-pista-indice">
                                   {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
