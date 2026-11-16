@@ -2315,7 +2315,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 3px;
   cursor: default;
   touch-action: none;
   transition: box-shadow 0.12s ease;
