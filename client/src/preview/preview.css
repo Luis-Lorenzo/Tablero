@@ -4147,19 +4147,27 @@
 }
 
 .dados-secreto-toggle.luna {
-  background: #09090b;
-  border-color: #3f3f46;
-  color: #e4e4e7;
+  background: rgb(194 65 12 / 24%);
+  border-color: rgb(249 115 22 / 55%);
+  color: #ffedd5;
 }
 
 .dados-secreto-toggle.luna:hover {
-  border-color: #71717a;
+  background: rgb(194 65 12 / 38%);
+  border-color: #fb923c;
 }
 
 .dados-secreto-toggle.activo {
   border-color: #e4e4e7;
   background: rgb(0 0 0 / 90%);
   color: #ffffff;
+}
+
+.dados-secreto-toggle.luna.activo {
+  border-color: #fdba74;
+  background: linear-gradient(135deg, #ea580c, #b91c1c);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgb(234 88 12 / 45%);
 }
 
 .dados-secreto-punto {
@@ -4526,11 +4534,31 @@
   font-weight: 800;
 }
 
-.dados-rapidos {
+.dados-rapidos-contenedor {
   position: absolute;
   left: 14px;
   bottom: 14px;
   z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.dados-rapidos-titulo {
+  padding-left: 4px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #120b20, 0 2px 8px rgb(0 0 0 / 75%);
+  pointer-events: none;
+  user-select: none;
+}
+
+.dados-rapidos {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4899,12 +4927,21 @@
     height: 26px;
   }
 
-  .dados-rapidos {
+  .dados-rapidos-contenedor {
     left: 10px;
     bottom: 10px;
+    max-width: calc(100vw - 20px);
+    gap: 4px;
+  }
+
+  .dados-rapidos-titulo {
+    font-size: 9px;
+  }
+
+  .dados-rapidos {
     gap: 4px;
     padding: 5px 6px;
-    max-width: calc(100vw - 20px);
+    max-width: 100%;
     flex-wrap: wrap;
   }
 
@@ -4965,11 +5002,16 @@
     height: 22px;
   }
 
-  .dados-rapidos {
+  .dados-rapidos-contenedor {
     left: 50%;
     bottom: 8px;
     transform: translateX(-50%);
     max-width: calc(100vw - 16px);
+    align-items: center;
+  }
+
+  .dados-rapidos {
+    max-width: 100%;
     justify-content: center;
   }
 
@@ -5057,11 +5099,16 @@
     justify-content: center;
   }
 
-  .dados-rapidos {
+  .dados-rapidos-contenedor {
     left: 50%;
     bottom: 8px;
     transform: translateX(-50%);
     max-width: calc(100vw - 16px);
+    align-items: center;
+  }
+
+  .dados-rapidos {
+    max-width: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
     justify-content: flex-start;
@@ -5136,9 +5183,17 @@
     height: 20px;
   }
 
-  .dados-rapidos {
+  .dados-rapidos-contenedor {
     bottom: 6px;
     max-width: calc(100vw - 12px);
+  }
+
+  .dados-rapidos-titulo {
+    font-size: 8px;
+  }
+
+  .dados-rapidos {
+    max-width: 100%;
     padding: 4px 6px;
     gap: 4px;
     flex-wrap: nowrap;

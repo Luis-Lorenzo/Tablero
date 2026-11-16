@@ -4673,7 +4673,7 @@ export function Sala({
               <span className="dock-etiqueta">Macros</span>
             </div>
 
-            {esMaster ? (
+            {esMaster && (
               <div className="dock-item">
                 <button
                   type="button"
@@ -4694,28 +4694,6 @@ export function Sala({
                   <IconoD20 />
                 </button>
                 <span className="dock-etiqueta">Secreto</span>
-              </div>
-            ) : (
-              <div className="dock-item">
-                <button
-                  type="button"
-                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => {
-                    setMacrosAbierto(false);
-                    if (selectorAbierto && tiradaSecreta) {
-                      setSelectorAbierto(false);
-                    } else {
-                      setTiradaSecreta(true);
-                      setSelectorAbierto(true);
-                    }
-                  }}
-                  aria-expanded={selectorAbierto && tiradaSecreta}
-                  title="Tirada solo para el Máster (susurro privado)"
-                  aria-label="Tirada solo para el Máster"
-                >
-                  <Moon size={18} strokeWidth={2.1} aria-hidden="true" />
-                </button>
-                <span className="dock-etiqueta">Al Máster</span>
               </div>
             )}
 
@@ -4778,34 +4756,37 @@ export function Sala({
           </div>
 
           {!ajuste && (
-            <div className="dados-rapidos" role="group" aria-label="Dados rápidos">
-              {DADOS_RAPIDOS.map(dado => (
-                <button
-                  key={dado.caras}
-                  type="button"
-                  className="dado-rapido-btn"
-                  style={
-                    {
-                      "--dado-color": dado.color,
-                      "--dado-glow": dado.glow
-                    } as CSSProperties
-                  }
-                  onClick={() =>
-                    tirarDado([{ id: `rapido-${dado.caras}`, cantidad: 1, caras: dado.caras }], 0, {
-                      rapido: true,
-                      forzarPublica: true
-                    })
-                  }
-                  disabled={tirando}
-                  title={`Tirada rápida 1d${dado.caras}`}
-                  aria-label={`Tirar 1d${dado.caras}`}
-                >
-                  <span className="dado-rapido-icono">
-                    <IconoDadoPoligono caras={dado.caras} />
-                  </span>
-                  <span className="dado-rapido-etiqueta">d{dado.caras}</span>
-                </button>
-              ))}
+            <div className="dados-rapidos-contenedor">
+              <span className="dados-rapidos-titulo">Dados rápidos</span>
+              <div className="dados-rapidos" role="group" aria-label="Dados rápidos">
+                {DADOS_RAPIDOS.map(dado => (
+                  <button
+                    key={dado.caras}
+                    type="button"
+                    className="dado-rapido-btn"
+                    style={
+                      {
+                        "--dado-color": dado.color,
+                        "--dado-glow": dado.glow
+                      } as CSSProperties
+                    }
+                    onClick={() =>
+                      tirarDado([{ id: `rapido-${dado.caras}`, cantidad: 1, caras: dado.caras }], 0, {
+                        rapido: true,
+                        forzarPublica: true
+                      })
+                    }
+                    disabled={tirando}
+                    title={`Tirada rápida 1d${dado.caras}`}
+                    aria-label={`Tirar 1d${dado.caras}`}
+                  >
+                    <span className="dado-rapido-icono">
+                      <IconoDadoPoligono caras={dado.caras} />
+                    </span>
+                    <span className="dado-rapido-etiqueta">d{dado.caras}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
