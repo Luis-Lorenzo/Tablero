@@ -18,6 +18,7 @@ import {
   Trash2,
   Upload,
   Users,
+  VenetianMask,
   Volume2,
   VolumeX,
   X
@@ -4731,25 +4732,16 @@ export function Sala({
                     onClick={() => setTiradaSecreta(true)}
                     aria-pressed={tiradaSecreta}
                   >
-                    {esMaster ? (
-                      <>
-                        <span className="dados-secreto-punto" aria-hidden="true" />
-                        <span>Dados negros</span>
-                      </>
-                    ) : (
-                      <>
-                        <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
-                        <span>Solo Máster</span>
-                      </>
-                    )}
+                    <VenetianMask size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Privada</span>
                   </button>
                 </div>
 
                 {tiradaSecreta && (
                   <div className="dados-secreta-aviso">
                     {esMaster
-                      ? "Tirada secreta: solo visible para ti"
-                      : "Susurro secreto: solo visible para el Máster"}
+                      ? "Tirada privada: solo visible para ti"
+                      : "Tirada privada: solo visible para el Máster"}
                   </div>
                 )}
 
