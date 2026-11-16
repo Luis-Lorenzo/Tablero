@@ -131,7 +131,7 @@ export function sanitizarFondo(raw: unknown): MapaFondoConfig | null {
   const urlCruda =
     typeof obj.url === "string" && obj.url.trim() ? obj.url.trim() : "";
   const url =
-    urlCruda || (archivoId ? `/api/archivos/${archivoId}/contenido` : "");
+    urlCruda || (archivoId ? `/api/archivos/${archivoId}` : "");
   if (!url) return null;
 
   const resultado: MapaFondoConfig = { url };
@@ -170,7 +170,7 @@ function sanitizarToken(raw: unknown): TokenMapa | null {
       ? obj.imagenUrl.trim()
       : "";
   const imagenUrl =
-    urlCruda || (archivoId ? `/api/archivos/${archivoId}/contenido` : "");
+    urlCruda || (archivoId ? `/api/archivos/${archivoId}` : "");
   if (!imagenUrl) return null;
 
   const nombre =
@@ -226,7 +226,7 @@ function sanitizarPlantilla(raw: unknown): PlantillaTokenMapa | null {
       ? obj.imagenUrl.trim()
       : "";
   const imagenUrl =
-    urlCruda || (archivoId ? `/api/archivos/${archivoId}/contenido` : "");
+    urlCruda || (archivoId ? `/api/archivos/${archivoId}` : "");
   if (!imagenUrl) return null;
 
   const nombre =

@@ -449,7 +449,7 @@ function SalaRealContent({
     return () => {
       activo = false;
     };
-  }, [mesa.id]);
+  }, [mesa.id, fase === "mapa"]);
 
   useEffect(() => {
     if (!estadoCargadoRef.current) return;

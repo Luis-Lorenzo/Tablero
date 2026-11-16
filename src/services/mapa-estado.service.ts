@@ -96,7 +96,7 @@ export class MapaEstadoService {
         ? datos.imagenUrl.trim()
         : "";
     const imagenUrl =
-      urlCruda || (archivoId ? `/api/archivos/${archivoId}/contenido` : "");
+      urlCruda || (archivoId ? `/api/archivos/${archivoId}` : "");
     if (!imagenUrl) {
       throw errors.invalidRequest();
     }

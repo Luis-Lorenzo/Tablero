@@ -158,6 +158,13 @@ CREATE TABLE IF NOT EXISTS mesa_pizarra_estado (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Estado compartido del Mapa táctico por mesa.
+CREATE TABLE IF NOT EXISTS mesa_mapa_estado (
+  mesa_id    UUID PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
+  datos      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Macros de tiradas personales de cada usuario.
 CREATE TABLE IF NOT EXISTS user_macros (
   user_id    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

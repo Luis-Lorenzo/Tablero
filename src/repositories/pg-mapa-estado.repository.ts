@@ -7,7 +7,7 @@ import {
 
 const CREATE_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS mesa_mapa_estado (
-  mesa_id TEXT PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
+  mesa_id UUID PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
   datos JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`;

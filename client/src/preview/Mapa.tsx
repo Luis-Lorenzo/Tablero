@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  Check,
   Crown,
   Grid3x3,
   ImagePlus,
@@ -243,7 +244,6 @@ export function Mapa({
   const [tamanoViewport, setTamanoViewport] = useState({ w: 1280, h: 720 });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [panInicializado, setPanInicializado] = useState(false);
   const [espacioPulsado, setEspacioPulsado] = useState(false);
   const [paneando, setPaneando] = useState(false);
   const arrastrePanRef = useRef<ArrastrePan | null>(null);
@@ -323,24 +323,10 @@ export function Mapa({
     return { w: Math.round(w), h: Math.round(h) };
   }, [tamanoViewport, aspectoCanvas]);
 
-  const centrarVista = useCallback(
-    (nuevoZoom = 1) => {
-      setZoom(nuevoZoom);
-      setPan({
-        x: Math.round((tamanoViewport.w - tamanoCanvas.w * nuevoZoom) / 2),
-        y: Math.round((tamanoViewport.h - tamanoCanvas.h * nuevoZoom) / 2)
-      });
-    },
-    [tamanoViewport, tamanoCanvas]
-  );
-
-  // Centrar automáticamente la primera vez que tenemos medidas reales
-  useEffect(() => {
-    if (!panInicializado && tamanoViewport.w > 0 && tamanoCanvas.w > 0) {
-      centrarVista(1);
-      setPanInicializado(true);
-    }
-  }, [panInicializado, tamanoViewport, tamanoCanvas, centrarVista]);
+  const centrarVista = useCallback((nuevoZoom = 1) => {
+    setZoom(nuevoZoom);
+    setPan({ x: 0, y: 0 });
+  }, []);
 
   // Teclado: Espacio para pan, Escape para cerrar/deseleccionar
   useEffect(() => {
@@ -393,37 +379,15 @@ export function Mapa({
     }
   }, [tokens, tokenSeleccionadoId, esMaster, miUsuarioId]);
 
-  const zoomAlrededorDe = useCallback(
-    (factor: number, cx: number, cy: number) => {
-      setZoom(prevZoom => {
-        const nextZoom = limitar(
-          Number((prevZoom * factor).toFixed(4)),
-          ZOOM_MIN,
-          ZOOM_MAX
-        );
-        if (nextZoom === prevZoom) return prevZoom;
-        setPan(prevPan => {
-          const wx = (cx - prevPan.x) / prevZoom;
-          const wy = (cy - prevPan.y) / prevZoom;
-          return {
-            x: cx - wx * nextZoom,
-            y: cy - wy * nextZoom
-          };
-        });
-        return nextZoom;
-      });
-    },
-    []
-  );
+  const aplicarZoom = useCallback((factor: number) => {
+    setZoom(prevZoom =>
+      limitar(Number((prevZoom * factor).toFixed(4)), ZOOM_MIN, ZOOM_MAX)
+    );
+  }, []);
 
   function alGirarRueda(evento: ReactWheelEvent<HTMLDivElement>): void {
-    const vp = viewportRef.current;
-    if (!vp) return;
-    const rect = vp.getBoundingClientRect();
-    const cx = evento.clientX - rect.left;
-    const cy = evento.clientY - rect.top;
     const factor = evento.deltaY < 0 ? 1.12 : 1 / 1.12;
-    zoomAlrededorDe(factor, cx, cy);
+    aplicarZoom(factor);
   }
 
   function emitirPingEn(clientX: number, clientY: number): void {
@@ -889,13 +853,7 @@ export function Mapa({
           <button
             type="button"
             className="mapa-zoom-btn"
-            onClick={() =>
-              zoomAlrededorDe(
-                1 / 1.2,
-                tamanoViewport.w / 2,
-                tamanoViewport.h / 2
-              )
-            }
+            onClick={() => aplicarZoom(1 / 1.2)}
             title="Alejar"
             aria-label="Alejar"
           >
@@ -913,9 +871,7 @@ export function Mapa({
           <button
             type="button"
             className="mapa-zoom-btn"
-            onClick={() =>
-              zoomAlrededorDe(1.2, tamanoViewport.w / 2, tamanoViewport.h / 2)
-            }
+            onClick={() => aplicarZoom(1.2)}
             title="Acercar"
             aria-label="Acercar"
           >
@@ -1134,6 +1090,20 @@ export function Mapa({
               </div>
             </section>
           </div>
+
+          <footer className="mapa-panel-pie">
+            <button
+              type="button"
+              className="mapa-btn-confirmar"
+              onClick={() => {
+                void onCambiarFondoYRejilla(fondo, rejilla);
+                setPanelAbierto(null);
+              }}
+            >
+              <Check size={14} aria-hidden="true" />
+              <span>Confirmar</span>
+            </button>
+          </footer>
         </aside>
       )}
 
@@ -1318,12 +1288,23 @@ export function Mapa({
                   key={n}
                   type="button"
                   className={`mapa-preset-btn${activo ? " activo" : ""}`}
-                  onClick={() =>
+                  onClick={() => {
+                    const pos = rejilla.imanActivo
+                      ? ajustarARejilla(
+                          tokenSeleccionado.x,
+                          tokenSeleccionado.y,
+                          n,
+                          n,
+                          rejilla
+                        )
+                      : { x: tokenSeleccionado.x, y: tokenSeleccionado.y };
                     void onActualizarToken(tokenSeleccionado.id, {
                       celdasAncho: n,
-                      celdasAlto: n
-                    })
-                  }
+                      celdasAlto: n,
+                      x: Number(pos.x.toFixed(3)),
+                      y: Number(pos.y.toFixed(3))
+                    });
+                  }}
                 >
                   {n}×{n}
                 </button>
