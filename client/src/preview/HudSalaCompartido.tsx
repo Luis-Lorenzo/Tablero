@@ -406,39 +406,39 @@ export function HudSalaCompartido({
   ]);
   const [macroBonificador, setMacroBonificador] = useState(0);
 
-const CLAVE_CHAT_MAPA = "pocketrol.mapa.chat.v3";
+  const CLAVE_CHAT_MAPA = "pocketrol.mapa.chat.v3";
 
-function cargarChatMapaRect(defecto: RectPizarra): RectPizarra {
-  try {
-    const bruto = window.localStorage.getItem(CLAVE_CHAT_MAPA);
-    if (!bruto) return defecto;
-    const parsed = JSON.parse(bruto) as Partial<RectPizarra>;
-    if (
-      typeof parsed.x === "number" &&
-      typeof parsed.y === "number" &&
-      typeof parsed.w === "number" &&
-      typeof parsed.h === "number"
-    ) {
-      return {
-        x: limitar(parsed.x, 0.5, Math.max(0.5, 99.5 - parsed.w)),
-        y: limitar(parsed.y, 0.5, Math.max(0.5, 99.5 - parsed.h)),
-        w: parsed.w,
-        h: parsed.h
-      };
+  function cargarChatMapaRect(defecto: RectPizarra): RectPizarra {
+    try {
+      const bruto = window.localStorage.getItem(CLAVE_CHAT_MAPA);
+      if (!bruto) return defecto;
+      const parsed = JSON.parse(bruto) as Partial<RectPizarra>;
+      if (
+        typeof parsed.x === "number" &&
+        typeof parsed.y === "number" &&
+        typeof parsed.w === "number" &&
+        typeof parsed.h === "number"
+      ) {
+        return {
+          x: limitar(parsed.x, 0.5, Math.max(0.5, 99.5 - parsed.w)),
+          y: limitar(parsed.y, 0.5, Math.max(0.5, 99.5 - parsed.h)),
+          w: parsed.w,
+          h: parsed.h
+        };
+      }
+    } catch {
+      // sin localStorage
     }
-  } catch {
-    // sin localStorage
+    return defecto;
   }
-  return defecto;
-}
 
-function guardarChatMapaRect(rect: RectPizarra): void {
-  try {
-    window.localStorage.setItem(CLAVE_CHAT_MAPA, JSON.stringify(rect));
-  } catch {
-    // sin localStorage
+  function guardarChatMapaRect(rect: RectPizarra): void {
+    try {
+      window.localStorage.setItem(CLAVE_CHAT_MAPA, JSON.stringify(rect));
+    } catch {
+      // sin localStorage
+    }
   }
-}
 
   const [chatPos, setChatPos] = useState<RectPizarra>(() => cargarChatMapaRect(chatRect));
 
@@ -780,12 +780,12 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         macrosLista.map(m =>
           m.id === macroEditandoId
             ? {
-                ...m,
-                nombre: nombreLimpio,
-                icono: macroIcono,
-                grupos: gruposLimpios,
-                bonificador: modLimpio
-              }
+              ...m,
+              nombre: nombreLimpio,
+              icono: macroIcono,
+              grupos: gruposLimpios,
+              bonificador: modLimpio
+            }
             : m
         )
       );
@@ -872,9 +872,9 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         const resultadoBruto = lanzarGruposDados(gruposActivos, mod);
         const resultadoFinal: ResultadoTirada = opciones?.nombreMacro
           ? {
-              ...resultadoBruto,
-              formula: `${opciones.nombreMacro} · ${resultadoBruto.formula}`
-            }
+            ...resultadoBruto,
+            formula: `${opciones.nombreMacro} · ${resultadoBruto.formula}`
+          }
           : resultadoBruto;
         setTirada({
           ...resultadoFinal,
@@ -885,14 +885,13 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         if (!esSecretaMaster) {
           const desgloseTexto =
             resultadoFinal.desgloseDados.length > 1 ||
-            resultadoFinal.bonificador !== 0
-              ? `${resultadoFinal.dados.join("+")}${
-                  resultadoFinal.bonificador > 0
-                    ? `+${resultadoFinal.bonificador}`
-                    : resultadoFinal.bonificador < 0
-                      ? `${resultadoFinal.bonificador}`
-                      : ""
-                }`
+              resultadoFinal.bonificador !== 0
+              ? `${resultadoFinal.dados.join("+")}${resultadoFinal.bonificador > 0
+                ? `+${resultadoFinal.bonificador}`
+                : resultadoFinal.bonificador < 0
+                  ? `${resultadoFinal.bonificador}`
+                  : ""
+              }`
               : undefined;
           onTiradaLocal?.({
             id: `${Date.now()}-${Math.random()}`,
@@ -1057,14 +1056,14 @@ function guardarChatMapaRect(rect: RectPizarra): void {
       cantidad,
       ...(nuevoObjArchivo?.archivoId
         ? {
-            archivoId: nuevoObjArchivo.archivoId,
-            archivoNombre: nuevoObjArchivo.archivoNombre
-          }
+          archivoId: nuevoObjArchivo.archivoId,
+          archivoNombre: nuevoObjArchivo.archivoNombre
+        }
         : nuevoObjArchivo?.imagenLocal
           ? {
-              imagenLocal: nuevoObjArchivo.imagenLocal,
-              archivoNombre: nuevoObjArchivo.archivoNombre
-            }
+            imagenLocal: nuevoObjArchivo.imagenLocal,
+            archivoNombre: nuevoObjArchivo.archivoNombre
+          }
           : { emoji: nuevoObjEmoji })
     };
     actualizarListaMochila(prev => [...prev, nuevo]);
@@ -1119,13 +1118,13 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         aria-label="Divisa y mochila"
         style={{ pointerEvents: "auto" }}
       >
-        {!esMaster && dibujoCongelado && (
+        {dibujoCongelado && (
           <span
             className="hud-dibujo-congelado-icono"
             title="Dibujo en el mapa congelado por el Máster"
             aria-label="Dibujo congelado"
           >
-            <Snowflake size={16} strokeWidth={2.3} aria-hidden="true" />
+            <Snowflake size={44} strokeWidth={2.2} aria-hidden="true" />
           </span>
         )}
         <div className="hud-divisa-caja">
@@ -1326,9 +1325,8 @@ function guardarChatMapaRect(rect: RectPizarra): void {
                         <button
                           key={j.userId}
                           type="button"
-                          className={`master-inspeccion-tab${
-                            seleccionado?.userId === j.userId ? " activo" : ""
-                          }`}
+                          className={`master-inspeccion-tab${seleccionado?.userId === j.userId ? " activo" : ""
+                            }`}
                           onClick={() => setMasterJugadorMochilaId(j.userId)}
                         >
                           <span
@@ -2551,48 +2549,48 @@ function guardarChatMapaRect(rect: RectPizarra): void {
         !compuestaAbierta &&
         !macrosAbierto &&
         !macroModalAbierto && (
-        <div
-          className={`tirada-panel en-mapa${dockPos.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
-          style={{ pointerEvents: "auto" }}
-        >
-          <span className="tirada-icono">
-            <IconoDadoPoligono caras={tirada.caras} />
-          </span>
-          <span className={`tirada-num${tirando ? " girando" : ""}`}>
-            {tirada.total}
-          </span>
-          <div className="tirada-detalle">
-            <span className="tirada-etiqueta">
-              {tirada.secreta ? "SECRETO · " : ""}
-              {tirando ? "tirando…" : tirada.formula}
+          <div
+            className={`tirada-panel en-mapa${dockPos.y < 30 ? " debajo" : ""}${tirada.secreta ? " secreta" : ""}${!tirando && tirada.especial ? ` ${tirada.especial}` : ""}`}
+            style={{ pointerEvents: "auto" }}
+          >
+            <span className="tirada-icono">
+              <IconoDadoPoligono caras={tirada.caras} />
             </span>
-            {!tirando && (tirada.desgloseDados.length > 1 || tirada.bonificador !== 0) && (
-              <div className="tirada-desglose-chips">
-                {tirada.desgloseDados.map((dado, i) => (
-                  <span
-                    key={`${dado.caras}-${i}`}
-                    className={`tirada-dado-chip${dado.especial ? ` ${dado.especial}` : ""}`}
-                    title={`d${dado.caras}: ${dado.valor}`}
-                  >
-                    {tirada.compuesta && (
-                      <span className="tirada-dado-tipo">d{dado.caras}</span>
-                    )}
-                    <span>{dado.valor}</span>
-                  </span>
-                ))}
-                {tirada.bonificador !== 0 && (
-                  <span className="tirada-desglose-mod">
-                    {tirada.bonificador > 0
-                      ? `+ ${tirada.bonificador}`
-                      : `− ${Math.abs(tirada.bonificador)}`}
-                  </span>
-                )}
-                <span className="tirada-desglose-total">= {tirada.total}</span>
-              </div>
-            )}
+            <span className={`tirada-num${tirando ? " girando" : ""}`}>
+              {tirada.total}
+            </span>
+            <div className="tirada-detalle">
+              <span className="tirada-etiqueta">
+                {tirada.secreta ? "SECRETO · " : ""}
+                {tirando ? "tirando…" : tirada.formula}
+              </span>
+              {!tirando && (tirada.desgloseDados.length > 1 || tirada.bonificador !== 0) && (
+                <div className="tirada-desglose-chips">
+                  {tirada.desgloseDados.map((dado, i) => (
+                    <span
+                      key={`${dado.caras}-${i}`}
+                      className={`tirada-dado-chip${dado.especial ? ` ${dado.especial}` : ""}`}
+                      title={`d${dado.caras}: ${dado.valor}`}
+                    >
+                      {tirada.compuesta && (
+                        <span className="tirada-dado-tipo">d{dado.caras}</span>
+                      )}
+                      <span>{dado.valor}</span>
+                    </span>
+                  ))}
+                  {tirada.bonificador !== 0 && (
+                    <span className="tirada-desglose-mod">
+                      {tirada.bonificador > 0
+                        ? `+ ${tirada.bonificador}`
+                        : `− ${Math.abs(tirada.bonificador)}`}
+                    </span>
+                  )}
+                  <span className="tirada-desglose-total">= {tirada.total}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       <div
         className="sala-dock en-mapa"

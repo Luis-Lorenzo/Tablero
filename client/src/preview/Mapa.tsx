@@ -1490,8 +1490,7 @@ export function Mapa({
         )}
       </div>
 
-      {/* Columna izquierda: Iniciativa arriba + Jugadores debajo */}
-      <div className="mapa-izquierda-stack">
+      {/* Barra de Iniciativa centrada debajo de la barra superior */}
       {mostrarBarraIniciativa && (
         <div
           className="mapa-iniciativa-barra"
@@ -1860,7 +1859,6 @@ export function Mapa({
           })}
         </aside>
       )}
-      </div>
 
       {/* Panel flotante: Fondo y rejilla (solo Máster) */}
       {esMaster && panelAbierto === "fondo" && (
