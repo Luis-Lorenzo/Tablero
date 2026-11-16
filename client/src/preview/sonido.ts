@@ -164,9 +164,11 @@ export function reproducirSonidoPing(): void {
 }
 
 /**
- * Reproduce un sonido breve de monedas metálicas amontonándose al cambiar la divisa.
+ * Reproduce un sonido de monedas al cambiar la divisa:
+ * - `delta >= 0`: "chiclín" metálico brillante y adictivo de moneda ganada.
+ * - `delta < 0`: cadencia descendente melancólica de pérdida de dinero.
  */
-export function reproducirSonidoMonedas(): void {
+export function reproducirSonidoMonedas(delta: number = 1): void {
   if (estaSonidoSilenciado()) return;
 
   try {
@@ -178,32 +180,66 @@ export function reproducirSonidoMonedas(): void {
 
     const ctx = new AudioCtx();
     const ahora = ctx.currentTime;
-    const golpes = [
-      { t: 0, f1: 1960, f2: 2637 },
-      { t: 0.055, f1: 2217, f2: 2960 },
-      { t: 0.115, f1: 2489, f2: 3322 }
-    ];
 
-    for (const g of golpes) {
-      const osc = ctx.createOscillator();
-      const ganancia = ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(g.f1, ahora + g.t);
-      osc.frequency.exponentialRampToValueAtTime(g.f2, ahora + g.t + 0.045);
+    if (delta >= 0) {
+      // "Chiclín!" brillante de moneda: ataque rápido en quinta/octava + cola cristalina
+      const notas = [
+        { t: 0, freq: 987.77, dur: 0.085, gain: 0.07, tipo: "triangle" as OscillatorType },
+        { t: 0.058, freq: 1318.51, dur: 0.28, gain: 0.08, tipo: "sine" as OscillatorType },
+        { t: 0.058, freq: 2637.02, dur: 0.22, gain: 0.036, tipo: "triangle" as OscillatorType },
+        { t: 0.11, freq: 1975.53, dur: 0.22, gain: 0.03, tipo: "sine" as OscillatorType },
+        { t: 0.135, freq: 3135.96, dur: 0.16, gain: 0.018, tipo: "sine" as OscillatorType }
+      ];
 
-      ganancia.gain.setValueAtTime(0.001, ahora + g.t);
-      ganancia.gain.exponentialRampToValueAtTime(0.055, ahora + g.t + 0.01);
-      ganancia.gain.exponentialRampToValueAtTime(0.001, ahora + g.t + 0.09);
+      for (const n of notas) {
+        const osc = ctx.createOscillator();
+        const ganancia = ctx.createGain();
+        osc.type = n.tipo;
+        osc.frequency.setValueAtTime(n.freq, ahora + n.t);
 
-      osc.connect(ganancia);
-      ganancia.connect(ctx.destination);
-      osc.start(ahora + g.t);
-      osc.stop(ahora + g.t + 0.11);
+        ganancia.gain.setValueAtTime(0.0001, ahora + n.t);
+        ganancia.gain.exponentialRampToValueAtTime(n.gain, ahora + n.t + 0.008);
+        ganancia.gain.exponentialRampToValueAtTime(0.0001, ahora + n.t + n.dur);
+
+        osc.connect(ganancia);
+        ganancia.connect(ctx.destination);
+        osc.start(ahora + n.t);
+        osc.stop(ahora + n.t + n.dur + 0.02);
+      }
+    } else {
+      // Sonido triste/descendente cuando pierdes dinero
+      const filtro = ctx.createBiquadFilter();
+      filtro.type = "lowpass";
+      filtro.frequency.setValueAtTime(920, ahora);
+      filtro.connect(ctx.destination);
+
+      const caida = [
+        { t: 0, f1: 392.0, f2: 369.99, dur: 0.13, gain: 0.065 },
+        { t: 0.11, f1: 349.23, f2: 311.13, dur: 0.15, gain: 0.06 },
+        { t: 0.23, f1: 293.66, f2: 220.0, dur: 0.24, gain: 0.055 }
+      ];
+
+      for (const c of caida) {
+        const osc = ctx.createOscillator();
+        const ganancia = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(c.f1, ahora + c.t);
+        osc.frequency.exponentialRampToValueAtTime(c.f2, ahora + c.t + c.dur);
+
+        ganancia.gain.setValueAtTime(0.0001, ahora + c.t);
+        ganancia.gain.exponentialRampToValueAtTime(c.gain, ahora + c.t + 0.015);
+        ganancia.gain.exponentialRampToValueAtTime(0.0001, ahora + c.t + c.dur);
+
+        osc.connect(ganancia);
+        ganancia.connect(filtro);
+        osc.start(ahora + c.t);
+        osc.stop(ahora + c.t + c.dur + 0.02);
+      }
     }
 
     window.setTimeout(() => {
       void ctx.close().catch(() => undefined);
-    }, 360);
+    }, 560);
   } catch {
     // Silencioso si el navegador bloquea el audio.
   }

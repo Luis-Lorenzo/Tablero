@@ -1119,7 +1119,7 @@ export function HudSalaCompartido({
 
   function emitirDivisaLocal(delta: number, total: number): void {
     if (delta === 0) return;
-    reproducirSonidoMonedas();
+    reproducirSonidoMonedas(delta);
     const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
     const signo = delta > 0 ? `+${delta}` : String(delta);
     setMensajesLocales(prev => [

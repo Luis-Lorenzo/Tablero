@@ -774,7 +774,7 @@ function SalaRealContent({
         }
 
         if (delta !== 0) {
-          reproducirSonidoMonedas();
+          reproducirSonidoMonedas(delta);
           const jugador = jugadores.find(j => (j.userId ?? j.id) === jugadorId);
           if (jugador) {
             const asientoId = jugador.id;

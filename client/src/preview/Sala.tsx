@@ -2710,7 +2710,7 @@ export function Sala({
 
   function emitirDivisaLocal(delta: number, total: number): void {
     if (delta === 0) return;
-    reproducirSonidoMonedas();
+    reproducirSonidoMonedas(delta);
     const miAsiento =
       jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ?? "master";
     const idDelta = `${Date.now()}-${Math.random()}`;
