@@ -6162,10 +6162,19 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   height: 100%;
 }
 
-.asiento-d20 polygon {
-  fill: rgb(22 16 32 / 92%);
-  stroke: #e8c56a;
+.asiento-d20 polygon,
+.asiento-d20 rect,
+.asiento-d20 circle {
+  fill: var(--dado-color, rgb(22 16 32 / 92%));
+  stroke: #b794f4;
   stroke-width: 1.7;
+}
+
+.asiento-d20 text {
+  fill: #ffffff;
+  stroke: #090612;
+  stroke-width: 0.9px;
+  paint-order: stroke fill;
 }
 
 .asiento-d20.critico {

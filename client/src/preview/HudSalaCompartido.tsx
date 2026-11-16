@@ -243,7 +243,8 @@ function lanzarGruposDados(
   };
 }
 
-function IconoD20({ valor }: { valor?: number | string }) {
+function IconoD20({ valor, color }: { valor?: number | string; color?: string }) {
+  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -252,6 +253,7 @@ function IconoD20({ valor }: { valor?: number | string }) {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
+        style={estiloPoligono}
       />
       <polygon
         points="12,6.5 17.5,15.5 6.5,15.5"
@@ -284,11 +286,14 @@ function IconoD20({ valor }: { valor?: number | string }) {
 
 export function IconoDadoPoligono({
   caras,
-  valor
+  valor,
+  color
 }: {
   caras: number;
   valor?: number | string;
+  color?: string;
 }) {
+  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -296,8 +301,10 @@ export function IconoDadoPoligono({
         y={caras === 4 ? "16.8" : "14.5"}
         textAnchor="middle"
         fontSize="5.6"
-        fill="currentColor"
-        stroke="none"
+        fill={color ? "#ffffff" : "currentColor"}
+        stroke={color ? "#090612" : "none"}
+        strokeWidth={color ? "0.9" : undefined}
+        paintOrder={color ? "stroke fill" : undefined}
         fontFamily="'Press Start 2P', monospace"
       >
         {valor}
@@ -313,6 +320,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -330,6 +338,7 @@ export function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.6"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -344,6 +353,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -358,6 +368,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -372,6 +383,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -387,6 +399,7 @@ export function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
+          style={estiloPoligono}
         />
         <circle
           cx="12"
@@ -401,7 +414,7 @@ export function IconoDadoPoligono({
       </svg>
     );
   }
-  return <IconoD20 valor={valor} />;
+  return <IconoD20 valor={valor} color={color} />;
 }
 
 function IconoPosit() {

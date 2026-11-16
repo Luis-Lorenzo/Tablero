@@ -1035,27 +1035,29 @@ export function Mapa({
     const categoriaLimpia =
       esMaster && guardarPlantilla ? categoriaToken.trim() || undefined : undefined;
 
-    await onCrearToken(
-      {
-        nombre: nombreToken.trim() || "Token",
-        archivoId: previewUrlToken ? archivoIdToken : undefined,
-        imagenUrl: imagenFinal,
-        x: centro.x,
-        y: centro.y,
-        celdasAncho: celdasToken,
-        celdasAlto: celdasToken,
-        escala: 1,
-        esMonstruo: esMaster ? esMonstruo : false
-      },
-      guardarPlantilla,
-      categoriaLimpia
-    );
+    try {
+      await onCrearToken(
+        {
+          nombre: nombreToken.trim() || "Token",
+          archivoId: previewUrlToken ? archivoIdToken : undefined,
+          imagenUrl: imagenFinal,
+          x: centro.x,
+          y: centro.y,
+          celdasAncho: celdasToken,
+          celdasAlto: celdasToken,
+          escala: 1,
+          esMonstruo: esMaster ? esMonstruo : false
+        },
+        guardarPlantilla,
+        categoriaLimpia
+      );
 
-    setNombreToken("");
-    setPreviewUrlToken(null);
-    setArchivoIdToken(undefined);
-    if (guardarPlantilla) {
-      setPanelAbierto("bandeja");
+      setNombreToken("");
+      setPreviewUrlToken(null);
+      setArchivoIdToken(undefined);
+      setPanelAbierto(guardarPlantilla ? "bandeja" : null);
+    } catch (err) {
+      setErrorPanel(err instanceof Error ? err.message : "No se pudo crear el token.");
     }
   }
 
@@ -1709,7 +1711,7 @@ export function Mapa({
                       title={
                         esMaster
                           ? `${entrada.nombre} (${entrada.valor}) — Arrastra para reordenar`
-                          : `${entrada.nombre} (${entrada.valor})`
+                          : entrada.nombre
                       }
                     >
                       <span
@@ -1720,9 +1722,11 @@ export function Mapa({
                       <span className="mapa-iniciativa-nombre">
                         {entrada.nombre}
                       </span>
-                      <span className="mapa-iniciativa-valor">
-                        {entrada.valor}
-                      </span>
+                      {esMaster && (
+                        <span className="mapa-iniciativa-valor">
+                          {entrada.valor}
+                        </span>
+                      )}
                     </span>
                   );
                 })}
@@ -2112,9 +2116,12 @@ export function Mapa({
                   >
                     <span
                       className="mapa-jugador-tirada-icono"
-                      style={{ color: colorDadoTirada }}
+                      style={{ color: tirada.especial ? undefined : "#b794f4" }}
                     >
-                      <IconoDadoPoligono caras={tirada.caras ?? 20} />
+                      <IconoDadoPoligono
+                        caras={tirada.caras ?? 20}
+                        color={tirada.especial ? undefined : colorDadoTirada}
+                      />
                     </span>
                     <span className="mapa-jugador-tirada-total">
                       {tirada.total}

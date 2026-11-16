@@ -440,7 +440,7 @@ function IconoDadoPoligono({
   valor?: number | string;
   color?: string;
 }) {
-  const estiloPoligono = color ? { stroke: color } : undefined;
+  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -448,8 +448,10 @@ function IconoDadoPoligono({
         y={caras === 4 ? "16.8" : "14.5"}
         textAnchor="middle"
         fontSize="5.6"
-        fill="currentColor"
-        stroke="none"
+        fill={color ? "#ffffff" : "currentColor"}
+        stroke={color ? "#090612" : "none"}
+        strokeWidth={color ? "0.9" : undefined}
+        paintOrder={color ? "stroke fill" : undefined}
         fontFamily="'Press Start 2P', monospace"
       >
         {valor}
@@ -483,6 +485,7 @@ function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.6"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -543,6 +546,7 @@ function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
+          style={estiloPoligono}
         />
         <circle
           cx="12"
@@ -609,7 +613,7 @@ function centroide(quad: QuadMapa): Punto {
 }
 
 function IconoD20({ valor, color }: { valor?: number | string; color?: string }) {
-  const estiloPoligono = color ? { stroke: color } : undefined;
+  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -3280,7 +3284,7 @@ export function Sala({
                         style={
                           colorDadoAsiento
                             ? ({
-                                color: colorDadoAsiento,
+                                color: "#b794f4",
                                 "--dado-color": colorDadoAsiento,
                                 filter: `drop-shadow(0 0 10px ${colorDadoAsiento})`
                               } as CSSProperties)
