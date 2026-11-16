@@ -10443,8 +10443,8 @@ html.modo-claro .chat-enviar-btn:hover:not(:disabled) {
 }
 
 html.modo-claro .hud-enviar-btn {
-  border: 2px solid #A8741A;
-  background: #E2A93B;
+  border: 2px solid #8E96A8;
+  background: #D8DCE6;
   color: #2A1F3D;
   box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
 }
@@ -10455,8 +10455,8 @@ html.modo-claro .hud-enviar-btn svg {
 
 html.modo-claro .hud-enviar-btn:hover,
 html.modo-claro .hud-enviar-btn.activo {
-  background: #D49724;
-  border-color: #7C5CBF;
+  background: #C8CEDC;
+  border-color: #5B6BBF;
   color: #2A1F3D;
   box-shadow: 0 4px 14px rgb(60 40 90 / 28%);
 }
@@ -10745,8 +10745,8 @@ html.modo-claro .dock-etiqueta {
 
 html.modo-claro .dados-rapidos-titulo {
   color: #2A1F3D;
-  background: rgb(255 248 236 / 86%);
-  border: 1.5px solid #B8862B;
+  background: rgb(226 222 242 / 92%);
+  border: 1.5px solid #8E7CC3;
   border-radius: 8px;
   padding: 3px 8px;
   text-shadow: none;
@@ -10754,21 +10754,21 @@ html.modo-claro .dados-rapidos-titulo {
 }
 
 html.modo-claro .dados-rapidos {
-  background: rgb(255 248 236 / 88%);
+  background: rgb(226 222 242 / 92%);
   backdrop-filter: blur(8px);
-  border: 2px solid #B8862B;
+  border: 2px solid #8E7CC3;
   box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
 }
 
 html.modo-claro .dado-rapido-btn {
-  background: rgb(255 248 236 / 92%);
+  background: #F6F4FC;
   border-color: var(--dado-color);
   color: var(--dado-color);
   box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
 }
 
 html.modo-claro .dado-rapido-btn:hover:not(:disabled) {
-  background: #FFF8EC;
+  background: #FFFFFF;
   border-color: #7C5CBF;
   box-shadow: 0 6px 16px rgb(60 40 90 / 30%);
 }
