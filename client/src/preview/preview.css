@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PrevisualizaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n de la sala (Fase 0). Autocontenida: no depende de App.css.
+   PrevisualizaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de la sala (Fase 0). Autocontenida: no depende de App.css.
    ========================================================================== */
 
 /* --------------------------------------------------------------- Sala de espera */
@@ -454,7 +454,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   background: rgb(150 251 199 / 12%);
 }
 
-/* Mapa: el ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rea estÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ dibujada en perspectiva, asÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­ que es un cuadrilÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡tero. */
+/* Mapa: el ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡rea estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ dibujada en perspectiva, asÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ que es un cuadrilÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡tero. */
 .mapa-svg {
   position: absolute;
   inset: 0;
@@ -1064,7 +1064,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #ffd5dc;
 }
 
-/* --------------------------------------------------------------- Pizarra (pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡gina) */
+/* --------------------------------------------------------------- Pizarra (pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina) */
 
 .pizarra-page {
   position: fixed;
@@ -1099,7 +1099,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
       transparent 1px 8px);
 }
 
-/* Grano fino (ruido) para textura orgÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡nica de pergamino. */
+/* Grano fino (ruido) para textura orgÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡nica de pergamino. */
 .pergamino-fondo::after {
   content: "";
   position: absolute;
@@ -1897,7 +1897,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   white-space: nowrap;
 }
 
-/* Puente invisible para no perder el :hover al subir el ratÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n hacia la barra. */
+/* Puente invisible para no perder el :hover al subir el ratÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n hacia la barra. */
 .posit-barra::after {
   content: "";
   position: absolute;
@@ -1981,7 +1981,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #fff;
 }
 
-/* --------------------------------------------------------------- Mapa (pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡gina) */
+/* --------------------------------------------------------------- Mapa (pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina) */
 
 .mapa-page {
   position: fixed;
@@ -2769,7 +2769,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
 }
 
-/* CreaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n y bandeja de tokens */
+/* CreaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n y bandeja de tokens */
 
 .mapa-token-form {
   display: flex;
@@ -3400,7 +3400,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   transform: translateY(1px);
 }
 
-/* Panel de Pasar Turno + CronÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³metro en esquina superior izquierda */
+/* Panel de Pasar Turno + CronÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³metro en esquina superior izquierda */
 
 .mapa-turno-panel {
   position: fixed;
@@ -4754,7 +4754,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
 }
 
-/* --------------------------------------------------------------- Archivador (pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡gina) */
+/* --------------------------------------------------------------- Archivador (pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina) */
 
 .archivador-page {
   position: fixed;
@@ -5408,7 +5408,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   text-align: center;
 }
 
-/* --------------------------------------------------------------- Controles exclusivos del MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster y Opciones A / B */
+/* --------------------------------------------------------------- Controles exclusivos del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster y Opciones A / B */
 
 .sala-barra {
   max-width: calc(100vw - 24px);
@@ -5532,7 +5532,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #f6e3b0;
 }
 
-/* OpciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n B: imagen de escena fijada sobre la pizarra en la pared de la sala */
+/* OpciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n B: imagen de escena fijada sobre la pizarra en la pared de la sala */
 
 .sala-hotspot.hotspot-pizarra.con-escena {
   display: block;
@@ -5620,7 +5620,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #ffb3cb;
 }
 
-/* Acciones rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡pidas del MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster en fichas de imagen sobre la mesa */
+/* Acciones rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡pidas del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster en fichas de imagen sobre la mesa */
 
 .doc-master-icono {
   display: grid;
@@ -5644,7 +5644,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #241908;
 }
 
-/* Botones dorados y acciones del MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster en Archivador y Visor */
+/* Botones dorados y acciones del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster en Archivador y Visor */
 
 .archivador-barra-master {
   border-bottom-color: rgb(196 149 46 / 38%);
@@ -5686,7 +5686,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #241908;
 }
 
-/* Dentro de paneles oscuros del MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster, el texto del botÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n necesita alto contraste */
+/* Dentro de paneles oscuros del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster, el texto del botÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n necesita alto contraste */
 .master-panel-modal .master-accion-btn,
 .archivador-visor .master-accion-btn,
 .pizarra-page .master-accion-btn {
@@ -5898,7 +5898,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
 }
 
-/* OpciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n A: Modal de RevelaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n DramÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡tica del MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster */
+/* OpciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n A: Modal de RevelaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n DramÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡tica del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster */
 
 .proyeccion-master-overlay {
   position: fixed;
@@ -6137,7 +6137,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   }
 }
 
-/* --------------------------------------------- Dados negros secretos (MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster) */
+/* --------------------------------------------- Dados negros secretos (MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster) */
 
 .dock-btn-secreto {
   border-color: #3c3a44;
@@ -6235,7 +6235,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #f6e3b0;
 }
 
-/* Panel modal de DirecciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n de Escena del MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ster */
+/* Panel modal de DirecciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de Escena del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster */
 
 .master-modal-fondo {
   position: fixed;
@@ -6440,7 +6440,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   gap: 6px;
 }
 
-/* ------------------------------------------- Tiradas compuestas y dados rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡pidos */
+/* ------------------------------------------- Tiradas compuestas y dados rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡pidos */
 
 .dados-selector.compuesta {
   width: min(330px, calc(100vw - 24px));
@@ -6657,7 +6657,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   line-height: 1;
 }
 
-/* ------------------------------------------- PestaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±as y vista Escena en Pizarra */
+/* ------------------------------------------- PestaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±as y vista Escena en Pizarra */
 
 .pizarra-vista-tabs {
   position: relative;
@@ -8827,7 +8827,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #3a2110;
 }
 
-/* ==================== HUD Mapa: Dock, Congelado y MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³vil ==================== */
+/* ==================== HUD Mapa: Dock, Congelado y MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³vil ==================== */
 
 .hud-dibujo-congelado-icono {
   position: absolute;
@@ -9123,8 +9123,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mesa-macro-rombo-cerrar {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -14px;
+  right: -12px;
   left: auto;
   transform: none;
   width: 22px;
@@ -9134,7 +9134,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   border-radius: 6px;
   background: transparent;
   color: #ffffff;
-  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 92%)) drop-shadow(0 0 4px rgb(0 0 0 / 75%));
+  filter: drop-shadow(0 0 3px #ef4444) drop-shadow(0 0 7px rgb(239 68 68 / 88%)) drop-shadow(0 1px 2px rgb(0 0 0 / 90%));
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -9534,7 +9534,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 
-/* --------------------------------------------------------------- MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âºsica ambiente */
+/* --------------------------------------------------------------- MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºsica ambiente */
 
 .sala-musica-control {
   position: relative;
