@@ -9126,10 +9126,10 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
-  overflow-y: hidden;
-  padding: 2px 0;
+  overflow-y: visible;
+  padding: 6px 8px 4px 2px;
 }
 
 .mapa-limbo-item {
@@ -9168,6 +9168,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   flex-shrink: 0;
   object-fit: contain;
   border-radius: 6px;
+  pointer-events: none;
+  user-select: none;
 }
 
 .mapa-limbo-nombre {

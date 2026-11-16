@@ -394,6 +394,11 @@ export function Mapa({
   const [espacioPulsado, setEspacioPulsado] = useState(false);
   const [paneando, setPaneando] = useState(false);
   const [mapaBloqueado, setMapaBloqueado] = useState(true);
+  const [limboFantasma, setLimboFantasma] = useState<{
+    token: TokenMapa;
+    x: number;
+    y: number;
+  } | null>(null);
   const arrastrePanRef = useRef<ArrastrePan | null>(null);
 
   // Dimensiones naturales de la imagen de fondo
@@ -815,6 +820,72 @@ export function Mapa({
       setArrastreToken(actualizado);
       setSobreLimbo(movido && estaSobreLimbo(evento.clientX, evento.clientY));
     }
+  }
+
+  function iniciarArrastreDesdeLimbo(
+    evento: ReactPointerEvent<HTMLButtonElement>,
+    token: TokenMapa
+  ): void {
+    if (!puedeEditarToken(token) || evento.button !== 0) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    let movido = false;
+
+    const alMover = (ev: PointerEvent) => {
+      const dx = ev.clientX - inicioX;
+      const dy = ev.clientY - inicioY;
+      if (!movido && Math.hypot(dx, dy) > 6) {
+        movido = true;
+      }
+      if (movido) {
+        setLimboFantasma({ token, x: ev.clientX, y: ev.clientY });
+      }
+    };
+
+    const alSoltar = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", alMover);
+      window.removeEventListener("pointerup", alSoltar);
+      window.removeEventListener("pointercancel", alSoltar);
+      setLimboFantasma(null);
+
+      if (!movido) {
+        void onActualizarToken(token.id, {
+          enLimbo: false,
+          x: 50,
+          y: 50
+        });
+        return;
+      }
+
+      if (estaSobreLimbo(ev.clientX, ev.clientY)) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const xCrudo = limitar(((ev.clientX - rect.left) / rect.width) * 100, 0, 100);
+      const yCrudo = limitar(((ev.clientY - rect.top) / rect.height) * 100, 0, 100);
+      const pos = rejillaActiva.imanActivo
+        ? ajustarARejilla(
+            xCrudo,
+            yCrudo,
+            token.celdasAncho,
+            token.celdasAlto,
+            rejillaActiva
+          )
+        : { x: xCrudo, y: yCrudo };
+      void onActualizarToken(token.id, {
+        enLimbo: false,
+        x: pos.x,
+        y: pos.y
+      });
+    };
+
+    window.addEventListener("pointermove", alMover);
+    window.addEventListener("pointerup", alSoltar);
+    window.addEventListener("pointercancel", alSoltar);
   }
 
   function estaSobreLimbo(clientX: number, clientY: number): boolean {
@@ -3197,32 +3268,21 @@ export function Mapa({
                     type="button"
                     className="mapa-limbo-token-btn"
                     disabled={!editable}
-                    draggable={editable}
-                    onDragStart={e => {
-                      if (!editable) return;
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/x-limbo-token-id", token.id);
-                    }}
-                    onClick={() =>
-                      void onActualizarToken(token.id, {
-                        enLimbo: false,
-                        x: 50,
-                        y: 50
-                      })
-                    }
+                    onPointerDown={e => iniciarArrastreDesdeLimbo(e, token)}
                   >
-                    <img src={token.imagenUrl} alt={token.nombre} />
+                    <img src={token.imagenUrl} alt={token.nombre} draggable={false} />
                     <span className="mapa-limbo-nombre">{token.nombre}</span>
                   </button>
                   {editable && (
                     <button
                       type="button"
                       className="mapa-limbo-borrar"
+                      onPointerDown={e => e.stopPropagation()}
                       onClick={() => void onEliminarToken(token.id)}
                       aria-label={`Eliminar ${token.nombre} del Limbo`}
-                      title="Eliminar definitivamente al Almacén"
+                      title="Eliminar definitivamente"
                     >
-                      <X size={10} />
+                      <X size={10} strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -3277,6 +3337,31 @@ export function Mapa({
         <span>·</span>
         <span>Alt+arrastrar token: libre</span>
       </div>
+
+      {limboFantasma && (
+        <div
+          className="mapa-limbo-fantasma"
+          style={{
+            position: "fixed",
+            left: limboFantasma.x,
+            top: limboFantasma.y,
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+            zIndex: 95
+          }}
+        >
+          <img
+            src={limboFantasma.token.imagenUrl}
+            alt={limboFantasma.token.nombre}
+            style={{
+              width: 44,
+              height: 44,
+              objectFit: "contain",
+              filter: "drop-shadow(0 6px 14px rgb(0 0 0 / 70%))"
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
