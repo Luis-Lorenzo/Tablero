@@ -123,6 +123,16 @@ export class MesasBroadcaster implements MesasNotifier {
     }
   }
 
+  /** Indica si el usuario tiene al menos un WebSocket abierto ahora mismo. */
+  estaConectado(userId: string): boolean {
+    const conjunto = this.socketsPorUsuario.get(userId);
+    if (!conjunto || conjunto.size === 0) return false;
+    for (const cliente of conjunto) {
+      if (cliente.readyState === WebSocket.OPEN) return true;
+    }
+    return false;
+  }
+
   /** Envía un evento en tiempo real solo a los usuarios indicados. */
   enviarAUsuarios(userIds: readonly string[], payload: unknown): void {
     const objetivos = new Set(userIds);

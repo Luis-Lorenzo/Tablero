@@ -483,6 +483,73 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.get("/:id/master-resumen", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actorId = req.currentUser!.id;
+      if (mesa.hostId !== actorId) {
+        throw errors.forbidden();
+      }
+
+      const conectados = mesa.players.filter(playerId =>
+        context.mesasNotifier.estaConectado
+          ? context.mesasNotifier.estaConectado(playerId)
+          : true
+      );
+
+      const jugadores = await Promise.all(
+        conectados.map(async playerId => {
+          const usuario = await context.userRepository.findById(playerId);
+          const nombre = usuario ? nombreDeUsuario(usuario) : "Jugador";
+          const color = mesa.colores?.[playerId] ?? "#96fbc7";
+
+          const estado = mesaEstado.getEstadoCompleto
+            ? await mesaEstado.getEstadoCompleto(mesaId, playerId)
+            : {
+                elementos: await mesaEstado.getElementos(mesaId, playerId),
+                divisa: 0,
+                mochila: []
+              };
+
+          const objetosMesa = estado.elementos
+            .filter(el => el.tipo === "objeto" && typeof el.nombre === "string")
+            .map(el => ({
+              id: typeof el.id === "string" ? el.id : "",
+              nombre: String(el.nombre ?? ""),
+              descripcion: typeof el.descripcion === "string" ? el.descripcion : "",
+              cantidad:
+                typeof el.cantidad === "number" && Number.isFinite(el.cantidad)
+                  ? Math.max(1, Math.trunc(el.cantidad))
+                  : 1,
+              ...(typeof el.emoji === "string" && el.emoji ? { emoji: el.emoji } : {}),
+              ...(typeof el.archivoId === "string" && el.archivoId
+                ? { archivoId: el.archivoId }
+                : {}),
+              ...(typeof el.archivoNombre === "string" && el.archivoNombre
+                ? { archivoNombre: el.archivoNombre }
+                : {})
+            }));
+
+          return {
+            userId: playerId,
+            nombre,
+            color,
+            divisa: estado.divisa,
+            mochila: estado.mochila,
+            objetosMesa
+          };
+        })
+      );
+
+      res.json({ jugadores });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/:id/estado", requireAuth, async (req, res, next) => {
     try {
       const mesaId = String(req.params.id);

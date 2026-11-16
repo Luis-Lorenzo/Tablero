@@ -123,6 +123,76 @@ export function IconoMochilaPixel({ size = 28 }: { size?: number }) {
 }
 
 /**
+ * Icono pixel-retro de billete para el resumen económico del Máster.
+ */
+export function IconoBilletePixel({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    >
+      {/* Contorno */}
+      <rect x="1" y="4" width="14" height="1" fill="#181020" />
+      <rect x="1" y="11" width="14" height="1" fill="#181020" />
+      <rect x="1" y="5" width="1" height="6" fill="#181020" />
+      <rect x="14" y="5" width="1" height="6" fill="#181020" />
+      {/* Papel verde */}
+      <rect x="2" y="5" width="12" height="6" fill="#4f9d58" />
+      <rect x="3" y="6" width="10" height="4" fill="#68ba6f" />
+      {/* Esquinas */}
+      <rect x="2" y="5" width="2" height="1" fill="#a8e29b" />
+      <rect x="12" y="5" width="2" height="1" fill="#a8e29b" />
+      <rect x="2" y="10" width="2" height="1" fill="#35753d" />
+      <rect x="12" y="10" width="2" height="1" fill="#35753d" />
+      {/* Medallón central */}
+      <rect x="6" y="6" width="4" height="4" fill="#35753d" />
+      <rect x="7" y="7" width="2" height="2" fill="#e8c56a" />
+    </svg>
+  );
+}
+
+/**
+ * Icono pixel-retro de lupa para inspeccionar mochilas y objetos de jugadores.
+ */
+export function IconoLupaPixel({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    >
+      {/* Aro superior e inferior */}
+      <rect x="4" y="2" width="5" height="1" fill="#181020" />
+      <rect x="4" y="9" width="5" height="1" fill="#181020" />
+      <rect x="2" y="4" width="1" height="4" fill="#181020" />
+      <rect x="10" y="4" width="1" height="4" fill="#181020" />
+      <rect x="3" y="3" width="1" height="1" fill="#181020" />
+      <rect x="9" y="3" width="1" height="1" fill="#181020" />
+      <rect x="3" y="8" width="1" height="1" fill="#181020" />
+      <rect x="9" y="8" width="1" height="1" fill="#181020" />
+      {/* Marco dorado */}
+      <rect x="4" y="3" width="5" height="1" fill="#e8c56a" />
+      <rect x="4" y="8" width="5" height="1" fill="#c79535" />
+      <rect x="3" y="4" width="1" height="4" fill="#e8c56a" />
+      <rect x="9" y="4" width="1" height="4" fill="#c79535" />
+      {/* Cristal */}
+      <rect x="4" y="4" width="5" height="4" fill="#9fdcff" />
+      <rect x="5" y="4" width="2" height="2" fill="#e0f6ff" />
+      {/* Mango */}
+      <rect x="10" y="9" width="2" height="2" fill="#181020" />
+      <rect x="11" y="10" width="2" height="2" fill="#8c542b" />
+      <rect x="12" y="11" width="2" height="2" fill="#6b3e1e" />
+      <rect x="13" y="12" width="2" height="2" fill="#181020" />
+    </svg>
+  );
+}
+
+/**
  * Recorta y comprime una imagen subida a formato cuadrado 1:1 ligero (256x256).
  */
 export async function recortarImagenCuadrada(archivo: File): Promise<File> {

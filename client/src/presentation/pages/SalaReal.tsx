@@ -1105,6 +1105,14 @@ function SalaRealContent({
         mochila={mochila}
         onMochila={setMochila}
         onEnviarObjetoMochila={enviarObjetoMochila}
+        onConsultarResumenMaster={
+          esMaster
+            ? async () => {
+                const res = await mesasApi.resumenInventarioMaster(mesa.id);
+                return res.jugadores;
+              }
+            : undefined
+        }
       />
     );
   }

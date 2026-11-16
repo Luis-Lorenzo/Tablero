@@ -203,5 +203,34 @@ export const mesasApi = {
       vista: "pizarra" | "escena" | "mapa";
       color: string;
     }
-  ) => http.post<void>(`/api/mesas/${id}/ping`, datos)
+  ) => http.post<void>(`/api/mesas/${id}/ping`, datos),
+
+  /** Resumen de divisa, mochila y objetos en mesa de jugadores conectados (solo Máster). */
+  resumenInventarioMaster: (id: string) =>
+    http.get<{
+      jugadores: Array<{
+        userId: string;
+        nombre: string;
+        color: string;
+        divisa: number;
+        mochila: Array<{
+          id: string;
+          nombre: string;
+          descripcion: string;
+          cantidad: number;
+          emoji?: string;
+          archivoId?: string;
+          archivoNombre?: string;
+        }>;
+        objetosMesa: Array<{
+          id: string;
+          nombre: string;
+          descripcion: string;
+          cantidad: number;
+          emoji?: string;
+          archivoId?: string;
+          archivoNombre?: string;
+        }>;
+      }>;
+    }>(`/api/mesas/${id}/master-resumen`)
 };

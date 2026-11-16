@@ -6,6 +6,7 @@ export interface MesasNotifier {
   notificarCambio(): void;
   notificarUsuario(userId: string, evento: unknown): void;
   enviarAUsuarios(userIds: readonly string[], payload: unknown): void;
+  estaConectado?(userId: string): boolean;
 }
 
 /** Implementación vacía (pruebas o entornos sin canal en vivo). */

@@ -6306,3 +6306,120 @@
   color: #e4d8bd;
   white-space: pre-wrap;
 }
+
+.hud-master-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.hud-master-cuadro {
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgb(232 197 106 / 45%);
+  border-radius: 10px;
+  background: rgb(14 11 20 / 92%);
+  color: #f3e6c8;
+  box-shadow: 2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.12s ease;
+}
+
+.hud-master-cuadro:hover,
+.hud-master-cuadro.activo {
+  border-color: #e8c56a;
+  background: rgb(32 24 44 / 96%);
+  transform: translateY(-1px);
+}
+
+.master-resumen-popover {
+  top: 196px;
+}
+
+.master-divisa-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.master-divisa-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(232 197 106 / 22%);
+  background: rgb(0 0 0 / 32%);
+}
+
+.master-divisa-jugador {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f3e6c8;
+}
+
+.master-divisa-monto {
+  font-size: 13.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffe39a;
+}
+
+.master-inspeccion-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.master-inspeccion-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1.5px solid #5e3a21;
+  background: rgb(255 248 236 / 58%);
+  color: #2b180b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.master-inspeccion-tab.activo {
+  background: #4d2f1a;
+  color: #f9ebd2;
+  border-color: #2b180b;
+}
+
+.master-inspeccion-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.master-inspeccion-subcabecera {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(77 47 26 / 28%);
+  background: rgb(255 248 236 / 45%);
+  font-size: 12.5px;
+  color: #2b180b;
+}
+
+.master-inspeccion-seccion {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #3a2110;
+}

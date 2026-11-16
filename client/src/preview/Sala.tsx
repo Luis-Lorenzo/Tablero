@@ -38,6 +38,7 @@ import {
   tipoCortoArchivo
 } from "./compartir";
 import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
+import type { PublicJugadorResumenInventario } from "../api/types";
 import {
   cargarDivisaLocal,
   cargarMochilaLocal,
@@ -45,6 +46,8 @@ import {
   formatearDivisaCompacta,
   guardarDivisaLocal,
   guardarMochilaLocal,
+  IconoBilletePixel,
+  IconoLupaPixel,
   IconoMochilaPixel,
   IconoMonedasPixel,
   recortarImagenCuadrada
@@ -140,6 +143,7 @@ interface SalaProps {
     objeto: ObjetoMochila,
     cantidad?: number
   ) => void | Promise<void>;
+  onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -688,7 +692,8 @@ export function Sala({
   divisaAsiento,
   mochila,
   onMochila,
-  onEnviarObjetoMochila
+  onEnviarObjetoMochila,
+  onConsultarResumenMaster
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -790,6 +795,70 @@ export function Sala({
   const [objetoMesaActivo, setObjetoMesaActivo] = useState<
     Extract<ElementoMesa, { tipo: "objeto" }> | null
   >(null);
+  const [masterDivisasAbierto, setMasterDivisasAbierto] = useState(false);
+  const [masterMochilasAbierto, setMasterMochilasAbierto] = useState(false);
+  const [masterResumenJugadores, setMasterResumenJugadores] = useState<
+    PublicJugadorResumenInventario[]
+  >([]);
+  const [masterResumenCargando, setMasterResumenCargando] = useState(false);
+  const [masterJugadorMochilaId, setMasterJugadorMochilaId] = useState<string | null>(
+    null
+  );
+
+  async function cargarResumenMaster(): Promise<void> {
+    if (!onConsultarResumenMaster) {
+      const simulados: PublicJugadorResumenInventario[] = jugadores
+        .filter(j => j.activo && !j.esMaster)
+        .map(j => ({
+          userId: j.usuarioId ?? j.id,
+          nombre: j.nombre,
+          color: j.color,
+          divisa: 0,
+          mochila: [],
+          objetosMesa: []
+        }));
+      setMasterResumenJugadores(simulados);
+      if (simulados.length > 0 && !masterJugadorMochilaId) {
+        setMasterJugadorMochilaId(simulados[0].userId);
+      }
+      return;
+    }
+
+    setMasterResumenCargando(true);
+    try {
+      const lista = await onConsultarResumenMaster();
+      setMasterResumenJugadores(lista);
+      setMasterJugadorMochilaId(actual =>
+        actual && lista.some(j => j.userId === actual)
+          ? actual
+          : (lista[0]?.userId ?? null)
+      );
+    } catch {
+      mostrarAviso("No se pudo consultar el resumen de jugadores.");
+    } finally {
+      setMasterResumenCargando(false);
+    }
+  }
+
+  function alternarPanelMaster(modo: "divisas" | "mochilas"): void {
+    setDivisaAbierta(false);
+    setMochilaAbierta(false);
+    if (modo === "divisas") {
+      setMasterMochilasAbierto(false);
+      setMasterDivisasAbierto(v => {
+        const next = !v;
+        if (next) void cargarResumenMaster();
+        return next;
+      });
+    } else {
+      setMasterDivisasAbierto(false);
+      setMasterMochilasAbierto(v => {
+        const next = !v;
+        if (next) void cargarResumenMaster();
+        return next;
+      });
+    }
+  }
 
   const divisaDebounceRef = useRef<{ timer: number | null; acumulado: number }>({
     timer: null,
@@ -2806,6 +2875,8 @@ export function Sala({
                 className={`sala-btn hud-barra-movil${mochilaAbierta ? " activo" : ""}`}
                 onClick={() => {
                   setDivisaAbierta(false);
+                  setMasterDivisasAbierto(false);
+                  setMasterMochilasAbierto(false);
                   setMochilaAbierta(v => !v);
                 }}
                 title="Abrir mochila"
@@ -2813,6 +2884,29 @@ export function Sala({
                 <IconoMochilaPixel size={20} />
                 <span>{mochilaActual.length}</span>
               </button>
+
+              {esMaster && (
+                <>
+                  <button
+                    type="button"
+                    className={`sala-btn hud-barra-movil${masterDivisasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("divisas")}
+                    title={`Ver ${divisaNombre} de jugadores`}
+                    aria-label={`Ver ${divisaNombre} de jugadores`}
+                  >
+                    <IconoBilletePixel size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`sala-btn hud-barra-movil${masterMochilasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("mochilas")}
+                    title="Inspeccionar mochilas de jugadores"
+                    aria-label="Inspeccionar mochilas de jugadores"
+                  >
+                    <IconoLupaPixel size={18} />
+                  </button>
+                </>
+              )}
 
               {esMaster && imagenProyectada && (
                 <div className="master-proyeccion-pill">
@@ -2902,6 +2996,8 @@ export function Sala({
                 className={`hud-mochila-btn${mochilaAbierta ? " activo" : ""}`}
                 onClick={() => {
                   setDivisaAbierta(false);
+                  setMasterDivisasAbierto(false);
+                  setMasterMochilasAbierto(false);
                   setMochilaAbierta(v => !v);
                 }}
                 aria-expanded={mochilaAbierta}
@@ -2913,6 +3009,256 @@ export function Sala({
                   <span className="hud-mochila-badge">{mochilaActual.length}</span>
                 )}
               </button>
+
+              {esMaster && (
+                <div className="hud-master-fila" aria-label="Inspección del Máster">
+                  <button
+                    type="button"
+                    className={`hud-master-cuadro${masterDivisasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("divisas")}
+                    aria-expanded={masterDivisasAbierto}
+                    title={`Ver ${divisaNombre} de jugadores conectados`}
+                    aria-label={`Ver ${divisaNombre} de jugadores conectados`}
+                  >
+                    <IconoBilletePixel size={26} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`hud-master-cuadro${masterMochilasAbierto ? " activo" : ""}`}
+                    onClick={() => alternarPanelMaster("mochilas")}
+                    aria-expanded={masterMochilasAbierto}
+                    title="Inspeccionar mochila y objetos de jugadores conectados"
+                    aria-label="Inspeccionar mochila y objetos de jugadores conectados"
+                  >
+                    <IconoLupaPixel size={26} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {masterDivisasAbierto && esMaster && !ajuste && (
+            <div
+              className="divisa-popover master-resumen-popover"
+              role="dialog"
+              aria-label={`${divisaNombre} de jugadores conectados`}
+            >
+              <div className="dados-selector-cabecera">
+                <span>{divisaNombre} · Conectados</span>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="compartir-btn-sec"
+                    onClick={() => void cargarResumenMaster()}
+                    disabled={masterResumenCargando}
+                  >
+                    {masterResumenCargando ? "…" : "Actualizar"}
+                  </button>
+                  <button
+                    type="button"
+                    className="dados-cerrar"
+                    onClick={() => setMasterDivisasAbierto(false)}
+                    aria-label="Cerrar resumen de divisa"
+                  >
+                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+                <p className="dados-ayuda">Consultando sala…</p>
+              ) : masterResumenJugadores.length === 0 ? (
+                <p className="dados-ayuda">No hay jugadores conectados ahora mismo.</p>
+              ) : (
+                <ul className="master-divisa-lista">
+                  {masterResumenJugadores.map(j => (
+                    <li key={j.userId} className="master-divisa-item">
+                      <span className="master-divisa-jugador">
+                        <span
+                          className="compartir-jugador-punto"
+                          style={{ backgroundColor: j.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{j.nombre}</span>
+                      </span>
+                      <span
+                        className="master-divisa-monto"
+                        title={`${j.divisa.toLocaleString("es-ES")} ${divisaNombre}`}
+                      >
+                        {formatearDivisaCompacta(j.divisa)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {masterMochilasAbierto && esMaster && !ajuste && (
+            <div
+              className="mochila-backdrop"
+              onClick={() => setMasterMochilasAbierto(false)}
+            >
+              <div
+                className="mochila-modal master-inspeccion-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Inspeccionar inventario de jugadores conectados"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mochila-cabecera">
+                  <span className="mochila-titulo">
+                    <IconoLupaPixel size={22} />
+                    <span>Inspeccionar jugadores</span>
+                  </span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="mochila-volver-btn"
+                      onClick={() => void cargarResumenMaster()}
+                      disabled={masterResumenCargando}
+                    >
+                      {masterResumenCargando ? "Actualizando…" : "Actualizar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="dados-cerrar"
+                      onClick={() => setMasterMochilasAbierto(false)}
+                      aria-label="Cerrar inspección"
+                    >
+                      <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {masterResumenCargando && masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">Consultando mochilas…</p>
+                ) : masterResumenJugadores.length === 0 ? (
+                  <p className="dados-ayuda">
+                    No hay jugadores conectados en la sala ahora mismo.
+                  </p>
+                ) : (
+                  (() => {
+                    const seleccionado =
+                      masterResumenJugadores.find(
+                        j => j.userId === masterJugadorMochilaId
+                      ) ?? masterResumenJugadores[0];
+                    return (
+                      <>
+                        <div className="master-inspeccion-tabs">
+                          {masterResumenJugadores.map(j => (
+                            <button
+                              key={j.userId}
+                              type="button"
+                              className={`master-inspeccion-tab${
+                                seleccionado?.userId === j.userId ? " activo" : ""
+                              }`}
+                              onClick={() => setMasterJugadorMochilaId(j.userId)}
+                            >
+                              <span
+                                className="compartir-jugador-punto"
+                                style={{ backgroundColor: j.color }}
+                                aria-hidden="true"
+                              />
+                              <span>{j.nombre}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {seleccionado && (
+                          <div className="master-inspeccion-cuerpo">
+                            <div className="master-inspeccion-subcabecera">
+                              <span>
+                                {divisaNombre}:{" "}
+                                <strong>
+                                  {seleccionado.divisa.toLocaleString("es-ES")}
+                                </strong>
+                              </span>
+                            </div>
+
+                            <h4 className="master-inspeccion-seccion">
+                              En mochila ({seleccionado.mochila.length})
+                            </h4>
+                            {seleccionado.mochila.length === 0 ? (
+                              <p className="dados-ayuda">Mochila vacía.</p>
+                            ) : (
+                              <div className="mochila-grid">
+                                {seleccionado.mochila.map(obj => (
+                                  <div key={obj.id} className="mochila-item-celda">
+                                    <div
+                                      className="mochila-slot"
+                                      title={
+                                        obj.descripcion
+                                          ? `${obj.nombre}: ${obj.descripcion}`
+                                          : obj.nombre
+                                      }
+                                    >
+                                      {obj.archivoId ? (
+                                        <img
+                                          src={archivosApi.url(obj.archivoId)}
+                                          alt={obj.nombre}
+                                        />
+                                      ) : (
+                                        <span className="mochila-slot-emoji">
+                                          {obj.emoji ?? "🎒"}
+                                        </span>
+                                      )}
+                                      <span className="mochila-slot-cant">
+                                        {obj.cantidad}
+                                      </span>
+                                    </div>
+                                    <span className="mochila-slot-nombre" title={obj.nombre}>
+                                      {obj.nombre}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <h4 className="master-inspeccion-seccion">
+                              En su mesa ({seleccionado.objetosMesa.length})
+                            </h4>
+                            {seleccionado.objetosMesa.length === 0 ? (
+                              <p className="dados-ayuda">Sin objetos en mesa.</p>
+                            ) : (
+                              <div className="mochila-grid">
+                                {seleccionado.objetosMesa.map(obj => (
+                                  <div key={obj.id} className="mochila-item-celda">
+                                    <div
+                                      className="mochila-slot"
+                                      title={
+                                        obj.descripcion
+                                          ? `${obj.nombre}: ${obj.descripcion}`
+                                          : obj.nombre
+                                      }
+                                    >
+                                      {obj.archivoId ? (
+                                        <img
+                                          src={archivosApi.url(obj.archivoId)}
+                                          alt={obj.nombre}
+                                        />
+                                      ) : (
+                                        <span className="mochila-slot-emoji">
+                                          {obj.emoji ?? "🎒"}
+                                        </span>
+                                      )}
+                                      <span className="mochila-slot-cant">
+                                        {obj.cantidad}
+                                      </span>
+                                    </div>
+                                    <span className="mochila-slot-nombre" title={obj.nombre}>
+                                      {obj.nombre}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
+                )}
+              </div>
             </div>
           )}
 

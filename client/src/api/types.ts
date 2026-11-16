@@ -149,3 +149,22 @@ export interface EventoTirada {
   soloMaster?: boolean;
   createdAt: string;
 }
+
+export interface PublicObjetoResumen {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  cantidad: number;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+}
+
+export interface PublicJugadorResumenInventario {
+  userId: string;
+  nombre: string;
+  color: string;
+  divisa: number;
+  mochila: PublicObjetoResumen[];
+  objetosMesa: PublicObjetoResumen[];
+}
