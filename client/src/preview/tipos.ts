@@ -84,6 +84,9 @@ export interface PositPreview {
   y: number;
   /** Inclinación en grados, para que no parezcan pegados con regla. */
   giro: number;
+  /** Dimensiones personalizadas en píxeles (ancho 150..460, alto 110..420). */
+  ancho?: number;
+  alto?: number;
   /** Si está guardado en el archivador personal del jugador. */
   archivado?: boolean;
   /** Datos del creador para mostrar el aura de jugador o dorada del Máster. */
@@ -103,6 +106,8 @@ export type ElementoMesa =
       giro: number;
       x: number;
       y: number;
+      ancho?: number;
+      alto?: number;
       archivado?: boolean;
       remitente?: string;
       autorNombre?: string;

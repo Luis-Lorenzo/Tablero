@@ -122,6 +122,7 @@ interface PositProps {
   onSacarAMesa?: (id: string) => void;
   onBorrar: (id: string) => void;
   onArrastrar: (evento: ReactPointerEvent, posit: PositPreview) => void;
+  onRedimensionar?: (id: string, ancho: number, alto: number) => void;
 }
 
 type ModoHerramienta = "cursor" | "dibujar" | "borrar" | "ping";
@@ -247,18 +248,60 @@ export function Posit({
   onArchivar,
   onSacarAMesa,
   onBorrar,
-  onArrastrar
+  onArrastrar,
+  onRedimensionar
 }: PositProps) {
+  const raizRef = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const inicioPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const limpiezaRedimensionRef = useRef<(() => void) | null>(null);
   const [editandoMesa, setEditandoMesa] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      limpiezaRedimensionRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     const elemento = area.current;
     if (!elemento) return;
     elemento.style.height = "auto";
     elemento.style.height = `${elemento.scrollHeight}px`;
-  }, [posit.texto]);
+  }, [posit.texto, posit.ancho, posit.alto]);
+
+  function iniciarRedimension(evento: ReactPointerEvent<HTMLSpanElement>): void {
+    if (bloqueado || !onRedimensionar) return;
+    evento.stopPropagation();
+    evento.preventDefault();
+    onActivar(posit.id);
+
+    limpiezaRedimensionRef.current?.();
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    const baseW =
+      raizRef.current?.offsetWidth ?? posit.ancho ?? (enMesa ? 158 : 216);
+    const baseH =
+      raizRef.current?.offsetHeight ?? posit.alto ?? (enMesa ? 108 : 152);
+
+    const mover = (ev: PointerEvent) => {
+      const nuevoAncho = Math.round(limitar(baseW + (ev.clientX - inicioX), 150, 460));
+      const nuevoAlto = Math.round(limitar(baseH + (ev.clientY - inicioY), 110, 420));
+      onRedimensionar(posit.id, nuevoAncho, nuevoAlto);
+    };
+
+    const soltar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+      limpiezaRedimensionRef.current = null;
+    };
+
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+    limpiezaRedimensionRef.current = soltar;
+  }
 
   const esMasterPosit = Boolean(posit.esMaster);
   const colorAura = esMasterPosit
@@ -268,6 +311,8 @@ export function Posit({
   const estilo = {
     left: `${posit.x}%`,
     top: `${posit.y}%`,
+    width: posit.ancho ? `${posit.ancho}px` : undefined,
+    minHeight: posit.alto ? `${posit.alto}px` : undefined,
     background: posit.color,
     color: textoLegible(posit.color),
     "--giro": `${posit.giro}deg`,
@@ -276,6 +321,7 @@ export function Posit({
 
   return (
     <div
+      ref={raizRef}
       className={[
         "posit",
         enMesa ? "posit-mesa-nota" : "",
@@ -455,6 +501,15 @@ export function Posit({
           }
         }}
       />
+
+      {!bloqueado && onRedimensionar && (
+        <span
+          className="posit-tirador"
+          title="Redimensionar posit"
+          aria-hidden="true"
+          onPointerDown={iniciarRedimension}
+        />
+      )}
     </div>
   );
 }
@@ -1049,6 +1104,13 @@ export function Pizarra({
     if (bloqueado) return;
     setListaPositsActiva(prev =>
       prev.map(posit => (posit.id === id ? { ...posit, color } : posit))
+    );
+  }
+
+  function redimensionarPosit(id: string, ancho: number, alto: number): void {
+    if (bloqueado) return;
+    setListaPositsActiva(prev =>
+      prev.map(posit => (posit.id === id ? { ...posit, ancho, alto } : posit))
     );
   }
 
@@ -2189,6 +2251,7 @@ export function Pizarra({
               onSacarAMesa={onSacarDePizarraAMesa ? sacarPositAMesa : undefined}
               onBorrar={borrarPosit}
               onArrastrar={iniciarArrastrePosit}
+              onRedimensionar={redimensionarPosit}
             />
           ))}
 

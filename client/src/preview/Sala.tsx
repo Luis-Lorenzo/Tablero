@@ -1842,19 +1842,21 @@ export function Sala({
   }
 
   function abrirTiradaCompuesta(): void {
-    setGruposCompuesta([
-      { id: `c-${Date.now()}-0`, cantidad: 1, caras: 20 },
-      { id: `c-${Date.now()}-1`, cantidad: 1, caras: 6 }
-    ]);
-    setBonificadorCompuesta(0);
-    setSelectorAbierto(false);
+    setGruposCompuesta([{ id: `c-${Date.now()}-${tipoDado}`, cantidad: cantidadDados, caras: tipoDado }]);
+    setBonificadorCompuesta(bonificador);
     setCompuestaAbierta(true);
   }
 
-  function agregarGrupoCompuesta(): void {
+  function agregarDadoCompuesta(caras: number): void {
     setGruposCompuesta(prev => {
+      const existente = prev.find(g => g.caras === caras);
+      if (existente) {
+        return prev.map(g =>
+          g.caras === caras ? { ...g, cantidad: Math.min(20, g.cantidad + 1) } : g
+        );
+      }
       if (prev.length >= 6) return prev;
-      return [...prev, { id: `c-${Date.now()}-${prev.length}`, cantidad: 1, caras: 6 }];
+      return [...prev, { id: `c-${Date.now()}-${caras}`, cantidad: 1, caras }];
     });
   }
 
@@ -2181,6 +2183,14 @@ export function Sala({
     onElementosMesa?.(prev =>
       prev.map(el =>
         el.id === id && el.tipo === "posit" ? { ...el, color } : el
+      )
+    );
+  }
+
+  function redimensionarPositMesa(id: string, ancho: number, alto: number): void {
+    onElementosMesa?.(prev =>
+      prev.map(el =>
+        el.id === id && el.tipo === "posit" ? { ...el, ancho, alto } : el
       )
     );
   }
@@ -4634,204 +4644,182 @@ export function Sala({
             </div>
           )}
 
-          {selectorAbierto && !ajuste && (
-            <form
-              className={`dados-selector${tiradaSecreta ? " secreta" : ""}`}
-              style={{ bottom: "136px", left: "50%", top: "auto", transform: "translateX(-50%)" }}
-              onSubmit={evento => {
-                evento.preventDefault();
-                tirarDado();
-              }}
-            >
-              <div className="dados-selector-cabecera">
-                <span>Tirada de dados</span>
-                <button
-                  type="button"
-                  className="dados-cerrar"
-                  onClick={() => setSelectorAbierto(false)}
-                  aria-label="Cerrar selector de dados"
-                >
-                  <X size={13} strokeWidth={2.4} aria-hidden="true" />
-                </button>
-              </div>
-
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Dados</span>
-                <div className="dados-stepper">
-                  <button
-                    type="button"
-                    onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
-                    aria-label="Menos dados"
-                  >
-                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={cantidadDados}
-                    onChange={e => {
-                      const valor = parseInt(e.target.value, 10);
-                      setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
-                    }}
-                    aria-label="Número de dados"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
-                    aria-label="Más dados"
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Tipo</span>
-                <div className="dados-tipos" role="group" aria-label="Tipo de dado">
-                  {TIPOS_DADO.map(caras => (
-                    <button
-                      key={caras}
-                      type="button"
-                      className={`dado-tipo-btn${tipoDado === caras ? " activo" : ""}`}
-                      onClick={() => setTipoDado(caras)}
-                    >
-                      d{caras}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="dados-fila">
-                <span className="dados-campo-etiqueta">Bonificador</span>
-                <div className="dados-stepper">
-                  <button
-                    type="button"
-                    onClick={() => setBonificador(b => Math.max(-99, b - 1))}
-                    aria-label="Reducir bonificador"
-                  >
-                    <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                  <input
-                    type="number"
-                    min={-99}
-                    max={99}
-                    value={bonificador}
-                    onChange={e => {
-                      const valor = parseInt(e.target.value, 10);
-                      setBonificador(Number.isNaN(valor) ? 0 : limitar(valor, -99, 99));
-                    }}
-                    aria-label="Bonificador"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setBonificador(b => Math.min(99, b + 1))}
-                    aria-label="Aumentar bonificador"
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="dados-agregar-grupo"
-                onClick={abrirTiradaCompuesta}
-              >
-                <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                <span>Tirada compuesta</span>
-              </button>
-
-              <button
-                type="button"
-                className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
-                onClick={() => setTiradaSecreta(s => !s)}
-                aria-pressed={tiradaSecreta}
-              >
-                {esMaster ? (
-                  <>
-                    <span className="dados-secreto-punto" aria-hidden="true" />
-                    <span>Dados negros (solo Máster)</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
-                    <span>Solo para el Máster (susurro)</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="submit"
-                className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
-                disabled={tirando}
-              >
-                {tiradaSecreta
-                  ? esMaster
-                    ? "Tirar en secreto "
-                    : "Tirar al Máster "
-                  : "Tirar "}
-                {formatearFormulaCompuesta(
-                  [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
-                  bonificador
-                )}
-              </button>
-            </form>
-          )}
-
-          {compuestaAbierta && !ajuste && (
-            <div
-              className="dados-compuesta-backdrop"
-              onClick={() => setCompuestaAbierta(false)}
-            >
+          {selectorAbierto && !ajuste && (() => {
+            const formulaActual = formatearFormulaCompuesta(
+              compuestaAbierta
+                ? gruposCompuesta
+                : [{ id: "normal", cantidad: cantidadDados, caras: tipoDado }],
+              compuestaAbierta ? bonificadorCompuesta : bonificador
+            );
+            return (
               <form
-                className="dados-compuesta-modal"
-                role="dialog"
-                aria-label="Tirada compuesta"
-                onClick={evento => evento.stopPropagation()}
+                className={`dados-selector dados-selector-unificado${tiradaSecreta ? " secreta" : ""}`}
+                style={{ bottom: "136px", left: "50%", top: "auto", transform: "translateX(-50%)" }}
                 onSubmit={evento => {
                   evento.preventDefault();
-                  tirarDado(gruposCompuesta, bonificadorCompuesta);
+                  if (compuestaAbierta) {
+                    tirarDado(gruposCompuesta, bonificadorCompuesta);
+                  } else {
+                    tirarDado();
+                  }
                 }}
               >
                 <div className="dados-selector-cabecera">
-                  <span>Tirada compuesta</span>
+                  <span>Tirada de dados</span>
                   <button
                     type="button"
                     className="dados-cerrar"
-                    onClick={() => setCompuestaAbierta(false)}
-                    aria-label="Cerrar tirada compuesta"
+                    onClick={() => setSelectorAbierto(false)}
+                    aria-label="Cerrar selector de dados"
                   >
-                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 </div>
 
-                <div className="dados-grupos-lista">
-                  {gruposCompuesta.map((grupo, idx) => (
-                    <div key={grupo.id} className="dados-grupo-card">
-                      <div className="dados-grupo-top">
-                        <span className="dados-campo-etiqueta">Dado {idx + 1}</span>
-                        {gruposCompuesta.length > 1 && (
+                <div className="dados-visibilidad-tabs" role="group" aria-label="Visibilidad de la tirada">
+                  <button
+                    type="button"
+                    className={`dados-visibilidad-tab${!tiradaSecreta ? " activo" : ""}`}
+                    onClick={() => setTiradaSecreta(false)}
+                    aria-pressed={!tiradaSecreta}
+                  >
+                    <Eye size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>Pública</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`dados-visibilidad-tab secreta${tiradaSecreta ? " activo" : ""}`}
+                    onClick={() => setTiradaSecreta(true)}
+                    aria-pressed={tiradaSecreta}
+                  >
+                    {esMaster ? (
+                      <>
+                        <span className="dados-secreto-punto" aria-hidden="true" />
+                        <span>Dados negros</span>
+                      </>
+                    ) : (
+                      <>
+                        <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
+                        <span>Solo Máster</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {tiradaSecreta && (
+                  <div className="dados-secreta-aviso">
+                    {esMaster
+                      ? "Tirada secreta: solo visible para ti"
+                      : "Susurro secreto: solo visible para el Máster"}
+                  </div>
+                )}
+
+                <div className="dados-formula-barra">
+                  <span className="dados-formula-texto" title={formulaActual}>
+                    {formulaActual}
+                  </span>
+                  <button
+                    type="button"
+                    className={`dados-compuesta-toggle${compuestaAbierta ? " activo" : ""}`}
+                    onClick={() => {
+                      if (compuestaAbierta) {
+                        setCompuestaAbierta(false);
+                      } else {
+                        abrirTiradaCompuesta();
+                      }
+                    }}
+                    aria-pressed={compuestaAbierta}
+                  >
+                    Tirada compuesta
+                  </button>
+                </div>
+
+                <div className="dados-fila">
+                  <span className="dados-campo-etiqueta">
+                    {compuestaAbierta ? "Pulsa para añadir a la tirada compuesta" : "Tipo de dado"}
+                  </span>
+                  <div className="dados-tipos" role="group" aria-label="Tipo de dado">
+                    {TIPOS_DADO.map(caras => {
+                      const grupo = compuestaAbierta
+                        ? gruposCompuesta.find(g => g.caras === caras)
+                        : null;
+                      const activo = compuestaAbierta ? Boolean(grupo) : tipoDado === caras;
+                      return (
+                        <button
+                          key={caras}
+                          type="button"
+                          className={`dado-tipo-btn${activo ? " activo" : ""}`}
+                          onClick={() => {
+                            if (compuestaAbierta) {
+                              agregarDadoCompuesta(caras);
+                            } else {
+                              setTipoDado(caras);
+                            }
+                          }}
+                        >
+                          d{caras}
+                          {grupo && <span className="dado-tipo-cant">×{grupo.cantidad}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {compuestaAbierta ? (
+                  <div className="dados-compuesta-items">
+                    {gruposCompuesta.map(grupo => (
+                      <div key={grupo.id} className="dados-compuesta-item">
+                        <span className="dados-compuesta-item-dado">
+                          {grupo.cantidad}d{grupo.caras}
+                        </span>
+                        <div className="dados-compuesta-item-controles">
                           <button
                             type="button"
-                            className="dados-grupo-quitar"
-                            onClick={() => eliminarGrupoCompuesta(grupo.id)}
-                            aria-label={`Quitar dado ${idx + 1}`}
-                            title="Quitar este dado"
+                            onClick={() =>
+                              actualizarGrupoCompuesta(grupo.id, {
+                                cantidad: Math.max(1, grupo.cantidad - 1)
+                              })
+                            }
+                            aria-label={`Menos d${grupo.caras}`}
                           >
-                            <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                            <Minus size={11} strokeWidth={2.5} aria-hidden="true" />
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              actualizarGrupoCompuesta(grupo.id, {
+                                cantidad: Math.min(20, grupo.cantidad + 1)
+                              })
+                            }
+                            aria-label={`Más d${grupo.caras}`}
+                          >
+                            <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
+                          </button>
+                          {gruposCompuesta.length > 1 && (
+                            <button
+                              type="button"
+                              className="quitar"
+                              onClick={() => eliminarGrupoCompuesta(grupo.id)}
+                              aria-label={`Quitar d${grupo.caras}`}
+                              title={`Quitar d${grupo.caras}`}
+                            >
+                              <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                ) : null}
 
+                <div className={compuestaAbierta ? "dados-fila" : "dados-steppers-par"}>
+                  {!compuestaAbierta && (
+                    <div className="dados-fila">
+                      <span className="dados-campo-etiqueta">Cantidad</span>
                       <div className="dados-stepper">
                         <button
                           type="button"
-                          onClick={() =>
-                            actualizarGrupoCompuesta(grupo.id, {
-                              cantidad: Math.max(1, grupo.cantidad - 1)
-                            })
-                          }
+                          onClick={() => setCantidadDados(n => Math.max(1, n - 1))}
                           aria-label="Menos dados"
                         >
                           <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
@@ -4840,106 +4828,68 @@ export function Sala({
                           type="number"
                           min={1}
                           max={20}
-                          value={grupo.cantidad}
+                          value={cantidadDados}
                           onChange={e => {
                             const valor = parseInt(e.target.value, 10);
-                            actualizarGrupoCompuesta(grupo.id, {
-                              cantidad: Number.isNaN(valor) ? 1 : limitar(valor, 1, 20)
-                            });
+                            setCantidadDados(Number.isNaN(valor) ? 1 : limitar(valor, 1, 20));
                           }}
                           aria-label="Número de dados"
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            actualizarGrupoCompuesta(grupo.id, {
-                              cantidad: Math.min(20, grupo.cantidad + 1)
-                            })
-                          }
+                          onClick={() => setCantidadDados(n => Math.min(20, n + 1))}
                           aria-label="Más dados"
                         >
                           <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
                         </button>
                       </div>
-
-                      <div className="dados-tipos" role="group" aria-label="Tipo de dado">
-                        {TIPOS_DADO.map(caras => (
-                          <button
-                            key={caras}
-                            type="button"
-                            className={`dado-tipo-btn${grupo.caras === caras ? " activo" : ""}`}
-                            onClick={() => actualizarGrupoCompuesta(grupo.id, { caras })}
-                          >
-                            d{caras}
-                          </button>
-                        ))}
-                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
 
-                {gruposCompuesta.length < 6 && (
-                  <button
-                    type="button"
-                    className="dados-agregar-grupo"
-                    onClick={agregarGrupoCompuesta}
-                  >
-                    <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                    <span>Añadir otro dado</span>
-                  </button>
-                )}
-
-                <div className="dados-fila">
-                  <span className="dados-campo-etiqueta">Bonificador</span>
-                  <div className="dados-stepper">
-                    <button
-                      type="button"
-                      onClick={() => setBonificadorCompuesta(b => Math.max(-99, b - 1))}
-                      aria-label="Reducir bonificador"
-                    >
-                      <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
-                    </button>
-                    <input
-                      type="number"
-                      min={-99}
-                      max={99}
-                      value={bonificadorCompuesta}
-                      onChange={e => {
-                        const valor = parseInt(e.target.value, 10);
-                        setBonificadorCompuesta(
-                          Number.isNaN(valor) ? 0 : limitar(valor, -99, 99)
-                        );
-                      }}
-                      aria-label="Bonificador"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setBonificadorCompuesta(b => Math.min(99, b + 1))}
-                      aria-label="Aumentar bonificador"
-                    >
-                      <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
-                    </button>
+                  <div className="dados-fila">
+                    <span className="dados-campo-etiqueta">Bonificador</span>
+                    <div className="dados-stepper">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          compuestaAbierta
+                            ? setBonificadorCompuesta(b => Math.max(-99, b - 1))
+                            : setBonificador(b => Math.max(-99, b - 1))
+                        }
+                        aria-label="Reducir bonificador"
+                      >
+                        <Minus size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                      <input
+                        type="number"
+                        min={-99}
+                        max={99}
+                        value={compuestaAbierta ? bonificadorCompuesta : bonificador}
+                        onChange={e => {
+                          const valor = parseInt(e.target.value, 10);
+                          const limpio = Number.isNaN(valor) ? 0 : limitar(valor, -99, 99);
+                          if (compuestaAbierta) {
+                            setBonificadorCompuesta(limpio);
+                          } else {
+                            setBonificador(limpio);
+                          }
+                        }}
+                        aria-label="Bonificador"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          compuestaAbierta
+                            ? setBonificadorCompuesta(b => Math.min(99, b + 1))
+                            : setBonificador(b => Math.min(99, b + 1))
+                        }
+                        aria-label="Aumentar bonificador"
+                      >
+                        <Plus size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  className={`dados-secreto-toggle${!esMaster ? " luna" : ""}${tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => setTiradaSecreta(s => !s)}
-                  aria-pressed={tiradaSecreta}
-                >
-                  {esMaster ? (
-                    <>
-                      <span className="dados-secreto-punto" aria-hidden="true" />
-                      <span>Dados negros (solo Máster)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon size={13} strokeWidth={2.2} aria-hidden="true" />
-                      <span>Solo para el Máster (susurro)</span>
-                    </>
-                  )}
-                </button>
 
                 <button
                   type="submit"
@@ -4948,14 +4898,13 @@ export function Sala({
                 >
                   {tiradaSecreta
                     ? esMaster
-                      ? "Tirar en secreto "
-                      : "Tirar al Máster "
-                    : "Tirar "}
-                  {formatearFormulaCompuesta(gruposCompuesta, bonificadorCompuesta)}
+                      ? `Tirar en secreto · ${formulaActual}`
+                      : `Tirar al Máster · ${formulaActual}`
+                    : `Tirar · ${formulaActual}`}
                 </button>
               </form>
-            </div>
-          )}
+            );
+          })()}
 
           {macrosAbierto && !ajuste && (
             <div
@@ -5390,6 +5339,7 @@ export function Sala({
                   onArchivar={archivarPositMesa}
                   onBorrar={borrarPositMesa}
                   onArrastrar={iniciarPositMesa}
+                  onRedimensionar={redimensionarPositMesa}
                 />
               ))}
 
