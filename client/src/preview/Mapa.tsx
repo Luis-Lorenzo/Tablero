@@ -20,7 +20,6 @@ import {
   EyeOff,
   Grid3x3,
   ImagePlus,
-  Inbox,
   Lock,
   Map as MapIcon,
   Minus,
@@ -202,6 +201,37 @@ function leerArchivoComoDataUrl(archivo: File): Promise<string> {
     lector.onerror = () => reject(new Error("Error al leer el archivo."));
     lector.readAsDataURL(archivo);
   });
+}
+
+function IconoCofre({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* Tapa arqueada y cuerpo del cofre */}
+      <path d="M3 10V8a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v2" />
+      <rect x="3" y="10" width="18" height="10" rx="2" />
+      {/* Bandas verticales */}
+      <path d="M7.5 4.2V20" />
+      <path d="M16.5 4.2V20" />
+      {/* Cierre central */}
+      <rect x="10.5" y="8.5" width="3" height="4" rx="0.8" />
+    </svg>
+  );
+}
+
+function formatearTimerTurno(segundos: number): string {
+  const mins = Math.floor(segundos / 60);
+  const secs = segundos % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
 function medirImagen(
@@ -1293,16 +1323,37 @@ export function Mapa({
     nombreJugador
   ]);
 
-  function manejarTerminarTurno(): void {
-    if (onTerminarTurnoIniciativa) {
-      void onTerminarTurnoIniciativa();
-    } else if (esMaster) {
-      avanzarTurnoIniciativa();
-    }
-  }
+  const [segundosTurno, setSegundosTurno] = useState(0);
+
+  useEffect(() => {
+    setSegundosTurno(0);
+    if (!esMiTurnoJugador) return;
+    const id = window.setInterval(() => {
+      setSegundosTurno(prev => prev + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [esMiTurnoJugador, iniciativa.turnoIndice, iniciativa.ronda]);
 
   return (
     <div className="mapa-page">
+      {!esMaster && iniciativa.activa && iniciativa.entradas.length > 0 && (
+        <div className="mapa-turno-panel">
+          <button
+            type="button"
+            className="mapa-pasar-turno-btn"
+            disabled={!esMiTurnoJugador}
+            onClick={() => void onTerminarTurnoIniciativa?.()}
+          >
+            Pasar turno
+          </button>
+          <span
+            className={`mapa-turno-timer${esMiTurnoJugador ? " activo" : ""}`}
+          >
+            {formatearTimerTurno(segundosTurno)}
+          </span>
+        </div>
+      )}
+
       {/* Barra flotante superior izquierda (deja libre arriba-derecha y abajo) */}
       <div className="mapa-barra-flotante">
         <button type="button" className="pizarra-btn" onClick={onVolver}>
@@ -1576,17 +1627,6 @@ export function Mapa({
               </div>
             )}
           </div>
-
-          {!esMaster && esMiTurnoJugador && (
-            <button
-              type="button"
-              className="mapa-turno-terminado-btn"
-              onClick={manejarTerminarTurno}
-              title="Finalizar turno actual"
-            >
-              Turno terminado
-            </button>
-          )}
 
           {esMaster && iniciativaAbierta && (
             <div
@@ -2091,16 +2131,16 @@ export function Mapa({
         </aside>
       )}
 
-      {/* Panel flotante: Tokens */}
+      {/* Panel flotante: Crear token */}
       {panelAbierto === "tokens" && (
         <aside
           className="mapa-panel en-abajo"
-          aria-label="Bandeja y creación de tokens"
+          aria-label="Creación de tokens"
         >
           <header className="mapa-panel-cabecera">
             <span className="mapa-panel-titulo">
               <Users size={14} aria-hidden="true" />
-              Tokens
+              Crear token
             </span>
             <button
               type="button"
@@ -2228,13 +2268,13 @@ export function Mapa({
         </aside>
       )}
 
-      {/* Panel flotante: Bandeja de tokens */}
+      {/* Panel flotante: Almacén */}
       {panelAbierto === "bandeja" && (
-        <aside className="mapa-panel en-abajo" aria-label="Bandeja de tokens">
+        <aside className="mapa-panel en-abajo" aria-label="Almacén">
           <header className="mapa-panel-cabecera">
             <span className="mapa-panel-titulo">
-              <Inbox size={14} aria-hidden="true" />
-              Bandeja de tokens ({plantillasVisibles.length})
+              <IconoCofre size={14} />
+              Almacén ({plantillasVisibles.length})
             </span>
             <button
               type="button"
@@ -2698,8 +2738,8 @@ export function Mapa({
         </div>
       </div>
 
-      {/* Dock inferior izquierdo: Tokens y Bandeja encima de Dados rápidos */}
-      <div className="mapa-tokens-dock" role="toolbar" aria-label="Tokens y bandeja">
+      {/* Dock inferior izquierdo: Crear token y Almacén encima de Dados rápidos */}
+      <div className="mapa-tokens-dock" role="toolbar" aria-label="Crear token y almacén">
         <button
           type="button"
           className={`pizarra-tool-btn${panelAbierto === "tokens" ? " activo" : ""}`}
@@ -2710,7 +2750,7 @@ export function Mapa({
           title="Crear nuevos tokens en el mapa"
         >
           <Users size={14} aria-hidden="true" />
-          <span>Tokens</span>
+          <span>Crear token</span>
         </button>
 
         <button
@@ -2721,10 +2761,10 @@ export function Mapa({
             setPlantillaEditandoCatId(null);
             setPanelAbierto(prev => (prev === "bandeja" ? null : "bandeja"));
           }}
-          title="Abrir bandeja de tokens guardados"
+          title="Abrir almacén de tokens guardados"
         >
-          <Inbox size={14} aria-hidden="true" />
-          <span>Bandeja</span>
+          <IconoCofre size={14} />
+          <span>Almacén</span>
           {plantillasVisibles.length > 0 && (
             <span className="mapa-bandeja-badge">
               {plantillasVisibles.length}
