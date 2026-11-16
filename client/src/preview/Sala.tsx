@@ -3309,28 +3309,30 @@ export function Sala({
                   }
                 >
                   {tiradaSobreAsiento && !ajuste && (() => {
-                    const colorDadoAsiento = !tiradaSobreAsiento.especial
-                      ? tiradaSobreAsiento.colorDado ||
-                        tiradaSobreAsiento.color ||
-                        (esMio ? colorDado : jugador.color)
-                      : undefined;
-                    const colorAristasAsiento = !tiradaSobreAsiento.especial
-                      ? tiradaSobreAsiento.colorAristasDado ||
-                        (esMio ? colorAristasDado : "#b794f4")
-                      : undefined;
+                    const colorDadoAsiento =
+                      tiradaSobreAsiento.colorDado ||
+                      tiradaSobreAsiento.color ||
+                      (esMio ? colorDado : jugador.color);
+                    const colorAristasAsiento =
+                      tiradaSobreAsiento.colorAristasDado ||
+                      (esMio ? colorAristasDado : "#b794f4");
+                    const auraEspecial =
+                      tiradaSobreAsiento.especial === "critico"
+                        ? "drop-shadow(0 0 6px #3ddc84) drop-shadow(0 0 15px rgb(61 220 132 / 92%))"
+                        : tiradaSobreAsiento.especial === "pifia"
+                          ? "drop-shadow(0 0 6px #ff5c77) drop-shadow(0 0 15px rgb(255 92 119 / 92%))"
+                          : `drop-shadow(0 0 10px ${colorDadoAsiento})`;
                     return (
                       <div
                         key={tiradaSobreAsiento.id}
                         className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
                         style={
-                          colorDadoAsiento
-                            ? ({
-                                color: colorAristasAsiento,
-                                "--dado-color": colorDadoAsiento,
-                                "--dado-aristas": colorAristasAsiento,
-                                filter: `drop-shadow(0 0 10px ${colorDadoAsiento})`
-                              } as CSSProperties)
-                            : undefined
+                          {
+                            color: colorAristasAsiento,
+                            "--dado-color": colorDadoAsiento,
+                            "--dado-aristas": colorAristasAsiento,
+                            filter: auraEspecial
+                          } as CSSProperties
                         }
                         aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
                       >

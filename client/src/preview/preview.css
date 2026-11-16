@@ -3907,13 +3907,29 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 .mapa-jugador-tirada.critico {
   border-color: #3ddc84;
   color: #3ddc84;
-  box-shadow: 0 0 12px rgb(61 220 132 / 40%);
+  box-shadow:
+    0 0 8px rgb(61 220 132 / 65%),
+    0 0 18px rgb(61 220 132 / 45%);
+}
+
+.mapa-jugador-tirada.critico .mapa-jugador-tirada-icono {
+  filter:
+    drop-shadow(0 0 4px #3ddc84)
+    drop-shadow(0 0 9px rgb(61 220 132 / 90%));
 }
 
 .mapa-jugador-tirada.pifia {
   border-color: #ff5c77;
   color: #ff5c77;
-  box-shadow: 0 0 12px rgb(255 92 119 / 40%);
+  box-shadow:
+    0 0 8px rgb(255 92 119 / 65%),
+    0 0 18px rgb(255 92 119 / 45%);
+}
+
+.mapa-jugador-tirada.pifia .mapa-jugador-tirada-icono {
+  filter:
+    drop-shadow(0 0 4px #ff5c77)
+    drop-shadow(0 0 9px rgb(255 92 119 / 90%));
 }
 
 .mapa-jugador-tirada-icono {
@@ -6193,27 +6209,15 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .asiento-d20.critico {
-  color: #3ddc84;
-  filter: drop-shadow(0 0 12px rgb(61 220 132 / 85%));
-}
-
-.asiento-d20.critico polygon,
-.asiento-d20.critico rect,
-.asiento-d20.critico circle {
-  fill: rgb(10 32 22 / 94%);
-  stroke: #3ddc84;
+  filter:
+    drop-shadow(0 0 6px #3ddc84)
+    drop-shadow(0 0 15px rgb(61 220 132 / 92%));
 }
 
 .asiento-d20.pifia {
-  color: #ff5c77;
-  filter: drop-shadow(0 0 12px rgb(255 92 119 / 85%));
-}
-
-.asiento-d20.pifia polygon,
-.asiento-d20.pifia rect,
-.asiento-d20.pifia circle {
-  fill: rgb(36 10 18 / 94%);
-  stroke: #ff5c77;
+  filter:
+    drop-shadow(0 0 6px #ff5c77)
+    drop-shadow(0 0 15px rgb(255 92 119 / 92%));
 }
 
 .tirada-panel.critico {
