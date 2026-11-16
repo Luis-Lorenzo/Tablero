@@ -64,7 +64,7 @@ export const CALIBRACION_INICIAL: Calibracion = {
     ]
   },
   dock: { x: 50.17360986447802, y: 80.47148201057503 },
-  chat: { x: 1.5, y: 11, w: 22, h: 42 }
+  chat: { x: 1.5, y: 15, w: 22, h: 42 }
 };
 
 export const POSITS_INICIALES: PositPreview[] = [
