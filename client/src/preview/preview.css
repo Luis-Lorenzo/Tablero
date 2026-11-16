@@ -9190,7 +9190,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   background: #c62828;
   color: #ffffff;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.92;
   transition: opacity 0.12s ease;
 }
 

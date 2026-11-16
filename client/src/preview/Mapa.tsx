@@ -1608,12 +1608,20 @@ export function Mapa({
           <button
             type="button"
             className={`mapa-zoom-btn mapa-candado-btn${mapaBloqueado ? " activo" : ""}`}
-            onClick={() => setMapaBloqueado(prev => !prev)}
+            onClick={() =>
+              setMapaBloqueado(prev => {
+                const siguiente = !prev;
+                if (siguiente) {
+                  setPan({ x: 0, y: 0 });
+                }
+                return siguiente;
+              })
+            }
             aria-pressed={mapaBloqueado}
             title={
               mapaBloqueado
                 ? "Mapa bloqueado (pulsa para mover el mapa)"
-                : "Mapa desbloqueado (pulsa para bloquear el movimiento)"
+                : "Mapa desbloqueado (pulsa para volver al centro y bloquear)"
             }
             aria-label={
               mapaBloqueado
@@ -2902,6 +2910,39 @@ export function Mapa({
         onPointerMove={alMoverPunteroViewport}
         onPointerUp={alSoltarPunteroViewport}
         onPointerCancel={alSoltarPunteroViewport}
+        onDragOver={e => {
+          if (e.dataTransfer.types.includes("text/x-limbo-token-id")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={e => {
+          const tokenId = e.dataTransfer.getData("text/x-limbo-token-id");
+          if (!tokenId) return;
+          e.preventDefault();
+          const token = tokensEnLimbo.find(t => t.id === tokenId);
+          if (!token || !puedeEditarToken(token)) return;
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const xCrudo = limitar(((e.clientX - rect.left) / rect.width) * 100, 0, 100);
+          const yCrudo = limitar(((e.clientY - rect.top) / rect.height) * 100, 0, 100);
+          const pos = rejillaActiva.imanActivo
+            ? ajustarARejilla(
+                xCrudo,
+                yCrudo,
+                token.celdasAncho,
+                token.celdasAlto,
+                rejillaActiva
+              )
+            : { x: xCrudo, y: yCrudo };
+          void onActualizarToken(token.id, {
+            enLimbo: false,
+            x: pos.x,
+            y: pos.y
+          });
+        }}
       >
         <div
           className="mapa-transform"
@@ -3139,7 +3180,7 @@ export function Mapa({
                   className={`mapa-limbo-item${editable ? " editable" : ""}`}
                   title={
                     editable
-                      ? `${token.nombre} — Clic para devolver al mapa`
+                      ? `${token.nombre} — Arrastra al mapa o pulsa para devolverlo`
                       : `${token.nombre} (${token.autorNombre})`
                   }
                 >
@@ -3147,6 +3188,12 @@ export function Mapa({
                     type="button"
                     className="mapa-limbo-token-btn"
                     disabled={!editable}
+                    draggable={editable}
+                    onDragStart={e => {
+                      if (!editable) return;
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/x-limbo-token-id", token.id);
+                    }}
                     onClick={() =>
                       void onActualizarToken(token.id, {
                         enLimbo: false,
