@@ -74,6 +74,7 @@ export interface TiradaAsiento {
   caras?: number;
   desglose?: string;
   colorDado?: string;
+  colorAristasDado?: string;
 }
 
 export interface PositPreview {

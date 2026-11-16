@@ -2152,11 +2152,20 @@ export function Mapa({
                   >
                     <span
                       className="mapa-jugador-tirada-icono"
-                      style={{ color: tirada.especial ? undefined : "#b794f4" }}
+                      style={{
+                        color: tirada.especial
+                          ? undefined
+                          : tirada.colorAristasDado || "#b794f4"
+                      }}
                     >
                       <IconoDadoPoligono
                         caras={tirada.caras ?? 20}
                         color={tirada.especial ? undefined : colorDadoTirada}
+                        colorAristas={
+                          tirada.especial
+                            ? undefined
+                            : tirada.colorAristasDado || "#b794f4"
+                        }
                       />
                     </span>
                     <span className="mapa-jugador-tirada-total">

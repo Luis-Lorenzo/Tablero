@@ -171,6 +171,7 @@ export interface EventoTirada {
   especial?: "critico" | "pifia" | null;
   soloMaster?: boolean;
   colorDado?: string;
+  colorAristasDado?: string;
   createdAt: string;
 }
 

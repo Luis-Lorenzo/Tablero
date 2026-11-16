@@ -79,10 +79,11 @@ import type {
 } from "./tipos";
 
 const CLAVE_COLOR_DADO = "pocketrol.colorDado";
+const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
 
-function cargarColorDadoLocal(fallback = "#e8c56a"): string {
+function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
   try {
-    const guardado = window.localStorage.getItem(CLAVE_COLOR_DADO);
+    const guardado = window.localStorage.getItem(clave);
     if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
       return guardado;
     }
@@ -110,8 +111,9 @@ export interface HudSalaCompartidoProps {
     soloMaster?: boolean;
     color?: string;
     colorDado?: string;
+    colorAristasDado?: string;
   }) => void | Promise<void>;
-  onTiradaLocal?: (tirada: TiradaAsiento & { color?: string }) => void;
+  onTiradaLocal?: (tirada: TiradaAsiento & { color?: string; colorAristasDado?: string }) => void;
   macros?: MacroTirada[];
   onMacros?: (macros: MacroTirada[]) => void;
   onSacarMacroAMesa?: (macro: MacroTirada) => void;
@@ -243,8 +245,21 @@ function lanzarGruposDados(
   };
 }
 
-function IconoD20({ valor, color }: { valor?: number | string; color?: string }) {
-  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
+function IconoD20({
+  valor,
+  color,
+  colorAristas
+}: {
+  valor?: number | string;
+  color?: string;
+  colorAristas?: string;
+}) {
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -287,13 +302,20 @@ function IconoD20({ valor, color }: { valor?: number | string; color?: string })
 export function IconoDadoPoligono({
   caras,
   valor,
-  color
+  color,
+  colorAristas
 }: {
   caras: number;
   valor?: number | string;
   color?: string;
+  colorAristas?: string;
 }) {
-  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -414,7 +436,7 @@ export function IconoDadoPoligono({
       </svg>
     );
   }
-  return <IconoD20 valor={valor} color={color} />;
+  return <IconoD20 valor={valor} color={color} colorAristas={colorAristas} />;
 }
 
 function IconoPosit() {
@@ -508,11 +530,23 @@ export function HudSalaCompartido({
   const [colorDado, setColorDado] = useState<string>(() =>
     cargarColorDadoLocal(colorJugadorActual)
   );
+  const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
+    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+  );
 
   function actualizarColorDado(nuevoColor: string): void {
     setColorDado(nuevoColor);
     try {
       window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
+
+  function actualizarColorAristasDado(nuevoColor: string): void {
+    setColorAristasDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
     } catch {
       // Ignoramos errores de almacenamiento
     }
@@ -1079,13 +1113,15 @@ export function HudSalaCompartido({
             caras: resultadoFinal.caras,
             desglose: desgloseTexto,
             color: colorDado,
-            colorDado
+            colorDado,
+            colorAristasDado
           });
           if (onTiradaPublica) {
             void onTiradaPublica({
               ...resultadoFinal,
               color: colorDado,
               colorDado,
+              colorAristasDado,
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
@@ -3037,7 +3073,83 @@ export function HudSalaCompartido({
             }}
           >
             <div className="dados-selector-cabecera">
-              <span>Tirada de dados</span>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span>Tirada de dados</span>
+                <div
+                  style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+                  role="group"
+                  aria-label="Colores de tus dados"
+                >
+                  <label
+                    title="Color principal (fondo del dado)"
+                    aria-label="Color principal del dado"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "20px",
+                      height: "20px",
+                      padding: 0,
+                      borderRadius: "5px",
+                      border: tiradaSecreta
+                        ? "1.5px solid #c084fc"
+                        : "1.5px solid #e8c56a",
+                      backgroundColor: colorDado,
+                      boxShadow: "1.5px 1.5px 0 #090612",
+                      cursor: "pointer",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={colorDado}
+                      onChange={e => actualizarColorDado(e.target.value)}
+                      aria-label="Elegir color principal del dado"
+                      style={{
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        padding: 0,
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    />
+                  </label>
+                  <label
+                    title="Color secundario (aristas del dado)"
+                    aria-label="Color secundario de las aristas del dado"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "20px",
+                      height: "20px",
+                      padding: 0,
+                      borderRadius: "5px",
+                      border: `2.5px solid ${colorAristasDado}`,
+                      backgroundColor: "#14101f",
+                      boxShadow: "1.5px 1.5px 0 #090612",
+                      cursor: "pointer",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={colorAristasDado}
+                      onChange={e => actualizarColorAristasDado(e.target.value)}
+                      aria-label="Elegir color secundario de aristas del dado"
+                      style={{
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        padding: 0,
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
               <button
                 type="button"
                 className="dados-cerrar"
@@ -3254,63 +3366,17 @@ export function HudSalaCompartido({
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                marginTop: "2px"
-              }}
+            <button
+              type="submit"
+              className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
+              disabled={tirando}
             >
-              <button
-                type="submit"
-                className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
-                style={{ flex: 1, marginTop: 0 }}
-                disabled={tirando}
-              >
-                {tiradaSecreta
-                  ? esMaster
-                    ? `Tirar en secreto · ${formulaActual}`
-                    : `Tirar al Máster · ${formulaActual}`
-                  : `Tirar · ${formulaActual}`}
-              </button>
-              <label
-                title="Color de tu dado"
-                aria-label="Color de tu dado"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "26px",
-                  height: "26px",
-                  flexShrink: 0,
-                  padding: 0,
-                  borderRadius: "6px",
-                  border: tiradaSecreta
-                    ? "2px solid #c084fc"
-                    : "2px solid #e8c56a",
-                  backgroundColor: colorDado,
-                  boxShadow: "2px 2px 0 #090612",
-                  cursor: "pointer",
-                  overflow: "hidden"
-                }}
-              >
-                <input
-                  type="color"
-                  value={colorDado}
-                  onChange={e => actualizarColorDado(e.target.value)}
-                  aria-label="Elegir color del dado"
-                  style={{
-                    opacity: 0,
-                    width: "100%",
-                    height: "100%",
-                    padding: 0,
-                    border: "none",
-                    cursor: "pointer"
-                  }}
-                />
-              </label>
-            </div>
+              {tiradaSecreta
+                ? esMaster
+                  ? `Tirar en secreto · ${formulaActual}`
+                  : `Tirar al Máster · ${formulaActual}`
+                : `Tirar · ${formulaActual}`}
+            </button>
           </form>
         );
       })()}

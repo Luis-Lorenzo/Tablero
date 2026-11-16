@@ -31,6 +31,7 @@ export interface EventoTirada {
   especial: TipoEspecialTirada;
   soloMaster?: boolean;
   colorDado?: string;
+  colorAristasDado?: string;
   createdAt: string;
 }
 
@@ -44,6 +45,7 @@ export interface DatosTirada {
   secreta?: boolean;
   soloMaster?: boolean;
   colorDado?: string;
+  colorAristasDado?: string;
 }
 
 function sanitizarColorDado(valor: unknown): string | undefined {
@@ -180,6 +182,7 @@ export class ChatService {
     }
 
     const colorDado = sanitizarColorDado(datos.colorDado);
+    const colorAristasDado = sanitizarColorDado(datos.colorAristasDado);
 
     const tirada: EventoTirada = {
       id: crypto.randomUUID(),
@@ -196,6 +199,7 @@ export class ChatService {
       especial: resolverEspecial(datos),
       ...(datos.soloMaster ? { soloMaster: true } : {}),
       ...(colorDado ? { colorDado } : {}),
+      ...(colorAristasDado ? { colorAristasDado } : {}),
       createdAt: new Date().toISOString()
     };
 

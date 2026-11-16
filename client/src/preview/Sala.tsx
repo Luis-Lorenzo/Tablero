@@ -129,13 +129,14 @@ const MUSICA_VACIA: MusicaAmbienteMesa = {
   volumenMaster: 0.7
 };
 
-type TiradaAsientoConColor = TiradaAsiento & { color?: string };
+type TiradaAsientoConColor = TiradaAsiento & { color?: string; colorAristasDado?: string };
 
 const CLAVE_COLOR_DADO = "pocketrol.colorDado";
+const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
 
-function cargarColorDadoLocal(fallback = "#e8c56a"): string {
+function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
   try {
-    const guardado = window.localStorage.getItem(CLAVE_COLOR_DADO);
+    const guardado = window.localStorage.getItem(clave);
     if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
       return guardado;
     }
@@ -182,6 +183,7 @@ interface SalaProps {
     soloMaster?: boolean;
     color?: string;
     colorDado?: string;
+    colorAristasDado?: string;
   }) => void | Promise<void>;
   colorJugador?: string;
   nombreJugador?: string;
@@ -434,13 +436,20 @@ function lanzarGruposDados(
 function IconoDadoPoligono({
   caras,
   valor,
-  color
+  color,
+  colorAristas
 }: {
   caras: number;
   valor?: number | string;
   color?: string;
+  colorAristas?: string;
 }) {
-  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -561,7 +570,7 @@ function IconoDadoPoligono({
       </svg>
     );
   }
-  return <IconoD20 valor={valor} color={color} />;
+  return <IconoD20 valor={valor} color={color} colorAristas={colorAristas} />;
 }
 
 function limitar(valor: number, min: number, max: number): number {
@@ -612,8 +621,21 @@ function centroide(quad: QuadMapa): Punto {
   return { x: suma.x / 4, y: suma.y / 4 };
 }
 
-function IconoD20({ valor, color }: { valor?: number | string; color?: string }) {
-  const estiloPoligono = color ? { fill: color, stroke: "#b794f4" } : undefined;
+function IconoD20({
+  valor,
+  color,
+  colorAristas
+}: {
+  valor?: number | string;
+  color?: string;
+  colorAristas?: string;
+}) {
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -888,11 +910,23 @@ export function Sala({
   const [colorDado, setColorDado] = useState<string>(() =>
     cargarColorDadoLocal(colorJugador || "#e8c56a")
   );
+  const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
+    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+  );
 
   function actualizarColorDado(nuevoColor: string): void {
     setColorDado(nuevoColor);
     try {
       window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
+
+  function actualizarColorAristasDado(nuevoColor: string): void {
+    setColorAristasDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
     } catch {
       // Ignoramos errores de almacenamiento
     }
@@ -2021,7 +2055,8 @@ export function Sala({
     especial: TipoEspecialTirada = null,
     caras = 20,
     desglose?: string,
-    color?: string
+    color?: string,
+    colorAristasDado?: string
   ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
@@ -2030,7 +2065,7 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total, especial, caras, desglose, color }
+      [asientoId]: { id: tiradaId, total, especial, caras, desglose, color, colorAristasDado }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -2295,6 +2330,7 @@ export function Sala({
               ...resultadoFinal,
               color: colorDado,
               colorDado,
+              colorAristasDado,
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
@@ -2318,7 +2354,8 @@ export function Sala({
               resultadoFinal.especial,
               resultadoFinal.caras,
               desglose,
-              colorDado
+              colorDado,
+              colorAristasDado
             );
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
@@ -3277,6 +3314,10 @@ export function Sala({
                         tiradaSobreAsiento.color ||
                         (esMio ? colorDado : jugador.color)
                       : undefined;
+                    const colorAristasAsiento = !tiradaSobreAsiento.especial
+                      ? tiradaSobreAsiento.colorAristasDado ||
+                        (esMio ? colorAristasDado : "#b794f4")
+                      : undefined;
                     return (
                       <div
                         key={tiradaSobreAsiento.id}
@@ -3284,8 +3325,9 @@ export function Sala({
                         style={
                           colorDadoAsiento
                             ? ({
-                                color: "#b794f4",
+                                color: colorAristasAsiento,
                                 "--dado-color": colorDadoAsiento,
+                                "--dado-aristas": colorAristasAsiento,
                                 filter: `drop-shadow(0 0 10px ${colorDadoAsiento})`
                               } as CSSProperties)
                             : undefined
@@ -3301,6 +3343,7 @@ export function Sala({
                           caras={tiradaSobreAsiento.caras ?? 20}
                           valor={tiradaSobreAsiento.total}
                           color={colorDadoAsiento}
+                          colorAristas={colorAristasAsiento}
                         />
                       </div>
                     );
@@ -5039,7 +5082,83 @@ export function Sala({
                 }}
               >
                 <div className="dados-selector-cabecera">
-                  <span>Tirada de dados</span>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                    <span>Tirada de dados</span>
+                    <div
+                      style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+                      role="group"
+                      aria-label="Colores de tus dados"
+                    >
+                      <label
+                        title="Color principal (fondo del dado)"
+                        aria-label="Color principal del dado"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "20px",
+                          height: "20px",
+                          padding: 0,
+                          borderRadius: "5px",
+                          border: tiradaSecreta
+                            ? "1.5px solid #c084fc"
+                            : "1.5px solid #e8c56a",
+                          backgroundColor: colorDado,
+                          boxShadow: "1.5px 1.5px 0 #090612",
+                          cursor: "pointer",
+                          overflow: "hidden"
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={colorDado}
+                          onChange={e => actualizarColorDado(e.target.value)}
+                          aria-label="Elegir color principal del dado"
+                          style={{
+                            opacity: 0,
+                            width: "100%",
+                            height: "100%",
+                            padding: 0,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        />
+                      </label>
+                      <label
+                        title="Color secundario (aristas del dado)"
+                        aria-label="Color secundario de las aristas del dado"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "20px",
+                          height: "20px",
+                          padding: 0,
+                          borderRadius: "5px",
+                          border: `2.5px solid ${colorAristasDado}`,
+                          backgroundColor: "#14101f",
+                          boxShadow: "1.5px 1.5px 0 #090612",
+                          cursor: "pointer",
+                          overflow: "hidden"
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={colorAristasDado}
+                          onChange={e => actualizarColorAristasDado(e.target.value)}
+                          aria-label="Elegir color secundario de aristas del dado"
+                          style={{
+                            opacity: 0,
+                            width: "100%",
+                            height: "100%",
+                            padding: 0,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     className="dados-cerrar"
@@ -5256,63 +5375,17 @@ export function Sala({
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginTop: "2px"
-                  }}
+                <button
+                  type="submit"
+                  className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
+                  disabled={tirando}
                 >
-                  <button
-                    type="submit"
-                    className={`dados-lanzar${tiradaSecreta ? " secreta" : ""}`}
-                    style={{ flex: 1, marginTop: 0 }}
-                    disabled={tirando}
-                  >
-                    {tiradaSecreta
-                      ? esMaster
-                        ? `Tirar en secreto · ${formulaActual}`
-                        : `Tirar al Máster · ${formulaActual}`
-                      : `Tirar · ${formulaActual}`}
-                  </button>
-                  <label
-                    title="Color de tu dado"
-                    aria-label="Color de tu dado"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "26px",
-                      height: "26px",
-                      flexShrink: 0,
-                      padding: 0,
-                      borderRadius: "6px",
-                      border: tiradaSecreta
-                        ? "2px solid #c084fc"
-                        : "2px solid #e8c56a",
-                      backgroundColor: colorDado,
-                      boxShadow: "2px 2px 0 #090612",
-                      cursor: "pointer",
-                      overflow: "hidden"
-                    }}
-                  >
-                    <input
-                      type="color"
-                      value={colorDado}
-                      onChange={e => actualizarColorDado(e.target.value)}
-                      aria-label="Elegir color del dado"
-                      style={{
-                        opacity: 0,
-                        width: "100%",
-                        height: "100%",
-                        padding: 0,
-                        border: "none",
-                        cursor: "pointer"
-                      }}
-                    />
-                  </label>
-                </div>
+                  {tiradaSecreta
+                    ? esMaster
+                      ? `Tirar en secreto · ${formulaActual}`
+                      : `Tirar al Máster · ${formulaActual}`
+                    : `Tirar · ${formulaActual}`}
+                </button>
               </form>
             );
           })()}

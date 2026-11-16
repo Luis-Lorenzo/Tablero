@@ -1117,6 +1117,7 @@ function SalaRealContent({
           : undefined;
 
         const colorDado = sanitizarColorDado(roll.colorDado);
+        const colorAristasDado = sanitizarColorDado(roll.colorAristasDado);
 
         setTiradasAsiento(prev => ({
           ...prev,
@@ -1126,7 +1127,8 @@ function SalaRealContent({
             especial: roll.especial ?? null,
             caras: roll.caras ?? 20,
             desglose,
-            ...(colorDado ? { colorDado } : {})
+            ...(colorDado ? { colorDado } : {}),
+            ...(colorAristasDado ? { colorAristasDado } : {})
           }
         }));
 
@@ -1391,15 +1393,18 @@ function SalaRealContent({
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
     colorDado?: string;
+    colorAristasDado?: string;
   }): Promise<void> {
     try {
       const colorDado =
         sanitizarColorDado(tirada.colorDado) ?? obtenerColorDadoGuardado(user.id);
+      const colorAristasDado = sanitizarColorDado(tirada.colorAristasDado);
       await mesasApi.enviarTirada(mesa.id, {
         ...tirada,
         secreta: false,
         soloMaster: Boolean(tirada.soloMaster),
-        ...(colorDado ? { colorDado } : {})
+        ...(colorDado ? { colorDado } : {}),
+        ...(colorAristasDado ? { colorAristasDado } : {})
       });
     } catch (tiradaError) {
       setError(describeError(tiradaError));

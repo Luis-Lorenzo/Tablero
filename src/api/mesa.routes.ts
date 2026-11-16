@@ -604,6 +604,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         secreta?: boolean;
         soloMaster?: boolean;
         colorDado?: string;
+        colorAristasDado?: string;
       };
       const resultado = await context.chatService.registrarTirada(
         req.currentUser!,
@@ -617,7 +618,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           especial: body.especial,
           secreta: Boolean(body.secreta),
           soloMaster: Boolean(body.soloMaster),
-          colorDado: body.colorDado
+          colorDado: body.colorDado,
+          colorAristasDado: body.colorAristasDado
         }
       );
 
