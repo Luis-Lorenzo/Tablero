@@ -208,7 +208,10 @@ export class ArchivoService {
           mesa.players.includes(archivo.ownerId);
         const usadoComoImagen =
           mesa.imagenEscena?.id === id || mesa.imagenProyectada?.id === id;
-        return duenoEnMesa || usadoComoImagen;
+        const usadoComoMusica = Boolean(
+          mesa.musicaAmbiente?.pistas.some(p => p.archivoId === id)
+        );
+        return duenoEnMesa || usadoComoImagen || usadoComoMusica;
       });
 
       if (compartidoEnMesa) {

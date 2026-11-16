@@ -20,7 +20,10 @@ import type {
 } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
-import { Sala } from "../../preview/Sala";
+import {
+  Sala,
+  type MusicaAmbienteMesa
+} from "../../preview/Sala";
 import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
@@ -36,6 +39,8 @@ import {
   nuevoIdElemento
 } from "../../preview/compartir";
 import {
+  estaMusicaSilenciada,
+  obtenerVolumenMusica,
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion,
   reproducirSonidoPing
@@ -148,6 +153,15 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
 
 const DURACION_D20_ASIENTO = 3500;
 
+const MUSICA_DEFECTO: MusicaAmbienteMesa = {
+  pistas: [],
+  indiceActual: 0,
+  reproduciendo: false,
+  loop: false,
+  aleatorio: false,
+  volumenMaster: 0.7
+};
+
 const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
   fondo: null,
   rejilla: {
@@ -233,6 +247,22 @@ function SalaRealContent({
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
   const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
+  const [musicaAmbiente, setMusicaAmbiente] = useState<MusicaAmbienteMesa>(() => {
+    const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
+    return rem ?? MUSICA_DEFECTO;
+  });
+  const [musicaSilenciadaLocal, setMusicaSilenciadaLocal] = useState<boolean>(
+    estaMusicaSilenciada
+  );
+  const [volumenMusicaLocal, setVolumenMusicaLocal] = useState<number>(
+    obtenerVolumenMusica
+  );
+  const [audioBloqueado, setAudioBloqueado] = useState(false);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioSrcActualRef = useRef<string>("");
+  const musicaAmbienteRef = useRef<MusicaAmbienteMesa>(musicaAmbiente);
+  musicaAmbienteRef.current = musicaAmbiente;
 
   const recepcionesRef = useRef(0);
   const positsPendientesEnvioRef = useRef<Map<string, string>>(new Map());
@@ -675,6 +705,16 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:musica-actualizada" && evento.mesaId === mesa.id) {
+        const siguiente = (evento.musica ?? evento.musicaAmbiente) as
+          | MusicaAmbienteMesa
+          | undefined;
+        if (siguiente) {
+          setMusicaAmbiente(siguiente);
+        }
+        return;
+      }
+
       if (evento.type === "transferencia:recibida" && evento.transferencia) {
         const transferencia = evento.transferencia as PublicTransferencia;
         if (transferencia.mesaId !== mesa.id) return;
@@ -1098,6 +1138,194 @@ function SalaRealContent({
     },
     [jugadores, mesa.hostId, mesa.hostName, mesa.id]
   );
+
+  useEffect(() => {
+    const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
+    if (rem) {
+      setMusicaAmbiente(rem);
+    }
+  }, [mesa]);
+
+  useEffect(() => {
+    const sincronizarLocal = () => {
+      setMusicaSilenciadaLocal(estaMusicaSilenciada());
+      setVolumenMusicaLocal(obtenerVolumenMusica());
+    };
+    window.addEventListener("pocketrol:musica-local", sincronizarLocal);
+    window.addEventListener("storage", sincronizarLocal);
+    return () => {
+      window.removeEventListener("pocketrol:musica-local", sincronizarLocal);
+      window.removeEventListener("storage", sincronizarLocal);
+    };
+  }, []);
+
+  const actualizarMusica = useCallback(
+    async (siguiente: MusicaAmbienteMesa) => {
+      setMusicaAmbiente(siguiente);
+      try {
+        const api = mesasApi as unknown as {
+          actualizarMusica?: (id: string, musica: MusicaAmbienteMesa) => Promise<PublicMesa>;
+        };
+        if (api.actualizarMusica) {
+          const actualizada = await api.actualizarMusica(mesa.id, siguiente);
+          const rem = (
+            actualizada as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }
+          ).musicaAmbiente;
+          if (rem) {
+            setMusicaAmbiente(rem);
+          }
+        }
+      } catch (musicaError) {
+        setError(describeError(musicaError));
+      }
+    },
+    [mesa.id]
+  );
+
+  const subirMusica = useCallback(
+    async (archivo: File) => {
+      try {
+        const subido = await archivosApi.subir(archivo);
+        setArchivosDisponibles(prev =>
+          prev.some(item => item.id === subido.id) ? prev : [subido, ...prev]
+        );
+        const actual = musicaAmbienteRef.current;
+        const estabaVacia = actual.pistas.length === 0;
+        const siguiente: MusicaAmbienteMesa = {
+          ...actual,
+          pistas: [
+            ...actual.pistas,
+            { archivoId: subido.id, nombre: subido.nombre }
+          ],
+          indiceActual: estabaVacia ? 0 : actual.indiceActual,
+          reproduciendo: estabaVacia ? true : actual.reproduciendo
+        };
+        await actualizarMusica(siguiente);
+      } catch (subidaError) {
+        setError(describeError(subidaError));
+      }
+    },
+    [actualizarMusica]
+  );
+
+  const pistaActual = musicaAmbiente.pistas[musicaAmbiente.indiceActual] ?? null;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.loop = musicaAmbiente.pistas.length === 1 && musicaAmbiente.loop;
+    audio.muted = musicaSilenciadaLocal;
+    audio.volume = Math.max(
+      0,
+      Math.min(1, (musicaAmbiente.volumenMaster ?? 0.7) * volumenMusicaLocal)
+    );
+
+    if (!pistaActual) {
+      audio.pause();
+      if (audioSrcActualRef.current) {
+        audioSrcActualRef.current = "";
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      setAudioBloqueado(false);
+      return;
+    }
+
+    const siguienteSrc = archivosApi.url(pistaActual.archivoId);
+    if (audioSrcActualRef.current !== siguienteSrc) {
+      audioSrcActualRef.current = siguienteSrc;
+      audio.src = siguienteSrc;
+    }
+
+    if (!musicaAmbiente.reproduciendo) {
+      audio.pause();
+      setAudioBloqueado(false);
+      return;
+    }
+
+    void audio
+      .play()
+      .then(() => {
+        setAudioBloqueado(false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          setAudioBloqueado(true);
+        }
+      });
+  }, [
+    pistaActual,
+    musicaAmbiente.pistas.length,
+    musicaAmbiente.loop,
+    musicaAmbiente.reproduciendo,
+    musicaAmbiente.volumenMaster,
+    musicaSilenciadaLocal,
+    volumenMusicaLocal
+  ]);
+
+  const reintentarAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !musicaAmbienteRef.current.reproduciendo) {
+      setAudioBloqueado(false);
+      return;
+    }
+    void audio
+      .play()
+      .then(() => {
+        setAudioBloqueado(false);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!audioBloqueado) return;
+    const alInteractuar = () => {
+      reintentarAudio();
+    };
+    window.addEventListener("pointerdown", alInteractuar, { capture: true });
+    window.addEventListener("keydown", alInteractuar, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", alInteractuar, { capture: true });
+      window.removeEventListener("keydown", alInteractuar, { capture: true });
+    };
+  }, [audioBloqueado, reintentarAudio]);
+
+  const alTerminarPista = useCallback(() => {
+    const actual = musicaAmbienteRef.current;
+    if (!esMaster || actual.pistas.length === 0) return;
+
+    if (actual.pistas.length === 1) {
+      if (!actual.loop) {
+        void actualizarMusica({ ...actual, reproduciendo: false });
+      }
+      return;
+    }
+
+    let siguienteIndice = actual.indiceActual;
+    let sigueReproduciendo = true;
+
+    if (actual.aleatorio) {
+      const candidatos = actual.pistas
+        .map((_, idx) => idx)
+        .filter(idx => idx !== actual.indiceActual);
+      siguienteIndice =
+        candidatos[Math.floor(Math.random() * candidatos.length)] ?? 0;
+    } else if (actual.indiceActual + 1 < actual.pistas.length) {
+      siguienteIndice = actual.indiceActual + 1;
+    } else if (actual.loop) {
+      siguienteIndice = 0;
+    } else {
+      siguienteIndice = 0;
+      sigueReproduciendo = false;
+    }
+
+    void actualizarMusica({
+      ...actual,
+      indiceActual: siguienteIndice,
+      reproduciendo: sigueReproduciendo
+    });
+  }, [esMaster, actualizarMusica]);
 
   useMesasLive(
     refrescar,
@@ -1791,13 +2019,27 @@ function SalaRealContent({
             : undefined
         }
         onCambiarApodo={!esMaster ? cambiarApodo : undefined}
+        musicaAmbiente={musicaAmbiente}
+        onActualizarMusica={esMaster ? actualizarMusica : undefined}
+        onSubirMusica={esMaster ? subirMusica : undefined}
       />
     );
   }
 
   return (
     <div>
+      <audio ref={audioRef} onEnded={alTerminarPista} hidden />
       {contenido}
+
+      {audioBloqueado && musicaAmbiente.reproduciendo && pistaActual && (
+        <button
+          type="button"
+          className="proyeccion-reabrir-flotante"
+          onClick={reintentarAudio}
+        >
+          Activar música ambiente
+        </button>
+      )}
 
       {imagenProyectada && !proyeccionOculta && (
         <ProyeccionMasterModal

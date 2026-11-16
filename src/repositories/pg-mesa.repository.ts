@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import {
   sanitizarDivisasConfig,
+  sanitizarMusicaAmbiente,
   type EstadoMesa,
   type Mesa,
   type MesaRepository
@@ -19,6 +20,7 @@ interface MesaRow {
   imagen_proyectada_titulo: string | null;
   divisa_nombre: string | null;
   divisas_config: unknown;
+  musica_ambiente: unknown;
   created_at: Date;
 }
 
@@ -34,13 +36,14 @@ interface JugadoresMesaDatos {
 }
 
 const SELECT_COLUMNS =
-  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, created_at";
+  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, created_at";
 
 function toMesa(
   row: MesaRow,
   datos: JugadoresMesaDatos = { colores: {}, apodos: {} }
 ): Mesa {
   const divisasLimpias = sanitizarDivisasConfig(row.divisas_config);
+  const musicaAmbiente = sanitizarMusicaAmbiente(row.musica_ambiente);
   return {
     id: row.id,
     hostId: row.host_id,
@@ -58,6 +61,7 @@ function toMesa(
       : null,
     divisaNombre: row.divisa_nombre?.trim() || "Divisa",
     ...(divisasLimpias.length > 0 ? { divisasConfig: divisasLimpias } : {}),
+    musicaAmbiente,
     createdAt: new Date(row.created_at)
   };
 }
@@ -132,8 +136,8 @@ export class PgMesaRepository implements MesaRepository {
 
   async save(mesa: Mesa) {
     await this.pool.query(
-      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, created_at)
-       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
+      `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, created_at)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14)
        ON CONFLICT(id) DO UPDATE SET
          host_id = EXCLUDED.host_id,
       players = EXCLUDED.players,
@@ -145,7 +149,8 @@ export class PgMesaRepository implements MesaRepository {
          imagen_proyectada_id = EXCLUDED.imagen_proyectada_id,
          imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo,
          divisa_nombre = EXCLUDED.divisa_nombre,
-         divisas_config = EXCLUDED.divisas_config`,
+         divisas_config = EXCLUDED.divisas_config,
+         musica_ambiente = EXCLUDED.musica_ambiente`,
       [
         mesa.id,
         mesa.hostId,
@@ -159,6 +164,7 @@ export class PgMesaRepository implements MesaRepository {
         mesa.imagenProyectada?.titulo ?? null,
         mesa.divisaNombre?.trim() || "Divisa",
         mesa.divisasConfig ? JSON.stringify(mesa.divisasConfig) : null,
+        mesa.musicaAmbiente ? JSON.stringify(mesa.musicaAmbiente) : null,
         mesa.createdAt
       ]
     );

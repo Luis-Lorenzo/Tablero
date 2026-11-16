@@ -33,6 +33,20 @@ export interface DivisaConfig {
   color: string;
 }
 
+export interface PistaMusicaMesa {
+  archivoId: string;
+  nombre: string;
+}
+
+export interface MusicaAmbienteMesa {
+  pistas: PistaMusicaMesa[];
+  indiceActual: number;
+  reproduciendo: boolean;
+  loop: boolean;
+  aleatorio: boolean;
+  volumenMaster: number;
+}
+
 export interface PublicMesa {
   id: string;
   hostId: string;
@@ -48,6 +62,7 @@ export interface PublicMesa {
   imagenProyectada?: ImagenMaster | null;
   divisaNombre?: string;
   divisasConfig?: DivisaConfig[];
+  musicaAmbiente?: MusicaAmbienteMesa | null;
   createdAt: string;
 }
 

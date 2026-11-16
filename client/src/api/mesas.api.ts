@@ -9,6 +9,7 @@ import type {
   GuardarMapaFondoPayload,
   MapaIniciativaEstado,
   MensajeChat,
+  MusicaAmbienteMesa,
   PublicMesa,
   PublicTransferencia,
   ResultadoAceptarTransferencia,
@@ -242,6 +243,10 @@ export const mesasApi = {
   /** Configura las divisas de la mesa (solo Máster/Admin, máx. 12). */
   guardarDivisasConfig: (id: string, divisas: DivisaConfig[]) =>
     putJson<PublicMesa>(`/api/mesas/${id}/divisas`, { divisas }),
+
+  /** Actualiza el estado de la música ambiente de la mesa (solo Máster/Admin). */
+  actualizarMusica: (id: string, musica: MusicaAmbienteMesa) =>
+    putJson<{ musica: MusicaAmbienteMesa }>(`/api/mesas/${id}/musica`, musica),
 
   /** Carga el estado compartido de la pizarra y vista escena de la mesa. */
   obtenerPizarra: (id: string) =>

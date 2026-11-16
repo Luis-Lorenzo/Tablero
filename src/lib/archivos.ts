@@ -15,7 +15,12 @@ const TIPOS_PERMITIDOS = new Map<string, string>([
   ["image/gif", ".gif"],
   ["image/webp", ".webp"],
   [TIPO_DOCX, ".docx"],
-  ["text/plain", ".txt"]
+  ["text/plain", ".txt"],
+  ["audio/mpeg", ".mp3"],
+  ["audio/ogg", ".ogg"],
+  ["audio/wav", ".wav"],
+  ["audio/webm", ".webm"],
+  ["audio/mp4", ".mp4"]
 ]);
 
 /** Normaliza variantes no estándar que envían algunos navegadores. */
@@ -24,6 +29,14 @@ export function normalizarTipo(tipo: string): string {
 
   if (base === "image/jpg" || base === "image/pjpeg") {
     return "image/jpeg";
+  }
+
+  if (base === "audio/mp3" || base === "audio/x-mp3") {
+    return "audio/mpeg";
+  }
+
+  if (base === "audio/x-wav") {
+    return "audio/wav";
   }
 
   return base;
@@ -50,9 +63,10 @@ export function extensionDe(tipo: string): string {
  *  - `imagen`  → como imagen.
  *  - `docx`    → Word moderno, convertido en el navegador.
  *  - `texto`   → texto plano.
+ *  - `audio`   → pista de audio reproducible en el navegador.
  *  - `ninguna` → solo se puede descargar.
  */
-export type VistaArchivo = "pdf" | "imagen" | "docx" | "texto" | "ninguna";
+export type VistaArchivo = "pdf" | "imagen" | "docx" | "texto" | "audio" | "ninguna";
 
 export function vistaDe(tipo: string): VistaArchivo {
   const base = normalizarTipo(tipo);
@@ -61,6 +75,7 @@ export function vistaDe(tipo: string): VistaArchivo {
   if (base.startsWith("image/")) return "imagen";
   if (base === TIPO_DOCX) return "docx";
   if (base === "text/plain") return "texto";
+  if (base.startsWith("audio/")) return "audio";
   return "ninguna";
 }
 

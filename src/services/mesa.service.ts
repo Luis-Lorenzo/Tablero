@@ -14,7 +14,8 @@ import {
   type EstadoMesa,
   type ImagenMesa,
   type Mesa,
-  type MesaRepository
+  type MesaRepository,
+  type MusicaAmbienteMesa
 } from "../repositories/mesa.repository.js";
 
 /** Cuántos jugadores caben en una mesa (el anfitrión no ocupa plaza). */
@@ -50,6 +51,7 @@ export interface MesaVista {
   imagenProyectada: ImagenMesa | null;
   divisaNombre?: string;
   divisasConfig?: DivisaConfig[];
+  musicaAmbiente?: MusicaAmbienteMesa | null;
   createdAt: Date;
 }
 
@@ -381,6 +383,7 @@ export class MesaService {
       imagenProyectada: mesa.imagenProyectada ?? null,
       divisaNombre: mesa.divisaNombre?.trim() || "Divisa",
       divisasConfig: resolverDivisasConfig(mesa),
+      musicaAmbiente: mesa.musicaAmbiente ?? null,
       createdAt: mesa.createdAt
     }));
   }

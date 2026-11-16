@@ -7,13 +7,18 @@ import {
   ChevronRight,
   Copy,
   Crown,
+  Disc3,
   Eye,
   Image as ImageIcon,
   Minus,
   Moon,
+  Pause,
   Pencil,
+  Play,
   Plus,
+  Repeat,
   Search,
+  Shuffle,
   Sparkles,
   Trash2,
   Upload,
@@ -65,7 +70,9 @@ import {
 } from "./macros";
 import { Posit } from "./Pizarra";
 import {
+  establecerMusicaSilenciada,
   establecerSonidoSilenciado,
+  estaMusicaSilenciada,
   estaSonidoSilenciado,
   reproducirSonidoConsumir,
   reproducirSonidoMonedas,
@@ -93,6 +100,29 @@ import type {
   TipoEspecialTirada,
   TiradaAsiento
 } from "./tipos";
+
+export interface PistaMusicaMesa {
+  archivoId: string;
+  nombre: string;
+}
+
+export interface MusicaAmbienteMesa {
+  pistas: PistaMusicaMesa[];
+  indiceActual: number;
+  reproduciendo: boolean;
+  loop: boolean;
+  aleatorio: boolean;
+  volumenMaster: number;
+}
+
+const MUSICA_VACIA: MusicaAmbienteMesa = {
+  pistas: [],
+  indiceActual: 0,
+  reproduciendo: false,
+  loop: false,
+  aleatorio: false,
+  volumenMaster: 0.7
+};
 
 interface SalaProps {
   jugadores: JugadorPreview[];
@@ -157,6 +187,9 @@ interface SalaProps {
   ) => void | Promise<void>;
   onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
   onCambiarApodo?: (apodo: string) => void | Promise<void>;
+  musicaAmbiente?: MusicaAmbienteMesa;
+  onActualizarMusica?: (musica: MusicaAmbienteMesa) => void | Promise<void>;
+  onSubirMusica?: (archivo: File) => void | Promise<void>;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -728,7 +761,10 @@ export function Sala({
   onMochila,
   onEnviarObjetoMochila,
   onConsultarResumenMaster,
-  onCambiarApodo
+  onCambiarApodo,
+  musicaAmbiente,
+  onActualizarMusica,
+  onSubirMusica
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -787,6 +823,69 @@ export function Sala({
     const siguiente = !sonidoSilenciado;
     setSonidoSilenciado(siguiente);
     establecerSonidoSilenciado(siguiente);
+  }
+
+  const [musicaSilenciada, setMusicaSilenciada] = useState<boolean>(
+    estaMusicaSilenciada
+  );
+  const [musicaPopoverAbierto, setMusicaPopoverAbierto] = useState(false);
+  const [subiendoMusica, setSubiendoMusica] = useState(false);
+  const musicaFileInputRef = useRef<HTMLInputElement | null>(null);
+  const musicaContenedorRef = useRef<HTMLDivElement | null>(null);
+  const musicaActual = musicaAmbiente ?? MUSICA_VACIA;
+
+  function alternarSilencioMusica(): void {
+    const siguiente = !musicaSilenciada;
+    setMusicaSilenciada(siguiente);
+    establecerMusicaSilenciada(siguiente);
+  }
+
+  useEffect(() => {
+    if (!musicaPopoverAbierto) return;
+    function alPulsarFuera(evento: PointerEvent) {
+      if (
+        musicaContenedorRef.current &&
+        !musicaContenedorRef.current.contains(evento.target as Node)
+      ) {
+        setMusicaPopoverAbierto(false);
+      }
+    }
+    window.addEventListener("pointerdown", alPulsarFuera);
+    return () => window.removeEventListener("pointerdown", alPulsarFuera);
+  }, [musicaPopoverAbierto]);
+
+  function emitirMusica(parcial: Partial<MusicaAmbienteMesa>): void {
+    if (!onActualizarMusica) return;
+    void onActualizarMusica({ ...musicaActual, ...parcial });
+  }
+
+  async function manejarSubidaMusica(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0 || !onSubirMusica) return;
+    setSubiendoMusica(true);
+    try {
+      for (const archivo of Array.from(files)) {
+        await onSubirMusica(archivo);
+      }
+    } finally {
+      setSubiendoMusica(false);
+    }
+  }
+
+  function quitarPistaMusica(indice: number): void {
+    const nuevas = musicaActual.pistas.filter((_, i) => i !== indice);
+    let siguienteIndice = musicaActual.indiceActual;
+    if (nuevas.length === 0) {
+      siguienteIndice = 0;
+    } else if (indice < musicaActual.indiceActual) {
+      siguienteIndice = musicaActual.indiceActual - 1;
+    } else if (siguienteIndice >= nuevas.length) {
+      siguienteIndice = nuevas.length - 1;
+    }
+    emitirMusica({
+      pistas: nuevas,
+      indiceActual: siguienteIndice,
+      reproduciendo: nuevas.length === 0 ? false : musicaActual.reproduciendo
+    });
   }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
@@ -3214,6 +3313,246 @@ export function Sala({
                   <Volume2 size={14} strokeWidth={2.2} aria-hidden="true" />
                 )}
               </button>
+
+              <div className="sala-musica-control" ref={musicaContenedorRef}>
+                <button
+                  type="button"
+                  className={`sala-btn sala-btn-disco${
+                    esMaster && musicaPopoverAbierto ? " activo" : ""
+                  }${musicaSilenciada ? " silenciada" : ""}${
+                    musicaActual.reproduciendo &&
+                    musicaActual.pistas.length > 0 &&
+                    !musicaSilenciada
+                      ? " reproduciendo"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    if (esMaster) {
+                      setMusicaPopoverAbierto(v => !v);
+                    } else {
+                      alternarSilencioMusica();
+                    }
+                  }}
+                  title={
+                    esMaster
+                      ? "Música ambiente de la sala"
+                      : musicaSilenciada
+                        ? "Música silenciada (pulsa para activar)"
+                        : "Silenciar música ambiente"
+                  }
+                  aria-label={
+                    esMaster
+                      ? "Configurar música ambiente"
+                      : musicaSilenciada
+                        ? "Activar música ambiente"
+                        : "Silenciar música ambiente"
+                  }
+                  aria-pressed={esMaster ? musicaPopoverAbierto : musicaSilenciada}
+                >
+                  <Disc3 size={14} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+
+                {esMaster && musicaPopoverAbierto && (
+                  <div
+                    className="sala-musica-popover"
+                    role="dialog"
+                    aria-label="Reproductor de música ambiente"
+                  >
+                    <div className="sala-musica-popover-cabecera">
+                      <span className="sala-musica-popover-titulo">
+                        Música ambiente
+                      </span>
+                      <div className="sala-musica-popover-acciones-cab">
+                        <button
+                          type="button"
+                          className={`sala-musica-mini-btn${
+                            musicaSilenciada ? " silenciada" : ""
+                          }`}
+                          onClick={alternarSilencioMusica}
+                          title={
+                            musicaSilenciada
+                              ? "Activar música localmente"
+                              : "Silenciar música localmente"
+                          }
+                          aria-label={
+                            musicaSilenciada
+                              ? "Activar música localmente"
+                              : "Silenciar música localmente"
+                          }
+                          aria-pressed={musicaSilenciada}
+                        >
+                          {musicaSilenciada ? (
+                            <VolumeX size={13} strokeWidth={2.2} aria-hidden="true" />
+                          ) : (
+                            <Volume2 size={13} strokeWidth={2.2} aria-hidden="true" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className="sala-musica-mini-btn"
+                          onClick={() => setMusicaPopoverAbierto(false)}
+                          aria-label="Cerrar panel de música"
+                        >
+                          <X size={13} strokeWidth={2.2} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <input
+                      ref={musicaFileInputRef}
+                      type="file"
+                      accept="audio/*,.mp3,.ogg,.wav,.m4a"
+                      multiple
+                      hidden
+                      onChange={e => {
+                        void manejarSubidaMusica(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="sala-musica-subir-btn"
+                      disabled={subiendoMusica || !onSubirMusica}
+                      onClick={() => musicaFileInputRef.current?.click()}
+                    >
+                      <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+                      <span>
+                        {subiendoMusica ? "Subiendo canción…" : "Subir canción"}
+                      </span>
+                    </button>
+
+                    <div className="sala-musica-lista">
+                      {musicaActual.pistas.length === 0 ? (
+                        <div className="sala-musica-vacia">
+                          No hay canciones en la lista.
+                        </div>
+                      ) : (
+                        musicaActual.pistas.map((pista, idx) => {
+                          const activa = idx === musicaActual.indiceActual;
+                          return (
+                            <div
+                              key={`${pista.archivoId}-${idx}`}
+                              className={`sala-musica-pista${
+                                activa ? " activa" : ""
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="sala-musica-pista-nombre"
+                                onClick={() =>
+                                  emitirMusica({
+                                    indiceActual: idx,
+                                    reproduciendo: true
+                                  })
+                                }
+                                title={pista.nombre}
+                              >
+                                <span className="sala-musica-pista-indice">
+                                  {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
+                                </span>
+                                <span>{pista.nombre}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="sala-musica-pista-quitar"
+                                onClick={() => quitarPistaMusica(idx)}
+                                title="Quitar canción de la lista"
+                                aria-label={`Quitar ${pista.nombre}`}
+                              >
+                                <Trash2 size={13} strokeWidth={2.1} aria-hidden="true" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="sala-musica-controles">
+                      <button
+                        type="button"
+                        className={`sala-musica-ctrl-btn${
+                          musicaActual.reproduciendo ? " activo" : ""
+                        }`}
+                        disabled={musicaActual.pistas.length === 0}
+                        onClick={() =>
+                          emitirMusica({
+                            reproduciendo: !musicaActual.reproduciendo
+                          })
+                        }
+                        title={musicaActual.reproduciendo ? "Pausar" : "Reproducir"}
+                        aria-label={
+                          musicaActual.reproduciendo ? "Pausar música" : "Reproducir música"
+                        }
+                      >
+                        {musicaActual.reproduciendo ? (
+                          <Pause size={14} strokeWidth={2.2} aria-hidden="true" />
+                        ) : (
+                          <Play size={14} strokeWidth={2.2} aria-hidden="true" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`sala-musica-ctrl-btn${
+                          musicaActual.loop ? " activo" : ""
+                        }`}
+                        onClick={() =>
+                          emitirMusica({ loop: !musicaActual.loop })
+                        }
+                        title={
+                          musicaActual.loop
+                            ? "Bucle activado"
+                            : "Activar bucle"
+                        }
+                        aria-label="Alternar bucle"
+                        aria-pressed={musicaActual.loop}
+                      >
+                        <Repeat size={14} strokeWidth={2.2} aria-hidden="true" />
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`sala-musica-ctrl-btn${
+                          musicaActual.aleatorio ? " activo" : ""
+                        }`}
+                        onClick={() =>
+                          emitirMusica({ aleatorio: !musicaActual.aleatorio })
+                        }
+                        title={
+                          musicaActual.aleatorio
+                            ? "Reproducción aleatoria"
+                            : "Reproducción ordenada"
+                        }
+                        aria-label="Alternar reproducción aleatoria"
+                        aria-pressed={musicaActual.aleatorio}
+                      >
+                        <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
+                      </button>
+
+                      <div className="sala-musica-volumen">
+                        <Volume2 size={13} strokeWidth={2.1} aria-hidden="true" />
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(
+                            (musicaActual.volumenMaster ?? 0.7) * 100
+                          )}
+                          onChange={e =>
+                            emitirMusica({
+                              volumenMaster: Number(e.target.value) / 100
+                            })
+                          }
+                          aria-label="Volumen de la música ambiente"
+                        />
+                        <span className="sala-musica-volumen-valor">
+                          {Math.round((musicaActual.volumenMaster ?? 0.7) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"

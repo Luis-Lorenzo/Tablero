@@ -1,5 +1,15 @@
 const CLAVE_SILENCIO = "pocketrol.sonido.silenciado";
+const CLAVE_MUSICA_SILENCIO = "pocketrol.musica.silenciada";
+const CLAVE_MUSICA_VOLUMEN = "pocketrol.musica.volumen";
 let ultimoAvisoMs = 0;
+
+function notificarCambioMusicaLocal(): void {
+  try {
+    window.dispatchEvent(new CustomEvent("pocketrol:musica-local"));
+  } catch {
+    // Ignorar en entornos sin window/CustomEvent.
+  }
+}
 
 export function estaSonidoSilenciado(): boolean {
   try {
@@ -19,6 +29,49 @@ export function establecerSonidoSilenciado(silenciado: boolean): void {
   } catch {
     // Ignorar errores de almacenamiento en modo privado.
   }
+}
+
+export function estaMusicaSilenciada(): boolean {
+  try {
+    return window.localStorage.getItem(CLAVE_MUSICA_SILENCIO) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function establecerMusicaSilenciada(silenciado: boolean): void {
+  try {
+    if (silenciado) {
+      window.localStorage.setItem(CLAVE_MUSICA_SILENCIO, "1");
+    } else {
+      window.localStorage.removeItem(CLAVE_MUSICA_SILENCIO);
+    }
+  } catch {
+    // Ignorar errores de almacenamiento en modo privado.
+  }
+  notificarCambioMusicaLocal();
+}
+
+export function obtenerVolumenMusica(): number {
+  try {
+    const bruto = window.localStorage.getItem(CLAVE_MUSICA_VOLUMEN);
+    if (bruto === null) return 1;
+    const numero = Number(bruto);
+    if (!Number.isFinite(numero)) return 1;
+    return Math.max(0, Math.min(1, numero));
+  } catch {
+    return 1;
+  }
+}
+
+export function guardarVolumenMusica(volumen: number): void {
+  const limpio = Number.isFinite(volumen) ? Math.max(0, Math.min(1, volumen)) : 1;
+  try {
+    window.localStorage.setItem(CLAVE_MUSICA_VOLUMEN, String(limpio));
+  } catch {
+    // Ignorar errores de almacenamiento en modo privado.
+  }
+  notificarCambioMusicaLocal();
 }
 
 /**

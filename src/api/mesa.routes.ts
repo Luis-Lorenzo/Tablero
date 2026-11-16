@@ -7,7 +7,10 @@ import {
 } from "./serializers.js";
 import { errors } from "../lib/errors.js";
 import { vistaDe } from "../lib/archivos.js";
-import { resolverDivisasConfig } from "../repositories/mesa.repository.js";
+import {
+  resolverDivisasConfig,
+  sanitizarMusicaAmbiente
+} from "../repositories/mesa.repository.js";
 import { nombreDeUsuario } from "../repositories/user.repository.js";
 import {
   MemoryMesaEstadoRepository,
@@ -866,6 +869,61 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       );
       context.mesasNotifier.notificarCambio();
       res.json(toPublicMesa(vista));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/musica", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      const esAdminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+      if (mesa.hostId !== actor.id && !esAdminLibre) {
+        throw errors.mesaForbidden();
+      }
+
+      const rawBody =
+        req.body && typeof req.body === "object" && !Array.isArray(req.body) && "musica" in req.body
+          ? (req.body as { musica: unknown }).musica
+          : req.body;
+
+      const musica = sanitizarMusicaAmbiente(rawBody);
+      if (!musica) {
+        throw errors.invalidRequest();
+      }
+
+      const pistasExistentes = new Set(
+        (mesa.musicaAmbiente?.pistas ?? []).map(p => p.archivoId)
+      );
+      for (const pista of musica.pistas) {
+        if (pistasExistentes.has(pista.archivoId)) continue;
+        const archivo = await context.archivoService.obtenerMetadatos(
+          actor,
+          pista.archivoId
+        );
+        if (vistaDe(archivo.tipo) !== "audio") {
+          throw errors.archivoTipoInvalido();
+        }
+        if (pista.nombre === "Pista" && archivo.nombre) {
+          pista.nombre = archivo.nombre.slice(0, 180);
+        }
+      }
+
+      mesa.musicaAmbiente = musica;
+      await context.mesaRepository.save(mesa);
+
+      const miembros = [mesa.hostId, ...mesa.players];
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:musica-actualizada",
+        mesaId,
+        musica
+      });
+
+      res.json({ musica });
     } catch (error) {
       next(error);
     }

@@ -2478,6 +2478,43 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #fff;
 }
 
+.mapa-panel-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  background: #14171d;
+}
+
+.mapa-panel-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #343a46;
+  border-radius: 7px;
+  background: #1b1f28;
+  color: #b7becb;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease;
+}
+
+.mapa-panel-tab:hover {
+  border-color: #e8c56a;
+  color: #fff;
+}
+
+.mapa-panel-tab.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 20%);
+  color: #ffe9a8;
+}
+
 .mapa-panel-cuerpo {
   padding: 11px 12px;
   overflow-y: auto;
@@ -2823,6 +2860,100 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   border-color: #e8c56a;
   background: rgb(232 197 106 / 22%);
   color: #ffe9a8;
+}
+
+.mapa-token-tipo-grupo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mapa-token-tipo-btn {
+  padding: 6px 8px;
+  border: 1px solid #3c424f;
+  border-radius: 6px;
+  background: #1a1d24;
+  color: #c8cdd6;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease;
+}
+
+.mapa-token-tipo-btn:hover {
+  border-color: #8f97a8;
+  color: #fff;
+}
+
+.mapa-token-tipo-btn.aliado.activo {
+  border-color: #38bdf8;
+  background: rgb(56 189 248 / 20%);
+  color: #e0f2fe;
+}
+
+.mapa-token-tipo-btn.enemigo.activo {
+  border-color: #e05260;
+  background: rgb(224 82 96 / 22%);
+  color: #ffd0d5;
+}
+
+.mapa-toggle-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid #343a46;
+  border-radius: 7px;
+  background: #171a22;
+  color: #d6d2c8;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
+}
+
+.mapa-toggle-fila:hover {
+  border-color: #5b6375;
+}
+
+.mapa-toggle-fila.activo {
+  border-color: rgb(232 197 106 / 45%);
+  background: rgb(232 197 106 / 10%);
+  color: #ffe9a8;
+}
+
+.mapa-toggle-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 16px;
+  border-radius: 999px;
+  background: #343a46;
+  transition: background-color 0.15s ease;
+}
+
+.mapa-toggle-fila.activo .mapa-toggle-switch {
+  background: #e8c56a;
+}
+
+.mapa-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ece8df;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.mapa-toggle-fila.activo .mapa-toggle-thumb {
+  transform: translateX(14px);
+  background: #14171d;
 }
 
 .mapa-plantillas-grid {
@@ -9391,4 +9522,276 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+
+/* --------------------------------------------------------------- Música ambiente */
+
+.sala-musica-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sala-btn-disco {
+  position: relative;
+}
+
+.sala-btn-disco.reproduciendo svg {
+  animation: sala-disco-giro 4.5s linear infinite;
+}
+
+.sala-btn-disco.silenciada {
+  opacity: 0.62;
+  color: #a99bb8;
+}
+
+.sala-btn-disco.silenciada::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 50%;
+  height: 2px;
+  background: #ff6b81;
+  transform: translateY(-50%) rotate(-32deg);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+@keyframes sala-disco-giro {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sala-musica-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 45;
+  width: min(90vw, 310px);
+  padding: 12px;
+  border: 2px solid #594b6b;
+  border-radius: 10px;
+  background: rgb(17 13 26 / 97%);
+  box-shadow: 4px 4px 0 #090612, 0 12px 28px rgb(0 0 0 / 60%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #ede4f7;
+}
+
+.sala-musica-popover-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sala-musica-popover-titulo {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #f6e3b0;
+  letter-spacing: 0.02em;
+}
+
+.sala-musica-popover-acciones-cab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sala-musica-mini-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #574a66;
+  border-radius: 6px;
+  background: rgb(32 25 46 / 90%);
+  color: #e4daf0;
+  cursor: pointer;
+}
+
+.sala-musica-mini-btn:hover {
+  border-color: #c8a8e5;
+  color: #ffffff;
+}
+
+.sala-musica-mini-btn.silenciada {
+  border-color: #ff6b81;
+  color: #ff9aa9;
+}
+
+.sala-musica-subir-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px dashed #8a74a8;
+  border-radius: 7px;
+  background: rgb(34 26 50 / 75%);
+  color: #f0e7fb;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sala-musica-subir-btn:hover:not(:disabled) {
+  border-color: #e8c56a;
+  color: #ffffff;
+  background: rgb(48 37 68 / 90%);
+}
+
+.sala-musica-subir-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sala-musica-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.sala-musica-vacia {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 0.76rem;
+  color: #9e8fb3;
+}
+
+.sala-musica-pista {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: rgb(28 22 40 / 70%);
+}
+
+.sala-musica-pista.activa {
+  border-color: #96fbc7;
+  background: rgb(22 52 38 / 85%);
+}
+
+.sala-musica-pista-nombre {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sala-musica-pista-nombre span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sala-musica-pista-indice {
+  flex-shrink: 0;
+  color: #e8c56a;
+  font-size: 0.7rem;
+  min-width: 16px;
+}
+
+.sala-musica-pista-quitar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #a99bb8;
+  cursor: pointer;
+}
+
+.sala-musica-pista-quitar:hover {
+  color: #ff6b81;
+  background: rgb(255 107 129 / 12%);
+}
+
+.sala-musica-controles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgb(89 75 107 / 55%);
+}
+
+.sala-musica-ctrl-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #574a66;
+  border-radius: 6px;
+  background: rgb(32 25 46 / 90%);
+  color: #e4daf0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sala-musica-ctrl-btn:hover:not(:disabled) {
+  border-color: #c8a8e5;
+  color: #ffffff;
+}
+
+.sala-musica-ctrl-btn.activo {
+  border-color: #96fbc7;
+  background: rgb(22 52 38 / 92%);
+  color: #c8ffe6;
+}
+
+.sala-musica-ctrl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sala-musica-volumen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d6c8eb;
+}
+
+.sala-musica-volumen input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: #e8c56a;
+  cursor: pointer;
+}
+
+.sala-musica-volumen-valor {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #f6e3b0;
+  min-width: 30px;
+  text-align: right;
 }
