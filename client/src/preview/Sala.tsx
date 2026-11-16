@@ -1091,6 +1091,45 @@ export function Sala({
   ]);
 
   useEffect(() => {
+    let ultimoSupr: { id: string; tipo: string } | null = null;
+    function alPointerDown(evento: globalThis.PointerEvent) {
+      const nodo = (evento.target as HTMLElement | null)?.closest<HTMLElement>("[data-supr-id]");
+      if (nodo?.dataset.suprId && nodo.dataset.suprTipo) {
+        ultimoSupr = { id: nodo.dataset.suprId, tipo: nodo.dataset.suprTipo };
+      } else {
+        ultimoSupr = null;
+      }
+    }
+    function alSuprimir(evento: KeyboardEvent) {
+      if (evento.key !== "Delete" || ajuste) return;
+      const target = evento.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const hoverNodo = document.querySelector<HTMLElement>("[data-supr-id]:hover");
+      const id = hoverNodo?.dataset.suprId ?? ultimoSupr?.id;
+      const tipo = hoverNodo?.dataset.suprTipo ?? ultimoSupr?.tipo;
+      if (!id || !tipo) return;
+      evento.preventDefault();
+      if (tipo === "posit") {
+        onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== id));
+        setPositActivo(actual => (actual === id ? null : actual));
+      } else if (tipo === "archivo") {
+        onElementosMesaRef.current?.(prev =>
+          prev.map(el => (el.id === id ? { ...el, archivado: true } : el))
+        );
+      } else if (tipo === "objeto" || tipo === "macro") {
+        onElementosMesaRef.current?.(prev => prev.filter(el => el.id !== id));
+      }
+      ultimoSupr = null;
+    }
+    window.addEventListener("pointerdown", alPointerDown);
+    window.addEventListener("keydown", alSuprimir);
+    return () => {
+      window.removeEventListener("pointerdown", alPointerDown);
+      window.removeEventListener("keydown", alSuprimir);
+    };
+  }, [ajuste]);
+
+  useEffect(() => {
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
       for (const jugador of jugadoresRef.current) {
         if (!jugador.activo || jugador.id === yoAsientoIdRef.current) continue;
@@ -5348,6 +5387,8 @@ export function Sala({
                 return (
                   <div
                     key={doc.id}
+                    data-supr-id={doc.id}
+                    data-supr-tipo="archivo"
                     className="ficha-doc"
                     style={
                       {
@@ -5493,6 +5534,8 @@ export function Sala({
               {objetosVisibles.map(obj => (
                 <div
                   key={obj.id}
+                  data-supr-id={obj.id}
+                  data-supr-tipo="objeto"
                   className="mesa-objeto"
                   style={{ left: `${obj.x}%`, top: `${obj.y}%` }}
                   title={`${obj.nombre} (x${obj.cantidad})`}
@@ -5522,6 +5565,8 @@ export function Sala({
               {macrosVisibles.map(macroElem => (
                 <div
                   key={macroElem.id}
+                  data-supr-id={macroElem.id}
+                  data-supr-tipo="macro"
                   className="mesa-macro-rombo"
                   style={{
                     left: `${macroElem.x}%`,

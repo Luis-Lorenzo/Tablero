@@ -322,6 +322,8 @@ export function Posit({
   return (
     <div
       ref={raizRef}
+      data-supr-id={posit.id}
+      data-supr-tipo="posit"
       className={[
         "posit",
         enMesa ? "posit-mesa-nota" : "",
@@ -673,17 +675,49 @@ export function Pizarra({
   ]);
 
   useEffect(() => {
+    let ultimoSupr: { id: string; tipo: string } | null = null;
+    function alPointerDown(evento: globalThis.PointerEvent) {
+      const nodo = (evento.target as HTMLElement | null)?.closest<HTMLElement>("[data-supr-id]");
+      if (nodo?.dataset.suprId && nodo.dataset.suprTipo) {
+        ultimoSupr = { id: nodo.dataset.suprId, tipo: nodo.dataset.suprTipo };
+      } else {
+        ultimoSupr = null;
+      }
+    }
     function alTecla(evento: KeyboardEvent) {
       if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === "z" && !evento.shiftKey) {
         const tag = (evento.target as HTMLElement | null)?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
         evento.preventDefault();
         deshacer();
+        return;
+      }
+      if (evento.key === "Delete" && !bloqueado) {
+        const target = evento.target as HTMLElement | null;
+        if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+        const hoverNodo = document.querySelector<HTMLElement>("[data-supr-id]:hover");
+        const id = hoverNodo?.dataset.suprId ?? ultimoSupr?.id;
+        const tipo = hoverNodo?.dataset.suprTipo ?? ultimoSupr?.tipo;
+        if (!id || !tipo) return;
+        evento.preventDefault();
+        if (tipo === "posit") {
+          setListaPositsActiva(prev => prev.filter(p => p.id !== id));
+          setActivo(actual => (actual === id ? null : actual));
+        } else if (tipo === "archivo") {
+          setListaDocs(prev => prev.filter(d => d.id !== id));
+        } else if (tipo === "objeto") {
+          setListaObjetos(prev => prev.filter(o => o.id !== id));
+        }
+        ultimoSupr = null;
       }
     }
+    window.addEventListener("pointerdown", alPointerDown);
     window.addEventListener("keydown", alTecla);
-    return () => window.removeEventListener("keydown", alTecla);
-  }, [deshacer]);
+    return () => {
+      window.removeEventListener("pointerdown", alPointerDown);
+      window.removeEventListener("keydown", alTecla);
+    };
+  }, [bloqueado, deshacer, setListaDocs, setListaObjetos, setListaPositsActiva]);
 
   const lanzarPing = useCallback(
     (x: number, y: number) => {
@@ -2043,6 +2077,8 @@ export function Pizarra({
             return (
               <div
                 key={doc.id}
+                data-supr-id={doc.id}
+                data-supr-tipo="archivo"
                 className={`pizarra-ficha-doc${bloqueado ? " bloqueado" : ""}${
                   esImgGrandeEscena ? " escena-imagen-libre" : ""
                 }`}
@@ -2264,6 +2300,8 @@ export function Pizarra({
               return (
                 <div
                   key={objeto.id}
+                  data-supr-id={objeto.id}
+                  data-supr-tipo="objeto"
                   className={`mesa-objeto${bloqueado ? " bloqueado" : ""}`}
                   style={{
                     left: `${objeto.x}%`,
