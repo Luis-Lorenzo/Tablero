@@ -6197,7 +6197,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   filter: drop-shadow(0 0 12px rgb(61 220 132 / 85%));
 }
 
-.asiento-d20.critico polygon {
+.asiento-d20.critico polygon,
+.asiento-d20.critico rect,
+.asiento-d20.critico circle {
   fill: rgb(10 32 22 / 94%);
   stroke: #3ddc84;
 }
@@ -6207,7 +6209,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   filter: drop-shadow(0 0 12px rgb(255 92 119 / 85%));
 }
 
-.asiento-d20.pifia polygon {
+.asiento-d20.pifia polygon,
+.asiento-d20.pifia rect,
+.asiento-d20.pifia circle {
   fill: rgb(36 10 18 / 94%);
   stroke: #ff5c77;
 }
