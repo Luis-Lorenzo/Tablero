@@ -5991,6 +5991,30 @@ export function Sala({
               <span className="dock-etiqueta">Dados</span>
             </div>
 
+            {esMaster && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => {
+                    setMacrosAbierto(false);
+                    if (selectorAbierto && tiradaSecreta) {
+                      setSelectorAbierto(false);
+                    } else {
+                      setTiradaSecreta(true);
+                      setSelectorAbierto(true);
+                    }
+                  }}
+                  aria-expanded={selectorAbierto && tiradaSecreta}
+                  title="Dados privados (tirada secreta del Máster)"
+                  aria-label="Dados privados"
+                >
+                  <IconoD20 />
+                </button>
+                <span className="dock-etiqueta">Secreto</span>
+              </div>
+            )}
+
             <div className="dock-item">
               <button
                 type="button"
@@ -6008,30 +6032,6 @@ export function Sala({
               </button>
               <span className="dock-etiqueta">Macros</span>
             </div>
-
-            {esMaster && (
-              <div className="dock-item">
-                <button
-                  type="button"
-                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => {
-                    setMacrosAbierto(false);
-                    if (selectorAbierto && tiradaSecreta) {
-                      setSelectorAbierto(false);
-                    } else {
-                      setTiradaSecreta(true);
-                      setSelectorAbierto(true);
-                    }
-                  }}
-                  aria-expanded={selectorAbierto && tiradaSecreta}
-                  title="Dados negros (tirada secreta del Máster)"
-                  aria-label="Dados negros"
-                >
-                  <IconoD20 />
-                </button>
-                <span className="dock-etiqueta">Secreto</span>
-              </div>
-            )}
 
             <div className="dock-item">
               <button
