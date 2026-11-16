@@ -21,6 +21,7 @@ import type {
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { Sala } from "../../preview/Sala";
+import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
@@ -44,15 +45,21 @@ import type {
   DivisaAsientoDelta,
   DocumentoMesa,
   ElementoMesa,
+  EstadoMapaCompartido,
   ImagenEscenaPreview,
   JugadorPreview,
+  MapaFondoConfig,
+  MapaIniciativaEstado,
+  MapaRejillaConfig,
   MensajeSala,
   ObjetoMochila,
   PingVisual,
+  PlantillaTokenMapa,
   PositPreview,
   SolicitudTransferencia,
   TipoEspecialTirada,
   TiradaAsiento,
+  TokenMapa,
   TrazoPizarra
 } from "../../preview/tipos";
 import "../../preview/preview.css";
@@ -95,6 +102,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
       usuarioId: jugador.id,
       userId: jugador.id,
       nombre: jugador.name,
+      apodo: mesa.playerApodos?.[jugador.id],
       color:
         mesa.colores?.[jugador.id] ??
         jugador.color ??
@@ -108,6 +116,23 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
 }
 
 const DURACION_D20_ASIENTO = 3500;
+
+const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
+  fondo: null,
+  rejilla: {
+    visible: true,
+    columnas: 20,
+    filas: 12,
+    filasAuto: true,
+    offsetX: 0,
+    offsetY: 0,
+    color: "#ffffff",
+    opacidad: 0.35,
+    imanActivo: true
+  },
+  tokens: [],
+  plantillas: []
+};
 
 function aSolicitudCliente(t: PublicTransferencia): SolicitudTransferencia {
   if (t.tipo === "posit") {
@@ -174,6 +199,7 @@ function SalaRealContent({
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
+  const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
 
   const recepcionesRef = useRef(0);
   const avisoTimerRef = useRef<number | null>(null);
@@ -195,7 +221,7 @@ function SalaRealContent({
     : (mesa.colores?.[user.id] ??
       jugadorActual?.color ??
       PALETA_COLORES[
-        (indiceJugador >= 0 ? indiceJugador : 0) % PALETA_COLORES.length
+      (indiceJugador >= 0 ? indiceJugador : 0) % PALETA_COLORES.length
       ]);
   const imagenEscena = mesa.imagenEscena ?? null;
   const imagenProyectada = mesa.imagenProyectada ?? null;
@@ -416,38 +442,51 @@ function SalaRealContent({
   }, [mesa.id]);
 
   useEffect(() => {
+    let activo = true;
+    void mesasApi
+      .obtenerMapa(mesa.id)
+      .then(mapa => {
+        if (activo && mapa) setEstadoMapa(mapa);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id, fase === "mapa"]);
+
+  useEffect(() => {
     if (!estadoCargadoRef.current) return;
     const timer = window.setTimeout(() => {
       const limpios = elementosMesa.map(el =>
         el.tipo === "archivo"
           ? {
+            id: el.id,
+            tipo: el.tipo,
+            archivoId: el.archivoId,
+            nombre: el.nombre,
+            mime: el.mime,
+            vista: el.vista,
+            tamano: el.tamano,
+            x: el.x,
+            y: el.y,
+            archivado: el.archivado,
+            remitente: el.remitente
+          }
+          : el.tipo === "objeto"
+            ? {
               id: el.id,
               tipo: el.tipo,
-              archivoId: el.archivoId,
               nombre: el.nombre,
-              mime: el.mime,
-              vista: el.vista,
-              tamano: el.tamano,
+              descripcion: el.descripcion,
+              cantidad: el.cantidad,
+              emoji: el.emoji,
+              archivoId: el.archivoId,
+              archivoNombre: el.archivoNombre,
               x: el.x,
               y: el.y,
               archivado: el.archivado,
               remitente: el.remitente
             }
-          : el.tipo === "objeto"
-            ? {
-                id: el.id,
-                tipo: el.tipo,
-                nombre: el.nombre,
-                descripcion: el.descripcion,
-                cantidad: el.cantidad,
-                emoji: el.emoji,
-                archivoId: el.archivoId,
-                archivoNombre: el.archivoNombre,
-                x: el.x,
-                y: el.y,
-                archivado: el.archivado,
-                remitente: el.remitente
-              }
             : el
       );
       const mochilaLimpia = mochila.map(({ imagenLocal: _img, ...resto }) => resto);
@@ -552,6 +591,11 @@ function SalaRealContent({
             evento.estado as Parameters<typeof aplicarEstadoPizarraRemoto>[0]
           );
         }
+        return;
+      }
+
+      if (evento.type === "mesa:mapa-actualizado" && evento.mesaId === mesa.id && evento.mapa) {
+        setEstadoMapa(evento.mapa as EstadoMapaCompartido);
         return;
       }
 
@@ -927,6 +971,16 @@ function SalaRealContent({
     }
   }
 
+  async function cambiarApodo(apodo: string): Promise<void> {
+    setError(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, apodo);
+      onActualizarMesa(actualizada);
+    } catch (apodoError) {
+      setError(describeError(apodoError));
+    }
+  }
+
   async function volverAEspera() {
     if (!esMaster) {
       onVolver();
@@ -1001,6 +1055,197 @@ function SalaRealContent({
       .catch(() => undefined);
   }
 
+  async function cambiarFondoYRejilla(
+    fondo: MapaFondoConfig | null,
+    rejilla: MapaRejillaConfig
+  ): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, fondo, rejilla }));
+    try {
+      const actualizado = await mesasApi.guardarMapaFondo(mesa.id, { fondo, rejilla });
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function crearTokenMapa(
+    token: Omit<TokenMapa, "id" | "autorId" | "autorNombre" | "autorColor">,
+    guardarPlantilla = false,
+    categoria?: string
+  ): Promise<void> {
+    try {
+      const actualizado = await mesasApi.crearTokenMapa(mesa.id, {
+        ...token,
+        guardarPlantilla,
+        ...(categoria !== undefined ? { categoria } : {})
+      });
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarTokenMapa(
+    tokenId: string,
+    patch: Partial<
+      Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre" | "enLimbo">
+    >
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      tokens: prev.tokens.map(t => (t.id === tokenId ? { ...t, ...patch } : t))
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarTokenMapa(mesa.id, tokenId, patch);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarTokenMapa(tokenId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      tokens: prev.tokens.filter(t => t.id !== tokenId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTokenMapa(mesa.id, tokenId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarPlantillaMapa(
+    plantillaId: string,
+    patch: { categoria?: string; nombre?: string }
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.map(p => {
+        if (p.id !== plantillaId) return p;
+        const siguiente = { ...p } as PlantillaTokenMapa & { categoria?: string };
+        if (patch.nombre !== undefined && patch.nombre.trim()) {
+          siguiente.nombre = patch.nombre.trim().slice(0, 120);
+        }
+        if (patch.categoria !== undefined) {
+          const cat = patch.categoria.trim().slice(0, 40);
+          if (cat) {
+            siguiente.categoria = cat;
+          } else {
+            delete siguiente.categoria;
+          }
+        }
+        return siguiente;
+      })
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarPlantillaMapa(
+        mesa.id,
+        plantillaId,
+        patch
+      );
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarPlantillaMapa(plantillaId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.filter(p => p.id !== plantillaId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarPlantillaMapa(mesa.id, plantillaId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function cambiarIniciativaMapa(iniciativa: MapaIniciativaEstado): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, iniciativa }));
+    try {
+      const actualizado = await mesasApi.guardarMapaIniciativa(mesa.id, iniciativa);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function terminarTurnoIniciativaMapa(): Promise<void> {
+    try {
+      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function agregarTrazoMapa(trazo: TrazoPizarra): Promise<void> {
+    const trazoConAutor: TrazoPizarra = {
+      ...trazo,
+      autorId: trazo.autorId ?? user.id
+    };
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: [...(prev.trazos ?? []), trazoConAutor]
+    }));
+    try {
+      const actualizado = await mesasApi.agregarTrazoMapa(mesa.id, trazo);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarTrazoMapa(trazoId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTrazoMapa(mesa.id, trazoId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function borrarTrazosMapa(): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, trazos: [] }));
+    try {
+      const actualizado = await mesasApi.borrarTrazosMapa(mesa.id);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function cambiarDibujoCongeladoMapa(congelado: boolean): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
+    try {
+      const actualizado = await mesasApi.congelarDibujoMapa(mesa.id, congelado);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function subirImagenMapa(
+    archivo: File,
+    _categoria: "escena" | "token"
+  ): Promise<{ archivoId?: string; url: string; titulo: string }> {
+    const subido = await archivosApi.subir(archivo);
+    cargarArchivos();
+    return {
+      archivoId: subido.id,
+      url: archivosApi.url(subido.id),
+      titulo: subido.nombre
+    };
+  }
+
   let contenido: ReactNode;
   if (fase === "pizarra") {
     contenido = (
@@ -1036,13 +1281,63 @@ function SalaRealContent({
     );
   } else if (fase === "mapa") {
     contenido = (
-      <Mapa
-        onVolver={() => setFase("sala")}
-        pingsActivos={pingsActivos}
-        onEnviarPing={enviarPing}
-        colorJugador={colorJugadorActual}
-        nombreJugador={nombreJugadorActual}
-      />
+      <>
+        <Mapa
+          onVolver={() => setFase("sala")}
+          pingsActivos={pingsActivos}
+          onEnviarPing={enviarPing}
+          colorJugador={colorJugadorActual}
+          nombreJugador={nombreJugadorActual}
+          esMaster={esMaster}
+          miUsuarioId={user.id}
+          jugadores={jugadores}
+          tiradasAsiento={tiradasAsiento}
+          estadoMapa={estadoMapa}
+          onCambiarFondoYRejilla={cambiarFondoYRejilla}
+          onCrearToken={crearTokenMapa}
+          onActualizarToken={actualizarTokenMapa}
+          onEliminarToken={eliminarTokenMapa}
+          onActualizarPlantilla={actualizarPlantillaMapa}
+          onEliminarPlantilla={eliminarPlantillaMapa}
+          onCambiarIniciativa={cambiarIniciativaMapa}
+          onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}
+          onAgregarTrazo={agregarTrazoMapa}
+          onEliminarTrazo={eliminarTrazoMapa}
+          onBorrarTrazos={borrarTrazosMapa}
+          onCambiarDibujoCongelado={cambiarDibujoCongeladoMapa}
+          archivosDisponibles={archivosDisponibles}
+          onSubirImagenMapa={subirImagenMapa}
+        />
+        <HudSalaCompartido
+          jugadores={jugadores}
+          esMaster={esMaster}
+          miUsuarioId={user.id}
+          hostName={mesa.hostName}
+          yoAsientoId={yoAsientoId}
+          dibujoCongelado={Boolean(estadoMapa.dibujoCongelado)}
+          mensajesChat={mensajesChat}
+          onEnviarChat={enviarChat}
+          onTiradaPublica={enviarTiradaPublica}
+          macros={macros}
+          onMacros={actualizarMacros}
+          divisa={divisa}
+          divisaNombre={mesa.divisaNombre ?? "Divisa"}
+          onCambiarDivisa={cambiarDivisa}
+          onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
+          mochila={mochila}
+          onMochila={setMochila}
+          onEnviarObjetoMochila={enviarObjetoMochila}
+          onConsultarResumenMaster={
+            esMaster
+              ? async () => {
+                const res = await mesasApi.resumenInventarioMaster(mesa.id);
+                return res.jugadores;
+              }
+              : undefined
+          }
+          onSolicitarArchivos={cargarArchivos}
+        />
+      </>
     );
   } else if (fase === "archivador") {
     contenido = (
@@ -1108,11 +1403,12 @@ function SalaRealContent({
         onConsultarResumenMaster={
           esMaster
             ? async () => {
-                const res = await mesasApi.resumenInventarioMaster(mesa.id);
-                return res.jugadores;
-              }
+              const res = await mesasApi.resumenInventarioMaster(mesa.id);
+              return res.jugadores;
+            }
             : undefined
         }
+        onCambiarApodo={!esMaster ? cambiarApodo : undefined}
       />
     );
   }

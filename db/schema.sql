@@ -83,8 +83,11 @@ CREATE TABLE IF NOT EXISTS mesa_jugadores (
   mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
   user_id UUID NOT NULL, 
   color   TEXT, 
+  apodo   TEXT,
   PRIMARY KEY (mesa_id, user_id) 
 );
+
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS apodo TEXT;
 
 CREATE INDEX IF NOT EXISTS mesas_created_at_idx ON mesas (created_at);
 
@@ -153,6 +156,13 @@ CREATE INDEX IF NOT EXISTS transferencias_mesa_receptor_idx
 
 -- Estado compartido de la Pizarra y vista Escena por mesa.
 CREATE TABLE IF NOT EXISTS mesa_pizarra_estado (
+  mesa_id    UUID PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
+  datos      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Estado compartido del Mapa táctico por mesa.
+CREATE TABLE IF NOT EXISTS mesa_mapa_estado (
   mesa_id    UUID PRIMARY KEY REFERENCES mesas(id) ON DELETE CASCADE,
   datos      JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

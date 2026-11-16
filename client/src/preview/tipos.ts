@@ -10,6 +10,8 @@ export interface JugadorPreview {
   /** ID real del usuario en el backend (en modo preview coincide con `id`). */
   userId?: string;
   nombre: string;
+  /** Nombre del personaje en esta mesa (editable por cada jugador). */
+  apodo?: string;
   color: string;
   esMaster: boolean;
   /** Asiento habilitado. El trasero derecho empieza desactivado. */
@@ -191,6 +193,7 @@ export interface TrazoPizarra {
   grosor: number;
   /** Puntos normalizados (0-100) dentro del lienzo de la pizarra. */
   puntos: Punto[];
+  autorId?: string;
 }
 
 export interface ImagenEscenaPreview {
@@ -219,4 +222,81 @@ export interface MacroTirada {
   icono: string;
   grupos: GrupoDadoMacro[];
   bonificador: number;
+}
+
+export interface MapaRejillaConfig {
+  visible: boolean;
+  columnas: number;
+  filas: number;
+  filasAuto: boolean;
+  offsetX: number;
+  offsetY: number;
+  color: string;
+  opacidad: number;
+  imanActivo: boolean;
+}
+
+export interface MapaFondoConfig {
+  archivoId?: string;
+  url: string;
+  titulo?: string;
+  anchoNatural?: number;
+  altoNatural?: number;
+}
+
+export interface TokenMapa {
+  id: string;
+  nombre: string;
+  archivoId?: string;
+  imagenUrl: string;
+  x: number;
+  y: number;
+  celdasAncho: number;
+  celdasAlto: number;
+  escala: number;
+  autorId: string;
+  autorNombre: string;
+  autorColor: string;
+  esMonstruo?: boolean;
+  enLimbo?: boolean;
+}
+
+export interface PlantillaTokenMapa {
+  id: string;
+  nombre: string;
+  archivoId?: string;
+  imagenUrl: string;
+  celdasAncho: number;
+  celdasAlto: number;
+  escala: number;
+  autorId: string;
+  esMonstruo?: boolean;
+  categoria?: string;
+}
+
+export interface IniciativaEntrada {
+  id: string;
+  nombre: string;
+  valor: number;
+  color?: string;
+  esMonstruo?: boolean;
+  jugadorId?: string;
+  tokenId?: string;
+}
+
+export interface MapaIniciativaEstado {
+  activa: boolean;
+  ronda: number;
+  turnoIndice: number;
+  entradas: IniciativaEntrada[];
+}
+
+export interface EstadoMapaCompartido {
+  fondo: MapaFondoConfig | null;
+  rejilla: MapaRejillaConfig;
+  tokens: TokenMapa[];
+  plantillas: PlantillaTokenMapa[];
+  iniciativa?: MapaIniciativaEstado;
+  trazos?: TrazoPizarra[];
+  dibujoCongelado?: boolean;
 }

@@ -144,6 +144,7 @@ interface SalaProps {
     cantidad?: number
   ) => void | Promise<void>;
   onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
+  onCambiarApodo?: (apodo: string) => void | Promise<void>;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -693,7 +694,8 @@ export function Sala({
   mochila,
   onMochila,
   onEnviarObjetoMochila,
-  onConsultarResumenMaster
+  onConsultarResumenMaster,
+  onCambiarApodo
 }: SalaProps) {
   const [ajuste, setAjuste] = useState(
     () => new URLSearchParams(window.location.search).get("ajuste") === "1"
@@ -709,6 +711,15 @@ export function Sala({
   const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
   const [subiendoDrop, setSubiendoDrop] = useState(false);
   const [subiendoBarra, setSubiendoBarra] = useState(false);
+  const [editandoApodo, setEditandoApodo] = useState(false);
+  const [apodoTexto, setApodoTexto] = useState("");
+  const [guardandoApodo, setGuardandoApodo] = useState(false);
+  const miJugador =
+    jugadores.find(j => j.id === yoAsientoId) ??
+    jugadores.find(
+      j => !j.esMaster && (j.usuarioId === miUsuarioId || j.userId === miUsuarioId)
+    );
+  const miApodo = miJugador?.apodo?.trim() ?? "";
   const [archivosSubidosLocal, setArchivosSubidosLocal] = useState<
     Array<PublicArchivo & { contenidoLocal?: string }>
   >([]);
@@ -2755,6 +2766,9 @@ export function Sala({
                         : divisaDeltaSobreAsiento.delta}
                     </div>
                   )}
+                  {!jugador.esMaster && jugador.apodo?.trim() && (
+                    <span className="asiento-apodo">{jugador.apodo.trim()}</span>
+                  )}
                   <span className="esfera" />
                   <span className="asiento-nombre">
                     {jugador.nombre}
@@ -2906,6 +2920,90 @@ export function Sala({
                     <IconoLupaPixel size={18} />
                   </button>
                 </>
+              )}
+
+              {!esMaster && onCambiarApodo && (
+                editandoApodo ? (
+                  <form
+                    className="sala-apodo-form"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}
+                    onSubmit={async evento => {
+                      evento.preventDefault();
+                      if (guardandoApodo) return;
+                      setGuardandoApodo(true);
+                      try {
+                        await onCambiarApodo(apodoTexto.trim().slice(0, 24));
+                        setEditandoApodo(false);
+                      } finally {
+                        setGuardandoApodo(false);
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      maxLength={24}
+                      value={apodoTexto}
+                      onChange={e => setApodoTexto(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation();
+                          setEditandoApodo(false);
+                        }
+                      }}
+                      placeholder="Nombre de PJ…"
+                      aria-label="Nombre de personaje"
+                      autoFocus
+                      style={{
+                        width: "120px",
+                        height: "28px",
+                        padding: "0 8px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255, 255, 255, 0.22)",
+                        background: "rgba(18, 15, 28, 0.85)",
+                        color: "#f5efe0",
+                        fontSize: "12px"
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      className="sala-btn"
+                      disabled={guardandoApodo}
+                      title="Guardar apodo"
+                      aria-label="Guardar apodo"
+                      style={{ padding: "4px 8px" }}
+                    >
+                      <Check size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="sala-btn"
+                      disabled={guardandoApodo}
+                      onClick={() => setEditandoApodo(false)}
+                      title="Cancelar"
+                      aria-label="Cancelar edición de apodo"
+                      style={{ padding: "4px 8px" }}
+                    >
+                      <X size={13} strokeWidth={2.2} aria-hidden="true" />
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="sala-btn"
+                    onClick={() => {
+                      setApodoTexto(miApodo);
+                      setEditandoApodo(true);
+                    }}
+                    title="Cambiar nombre de personaje en esta mesa"
+                  >
+                    <Pencil size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <span>PJ: {miApodo || "Apodo"}</span>
+                  </button>
+                )
               )}
 
               {esMaster && imagenProyectada && (

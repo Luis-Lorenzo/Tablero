@@ -37,6 +37,7 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: "ESPERA" | "EN_CURSO";
   colores?: Record<string, string>;
+  playerApodos?: Record<string, string>;
   imagenEscena?: ImagenMaster | null;
   imagenProyectada?: ImagenMaster | null;
   divisaNombre?: string;
@@ -167,4 +168,123 @@ export interface PublicJugadorResumenInventario {
   divisa: number;
   mochila: PublicObjetoResumen[];
   objetosMesa: PublicObjetoResumen[];
+}
+
+export interface MapaRejillaConfig {
+  visible: boolean;
+  columnas: number;
+  filas: number;
+  filasAuto: boolean;
+  offsetX: number;
+  offsetY: number;
+  color: string;
+  opacidad: number;
+  imanActivo: boolean;
+}
+
+export interface MapaFondoConfig {
+  archivoId?: string;
+  url: string;
+  titulo?: string;
+  anchoNatural?: number;
+  altoNatural?: number;
+}
+
+export interface TokenMapa {
+  id: string;
+  nombre: string;
+  archivoId?: string;
+  imagenUrl: string;
+  x: number;
+  y: number;
+  celdasAncho: number;
+  celdasAlto: number;
+  escala: number;
+  autorId: string;
+  autorNombre: string;
+  autorColor: string;
+  esMonstruo?: boolean;
+}
+
+export interface PlantillaTokenMapa {
+  id: string;
+  nombre: string;
+  archivoId?: string;
+  imagenUrl: string;
+  celdasAncho: number;
+  celdasAlto: number;
+  escala: number;
+  autorId: string;
+  esMonstruo?: boolean;
+  categoria?: string;
+}
+
+export interface IniciativaEntrada {
+  id: string;
+  nombre: string;
+  valor: number;
+  color?: string;
+  esMonstruo?: boolean;
+  jugadorId?: string;
+  tokenId?: string;
+}
+
+export interface MapaIniciativaEstado {
+  activa: boolean;
+  ronda: number;
+  turnoIndice: number;
+  entradas: IniciativaEntrada[];
+}
+
+export interface TrazoMapa {
+  id: string;
+  color: string;
+  grosor: number;
+  puntos: Array<{ x: number; y: number }>;
+  autorId?: string;
+}
+
+export interface EstadoMapaCompartido {
+  fondo: MapaFondoConfig | null;
+  rejilla: MapaRejillaConfig;
+  tokens: TokenMapa[];
+  plantillas: PlantillaTokenMapa[];
+  iniciativa?: MapaIniciativaEstado;
+  trazos?: TrazoMapa[];
+  dibujoCongelado?: boolean;
+}
+
+export interface GuardarMapaFondoPayload {
+  fondo?: MapaFondoConfig | null;
+  rejilla?: MapaRejillaConfig;
+}
+
+export interface CrearTokenMapaPayload {
+  nombre?: string;
+  archivoId?: string;
+  imagenUrl?: string;
+  x?: number;
+  y?: number;
+  celdasAncho?: number;
+  celdasAlto?: number;
+  escala?: number;
+  esMonstruo?: boolean;
+  guardarPlantilla?: boolean;
+  categoria?: string;
+}
+
+export interface ActualizarTokenMapaPayload {
+  nombre?: string;
+  x?: number;
+  y?: number;
+  celdasAncho?: number;
+  celdasAlto?: number;
+  escala?: number;
+  esMonstruo?: boolean;
+  enLimbo?: boolean;
+}
+
+export interface ActualizarPlantillaMapaPayload {
+  categoria?: string;
+  nombre?: string;
 }

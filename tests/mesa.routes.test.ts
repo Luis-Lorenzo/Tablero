@@ -638,4 +638,78 @@ describe("rutas de /api/mesas", () => {
     expect(aceptada.body.tipo).toBe("objeto");
     expect(aceptada.body.objeto.nombre).toBe("Poción curativa");
   });
+
+  it("permite a cada participante fijar y limpiar su apodo de personaje por mesa", async () => {
+    const master = await aprobar("master-apodo@pocket.test");
+    const jugadora = await aprobar("jugadora-apodo@pocket.test");
+    await aprobar("ajena-apodo@pocket.test");
+
+    const cookieMaster = await sesionDe("master-apodo@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-apodo@pocket.test");
+    const cookieAjena = await sesionDe("ajena-apodo@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send()
+      .expect(200);
+
+    const avisosAntes = notifier.avisos.length;
+
+    // Una persona ajena a la mesa no puede cambiar apodo
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieAjena)
+      .send({ apodo: "Intruso" })
+      .expect(403);
+
+    // Un valor no string devuelve 400
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieJugadora)
+      .send({ apodo: 123 })
+      .expect(400);
+
+    // La jugadora fija su apodo (recortado a 24 caracteres)
+    const setJugadora = await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieJugadora)
+      .send({ apodo: "  Lyra Sombraluna la Sabia Extra  " })
+      .expect(200);
+
+    expect(setJugadora.body.playerApodos).toEqual({
+      [jugadora.id]: "Lyra Sombraluna la Sabia"
+    });
+    expect(notifier.avisos.length).toBe(avisosAntes + 1);
+
+    // El máster también puede fijar su apodo sin pisar el de la jugadora
+    const setMaster = await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieMaster)
+      .send({ apodo: "Narrador" })
+      .expect(200);
+
+    expect(setMaster.body.playerApodos).toEqual({
+      [jugadora.id]: "Lyra Sombraluna la Sabia",
+      [master.id]: "Narrador"
+    });
+
+    // La jugadora limpia su apodo enviando cadena vacía
+    const clearJugadora = await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieJugadora)
+      .send({ apodo: "   " })
+      .expect(200);
+
+    expect(clearJugadora.body.playerApodos).toEqual({
+      [master.id]: "Narrador"
+    });
+  });
 });

@@ -1,11 +1,41 @@
-import { http } from "./client";
+import { ApiError, http } from "./client";
 import type {
+  ActualizarPlantillaMapaPayload,
+  ActualizarTokenMapaPayload,
+  CrearTokenMapaPayload,
+  EstadoMapaCompartido,
   EventoTirada,
+  GuardarMapaFondoPayload,
+  MapaIniciativaEstado,
   MensajeChat,
   PublicMesa,
   PublicTransferencia,
-  ResultadoAceptarTransferencia
+  ResultadoAceptarTransferencia,
+  TrazoMapa
 } from "./types";
+
+async function putJson<T>(path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  } catch {
+    throw new ApiError("NETWORK_ERROR", 0);
+  }
+  const data: unknown = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const code =
+      typeof data === "object" && data !== null && "error" in data
+        ? String((data as { error: unknown }).error)
+        : "UNKNOWN_ERROR";
+    throw new ApiError(code, response.status);
+  }
+  return data as T;
+}
 
 /**
  * Máximo de jugadores por mesa (el anfitrión no ocupa plaza). Debe coincidir
@@ -57,6 +87,10 @@ export const mesasApi = {
   /** Cambia el color del jugador dentro de la mesa. */
   ponerColor: (id: string, color: string | null) =>
     http.post<PublicMesa>(`/api/mesas/${id}/color`, { color }),
+
+  /** Cambia o limpia el apodo de personaje del jugador dentro de la mesa. */
+  cambiarApodo: (id: string, apodo: string) =>
+    http.patch<PublicMesa>(`/api/mesas/${id}/apodo`, { apodo }),
 
   pendientesCompartir: (id: string) =>
     http.get<PublicTransferencia[]>(`/api/mesas/${id}/compartir/pendientes`),
@@ -232,5 +266,81 @@ export const mesasApi = {
           archivoNombre?: string;
         }>;
       }>;
-    }>(`/api/mesas/${id}/master-resumen`)
+    }>(`/api/mesas/${id}/master-resumen`),
+
+  /** Carga el estado compartido del mapa táctico de la mesa. */
+  obtenerMapa: (mesaId: string) =>
+    http.get<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa`),
+
+  /** Guarda el fondo y/o configuración de rejilla del mapa (solo Máster). */
+  guardarMapaFondo: (mesaId: string, datos: GuardarMapaFondoPayload) =>
+    putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/fondo`, datos),
+
+  /** Guarda el estado de iniciativa del combate en el mapa (solo Máster). */
+  guardarMapaIniciativa: (mesaId: string, iniciativa: MapaIniciativaEstado) =>
+    putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/iniciativa`, {
+      iniciativa
+    }),
+
+  /** Avanza al siguiente turno en la iniciativa del mapa. */
+  avanzarTurnoMapa: (mesaId: string) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`),
+
+  /** Crea un token en el mapa táctico (y opcionalmente su plantilla). */
+  crearTokenMapa: (mesaId: string, datos: CrearTokenMapaPayload) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/tokens`, datos),
+
+  /** Actualiza posición, tamaño, escala o nombre de un token del mapa. */
+  actualizarTokenMapa: (
+    mesaId: string,
+    tokenId: string,
+    patch: ActualizarTokenMapaPayload
+  ) =>
+    http.patch<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/tokens/${encodeURIComponent(tokenId)}`,
+      patch
+    ),
+
+  /** Elimina un token del mapa táctico. */
+  eliminarTokenMapa: (mesaId: string, tokenId: string) =>
+    http.delete<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/tokens/${encodeURIComponent(tokenId)}`
+    ),
+
+  /** Actualiza la categoría o el nombre de una plantilla de token del mapa. */
+  actualizarPlantillaMapa: (
+    mesaId: string,
+    plantillaId: string,
+    patch: ActualizarPlantillaMapaPayload
+  ) =>
+    http.patch<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/plantillas/${encodeURIComponent(plantillaId)}`,
+      patch
+    ),
+
+  /** Elimina una plantilla de token del mapa táctico. */
+  eliminarPlantillaMapa: (mesaId: string, plantillaId: string) =>
+    http.delete<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/plantillas/${encodeURIComponent(plantillaId)}`
+    ),
+
+  /** Añade un trazo de dibujo al mapa táctico. */
+  agregarTrazoMapa: (mesaId: string, trazo: Omit<TrazoMapa, "autorId">) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/trazos`, trazo),
+
+  /** Elimina (deshace) un trazo de dibujo del mapa táctico. */
+  eliminarTrazoMapa: (mesaId: string, trazoId: string) =>
+    http.delete<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/trazos/${encodeURIComponent(trazoId)}`
+    ),
+
+  /** Borra todos los trazos de dibujo del mapa táctico (solo Máster). */
+  borrarTrazosMapa: (mesaId: string) =>
+    http.delete<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/trazos`),
+
+  /** Congela o descongela el dibujo en el mapa táctico (solo Máster). */
+  congelarDibujoMapa: (mesaId: string, congelado: boolean) =>
+    putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/congelar`, {
+      congelado
+    })
 };

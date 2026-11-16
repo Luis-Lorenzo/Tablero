@@ -59,6 +59,7 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: MesaVista["estado"];
   colores: Record<string, string>;
+  playerApodos?: Record<string, string>;
   imagenEscena: PublicImagenMesa | null;
   imagenProyectada: PublicImagenMesa | null;
   divisaNombre?: string;
@@ -78,6 +79,7 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     pendingHostId: mesa.pendingHostId,
     estado: mesa.estado,
     colores: mesa.colores ?? {},
+    playerApodos: mesa.playerApodos ?? {},
     imagenEscena: mesa.imagenEscena ?? null,
     imagenProyectada: mesa.imagenProyectada ?? null,
     divisaNombre: mesa.divisaNombre ?? "Divisa",

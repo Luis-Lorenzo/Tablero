@@ -34,6 +34,11 @@ import {
 } from "./repositories/pizarra-estado.repository.js";
 import { PgPizarraEstadoRepository } from "./repositories/pg-pizarra-estado.repository.js";
 import {
+  MemoryMapaEstadoRepository,
+  type MapaEstadoRepository
+} from "./repositories/mapa-estado.repository.js";
+import { PgMapaEstadoRepository } from "./repositories/pg-mapa-estado.repository.js";
+import {
   MemoryChatRepository,
   type ChatRepository
 } from "./repositories/chat.repository.js";
@@ -50,6 +55,7 @@ import { MesasBroadcaster } from "./realtime/mesas-broadcaster.js";
 import { AuthService } from "./services/auth.service.js";
 import { BloqueoService } from "./services/bloqueo.service.js";
 import { MesaService } from "./services/mesa.service.js";
+import { MapaEstadoService } from "./services/mapa-estado.service.js";
 import { ChatService } from "./services/chat.service.js";
 import { ensureAdmin } from "./services/seed.service.js";
 import { TransferenciaService } from "./services/transferencia.service.js";
@@ -69,6 +75,7 @@ export async function createContainer(): Promise<Container> {
   let archivoRepository: ArchivoRepository;
   let mesaEstadoRepository: MesaEstadoRepository;
   let pizarraEstadoRepository: PizarraEstadoRepository;
+  let mapaEstadoRepository: MapaEstadoRepository;
   let chatRepository: ChatRepository;
   let transferenciaRepository: TransferenciaRepository;
 
@@ -81,6 +88,7 @@ export async function createContainer(): Promise<Container> {
     archivoRepository = new PgArchivoRepository(pool);
     mesaEstadoRepository = new PgMesaEstadoRepository(pool);
     pizarraEstadoRepository = new PgPizarraEstadoRepository(pool);
+    mapaEstadoRepository = new PgMapaEstadoRepository(pool);
     chatRepository = new PgChatRepository(pool);
     transferenciaRepository = new PgTransferenciaRepository(pool);
     logger.info("Persistencia habilitada en PostgreSQL");
@@ -91,6 +99,7 @@ export async function createContainer(): Promise<Container> {
     archivoRepository = new MemoryArchivoRepository();
     mesaEstadoRepository = new MemoryMesaEstadoRepository();
     pizarraEstadoRepository = new MemoryPizarraEstadoRepository();
+    mapaEstadoRepository = new MemoryMapaEstadoRepository();
     chatRepository = new MemoryChatRepository();
     transferenciaRepository = new MemoryTransferenciaRepository();
     logger.warn(
@@ -146,6 +155,11 @@ export async function createContainer(): Promise<Container> {
     sessionStore,
     userRepository
   });
+  const mapaEstadoService = new MapaEstadoService(
+    mesaRepository,
+    mapaEstadoRepository,
+    mesasNotifier
+  );
 
   await ensureAdmin(userRepository, hasher, config, logger);
 
@@ -157,10 +171,12 @@ export async function createContainer(): Promise<Container> {
     mesaRepository,
     mesaEstadoRepository,
     pizarraEstadoRepository,
+    mapaEstadoRepository,
     authService,
     userService,
     bloqueoService,
     mesaService,
+    mapaEstadoService,
     chatService,
     archivoService,
     transferenciaService,

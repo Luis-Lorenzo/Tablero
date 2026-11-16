@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Archivador, ProyeccionMasterModal } from "./Archivador";
+import { HudSalaCompartido } from "./HudSalaCompartido";
 import { Lobby } from "./Lobby";
 import { Mapa } from "./Mapa";
 import { Pizarra } from "./Pizarra";
@@ -33,11 +34,17 @@ import type {
   Calibracion,
   DocumentoMesa,
   ElementoMesa,
+  EstadoMapaCompartido,
   FasePreview,
   ImagenEscenaPreview,
   JugadorPreview,
+  MapaFondoConfig,
+  MapaIniciativaEstado,
+  MapaRejillaConfig,
+  PlantillaTokenMapa,
   PositPreview,
   SolicitudTransferencia,
+  TokenMapa,
   TrazoPizarra
 } from "./tipos";
 import "./preview.css";
@@ -46,6 +53,44 @@ import "./preview.css";
  * Preview aislada de la sala (Fase 0): sin backend, sin login, sin sonido y con
  * datos falsos. Se abre en desarrollo con `?preview=1`.
  */
+const MAPA_PREVIEW_KEY = "tablero.preview.mapa.v1";
+
+const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
+  fondo: null,
+  rejilla: {
+    visible: true,
+    columnas: 20,
+    filas: 12,
+    filasAuto: true,
+    offsetX: 0,
+    offsetY: 0,
+    color: "#ffffff",
+    opacidad: 0.35,
+    imanActivo: true
+  },
+  tokens: [],
+  plantillas: []
+};
+
+function cargarEstadoMapaPreview(): EstadoMapaCompartido {
+  try {
+    const raw = window.localStorage.getItem(MAPA_PREVIEW_KEY);
+    if (!raw) return ESTADO_MAPA_DEFECTO;
+    const parsed = JSON.parse(raw) as Partial<EstadoMapaCompartido>;
+    return {
+      fondo: parsed.fondo ?? null,
+      rejilla: { ...ESTADO_MAPA_DEFECTO.rejilla, ...(parsed.rejilla ?? {}) },
+      tokens: Array.isArray(parsed.tokens) ? parsed.tokens : [],
+      plantillas: Array.isArray(parsed.plantillas) ? parsed.plantillas : [],
+      iniciativa: parsed.iniciativa,
+      trazos: Array.isArray(parsed.trazos) ? parsed.trazos : [],
+      dibujoCongelado: Boolean(parsed.dibujoCongelado)
+    };
+  } catch {
+    return ESTADO_MAPA_DEFECTO;
+  }
+}
+
 /** Permite abrir directamente una fase: `?preview=1&fase=sala`. */
 function faseInicial(): FasePreview {
   const valor = new URLSearchParams(window.location.search).get("fase");
@@ -179,6 +224,9 @@ export default function PreviewApp() {
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
   >(null);
+  const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(
+    cargarEstadoMapaPreview
+  );
 
   useEffect(() => {
     guardarJugadores(jugadores);
@@ -211,6 +259,246 @@ export default function PreviewApp() {
   useEffect(() => {
     guardarProyeccionPreview(imagenProyectada);
   }, [imagenProyectada]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MAPA_PREVIEW_KEY, JSON.stringify(estadoMapa));
+    } catch {
+      // Sin espacio o bloqueado en navegador privado.
+    }
+  }, [estadoMapa]);
+
+  const cambiarFondoYRejillaPreview = useCallback(
+    (fondo: MapaFondoConfig | null, rejilla: MapaRejillaConfig) => {
+      setEstadoMapa(prev => ({ ...prev, fondo, rejilla }));
+    },
+    []
+  );
+
+  const crearTokenPreview = useCallback(
+    (
+      token: Omit<TokenMapa, "id" | "autorId" | "autorNombre" | "autorColor">,
+      guardarPlantilla = false,
+      categoria?: string
+    ) => {
+      const nuevoToken: TokenMapa = {
+        ...token,
+        id: nuevoIdElemento(),
+        autorId: "master",
+        autorNombre: "Máster",
+        autorColor: "#e8c56a"
+      };
+      const categoriaLimpia =
+        typeof categoria === "string" && categoria.trim()
+          ? categoria.trim().slice(0, 40)
+          : undefined;
+      setEstadoMapa(prev => {
+        const plantillas: PlantillaTokenMapa[] = guardarPlantilla
+          ? [
+              ...prev.plantillas,
+              {
+                id: nuevoIdElemento(),
+                nombre: token.nombre,
+                archivoId: token.archivoId,
+                imagenUrl: token.imagenUrl,
+                celdasAncho: token.celdasAncho,
+                celdasAlto: token.celdasAlto,
+                escala: token.escala,
+                autorId: "master",
+                esMonstruo: token.esMonstruo,
+                ...(categoriaLimpia ? { categoria: categoriaLimpia } : {})
+              } as PlantillaTokenMapa
+            ]
+          : prev.plantillas;
+        return {
+          ...prev,
+          tokens: [...prev.tokens, nuevoToken],
+          plantillas
+        };
+      });
+    },
+    []
+  );
+
+  const actualizarTokenPreview = useCallback(
+    (
+      tokenId: string,
+      patch: Partial<
+        Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre" | "enLimbo">
+      >
+    ) => {
+      setEstadoMapa(prev => ({
+        ...prev,
+        tokens: prev.tokens.map(t => (t.id === tokenId ? { ...t, ...patch } : t))
+      }));
+    },
+    []
+  );
+
+  const eliminarTokenPreview = useCallback((tokenId: string) => {
+    setEstadoMapa(prev => {
+      const token = prev.tokens.find(t => t.id === tokenId);
+      const tokens = prev.tokens.filter(t => t.id !== tokenId);
+
+      let plantillas = prev.plantillas;
+      if (
+        token &&
+        !prev.plantillas.some(
+          p =>
+            p.autorId === token.autorId &&
+            p.nombre === token.nombre &&
+            p.imagenUrl === token.imagenUrl
+        )
+      ) {
+        plantillas = [
+          ...prev.plantillas,
+          {
+            id: nuevoIdElemento(),
+            nombre: token.nombre,
+            ...(token.archivoId ? { archivoId: token.archivoId } : {}),
+            imagenUrl: token.imagenUrl,
+            celdasAncho: token.celdasAncho,
+            celdasAlto: token.celdasAlto,
+            escala: token.escala,
+            autorId: token.autorId,
+            ...(token.esMonstruo ? { esMonstruo: true } : {})
+          }
+        ];
+      }
+
+      let iniciativa = prev.iniciativa;
+      if (iniciativa) {
+        const nuevasEntradas = iniciativa.entradas.filter(
+          e => (e as { tokenId?: string }).tokenId !== tokenId
+        );
+        if (nuevasEntradas.length !== iniciativa.entradas.length) {
+          iniciativa = {
+            ...iniciativa,
+            entradas: nuevasEntradas,
+            turnoIndice: Math.min(
+              iniciativa.turnoIndice,
+              Math.max(0, nuevasEntradas.length - 1)
+            )
+          };
+        }
+      }
+
+      return {
+        ...prev,
+        tokens,
+        plantillas,
+        ...(iniciativa !== undefined ? { iniciativa } : {})
+      };
+    });
+  }, []);
+
+  const actualizarPlantillaPreview = useCallback(
+    (plantillaId: string, patch: { categoria?: string; nombre?: string }) => {
+      setEstadoMapa(prev => ({
+        ...prev,
+        plantillas: prev.plantillas.map(p => {
+          if (p.id !== plantillaId) return p;
+          const siguiente = { ...p } as PlantillaTokenMapa & { categoria?: string };
+          if (patch.nombre !== undefined && patch.nombre.trim()) {
+            siguiente.nombre = patch.nombre.trim().slice(0, 120);
+          }
+          if (patch.categoria !== undefined) {
+            const cat = patch.categoria.trim().slice(0, 40);
+            if (cat) {
+              siguiente.categoria = cat;
+            } else {
+              delete siguiente.categoria;
+            }
+          }
+          return siguiente;
+        })
+      }));
+    },
+    []
+  );
+
+  const eliminarPlantillaPreview = useCallback((plantillaId: string) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.filter(p => p.id !== plantillaId)
+    }));
+  }, []);
+
+  const cambiarIniciativaPreview = useCallback(
+    (iniciativa: MapaIniciativaEstado) => {
+      setEstadoMapa(prev => ({ ...prev, iniciativa }));
+    },
+    []
+  );
+
+  const terminarTurnoIniciativaPreview = useCallback(() => {
+    setEstadoMapa(prev => {
+      const iniciativa = prev.iniciativa;
+      if (!iniciativa?.activa || iniciativa.entradas.length === 0) {
+        return prev;
+      }
+      const haySiguiente =
+        iniciativa.turnoIndice + 1 < iniciativa.entradas.length;
+      return {
+        ...prev,
+        iniciativa: {
+          ...iniciativa,
+          turnoIndice: haySiguiente ? iniciativa.turnoIndice + 1 : 0,
+          ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1
+        }
+      };
+    });
+  }, []);
+
+  const agregarTrazoPreview = useCallback((trazo: TrazoPizarra) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: [
+        ...(prev.trazos ?? []),
+        { ...trazo, autorId: trazo.autorId ?? "master" }
+      ]
+    }));
+  }, []);
+
+  const eliminarTrazoPreview = useCallback((trazoId: string) => {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+  }, []);
+
+  const borrarTrazosPreview = useCallback(() => {
+    setEstadoMapa(prev => ({ ...prev, trazos: [] }));
+  }, []);
+
+  const cambiarDibujoCongeladoPreview = useCallback((congelado: boolean) => {
+    setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
+  }, []);
+
+  const cambiarApodoPreview = useCallback((apodo: string) => {
+    const limpio = apodo.trim().slice(0, 24);
+    setJugadores(prev =>
+      prev.map(j =>
+        j.id === "master" ? { ...j, apodo: limpio || undefined } : j
+      )
+    );
+  }, []);
+
+  const subirImagenMapaPreview = useCallback(
+    async (
+      archivo: File,
+      _categoria: "escena" | "token"
+    ): Promise<{ archivoId?: string; url: string; titulo: string }> => {
+      const url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        reader.readAsDataURL(archivo);
+      });
+      return { url, titulo: archivo.name };
+    },
+    []
+  );
 
   const volverASala = useCallback(() => setFase("sala"), []);
   const proyectar = useCallback((imagen: ImagenEscenaPreview | null) => {
@@ -253,7 +541,42 @@ export default function PreviewApp() {
       />
     );
   } else if (fase === "mapa") {
-    contenido = <Mapa onVolver={volverASala} />;
+    contenido = (
+      <>
+        <Mapa
+          onVolver={volverASala}
+          esMaster
+          miUsuarioId="master"
+          colorJugador="#e8c56a"
+          nombreJugador="Máster"
+          jugadores={jugadores}
+          estadoMapa={estadoMapa}
+          onCambiarFondoYRejilla={cambiarFondoYRejillaPreview}
+          onCrearToken={crearTokenPreview}
+          onActualizarToken={actualizarTokenPreview}
+          onEliminarToken={eliminarTokenPreview}
+          onActualizarPlantilla={actualizarPlantillaPreview}
+          onEliminarPlantilla={eliminarPlantillaPreview}
+          onCambiarIniciativa={cambiarIniciativaPreview}
+          onTerminarTurnoIniciativa={terminarTurnoIniciativaPreview}
+          onAgregarTrazo={agregarTrazoPreview}
+          onEliminarTrazo={eliminarTrazoPreview}
+          onBorrarTrazos={borrarTrazosPreview}
+          onCambiarDibujoCongelado={cambiarDibujoCongeladoPreview}
+          archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
+          onSubirImagenMapa={subirImagenMapaPreview}
+        />
+        <HudSalaCompartido
+          jugadores={jugadores}
+          esMaster
+          miUsuarioId="master"
+          hostName="Máster"
+          yoAsientoId="master"
+          onAviso={mostrarAvisoPreview}
+          dibujoCongelado={Boolean(estadoMapa.dibujoCongelado)}
+        />
+      </>
+    );
   } else if (fase === "archivador") {
     contenido = (
       <Archivador
@@ -301,6 +624,7 @@ export default function PreviewApp() {
         onAceptarSolicitud={aceptarSolicitudPreview}
         onRechazarSolicitud={() => setSolicitudPendiente(null)}
         onSimularRecepcion={simularRecepcion}
+        onCambiarApodo={cambiarApodoPreview}
       />
     );
   }

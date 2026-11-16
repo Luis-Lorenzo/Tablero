@@ -17,6 +17,8 @@ import {
   MemoryPizarraEstadoRepository,
   sanitizarPizarraEstado
 } from "../repositories/pizarra-estado.repository.js";
+import { MemoryMapaEstadoRepository } from "../repositories/mapa-estado.repository.js";
+import { MapaEstadoService } from "../services/mapa-estado.service.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
 
 function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
@@ -38,6 +40,13 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     context.mesaEstadoRepository ?? new MemoryMesaEstadoRepository();
   const pizarraEstado =
     context.pizarraEstadoRepository ?? new MemoryPizarraEstadoRepository();
+  const mapaEstadoService =
+    context.mapaEstadoService ??
+    new MapaEstadoService(
+      context.mesaRepository,
+      context.mapaEstadoRepository ?? new MemoryMapaEstadoRepository(),
+      context.mesasNotifier
+    );
   const transferencias =
     context.transferenciaService ??
     new TransferenciaService(
@@ -156,6 +165,30 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaService.ponerColor(req.currentUser!, String(req.params.id), color);
       context.mesasNotifier.notificarCambio();
       res.json(toPublicMesa(mesa));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/apodo", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { apodo?: unknown };
+      const apodo =
+        body.apodo === null || body.apodo === undefined
+          ? ""
+          : typeof body.apodo === "string"
+            ? body.apodo
+            : null;
+      if (apodo === null) {
+        throw errors.invalidRequest();
+      }
+      const vista = await context.mesaService.cambiarApodo(
+        req.currentUser!,
+        String(req.params.id),
+        apodo
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(vista));
     } catch (error) {
       next(error);
     }
@@ -766,6 +799,209 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         }
       });
       res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:id/mapa", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.obtenerMapa(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/mapa/fondo", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as {
+        fondo?: unknown;
+        rejilla?: unknown;
+      };
+      const mapa = await mapaEstadoService.guardarFondoYRejilla(
+        req.currentUser!,
+        String(req.params.id),
+        body.fondo as Parameters<typeof mapaEstadoService.guardarFondoYRejilla>[2],
+        body.rejilla as Parameters<typeof mapaEstadoService.guardarFondoYRejilla>[3]
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/mapa/iniciativa", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const payload = "iniciativa" in body ? body.iniciativa : body;
+      const mapa = await mapaEstadoService.guardarIniciativa(
+        req.currentUser!,
+        String(req.params.id),
+        payload
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/mapa/iniciativa/siguiente", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.avanzarTurnoIniciativa(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/mapa/tokens", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const guardarPlantilla = body.guardarPlantilla === true;
+      const categoria = typeof body.categoria === "string" ? body.categoria : undefined;
+      const mapa = await mapaEstadoService.crearToken(
+        req.currentUser!,
+        String(req.params.id),
+        body,
+        guardarPlantilla,
+        categoria
+      );
+      res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/mapa/tokens/:tokenId", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const mapa = await mapaEstadoService.actualizarToken(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.tokenId),
+        body
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/tokens/:tokenId", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.eliminarToken(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.tokenId)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch(
+    "/:id/mapa/plantillas/:plantillaId",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const mapa = await mapaEstadoService.actualizarPlantilla(
+          req.currentUser!,
+          String(req.params.id),
+          String(req.params.plantillaId),
+          body
+        );
+        res.json(mapa);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.delete(
+    "/:id/mapa/plantillas/:plantillaId",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mapa = await mapaEstadoService.eliminarPlantilla(
+          req.currentUser!,
+          String(req.params.id),
+          String(req.params.plantillaId)
+        );
+        res.json(mapa);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post("/:id/mapa/trazos", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.agregarTrazo(
+        req.currentUser!,
+        String(req.params.id),
+        req.body
+      );
+      res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/trazos/:trazoId", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.eliminarTrazo(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.trazoId)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/trazos", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.borrarTodosTrazos(
+        req.currentUser!,
+        String(req.params.id)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id/mapa/congelar", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as {
+        congelado?: unknown;
+        dibujoCongelado?: unknown;
+      };
+      const congelado =
+        typeof body.congelado === "boolean"
+          ? body.congelado
+          : typeof body.dibujoCongelado === "boolean"
+            ? body.dibujoCongelado
+            : null;
+      if (congelado === null) {
+        throw errors.invalidRequest();
+      }
+      const mapa = await mapaEstadoService.cambiarDibujoCongelado(
+        req.currentUser!,
+        String(req.params.id),
+        congelado
+      );
+      res.json(mapa);
     } catch (error) {
       next(error);
     }
