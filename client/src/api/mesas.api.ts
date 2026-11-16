@@ -187,6 +187,8 @@ export const mesasApi = {
       especial?: "critico" | "pifia" | null;
       secreta?: boolean;
       soloMaster?: boolean;
+      colorDado?: string;
+      colorAristasDado?: string;
     }
   ) => http.post<EventoTirada | void>(`/api/mesas/${id}/tiradas`, datos),
 
@@ -235,6 +237,17 @@ export const mesasApi = {
       ...(delta !== undefined ? { delta } : {}),
       ...(divisaId !== undefined ? { divisaId } : {})
     }),
+
+  /** Transfiere monedas de una divisa del jugador actual a otro miembro de la mesa. */
+  transferirDivisa: (
+    id: string,
+    datos: { receptorId: string; divisaId: string; cantidad: number }
+  ) =>
+    http.post<{
+      divisa: number;
+      divisaId?: string;
+      divisasSaldos?: Record<string, number>;
+    }>(`/api/mesas/${id}/divisa/transferir`, datos),
 
   /** Cambia el nombre de la divisa de la mesa (solo Máster). */
   cambiarDivisaNombre: (id: string, nombre: string) =>

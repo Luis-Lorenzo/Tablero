@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PrevisualizaciÃƒÂ³n de la sala (Fase 0). Autocontenida: no depende de App.css.
+   PrevisualizaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de la sala (Fase 0). Autocontenida: no depende de App.css.
    ========================================================================== */
 
 /* --------------------------------------------------------------- Sala de espera */
@@ -454,7 +454,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   background: rgb(150 251 199 / 12%);
 }
 
-/* Mapa: el ÃƒÂ¡rea estÃƒÂ¡ dibujada en perspectiva, asÃƒÂ­ que es un cuadrilÃƒÂ¡tero. */
+/* Mapa: el ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡rea estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ dibujada en perspectiva, asÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ que es un cuadrilÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡tero. */
 .mapa-svg {
   position: absolute;
   inset: 0;
@@ -1064,7 +1064,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #ffd5dc;
 }
 
-/* --------------------------------------------------------------- Pizarra (pÃƒÂ¡gina) */
+/* --------------------------------------------------------------- Pizarra (pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina) */
 
 .pizarra-page {
   position: fixed;
@@ -1099,7 +1099,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
       transparent 1px 8px);
 }
 
-/* Grano fino (ruido) para textura orgÃƒÂ¡nica de pergamino. */
+/* Grano fino (ruido) para textura orgÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡nica de pergamino. */
 .pergamino-fondo::after {
   content: "";
   position: absolute;
@@ -1897,7 +1897,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   white-space: nowrap;
 }
 
-/* Puente invisible para no perder el :hover al subir el ratÃƒÂ³n hacia la barra. */
+/* Puente invisible para no perder el :hover al subir el ratÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n hacia la barra. */
 .posit-barra::after {
   content: "";
   position: absolute;
@@ -1981,7 +1981,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #fff;
 }
 
-/* --------------------------------------------------------------- Mapa (pÃƒÂ¡gina) */
+/* --------------------------------------------------------------- Mapa (pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina) */
 
 .mapa-page {
   position: fixed;
@@ -2003,7 +2003,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   justify-content: center;
   align-items: center;
   gap: 6px;
-  max-width: calc(100vw - 380px);
+  max-width: calc(100vw - 440px);
   padding: 6px 8px;
   border: 2px solid #3c424f;
   border-radius: 10px;
@@ -2138,8 +2138,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-zoom-flotante {
   position: fixed;
-  right: 14px;
-  bottom: 44px;
+  top: 14px;
+  right: 292px;
+  bottom: auto;
   z-index: 25;
   padding: 4px;
   border: 2px solid #3c424f;
@@ -2178,17 +2179,44 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   font-variant-numeric: tabular-nums;
 }
 
+.mapa-candado-btn {
+  background: rgb(14 16 22 / 85%);
+  color: #7b8294;
+}
+
+.mapa-candado-btn.activo {
+  background: rgb(232 197 106 / 24%);
+  color: #ffe8a3;
+  box-shadow: 0 0 10px rgb(232 197 106 / 45%);
+}
+
+.mapa-viewport.bloqueado {
+  cursor: default;
+}
+
 .mapa-viewport {
   position: absolute;
-  inset: 0;
+  top: 116px;
+  right: 276px;
+  bottom: 150px;
+  left: 226px;
   box-sizing: border-box;
-  padding: 126px 210px 116px 220px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
+}
+
+@media (max-width: 900px) {
+  .mapa-viewport {
+    top: 110px;
+    right: 12px;
+    bottom: 136px;
+    left: 12px;
+  }
 }
 
 .mapa-viewport.paneando,
@@ -2219,8 +2247,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-canvas {
   position: relative;
-  max-width: calc(100vw - 430px);
-  max-height: calc(100vh - 242px);
+  max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
   border-radius: 6px;
   border: 2px solid #353b47;
@@ -2287,7 +2315,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 3px;
   cursor: default;
   touch-action: none;
   transition: box-shadow 0.12s ease;
@@ -2345,6 +2373,26 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   opacity: 1;
 }
 
+.mapa-token.de-master .mapa-token-etiqueta {
+  opacity: 1;
+  top: calc(100% + 2px);
+  bottom: auto;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-weight: 800;
+  line-height: 1.15;
+  -webkit-text-stroke: 0.6px #000000;
+  paint-order: stroke fill;
+  text-shadow:
+    -1px -1px 0 #000000,
+    1px -1px 0 #000000,
+    -1px 1px 0 #000000,
+    1px 1px 0 #000000,
+    0 2px 3px rgb(0 0 0 / 85%);
+}
+
 /* Paneles flotantes (Fondo y rejilla / Tokens) */
 
 .mapa-panel {
@@ -2366,9 +2414,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-panel.en-abajo {
   left: 14px;
-  bottom: 196px;
+  bottom: 234px;
   top: auto;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100vh - 256px);
 }
 
 .mapa-tokens-dock {
@@ -2378,24 +2426,24 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   z-index: 25;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 7px;
   border: 2px solid #3c424f;
-  border-radius: 14px;
+  border-radius: 10px;
   background: rgb(22 25 32 / 92%);
-  box-shadow: 4px 4px 0 #090b0f;
+  box-shadow: 3px 3px 0 #090b0f;
   backdrop-filter: blur(6px);
 }
 
 .mapa-tokens-dock .pizarra-tool-btn {
-  padding: 11px 16px;
+  padding: 8px 11px;
   border-color: #495060;
   background: #232833;
   color: #ece8df;
   box-shadow: 2px 2px 0 #090b0f;
-  font-size: 1.08rem;
-  gap: 8px;
-  border-radius: 12px;
+  font-size: 0.78rem;
+  gap: 6px;
+  border-radius: 9px;
 }
 
 .mapa-tokens-dock .pizarra-tool-btn:hover:not(:disabled) {
@@ -2768,7 +2816,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
 }
 
-/* CreaciÃƒÂ³n y bandeja de tokens */
+/* CreaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n y bandeja de tokens */
 
 .mapa-token-form {
   display: flex;
@@ -2780,6 +2828,11 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   align-items: center;
   gap: 9px;
+}
+
+.mapa-token-subir-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .mapa-token-subir {
@@ -2806,6 +2859,70 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.mapa-token-esfera-preview {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 34% 28%,
+      rgb(255 255 255 / 55%) 0%,
+      var(--esfera-color, #e8c56a) 46%,
+      rgb(0 0 0 / 55%) 100%);
+  color: rgb(255 255 255 / 88%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+}
+
+.mapa-token-quitar-img {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #0b0d12;
+  border-radius: 999px;
+  background: #c62828;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.mapa-token-colores {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid #343a46;
+  border-radius: 7px;
+  background: #171a22;
+}
+
+.mapa-token-colores-etiqueta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #c8cdd6;
+}
+
+.mapa-token-colores-swatches {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.mapa-token-color-input {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #495060;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
 }
 
 .mapa-token-datos {
@@ -2835,6 +2952,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-tamano-presets {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
@@ -3132,11 +3250,12 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 /* Barra contextual del token seleccionado */
 
 .mapa-token-barra {
-  position: absolute;
-  bottom: 132px;
+  position: fixed;
+  left: 14px;
+  bottom: 238px;
   top: auto;
-  left: 50%;
-  transform: translateX(-50%);
+  transform: none;
+  max-width: min(360px, calc(100vw - 28px));
   z-index: 26;
   display: inline-flex;
   flex-wrap: wrap;
@@ -3148,31 +3267,6 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   background: rgb(22 25 32 / 94%);
   box-shadow: 4px 4px 0 #090b0f;
   color: #ece8df;
-}
-
-.mapa-token-tirador {
-  position: absolute;
-  right: -4px;
-  bottom: -4px;
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  border: 1.5px solid #0b0d12;
-  background: #e8c56a;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 65%);
-  cursor: nwse-resize;
-  opacity: 0;
-  transition: opacity 0.14s ease, transform 0.12s ease;
-  z-index: 4;
-}
-
-.mapa-token.editable:hover .mapa-token-tirador,
-.mapa-token.seleccionado .mapa-token-tirador {
-  opacity: 1;
-}
-
-.mapa-token-tirador:hover {
-  transform: scale(1.12);
 }
 
 .mapa-token-barra-nombre {
@@ -3398,17 +3492,18 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   transform: translateY(1px);
 }
 
-/* Panel de Pasar Turno + CronÃƒÂ³metro en esquina superior izquierda */
+/* Panel de Pasar Turno + CronÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³metro en esquina superior izquierda */
 
 .mapa-turno-panel {
   position: fixed;
-  top: 10px;
-  left: 224px;
+  top: 16px;
+  left: max(320px, calc(25vw - 30px));
+  transform: translateX(-50%);
   z-index: 26;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: 9px;
+  padding: 6px 10px;
   border-radius: 10px;
   background: rgb(18 21 28 / 92%);
   border: 2px solid #3c424f;
@@ -3421,11 +3516,11 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
+  gap: 7px;
+  padding: 9px 16px;
   border-radius: 8px;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.94rem;
   font-weight: 800;
   line-height: 1.1;
   background: #16a34a;
@@ -3459,9 +3554,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-turno-timer {
   font-family: "Press Start 2P", monospace;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   line-height: 1;
-  padding: 6px 9px;
+  padding: 7px 11px;
   border-radius: 7px;
   background: #0c0e13;
   border: 1.5px solid #333a48;
@@ -3573,6 +3668,28 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   background: rgb(232 197 106 / 14%);
 }
 
+.mapa-iniciativa-chip.arrastrable,
+.mapa-iniciativa-editor-item.arrastrable {
+  cursor: grab;
+}
+
+.mapa-iniciativa-chip.arrastrando,
+.mapa-iniciativa-editor-item.arrastrando {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.mapa-iniciativa-chip.sobre-destino,
+.mapa-iniciativa-editor-item.sobre-destino {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px #38bdf8;
+}
+
+.mapa-iniciativa-grip {
+  flex-shrink: 0;
+  color: #8f97a8;
+}
+
 .mapa-iniciativa-editor-nombre {
   flex: 1;
   min-width: 0;
@@ -3680,8 +3797,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-jugadores-titulo-svg {
-  width: 196px;
-  height: 38px;
+  width: 235px;
+  height: 46px;
   overflow: visible;
   pointer-events: none;
   margin-bottom: -2px;
@@ -3689,7 +3806,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-jugadores-titulo-svg text {
   font-family: "Press Start 2P", monospace;
-  font-size: 13px;
+  font-size: 15.5px;
   font-weight: 700;
   fill: #ffffff;
   letter-spacing: 0.04em;
@@ -3700,15 +3817,15 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   pointer-events: auto;
 }
 
 .mapa-jugador-ficha {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 5px 12px 5px 6px;
+  gap: 7px;
+  padding: 4px 10px 4px 5px;
   border-radius: 999px;
   border: 1px solid rgb(255 255 255 / 14%);
   background: rgb(16 18 25 / 86%);
@@ -3732,8 +3849,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-jugador-esfera {
-  width: 30px;
-  height: 30px;
+  width: 25px;
+  height: 25px;
   border-radius: 50%;
   flex-shrink: 0;
   border: 2px solid rgb(255 255 255 / 60%);
@@ -3753,13 +3870,13 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-jugador-nombre {
-  max-width: 150px;
+  max-width: 128px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.88rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #ffffff;
   background: color-mix(in srgb, var(--jugador-color) 20%, rgb(12 10 18 / 68%));
@@ -3790,12 +3907,28 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   border-color: #3ddc84;
   color: #3ddc84;
   box-shadow: 0 0 12px rgb(61 220 132 / 40%);
+  box-shadow:
+    0 0 8px rgb(61 220 132 / 65%),
+    0 0 18px rgb(61 220 132 / 45%);
+}
+
+.mapa-jugador-tirada.critico .mapa-jugador-tirada-icono {
+  filter:
+    drop-shadow(0 0 4px #3ddc84) drop-shadow(0 0 9px rgb(61 220 132 / 90%));
 }
 
 .mapa-jugador-tirada.pifia {
   border-color: #ff5c77;
   color: #ff5c77;
   box-shadow: 0 0 12px rgb(255 92 119 / 40%);
+  box-shadow:
+    0 0 8px rgb(255 92 119 / 65%),
+    0 0 18px rgb(255 92 119 / 45%);
+}
+
+.mapa-jugador-tirada.pifia .mapa-jugador-tirada-icono {
+  filter:
+    drop-shadow(0 0 4px #ff5c77) drop-shadow(0 0 9px rgb(255 92 119 / 90%));
 }
 
 .mapa-jugador-tirada-icono {
@@ -4752,7 +4885,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
 }
 
-/* --------------------------------------------------------------- Archivador (pÃƒÂ¡gina) */
+/* --------------------------------------------------------------- Archivador (pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina) */
 
 .archivador-page {
   position: fixed;
@@ -5406,7 +5539,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   text-align: center;
 }
 
-/* --------------------------------------------------------------- Controles exclusivos del MÃƒÂ¡ster y Opciones A / B */
+/* --------------------------------------------------------------- Controles exclusivos del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster y Opciones A / B */
 
 .sala-barra {
   max-width: calc(100vw - 24px);
@@ -5530,7 +5663,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #f6e3b0;
 }
 
-/* OpciÃƒÂ³n B: imagen de escena fijada sobre la pizarra en la pared de la sala */
+/* OpciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n B: imagen de escena fijada sobre la pizarra en la pared de la sala */
 
 .sala-hotspot.hotspot-pizarra.con-escena {
   display: block;
@@ -5618,7 +5751,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #ffb3cb;
 }
 
-/* Acciones rÃƒÂ¡pidas del MÃƒÂ¡ster en fichas de imagen sobre la mesa */
+/* Acciones rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡pidas del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster en fichas de imagen sobre la mesa */
 
 .doc-master-icono {
   display: grid;
@@ -5642,7 +5775,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #241908;
 }
 
-/* Botones dorados y acciones del MÃƒÂ¡ster en Archivador y Visor */
+/* Botones dorados y acciones del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster en Archivador y Visor */
 
 .archivador-barra-master {
   border-bottom-color: rgb(196 149 46 / 38%);
@@ -5684,7 +5817,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #241908;
 }
 
-/* Dentro de paneles oscuros del MÃƒÂ¡ster, el texto del botÃƒÂ³n necesita alto contraste */
+/* Dentro de paneles oscuros del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster, el texto del botÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n necesita alto contraste */
 .master-panel-modal .master-accion-btn,
 .archivador-visor .master-accion-btn,
 .pizarra-page .master-accion-btn {
@@ -5896,7 +6029,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   cursor: pointer;
 }
 
-/* OpciÃƒÂ³n A: Modal de RevelaciÃƒÂ³n DramÃƒÂ¡tica del MÃƒÂ¡ster */
+/* OpciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n A: Modal de RevelaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n DramÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡tica del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster */
 
 .proyeccion-master-overlay {
   position: fixed;
@@ -6049,7 +6182,6 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   width: 44px;
   height: 44px;
   color: #f6e3b0;
-  filter: drop-shadow(0 0 10px rgb(232 197 106 / 75%));
   animation: asiento-d20-pop 3.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
 }
@@ -6059,18 +6191,31 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   height: 100%;
 }
 
-.asiento-d20 polygon {
-  fill: rgb(22 16 32 / 92%);
-  stroke: #e8c56a;
+.asiento-d20 polygon,
+.asiento-d20 rect,
+.asiento-d20 circle {
+  fill: var(--dado-color, rgb(22 16 32 / 92%));
+  stroke: var(--dado-aristas, #b794f4);
   stroke-width: 1.7;
+}
+
+.asiento-d20 text {
+  fill: #ffffff;
+  stroke: #090612;
+  stroke-width: 0.9px;
+  paint-order: stroke fill;
 }
 
 .asiento-d20.critico {
   color: #3ddc84;
   filter: drop-shadow(0 0 12px rgb(61 220 132 / 85%));
+  filter:
+    drop-shadow(0 0 6px #3ddc84) drop-shadow(0 0 15px rgb(61 220 132 / 92%));
 }
 
-.asiento-d20.critico polygon {
+.asiento-d20.critico polygon,
+.asiento-d20.critico rect,
+.asiento-d20.critico circle {
   fill: rgb(10 32 22 / 94%);
   stroke: #3ddc84;
 }
@@ -6078,9 +6223,13 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 .asiento-d20.pifia {
   color: #ff5c77;
   filter: drop-shadow(0 0 12px rgb(255 92 119 / 85%));
+  filter:
+    drop-shadow(0 0 6px #ff5c77) drop-shadow(0 0 15px rgb(255 92 119 / 92%));
 }
 
-.asiento-d20.pifia polygon {
+.asiento-d20.pifia polygon,
+.asiento-d20.pifia rect,
+.asiento-d20.pifia circle {
   fill: rgb(36 10 18 / 94%);
   stroke: #ff5c77;
 }
@@ -6135,7 +6284,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   }
 }
 
-/* --------------------------------------------- Dados negros secretos (MÃƒÂ¡ster) */
+/* --------------------------------------------- Dados negros secretos (MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster) */
 
 .dock-btn-secreto {
   border-color: #3c3a44;
@@ -6233,7 +6382,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #f6e3b0;
 }
 
-/* Panel modal de DirecciÃƒÂ³n de Escena del MÃƒÂ¡ster */
+/* Panel modal de DirecciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de Escena del MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ster */
 
 .master-modal-fondo {
   position: fixed;
@@ -6438,7 +6587,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   gap: 6px;
 }
 
-/* ------------------------------------------- Tiradas compuestas y dados rÃƒÂ¡pidos */
+/* ------------------------------------------- Tiradas compuestas y dados rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡pidos */
 
 .dados-selector.compuesta {
   width: min(330px, calc(100vw - 24px));
@@ -6655,7 +6804,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   line-height: 1;
 }
 
-/* ------------------------------------------- PestaÃƒÂ±as y vista Escena en Pizarra */
+/* ------------------------------------------- PestaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±as y vista Escena en Pizarra */
 
 .pizarra-vista-tabs {
   position: relative;
@@ -8825,7 +8974,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #3a2110;
 }
 
-/* ==================== HUD Mapa: Dock, Congelado y MÃƒÂ³vil ==================== */
+/* ==================== HUD Mapa: Dock, Congelado y MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³vil ==================== */
 
 .hud-dibujo-congelado-icono {
   position: absolute;
@@ -8844,7 +8993,11 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   bottom: 64px;
   top: auto;
   transform: translateX(-50%);
-  gap: 13px;
+  gap: 26px;
+}
+
+.hud-mapa-capa .sala-dock.en-mapa .dock-item {
+  min-width: 72px;
 }
 
 .hud-mapa-capa .sala-dock.en-mapa .dock-btn {
@@ -8879,7 +9032,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   pointer-events: none;
 }
 
-.mapa-elementos-capa > * {
+.mapa-elementos-capa>* {
   pointer-events: auto;
 }
 
@@ -8929,27 +9082,39 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   }
 
   .mapa-limbo {
-    width: 64px;
+    left: auto;
+    right: 10px;
+    bottom: 66px;
+    max-width: calc(100vw - 20px);
   }
 }
 
-/* Contenedor vertical derecho: Limbo de tokens justo al lado del mapa */
+/* Contenedor horizontal: Limbo de tokens al lado de Archivador */
 
 .mapa-limbo {
-  position: relative;
-  flex-shrink: 0;
-  width: 78px;
+  position: fixed;
+  bottom: 64px;
+  left: calc(50% + 206px);
+  right: 16px;
+  z-index: 25;
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
-  padding: 8px 6px;
+  width: auto;
+  height: 58px;
+  padding: 6px 10px;
   border: 2px solid #3c424f;
   border-radius: 12px;
   background: rgb(18 21 28 / 88%);
   box-shadow: 4px 4px 0 #090b0f;
   backdrop-filter: blur(6px);
+}
+
+.mapa-limbo.con-master {
+  left: calc(50% + 254px);
+  right: 16px;
 }
 
 .mapa-limbo.destino-limbo {
@@ -8960,6 +9125,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-limbo-titulo {
+  flex-shrink: 0;
   font-family: "Press Start 2P", monospace;
   font-size: 9px;
   font-weight: 700;
@@ -8971,31 +9137,32 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 .mapa-limbo-vacio {
   font-size: 0.72rem;
   color: rgb(236 232 223 / 40%);
-  padding: 6px 0;
+  padding: 0 4px;
 }
 
 .mapa-limbo-lista {
-  width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
-  overflow-y: auto;
-  padding: 2px 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 6px 8px 4px 2px;
 }
 
 .mapa-limbo-item {
   position: relative;
-  width: 60px;
+  flex-shrink: 0;
+  width: auto;
 }
 
 .mapa-limbo-token-btn {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  gap: 3px;
-  padding: 4px;
+  gap: 5px;
+  max-width: 118px;
+  padding: 4px 7px;
   border: 1.5px solid #495060;
   border-radius: 9px;
   background: rgb(32 36 46 / 90%);
@@ -9014,20 +9181,23 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-limbo-token-btn img {
-  width: 44px;
-  height: 44px;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
   object-fit: contain;
   border-radius: 6px;
+  pointer-events: none;
+  user-select: none;
 }
 
 .mapa-limbo-nombre {
-  width: 100%;
+  max-width: 70px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.62rem;
   font-weight: 600;
-  text-align: center;
+  text-align: left;
 }
 
 .mapa-limbo-borrar {
@@ -9044,7 +9214,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   background: #c62828;
   color: #ffffff;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.92;
   transition: opacity 0.12s ease;
 }
 
@@ -9117,19 +9287,18 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mesa-macro-rombo-cerrar {
   position: absolute;
-  top: -32px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 18px;
-  height: 18px;
+  top: -14px;
+  right: -12px;
+  left: auto;
+  transform: none;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border-radius: 50%;
-  border: 1px solid rgb(255 255 255 / 28%);
-  background: #c62828;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
+  filter: drop-shadow(0 0 3px #ef4444) drop-shadow(0 0 7px rgb(239 68 68 / 88%)) drop-shadow(0 1px 2px rgb(0 0 0 / 90%));
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -9138,12 +9307,15 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   z-index: 3;
 }
 
-.mesa-macro-rombo:hover .mesa-macro-rombo-cerrar {
-  opacity: 1;
+.mesa-macro-rombo:hover .mesa-macro-rombo-cerrar,
+.mesa-macro-rombo-cerrar:focus-visible {
+  opacity: 0.88;
 }
 
 .mesa-macro-rombo-cerrar:hover {
-  transform: translateX(-50%) scale(1.1);
+  opacity: 1;
+  transform: scale(1.16);
+  background: transparent;
 }
 
 .hud-economia-fila {
@@ -9526,12 +9698,35 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 
-/* --------------------------------------------------------------- MÃƒÂºsica ambiente */
+/* --------------------------------------------------------------- MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºsica ambiente */
 
 .sala-musica-control {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+}
+
+.sala-musica-estado {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  color: #e8dcc6;
+  background: rgb(14 11 20 / 78%);
+  border: 1px solid rgb(232 197 106 / 28%);
+  border-radius: 6px;
+  padding: 3px 7px;
+  line-height: 1.2;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sala-musica-estado.bucle {
+  color: #ffe8a3;
+  border-color: rgb(232 197 106 / 58%);
+  background: rgb(232 197 106 / 16%);
+  letter-spacing: 0.06em;
 }
 
 .sala-btn-disco {
@@ -9571,6 +9766,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -9802,4 +9998,44 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #f6e3b0;
   min-width: 30px;
   text-align: right;
+}
+
+/* --------------------------------------------------------------- Ocultar spinners nativos en inputs numéricos con controles propios */
+
+.dados-stepper input[type="number"],
+.dados-selector input[type="number"],
+.divisa-custom-form input[type="number"],
+.divisa-popover input[type="number"],
+.mochila-modal input[type="number"],
+.mochila-cantidad-edit input[type="number"],
+.sala-hud input[type="number"],
+.sala-hud-derecha input[type="number"],
+.hud-mapa-capa input[type="number"],
+.mapa-panel input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.dados-stepper input[type="number"]::-webkit-outer-spin-button,
+.dados-stepper input[type="number"]::-webkit-inner-spin-button,
+.dados-selector input[type="number"]::-webkit-outer-spin-button,
+.dados-selector input[type="number"]::-webkit-inner-spin-button,
+.divisa-custom-form input[type="number"]::-webkit-outer-spin-button,
+.divisa-custom-form input[type="number"]::-webkit-inner-spin-button,
+.divisa-popover input[type="number"]::-webkit-outer-spin-button,
+.divisa-popover input[type="number"]::-webkit-inner-spin-button,
+.mochila-modal input[type="number"]::-webkit-outer-spin-button,
+.mochila-modal input[type="number"]::-webkit-inner-spin-button,
+.mochila-cantidad-edit input[type="number"]::-webkit-outer-spin-button,
+.mochila-cantidad-edit input[type="number"]::-webkit-inner-spin-button,
+.sala-hud input[type="number"]::-webkit-outer-spin-button,
+.sala-hud input[type="number"]::-webkit-inner-spin-button,
+.sala-hud-derecha input[type="number"]::-webkit-outer-spin-button,
+.sala-hud-derecha input[type="number"]::-webkit-inner-spin-button,
+.hud-mapa-capa input[type="number"]::-webkit-outer-spin-button,
+.hud-mapa-capa input[type="number"]::-webkit-inner-spin-button,
+.mapa-panel input[type="number"]::-webkit-outer-spin-button,
+.mapa-panel input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

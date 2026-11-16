@@ -102,3 +102,71 @@ export const POSITS_INICIALES: PositPreview[] = [
     esMaster: false
   }
 ];
+
+const CLAVE_COLOR_DADO_PREFIJO = "pocketrol.colorDado";
+
+function claveColorDado(userId?: string): string {
+  const limpio = userId?.trim();
+  return limpio ? `${CLAVE_COLOR_DADO_PREFIJO}.${limpio}` : CLAVE_COLOR_DADO_PREFIJO;
+}
+
+/**
+ * Valida y normaliza un color hexadecimal de dado (`#rrggbb` o `#rgb`).
+ * Devuelve `undefined` si el valor no es un hex válido.
+ */
+export function sanitizarColorDado(valor: unknown): string | undefined {
+  if (typeof valor !== "string") return undefined;
+  const limpio = valor.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(limpio)) {
+    return limpio.toLowerCase();
+  }
+  if (/^#[0-9a-fA-F]{3}$/.test(limpio)) {
+    const [, r, g, b] = limpio;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return undefined;
+}
+
+/**
+ * Lee de `localStorage` el color de dado elegido por el jugador actual.
+ */
+export function obtenerColorDadoGuardado(userId?: string): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const especifico = userId?.trim()
+      ? window.localStorage.getItem(claveColorDado(userId))
+      : null;
+    const raw = especifico ?? window.localStorage.getItem(CLAVE_COLOR_DADO_PREFIJO);
+    return sanitizarColorDado(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Guarda (o limpia si es inválido/vacío) en `localStorage` el color de dado
+ * elegido por el jugador actual.
+ */
+export function guardarColorDado(
+  color: string | null | undefined,
+  userId?: string
+): string | undefined {
+  const limpio = sanitizarColorDado(color);
+  if (typeof window === "undefined") return limpio;
+  const clave = claveColorDado(userId);
+  try {
+    if (limpio) {
+      window.localStorage.setItem(clave, limpio);
+    } else {
+      window.localStorage.removeItem(clave);
+    }
+    window.dispatchEvent(
+      new CustomEvent("pocketrol:color-dado", {
+        detail: { userId: userId?.trim() || null, colorDado: limpio ?? null }
+      })
+    );
+  } catch {
+    // Ignorar errores de almacenamiento en modo privado.
+  }
+  return limpio;
+}

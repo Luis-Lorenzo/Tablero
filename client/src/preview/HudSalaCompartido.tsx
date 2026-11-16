@@ -37,6 +37,7 @@ import { crearElementoDesdeArchivo, nuevoIdElemento } from "./compartir";
 import { COLORES_POSIT } from "./datos";
 import type { ArchivoItem } from "./Mapa";
 import { Posit } from "./Pizarra";
+import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
 import {
   cargarDivisaLocal,
   cargarMochilaLocal,
@@ -58,7 +59,11 @@ import {
   IconoMacro
 } from "./macros";
 import { reproducirSonidoConsumir, reproducirSonidoMonedas } from "./sonido";
-import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
+import {
+  reproducirSonidoRoll,
+  reproducirSonidoRollSecreto,
+  reproducirSonidoTirada
+} from "./sonidoDados";
 import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   DivisaConfig,
@@ -72,6 +77,21 @@ import type {
   TipoEspecialTirada,
   TiradaAsiento
 } from "./tipos";
+
+const CLAVE_COLOR_DADO = "pocketrol.colorDado";
+const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
+
+function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
+  try {
+    const guardado = window.localStorage.getItem(clave);
+    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
+      return guardado;
+    }
+  } catch {
+    // Ignoramos errores de almacenamiento
+  }
+  return fallback;
+}
 
 export interface HudSalaCompartidoProps {
   jugadores: JugadorPreview[];
@@ -89,8 +109,11 @@ export interface HudSalaCompartidoProps {
     caras: number;
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
+    color?: string;
+    colorDado?: string;
+    colorAristasDado?: string;
   }) => void | Promise<void>;
-  onTiradaLocal?: (tirada: TiradaAsiento) => void;
+  onTiradaLocal?: (tirada: TiradaAsiento & { color?: string; colorAristasDado?: string }) => void;
   macros?: MacroTirada[];
   onMacros?: (macros: MacroTirada[]) => void;
   onSacarMacroAMesa?: (macro: MacroTirada) => void;
@@ -100,6 +123,11 @@ export interface HudSalaCompartidoProps {
   divisasSaldos?: Record<string, number>;
   onGuardarDivisasConfig?: (divisas: DivisaConfig[]) => void | Promise<void>;
   onCambiarDivisa?: (nueva: number, delta: number, divisaId?: string) => void | Promise<void>;
+  onTransferirDivisa?: (
+    destino: JugadorPreview,
+    divisaId: string,
+    cantidad: number
+  ) => void | Promise<boolean | void>;
   onCambiarDivisaNombre?: (nuevo: string) => void | Promise<void>;
   mochila?: ObjetoMochila[];
   onMochila?: Dispatch<SetStateAction<ObjetoMochila[]>>;
@@ -217,7 +245,21 @@ function lanzarGruposDados(
   };
 }
 
-function IconoD20({ valor = 20 }: { valor?: number | string }) {
+function IconoD20({
+  valor,
+  color,
+  colorAristas
+}: {
+  valor?: number | string;
+  color?: string;
+  colorAristas?: string;
+}) {
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -226,6 +268,7 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
+        style={estiloPoligono}
       />
       <polygon
         points="12,6.5 17.5,15.5 6.5,15.5"
@@ -240,27 +283,39 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
       <line x1="3" y1="7" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
       <line x1="12" y1="22" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
       <line x1="12" y1="22" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
-      <text
-        x="12"
-        y="14"
-        textAnchor="middle"
-        fontSize="5.4"
-        fill="currentColor"
-        fontFamily="'Press Start 2P', monospace"
-      >
-        {valor}
-      </text>
+      {valor !== undefined && (
+        <text
+          x="12"
+          y="14"
+          textAnchor="middle"
+          fontSize="5.4"
+          fill="currentColor"
+          fontFamily="'Press Start 2P', monospace"
+        >
+          {valor}
+        </text>
+      )}
     </svg>
   );
 }
 
 export function IconoDadoPoligono({
   caras,
-  valor
+  valor,
+  color,
+  colorAristas
 }: {
   caras: number;
   valor?: number | string;
+  color?: string;
+  colorAristas?: string;
 }) {
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -268,8 +323,10 @@ export function IconoDadoPoligono({
         y={caras === 4 ? "16.8" : "14.5"}
         textAnchor="middle"
         fontSize="5.6"
-        fill="currentColor"
-        stroke="none"
+        fill={color ? "#ffffff" : "currentColor"}
+        stroke={color ? "#090612" : "none"}
+        strokeWidth={color ? "0.9" : undefined}
+        paintOrder={color ? "stroke fill" : undefined}
         fontFamily="'Press Start 2P', monospace"
       >
         {valor}
@@ -285,6 +342,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -302,6 +360,7 @@ export function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.6"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -316,6 +375,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -330,6 +390,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -344,6 +405,7 @@ export function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -359,6 +421,7 @@ export function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
+          style={estiloPoligono}
         />
         <circle
           cx="12"
@@ -373,7 +436,7 @@ export function IconoDadoPoligono({
       </svg>
     );
   }
-  return <IconoD20 valor={valor} />;
+  return <IconoD20 valor={valor} color={color} colorAristas={colorAristas} />;
 }
 
 function IconoPosit() {
@@ -442,6 +505,7 @@ export function HudSalaCompartido({
   divisasSaldos,
   onGuardarDivisasConfig,
   onCambiarDivisa,
+  onTransferirDivisa,
   onCambiarDivisaNombre,
   mochila,
   onMochila,
@@ -461,6 +525,32 @@ export function HudSalaCompartido({
 }: HudSalaCompartidoProps) {
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
+  const colorJugadorActual =
+    jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.color || "#e8c56a";
+  const [colorDado, setColorDado] = useState<string>(() =>
+    cargarColorDadoLocal(colorJugadorActual)
+  );
+  const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
+    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+  );
+
+  function actualizarColorDado(nuevoColor: string): void {
+    setColorDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
+
+  function actualizarColorAristasDado(nuevoColor: string): void {
+    setColorAristasDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
   const [bonificador, setBonificador] = useState(0);
@@ -969,7 +1059,11 @@ export function HudSalaCompartido({
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
-    reproducirSonidoRoll();
+    if (esSecretaMaster) {
+      reproducirSonidoRollSecreto();
+    } else {
+      reproducirSonidoRoll();
+    }
 
     setSelectorAbierto(false);
     setCompuestaAbierta(false);
@@ -1017,11 +1111,17 @@ export function HudSalaCompartido({
             total: resultadoFinal.total,
             especial: resultadoFinal.especial,
             caras: resultadoFinal.caras,
-            desglose: desgloseTexto
+            desglose: desgloseTexto,
+            color: colorDado,
+            colorDado,
+            colorAristasDado
           });
           if (onTiradaPublica) {
             void onTiradaPublica({
               ...resultadoFinal,
+              color: colorDado,
+              colorDado,
+              colorAristasDado,
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
@@ -1055,7 +1155,7 @@ export function HudSalaCompartido({
 
   function emitirDivisaLocal(delta: number, total: number): void {
     if (delta === 0) return;
-    reproducirSonidoMonedas();
+    reproducirSonidoMonedas(delta);
     const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
     const signo = delta > 0 ? `+${delta}` : String(delta);
     setMensajesLocales(prev => [
@@ -1583,19 +1683,6 @@ export function HudSalaCompartido({
     mostrarAviso(`«${obj.nombre}» guardado en la mochila.`);
   }
 
-  function enviarElementoDesdePopover(
-    destino: JugadorPreview,
-    elem: ElementoMesa
-  ): void {
-    if (onEnviarElemento) {
-      void onEnviarElemento(destino, elem);
-    } else {
-      const etiqueta = elem.tipo === "posit" ? "nota" : elem.nombre;
-      mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
-    }
-    setEnviarPopoverAbierto(false);
-  }
-
   return (
     <div
       className="hud-mapa-capa"
@@ -2049,168 +2136,37 @@ export function HudSalaCompartido({
       </div>
 
       {enviarPopoverAbierto && (
-        <div
-          className="divisa-popover hud-enviar-popover"
-          role="dialog"
-          aria-label="Enviar a jugador"
+        <PopoverPalomaEnviar
+          esMaster={esMaster}
+          hostName={hostName}
+          destinatarios={destinatariosDisponibles}
+          destinoId={enviarDestinoId}
+          onCambiarDestinoId={setEnviarDestinoId}
+          mochila={mochilaActual}
+          elementosEnviables={elementosEnviables}
+          divisasLista={divisasLista}
+          saldoDeDivisa={idDivisa =>
+            divisasSaldos && idDivisa in divisasSaldos
+              ? divisasSaldos[idDivisa]
+              : divisasSaldos && divisasConfig && divisasConfig.length > 0
+                ? (divisasSaldos[idDivisa] ?? 0)
+                : idDivisa === "principal"
+                  ? (divisa ?? divisaLocal)
+                  : (divisasSaldosLocal[idDivisa] ?? 0)
+          }
+          onEnviarChat={onEnviarChat ?? enviarChatLocal}
+          onEnviarObjetoMochila={onEnviarObjetoMochila}
+          onEnviarElemento={onEnviarElemento}
+          onTransferirDivisa={onTransferirDivisa}
+          onMostrarAviso={mostrarAviso}
+          onCerrar={() => setEnviarPopoverAbierto(false)}
           style={{
             pointerEvents: "auto",
             top: 184,
             maxHeight: "65vh",
             overflowY: "auto"
           }}
-        >
-          <div className="dados-selector-cabecera">
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <IconoPaloma size={16} />
-              <span>Enviar a jugador</span>
-            </span>
-            <button
-              type="button"
-              className="dados-cerrar"
-              onClick={() => setEnviarPopoverAbierto(false)}
-              aria-label="Cerrar panel de envío"
-            >
-              <X size={14} strokeWidth={2.4} aria-hidden="true" />
-            </button>
-          </div>
-
-          {destinatariosDisponibles.length === 0 ? (
-            <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-              No hay otros jugadores activos en la mesa.
-            </p>
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                  1. Destinatario
-                </span>
-                <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {destinatariosDisponibles.map(j => {
-                    const seleccionado =
-                      (enviarDestinoId ?? destinatariosDisponibles[0]?.id) === j.id;
-                    return (
-                      <button
-                        key={j.id}
-                        type="button"
-                        className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
-                        onClick={() => setEnviarDestinoId(j.id)}
-                        style={{
-                          borderColor: seleccionado ? j.color : undefined,
-                          boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
-                        }}
-                      >
-                        {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                  2. Elemento o item
-                </span>
-                {mochilaActual.length === 0 && elementosEnviables.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-                    No tienes objetos en la mochila ni elementos en el mapa para enviar.
-                  </p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {mochilaActual.map(item => (
-                      <button
-                        key={`mochila-${item.id}`}
-                        type="button"
-                        className="macro-lanzar-btn"
-                        style={{ width: "100%", justifyContent: "space-between" }}
-                        onClick={() => {
-                          const destino =
-                            destinatariosDisponibles.find(
-                              j => j.id === (enviarDestinoId ?? destinatariosDisponibles[0]?.id)
-                            ) ?? destinatariosDisponibles[0];
-                          if (!destino) return;
-                          if (onEnviarObjetoMochila) {
-                            void onEnviarObjetoMochila(destino, item, 1);
-                          } else {
-                            mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
-                          }
-                          setEnviarPopoverAbierto(false);
-                        }}
-                      >
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <span>{item.emoji ?? "🎒"}</span>
-                          <span>{item.nombre}</span>
-                        </span>
-                        <span style={{ fontSize: 11, opacity: 0.75 }}>
-                          Mochila (x{item.cantidad})
-                        </span>
-                      </button>
-                    ))}
-
-                    {elementosEnviables.map(elem => {
-                      const etiqueta =
-                        elem.tipo === "posit"
-                          ? elem.texto.trim() || "Posit sin texto"
-                          : elem.nombre;
-                      const icono =
-                        elem.tipo === "posit"
-                          ? "📝"
-                          : elem.tipo === "archivo"
-                            ? "📄"
-                            : elem.tipo === "objeto"
-                              ? elem.emoji ?? "🎒"
-                              : "◆";
-                      const sub =
-                        elem.tipo === "posit"
-                          ? "Posit"
-                          : elem.tipo === "archivo"
-                            ? "Doc"
-                            : elem.tipo === "objeto"
-                              ? `Objeto x${elem.cantidad}`
-                              : "Macro";
-                      return (
-                        <button
-                          key={`elem-${elem.id}`}
-                          type="button"
-                          className="macro-lanzar-btn"
-                          style={{ width: "100%", justifyContent: "space-between" }}
-                          onClick={() => {
-                            const destino =
-                              destinatariosDisponibles.find(
-                                j => j.id === (enviarDestinoId ?? destinatariosDisponibles[0]?.id)
-                              ) ?? destinatariosDisponibles[0];
-                            if (!destino) return;
-                            enviarElementoDesdePopover(destino, elem);
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 6,
-                              minWidth: 0,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            <span>{icono}</span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {etiqueta}
-                            </span>
-                          </span>
-                          <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
-                            {sub}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+        />
       )}
 
       {huchaAbierta && (
@@ -3117,7 +3073,83 @@ export function HudSalaCompartido({
             }}
           >
             <div className="dados-selector-cabecera">
-              <span>Tirada de dados</span>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span>Tirada de dados</span>
+                <div
+                  style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+                  role="group"
+                  aria-label="Colores de tus dados"
+                >
+                  <label
+                    title="Color principal (fondo del dado)"
+                    aria-label="Color principal del dado"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "20px",
+                      height: "20px",
+                      padding: 0,
+                      borderRadius: "5px",
+                      border: tiradaSecreta
+                        ? "1.5px solid #c084fc"
+                        : "1.5px solid #e8c56a",
+                      backgroundColor: colorDado,
+                      boxShadow: "1.5px 1.5px 0 #090612",
+                      cursor: "pointer",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={colorDado}
+                      onChange={e => actualizarColorDado(e.target.value)}
+                      aria-label="Elegir color principal del dado"
+                      style={{
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        padding: 0,
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    />
+                  </label>
+                  <label
+                    title="Color secundario (aristas del dado)"
+                    aria-label="Color secundario de las aristas del dado"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "20px",
+                      height: "20px",
+                      padding: 0,
+                      borderRadius: "5px",
+                      border: `2.5px solid ${colorAristasDado}`,
+                      backgroundColor: "#14101f",
+                      boxShadow: "1.5px 1.5px 0 #090612",
+                      cursor: "pointer",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={colorAristasDado}
+                      onChange={e => actualizarColorAristasDado(e.target.value)}
+                      aria-label="Elegir color secundario de aristas del dado"
+                      style={{
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        padding: 0,
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
               <button
                 type="button"
                 className="dados-cerrar"
@@ -3780,6 +3812,30 @@ export function HudSalaCompartido({
           <span className="dock-etiqueta">Dados</span>
         </div>
 
+        {esMaster && (
+          <div className="dock-item">
+            <button
+              type="button"
+              className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
+              onClick={() => {
+                setMacrosAbierto(false);
+                if (selectorAbierto && tiradaSecreta) {
+                  setSelectorAbierto(false);
+                } else {
+                  setTiradaSecreta(true);
+                  setSelectorAbierto(true);
+                }
+              }}
+              aria-expanded={selectorAbierto && tiradaSecreta}
+              title="Dados privados (tirada secreta del Máster)"
+              aria-label="Dados privados"
+            >
+              <IconoD20 />
+            </button>
+            <span className="dock-etiqueta">Secreto</span>
+          </div>
+        )}
+
         <div className="dock-item">
           <button
             type="button"
@@ -3846,30 +3902,6 @@ export function HudSalaCompartido({
               )}
             </button>
             <span className="dock-etiqueta">Archivador</span>
-          </div>
-        )}
-
-        {esMaster && (
-          <div className="dock-item">
-            <button
-              type="button"
-              className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
-              onClick={() => {
-                setMacrosAbierto(false);
-                if (selectorAbierto && tiradaSecreta) {
-                  setSelectorAbierto(false);
-                } else {
-                  setTiradaSecreta(true);
-                  setSelectorAbierto(true);
-                }
-              }}
-              aria-expanded={selectorAbierto && tiradaSecreta}
-              title="Dados negros (tirada secreta del Máster)"
-              aria-label="Dados negros"
-            >
-              <IconoD20 />
-            </button>
-            <span className="dock-etiqueta">Secreto</span>
           </div>
         )}
       </div>

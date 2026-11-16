@@ -159,6 +159,19 @@ function limpiarUrlNoData(valor: unknown): string {
   return limpia;
 }
 
+function limpiarUrlToken(valor: unknown): string {
+  if (typeof valor !== "string") return "";
+  const limpia = valor.trim();
+  if (!limpia) return "";
+  if (limpia.toLowerCase().startsWith("data:")) {
+    if (limpia.toLowerCase().startsWith("data:image/svg+xml;") && limpia.length <= 2048) {
+      return limpia;
+    }
+    return "";
+  }
+  return limpia;
+}
+
 export function sanitizarFondo(raw: unknown): MapaFondoConfig | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
@@ -203,7 +216,7 @@ function sanitizarToken(raw: unknown): TokenMapa | null {
     typeof obj.archivoId === "string" && obj.archivoId.trim()
       ? obj.archivoId.trim()
       : undefined;
-  const urlCruda = limpiarUrlNoData(obj.imagenUrl);
+  const urlCruda = limpiarUrlToken(obj.imagenUrl);
   const imagenUrl =
     urlCruda || (archivoId ? `/api/archivos/${archivoId}` : "");
   if (!imagenUrl) return null;
@@ -257,7 +270,7 @@ function sanitizarPlantilla(raw: unknown): PlantillaTokenMapa | null {
     typeof obj.archivoId === "string" && obj.archivoId.trim()
       ? obj.archivoId.trim()
       : undefined;
-  const urlCruda = limpiarUrlNoData(obj.imagenUrl);
+  const urlCruda = limpiarUrlToken(obj.imagenUrl);
   const imagenUrl =
     urlCruda || (archivoId ? `/api/archivos/${archivoId}` : "");
   if (!imagenUrl) return null;

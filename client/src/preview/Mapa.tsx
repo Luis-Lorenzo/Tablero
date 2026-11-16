@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   Grid3x3,
+  GripVertical,
   ImagePlus,
   Lock,
   Map as MapIcon,
@@ -203,6 +204,23 @@ function leerArchivoComoDataUrl(archivo: File): Promise<string> {
   });
 }
 
+const COLORES_TOKEN_ESFERA = [
+  "#e8c56a",
+  "#e06c75",
+  "#38bdf8",
+  "#4ade80",
+  "#c084fc",
+  "#fb923c",
+  "#f472b6",
+  "#ffffff"
+];
+
+function generarImagenEsferaColor(color: string): string {
+  const safe = color.replace(/[^#a-zA-Z0-9(),.% ]/g, "") || "#e8c56a";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><radialGradient id="g" cx="34%" cy="28%" r="68%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.58"/><stop offset="45%" stop-color="${safe}" stop-opacity="1"/><stop offset="100%" stop-color="#000000" stop-opacity="0.52"/></radialGradient></defs><circle cx="50" cy="50" r="45" fill="${safe}" stroke="#0b0d12" stroke-width="5"/><circle cx="50" cy="50" r="43" fill="url(#g)"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 function IconoCofre({ size = 14 }: { size?: number }) {
   return (
     <svg
@@ -354,6 +372,12 @@ export function Mapa({
   const [nombreIniciativa, setNombreIniciativa] = useState("");
   const [valorIniciativa, setValorIniciativa] = useState("10");
   const [monstruoIniciativa, setMonstruoIniciativa] = useState(true);
+  const [arrastreIniciativaIdx, setArrastreIniciativaIdx] = useState<
+    number | null
+  >(null);
+  const [sobreIniciativaIdx, setSobreIniciativaIdx] = useState<number | null>(
+    null
+  );
 
   const editandoFondo = esMaster && panelAbierto === "fondo";
   const fondoActivo = editandoFondo ? fondoBorrador : estadoMapa.fondo;
@@ -364,15 +388,17 @@ export function Mapa({
   const canvasRef = useRef<HTMLDivElement>(null);
   const limboRef = useRef<HTMLElement>(null);
   const [sobreLimbo, setSobreLimbo] = useState(false);
-  const [redimensionToken, setRedimensionToken] = useState<{
-    tokenId: string;
-    escala: number;
-  } | null>(null);
   const [tamanoViewport, setTamanoViewport] = useState({ w: 1280, h: 720 });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [espacioPulsado, setEspacioPulsado] = useState(false);
   const [paneando, setPaneando] = useState(false);
+  const [mapaBloqueado, setMapaBloqueado] = useState(true);
+  const [limboFantasma, setLimboFantasma] = useState<{
+    token: TokenMapa;
+    x: number;
+    y: number;
+  } | null>(null);
   const arrastrePanRef = useRef<ArrastrePan | null>(null);
 
   // Dimensiones naturales de la imagen de fondo
@@ -393,6 +419,9 @@ export function Mapa({
   const [nombreToken, setNombreToken] = useState("");
   const [celdasToken, setCeldasToken] = useState<number>(1);
   const [esMonstruo, setEsMonstruo] = useState(false);
+  const [colorToken, setColorToken] = useState<string>(
+    colorJugador || COLORES_TOKEN_ESFERA[0]
+  );
   const [guardarPlantilla, setGuardarPlantilla] = useState(true);
   const [categoriaToken, setCategoriaToken] = useState("");
   const [filtroCategoriaBandeja, setFiltroCategoriaBandeja] =
@@ -454,8 +483,8 @@ export function Mapa({
 
   // Tamaño base del lienzo en píxeles (a zoom = 1) preservando el aspecto exacto
   const tamanoCanvas = useMemo(() => {
-    const maxW = Math.max(520, tamanoViewport.w * 0.84);
-    const maxH = Math.max(340, tamanoViewport.h * 0.8);
+    const maxW = Math.max(240, tamanoViewport.w * 0.94);
+    const maxH = Math.max(200, tamanoViewport.h * 0.94);
     let w = maxW;
     let h = w / aspectoCanvas;
     if (h > maxH) {
@@ -711,6 +740,11 @@ export function Mapa({
       return;
     }
 
+    if (mapaBloqueado) {
+      setTokenSeleccionadoId(null);
+      return;
+    }
+
     if (evento.button !== 0 && !esPanForzado) return;
     if (esPanForzado) {
       evento.preventDefault();
@@ -768,12 +802,12 @@ export function Mapa({
       const debeAjustar = rejillaActiva.imanActivo && !evento.altKey;
       const posFinal = debeAjustar
         ? ajustarARejilla(
-            rawX,
-            rawY,
-            tokActivo.celdasAncho,
-            tokActivo.celdasAlto,
-            rejillaActiva
-          )
+          rawX,
+          rawY,
+          tokActivo.celdasAncho,
+          tokActivo.celdasAlto,
+          rejillaActiva
+        )
         : { x: rawX, y: rawY };
 
       const actualizado: ArrastreToken = {
@@ -786,6 +820,72 @@ export function Mapa({
       setArrastreToken(actualizado);
       setSobreLimbo(movido && estaSobreLimbo(evento.clientX, evento.clientY));
     }
+  }
+
+  function iniciarArrastreDesdeLimbo(
+    evento: ReactPointerEvent<HTMLButtonElement>,
+    token: TokenMapa
+  ): void {
+    if (!puedeEditarToken(token, esMaster, miUsuarioId) || evento.button !== 0) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+
+    const inicioX = evento.clientX;
+    const inicioY = evento.clientY;
+    let movido = false;
+
+    const alMover = (ev: PointerEvent) => {
+      const dx = ev.clientX - inicioX;
+      const dy = ev.clientY - inicioY;
+      if (!movido && Math.hypot(dx, dy) > 6) {
+        movido = true;
+      }
+      if (movido) {
+        setLimboFantasma({ token, x: ev.clientX, y: ev.clientY });
+      }
+    };
+
+    const alSoltar = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", alMover);
+      window.removeEventListener("pointerup", alSoltar);
+      window.removeEventListener("pointercancel", alSoltar);
+      setLimboFantasma(null);
+
+      if (!movido) {
+        void onActualizarToken(token.id, {
+          enLimbo: false,
+          x: 50,
+          y: 50
+        });
+        return;
+      }
+
+      if (estaSobreLimbo(ev.clientX, ev.clientY)) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const xCrudo = limitar(((ev.clientX - rect.left) / rect.width) * 100, 0, 100);
+      const yCrudo = limitar(((ev.clientY - rect.top) / rect.height) * 100, 0, 100);
+      const pos = rejillaActiva.imanActivo
+        ? ajustarARejilla(
+          xCrudo,
+          yCrudo,
+          token.celdasAncho,
+          token.celdasAlto,
+          rejillaActiva
+        )
+        : { x: xCrudo, y: yCrudo };
+      void onActualizarToken(token.id, {
+        enLimbo: false,
+        x: pos.x,
+        y: pos.y
+      });
+    };
+
+    window.addEventListener("pointermove", alMover);
+    window.addEventListener("pointerup", alSoltar);
+    window.addEventListener("pointercancel", alSoltar);
   }
 
   function estaSobreLimbo(clientX: number, clientY: number): boolean {
@@ -833,47 +933,6 @@ export function Mapa({
     }
   }
 
-  function iniciarRedimensionToken(
-    evento: ReactPointerEvent<HTMLSpanElement>,
-    token: TokenMapa
-  ): void {
-    if (evento.button !== 0 || !puedeEditarToken(token, esMaster, miUsuarioId)) return;
-    evento.preventDefault();
-    evento.stopPropagation();
-
-    const nodoToken = evento.currentTarget.closest<HTMLElement>(".mapa-token");
-    const rect = nodoToken?.getBoundingClientRect();
-    const baseSize = rect ? Math.max(24, (rect.width + rect.height) / 2) : 60;
-    const inicioX = evento.clientX;
-    const inicioY = evento.clientY;
-    const escalaBase = token.escala;
-    let escalaActual = escalaBase;
-
-    setTokenSeleccionadoId(token.id);
-    setRedimensionToken({ tokenId: token.id, escala: escalaBase });
-
-    function alMover(ev: globalThis.PointerEvent): void {
-      const delta = (ev.clientX - inicioX + (ev.clientY - inicioY)) / 2;
-      const factor = Math.max(0.25, (baseSize + delta * 2) / baseSize);
-      escalaActual = Number(limitar(escalaBase * factor, 0.5, 4).toFixed(2));
-      setRedimensionToken({ tokenId: token.id, escala: escalaActual });
-    }
-
-    function alSoltar(): void {
-      window.removeEventListener("pointermove", alMover);
-      window.removeEventListener("pointerup", alSoltar);
-      window.removeEventListener("pointercancel", alSoltar);
-      setRedimensionToken(null);
-      if (Math.abs(escalaActual - escalaBase) >= 0.02) {
-        void onActualizarToken(token.id, { escala: escalaActual });
-      }
-    }
-
-    window.addEventListener("pointermove", alMover);
-    window.addEventListener("pointerup", alSoltar);
-    window.addEventListener("pointercancel", alSoltar);
-  }
-
   function alBajarPunteroToken(
     evento: ReactPointerEvent<HTMLDivElement>,
     token: TokenMapa
@@ -888,6 +947,9 @@ export function Mapa({
     }
 
     setTokenSeleccionadoId(token.id);
+    setPanelAbierto(prev =>
+      prev === "tokens" || prev === "bandeja" ? null : prev
+    );
     viewportRef.current?.setPointerCapture(evento.pointerId);
 
     const inicio: ArrastreToken = {
@@ -971,9 +1033,9 @@ export function Mapa({
       setRejillaBorrador(prev =>
         prev.filasAuto
           ? {
-              ...prev,
-              filas: calcularFilasAuto(prev.columnas, aspectoNuevo)
-            }
+            ...prev,
+            filas: calcularFilasAuto(prev.columnas, aspectoNuevo)
+          }
           : prev
       );
     } catch (err) {
@@ -1041,11 +1103,8 @@ export function Mapa({
   }
 
   async function alCrearNuevoToken(): Promise<void> {
-    if (!previewUrlToken) {
-      setErrorPanel("Selecciona una imagen para el token.");
-      return;
-    }
     setErrorPanel(null);
+    const imagenFinal = previewUrlToken || generarImagenEsferaColor(colorToken);
     const centro = rejillaActiva.imanActivo
       ? ajustarARejilla(50, 50, celdasToken, celdasToken, rejillaActiva)
       : { x: 50, y: 50 };
@@ -1053,27 +1112,29 @@ export function Mapa({
     const categoriaLimpia =
       esMaster && guardarPlantilla ? categoriaToken.trim() || undefined : undefined;
 
-    await onCrearToken(
-      {
-        nombre: nombreToken.trim() || "Token",
-        archivoId: archivoIdToken,
-        imagenUrl: previewUrlToken,
-        x: centro.x,
-        y: centro.y,
-        celdasAncho: celdasToken,
-        celdasAlto: celdasToken,
-        escala: 1,
-        esMonstruo: esMaster ? esMonstruo : false
-      },
-      guardarPlantilla,
-      categoriaLimpia
-    );
+    try {
+      await onCrearToken(
+        {
+          nombre: nombreToken.trim() || "Token",
+          archivoId: previewUrlToken ? archivoIdToken : undefined,
+          imagenUrl: imagenFinal,
+          x: centro.x,
+          y: centro.y,
+          celdasAncho: celdasToken,
+          celdasAlto: celdasToken,
+          escala: 1,
+          esMonstruo: esMaster ? esMonstruo : false
+        },
+        guardarPlantilla,
+        categoriaLimpia
+      );
 
-    setNombreToken("");
-    setPreviewUrlToken(null);
-    setArchivoIdToken(undefined);
-    if (guardarPlantilla) {
-      setPanelAbierto("bandeja");
+      setNombreToken("");
+      setPreviewUrlToken(null);
+      setArchivoIdToken(undefined);
+      setPanelAbierto(guardarPlantilla ? "bandeja" : null);
+    } catch (err) {
+      setErrorPanel(err instanceof Error ? err.message : "No se pudo crear el token.");
     }
   }
 
@@ -1082,12 +1143,12 @@ export function Mapa({
   ): Promise<void> {
     const centro = rejillaActiva.imanActivo
       ? ajustarARejilla(
-          50,
-          50,
-          plantilla.celdasAncho,
-          plantilla.celdasAlto,
-          rejillaActiva
-        )
+        50,
+        50,
+        plantilla.celdasAncho,
+        plantilla.celdasAlto,
+        rejillaActiva
+      )
       : { x: 50, y: 50 };
 
     await onCrearToken(
@@ -1181,6 +1242,17 @@ export function Mapa({
     [jugadores]
   );
 
+  const masterIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const j of jugadoresActivos) {
+      if (j.esMaster) {
+        ids.add(j.id);
+        if (j.usuarioId) ids.add(j.usuarioId);
+      }
+    }
+    return ids;
+  }, [jugadoresActivos]);
+
   const iniciativa: MapaIniciativaEstado = estadoMapa.iniciativa ?? {
     activa: false,
     ronda: 1,
@@ -1196,9 +1268,9 @@ export function Mapa({
         siguiente.entradas.length === 0
           ? 0
           : Math.max(
-              0,
-              Math.min(siguiente.entradas.length - 1, siguiente.turnoIndice)
-            )
+            0,
+            Math.min(siguiente.entradas.length - 1, siguiente.turnoIndice)
+          )
     };
     void onCambiarIniciativa?.(normalizada);
   }
@@ -1275,6 +1347,30 @@ export function Mapa({
       ...iniciativa,
       turnoIndice: 0,
       entradas: ordenadas
+    });
+  }
+
+  function reordenarIniciativa(fromIndex: number, toIndex: number): void {
+    if (!esMaster || fromIndex === toIndex) return;
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= iniciativa.entradas.length ||
+      toIndex >= iniciativa.entradas.length
+    ) {
+      return;
+    }
+    const actualId = iniciativa.entradas[iniciativa.turnoIndice]?.id;
+    const nuevas = [...iniciativa.entradas];
+    const [movida] = nuevas.splice(fromIndex, 1);
+    nuevas.splice(toIndex, 0, movida);
+    const nuevoTurnoIndice = actualId
+      ? Math.max(0, nuevas.findIndex(e => e.id === actualId))
+      : iniciativa.turnoIndice;
+    emitirIniciativa({
+      ...iniciativa,
+      turnoIndice: nuevoTurnoIndice,
+      entradas: nuevas
     });
   }
 
@@ -1379,7 +1475,7 @@ export function Mapa({
     return jugadoresActivos.some(j => {
       const esMismoJugador = Boolean(
         nombreJugador &&
-          (j.nombre === nombreJugador || j.apodo?.trim() === nombreJugador)
+        (j.nombre === nombreJugador || j.apodo?.trim() === nombreJugador)
       );
       if (!esMismoJugador) return false;
       return (
@@ -1495,60 +1591,122 @@ export function Mapa({
             </button>
 
             {esMaster && (
-              <>
-                <button
-                  type="button"
-                  className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
-                  disabled={!onCambiarDibujoCongelado}
-                  onClick={() => {
-                    void onCambiarDibujoCongelado?.(!dibujoCongelado);
-                  }}
-                  title={
-                    dibujoCongelado
-                      ? "Descongelar dibujo para los jugadores"
-                      : "Congelar dibujo para los jugadores"
+              <button
+                type="button"
+                className="pizarra-tool-btn"
+                disabled={trazos.length === 0 || !onBorrarTrazos}
+                onClick={() => {
+                  if (trazos.length > 0) {
+                    void onBorrarTrazos?.();
                   }
-                >
-                  <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
-                  <span>Congelar</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="pizarra-tool-btn"
-                  disabled={trazos.length === 0 || !onBorrarTrazos}
-                  onClick={() => {
-                    if (trazos.length > 0) {
-                      void onBorrarTrazos?.();
-                    }
-                  }}
-                  title="Borrar todos los trazos del mapa"
-                >
-                  <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
-                  <span>Borrar todo</span>
-                </button>
-              </>
+                }}
+                title="Borrar todos los trazos del mapa"
+              >
+                <Trash2 size={14} strokeWidth={2.1} aria-hidden="true" />
+                <span>Borrar todo</span>
+              </button>
             )}
           </>
         )}
 
         {esMaster && (
+          <>
+            <button
+              type="button"
+              className={`pizarra-tool-btn${dibujoCongelado ? " activo" : ""}`}
+              disabled={!onCambiarDibujoCongelado}
+              onClick={() => {
+                void onCambiarDibujoCongelado?.(!dibujoCongelado);
+              }}
+              title={
+                dibujoCongelado
+                  ? "Descongelar dibujo para los jugadores"
+                  : "Congelar dibujo para los jugadores"
+              }
+            >
+              <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
+              <span>Congelar</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pizarra-tool-btn${panelAbierto === "fondo" ? " activo" : ""}`}
+              onClick={() => {
+                if (panelAbierto === "fondo") {
+                  cerrarPanelFondoSinConfirmar();
+                } else {
+                  abrirPanelFondo();
+                }
+              }}
+              title="Configurar imagen de fondo y rejilla táctica"
+            >
+              <Grid3x3 size={14} aria-hidden="true" />
+              <span>Fondo y rejilla</span>
+            </button>
+          </>
+        )}
+
+        <span className="mapa-barra-sep" aria-hidden="true" />
+
+        <div className="mapa-zoom-grupo" role="group" aria-label="Zoom del mapa">
           <button
             type="button"
-            className={`pizarra-tool-btn${panelAbierto === "fondo" ? " activo" : ""}`}
-            onClick={() => {
-              if (panelAbierto === "fondo") {
-                cerrarPanelFondoSinConfirmar();
-              } else {
-                abrirPanelFondo();
-              }
-            }}
-            title="Configurar imagen de fondo y rejilla táctica"
+            className="mapa-zoom-btn"
+            onClick={() => aplicarZoom(1 / 1.2)}
+            title="Alejar"
+            aria-label="Alejar"
           >
-            <Grid3x3 size={14} aria-hidden="true" />
-            <span>Fondo y rejilla</span>
+            <Minus size={13} aria-hidden="true" />
           </button>
-        )}
+          <button
+            type="button"
+            className="mapa-zoom-btn mapa-zoom-reset"
+            onClick={() => centrarVista(1)}
+            title="Restablecer zoom al 100% y centrar"
+          >
+            <RotateCcw size={12} aria-hidden="true" />
+            <span>{Math.round(zoom * 100)}%</span>
+          </button>
+          <button
+            type="button"
+            className="mapa-zoom-btn"
+            onClick={() => aplicarZoom(1.2)}
+            title="Acercar"
+            aria-label="Acercar"
+          >
+            <Plus size={13} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={`mapa-zoom-btn mapa-candado-btn${mapaBloqueado ? " activo" : ""}`}
+            onClick={() =>
+              setMapaBloqueado(prev => {
+                const siguiente = !prev;
+                if (siguiente) {
+                  setPan({ x: 0, y: 0 });
+                }
+                return siguiente;
+              })
+            }
+            aria-pressed={mapaBloqueado}
+            title={
+              mapaBloqueado
+                ? "Mapa bloqueado (pulsa para mover el mapa)"
+                : "Mapa desbloqueado (pulsa para volver al centro y bloquear)"
+            }
+            aria-label={
+              mapaBloqueado
+                ? "Desbloquear movimiento del mapa"
+                : "Bloquear movimiento del mapa"
+            }
+          >
+            {mapaBloqueado ? (
+              <Lock size={13} aria-hidden="true" />
+            ) : (
+              <Unlock size={13} aria-hidden="true" />
+            )}
+          </button>
+        </div>
 
         {dibujandoActivo && (
           <div
@@ -1561,9 +1719,8 @@ export function Mapa({
                 <button
                   key={color}
                   type="button"
-                  className={`mapa-color-swatch${
-                    colorDibujo === color ? " activo" : ""
-                  }`}
+                  className={`mapa-color-swatch${colorDibujo === color ? " activo" : ""
+                    }`}
                   style={{ backgroundColor: color }}
                   aria-label={`Color ${color}`}
                   onClick={() => setColorDibujo(color)}
@@ -1576,9 +1733,8 @@ export function Mapa({
                 <button
                   key={item.valor}
                   type="button"
-                  className={`mapa-grosor-btn${
-                    grosorDibujo === item.valor ? " activo" : ""
-                  }`}
+                  className={`mapa-grosor-btn${grosorDibujo === item.valor ? " activo" : ""
+                    }`}
                   onClick={() => setGrosorDibujo(item.valor)}
                 >
                   {item.etiqueta}
@@ -1616,10 +1772,50 @@ export function Mapa({
                   return (
                     <span
                       key={entrada.id}
-                      className={`mapa-iniciativa-chip${esTurno ? " activo" : ""}${
-                        entrada.esMonstruo ? " monstruo" : ""
-                      }`}
-                      title={`${entrada.nombre} (${entrada.valor})`}
+                      draggable={esMaster}
+                      onDragStart={e => {
+                        if (!esMaster) return;
+                        setArrastreIniciativaIdx(idx);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", String(idx));
+                      }}
+                      onDragOver={e => {
+                        if (!esMaster || arrastreIniciativaIdx === null) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (sobreIniciativaIdx !== idx) {
+                          setSobreIniciativaIdx(idx);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (sobreIniciativaIdx === idx) {
+                          setSobreIniciativaIdx(null);
+                        }
+                      }}
+                      onDrop={e => {
+                        if (!esMaster) return;
+                        e.preventDefault();
+                        const fromIdx =
+                          arrastreIniciativaIdx ??
+                          Number(e.dataTransfer.getData("text/plain"));
+                        setArrastreIniciativaIdx(null);
+                        setSobreIniciativaIdx(null);
+                        if (Number.isInteger(fromIdx)) {
+                          reordenarIniciativa(fromIdx, idx);
+                        }
+                      }}
+                      onDragEnd={() => {
+                        setArrastreIniciativaIdx(null);
+                        setSobreIniciativaIdx(null);
+                      }}
+                      className={`mapa-iniciativa-chip${esTurno ? " activo" : ""}${entrada.esMonstruo ? " monstruo" : ""
+                        }${esMaster ? " arrastrable" : ""}${arrastreIniciativaIdx === idx ? " arrastrando" : ""
+                        }${sobreIniciativaIdx === idx && arrastreIniciativaIdx !== idx ? " sobre-destino" : ""}`}
+                      title={
+                        esMaster
+                          ? `${entrada.nombre} (${entrada.valor}) — Arrastra para reordenar`
+                          : entrada.nombre
+                      }
                     >
                       <span
                         className="mapa-iniciativa-dot"
@@ -1629,9 +1825,11 @@ export function Mapa({
                       <span className="mapa-iniciativa-nombre">
                         {entrada.nombre}
                       </span>
-                      <span className="mapa-iniciativa-valor">
-                        {entrada.valor}
-                      </span>
+                      {esMaster && (
+                        <span className="mapa-iniciativa-valor">
+                          {entrada.valor}
+                        </span>
+                      )}
                     </span>
                   );
                 })}
@@ -1807,9 +2005,8 @@ export function Mapa({
                         <button
                           key={token.id}
                           type="button"
-                          className={`mapa-iniciativa-token-btn${
-                            token.esMonstruo ? " monstruo" : ""
-                          }${yaEnLista ? " en-lista" : ""}`}
+                          className={`mapa-iniciativa-token-btn${token.esMonstruo ? " monstruo" : ""
+                            }${yaEnLista ? " en-lista" : ""}`}
                           disabled={yaEnLista}
                           onClick={() => agregarTokenIniciativa(token)}
                           title={
@@ -1843,10 +2040,53 @@ export function Mapa({
                   {iniciativa.entradas.map((entrada, idx) => (
                     <li
                       key={entrada.id}
-                      className={`mapa-iniciativa-editor-item${
-                        idx === iniciativa.turnoIndice ? " activo" : ""
-                      }`}
+                      draggable={esMaster}
+                      onDragStart={e => {
+                        if (!esMaster) return;
+                        setArrastreIniciativaIdx(idx);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", String(idx));
+                      }}
+                      onDragOver={e => {
+                        if (!esMaster || arrastreIniciativaIdx === null) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (sobreIniciativaIdx !== idx) {
+                          setSobreIniciativaIdx(idx);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (sobreIniciativaIdx === idx) {
+                          setSobreIniciativaIdx(null);
+                        }
+                      }}
+                      onDrop={e => {
+                        if (!esMaster) return;
+                        e.preventDefault();
+                        const fromIdx =
+                          arrastreIniciativaIdx ??
+                          Number(e.dataTransfer.getData("text/plain"));
+                        setArrastreIniciativaIdx(null);
+                        setSobreIniciativaIdx(null);
+                        if (Number.isInteger(fromIdx)) {
+                          reordenarIniciativa(fromIdx, idx);
+                        }
+                      }}
+                      onDragEnd={() => {
+                        setArrastreIniciativaIdx(null);
+                        setSobreIniciativaIdx(null);
+                      }}
+                      className={`mapa-iniciativa-editor-item${idx === iniciativa.turnoIndice ? " activo" : ""
+                        }${esMaster ? " arrastrable" : ""}${arrastreIniciativaIdx === idx ? " arrastrando" : ""
+                        }${sobreIniciativaIdx === idx && arrastreIniciativaIdx !== idx ? " sobre-destino" : ""}`}
                     >
+                      {esMaster && (
+                        <GripVertical
+                          size={12}
+                          className="mapa-iniciativa-grip"
+                          aria-hidden="true"
+                        />
+                      )}
                       <span
                         className="mapa-iniciativa-dot"
                         style={{
@@ -1925,6 +2165,22 @@ export function Mapa({
               miUsuarioId && (j.usuarioId === miUsuarioId || j.id === miUsuarioId)
             );
 
+            const colorDadoTirada = (() => {
+              if (!tirada) return j.color || "#ffe9a8";
+              const deTirada = (tirada as TiradaAsiento & { colorDado?: string })
+                .colorDado;
+              if (deTirada) return deTirada;
+              if (esMioJugador && typeof window !== "undefined") {
+                try {
+                  const guardado = window.localStorage.getItem("pocketrol.colorDado");
+                  if (guardado) return guardado;
+                } catch {
+                  // ignorar errores de acceso a localStorage
+                }
+              }
+              return j.color || "#ffe9a8";
+            })();
+
             return (
               <div
                 key={j.id}
@@ -1940,9 +2196,8 @@ export function Mapa({
                     aria-hidden="true"
                   />
                   <span
-                    className={`mapa-jugador-nombre${
-                      tieneApodo ? " con-apodo" : ""
-                    }`}
+                    className={`mapa-jugador-nombre${tieneApodo ? " con-apodo" : ""
+                      }`}
                     title={
                       tieneApodo ? `${etiqueta} (${j.nombre})` : j.nombre
                     }
@@ -1953,13 +2208,21 @@ export function Mapa({
 
                 {tirada && (
                   <div
-                    className={`mapa-jugador-tirada${
-                      tirada.especial === "critico" ? " critico" : ""
-                    }${tirada.especial === "pifia" ? " pifia" : ""}`}
+                    className={`mapa-jugador-tirada${tirada.especial === "critico" ? " critico" : ""
+                      }${tirada.especial === "pifia" ? " pifia" : ""}`}
                     aria-label={`${etiqueta} sacó ${tirada.total}`}
                   >
-                    <span className="mapa-jugador-tirada-icono">
-                      <IconoDadoPoligono caras={tirada.caras ?? 20} />
+                    <span
+                      className="mapa-jugador-tirada-icono"
+                      style={{
+                        color: tirada.colorAristasDado || "#b794f4"
+                      }}
+                    >
+                      <IconoDadoPoligono
+                        caras={tirada.caras ?? 20}
+                        color={colorDadoTirada}
+                        colorAristas={tirada.colorAristasDado || "#b794f4"}
+                      />
                     </span>
                     <span className="mapa-jugador-tirada-total">
                       {tirada.total}
@@ -2039,9 +2302,8 @@ export function Mapa({
                       <button
                         key={arch.id}
                         type="button"
-                        className={`mapa-archivo-chip${
-                          fondoBorrador?.archivoId === arch.id ? " activo" : ""
-                        }`}
+                        className={`mapa-archivo-chip${fondoBorrador?.archivoId === arch.id ? " activo" : ""
+                          }`}
                         onClick={() => void alElegirArchivoFondo(arch)}
                         title={arch.nombre}
                       >
@@ -2272,19 +2534,44 @@ export function Mapa({
             {panelAbierto === "tokens" ? (
               <div className="mapa-token-form">
                 <div className="mapa-token-preview-fila">
-                  <button
-                    type="button"
-                    className="mapa-token-subir"
-                    onClick={() => inputTokenRef.current?.click()}
-                    disabled={subiendoToken}
-                    title="Elegir imagen del token"
-                  >
-                    {previewUrlToken ? (
-                      <img src={previewUrlToken} alt="Vista previa" />
-                    ) : (
-                      <ImagePlus size={18} aria-hidden="true" />
+                  <div className="mapa-token-subir-wrap">
+                    <button
+                      type="button"
+                      className="mapa-token-subir"
+                      onClick={() => inputTokenRef.current?.click()}
+                      disabled={subiendoToken}
+                      title={
+                        previewUrlToken
+                          ? "Cambiar imagen del token"
+                          : "Subir imagen (opcional; si no, usa esfera de color)"
+                      }
+                    >
+                      {previewUrlToken ? (
+                        <img src={previewUrlToken} alt="Vista previa" />
+                      ) : (
+                        <span
+                          className="mapa-token-esfera-preview"
+                          style={{ "--esfera-color": colorToken } as CSSProperties}
+                        >
+                          <ImagePlus size={15} aria-hidden="true" />
+                        </span>
+                      )}
+                    </button>
+                    {previewUrlToken && (
+                      <button
+                        type="button"
+                        className="mapa-token-quitar-img"
+                        onClick={() => {
+                          setPreviewUrlToken(null);
+                          setArchivoIdToken(undefined);
+                        }}
+                        title="Usar esfera de color en lugar de imagen"
+                        aria-label="Quitar imagen y usar color"
+                      >
+                        <X size={10} />
+                      </button>
                     )}
-                  </button>
+                  </div>
                   <input
                     ref={inputTokenRef}
                     type="file"
@@ -2305,9 +2592,8 @@ export function Mapa({
                         <button
                           key={n}
                           type="button"
-                          className={`mapa-preset-btn${
-                            celdasToken === n ? " activo" : ""
-                          }`}
+                          className={`mapa-preset-btn${celdasToken === n ? " activo" : ""
+                            }`}
                           onClick={() => setCeldasToken(n)}
                         >
                           {n}×{n}
@@ -2316,6 +2602,35 @@ export function Mapa({
                     </div>
                   </div>
                 </div>
+
+                {!previewUrlToken && (
+                  <div className="mapa-token-colores" role="group" aria-label="Color de esfera del token">
+                    <span className="mapa-token-colores-etiqueta">Color</span>
+                    <div className="mapa-token-colores-swatches">
+                      {COLORES_TOKEN_ESFERA.map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          className={`mapa-color-swatch${colorToken.toLowerCase() === color.toLowerCase()
+                            ? " activo"
+                            : ""
+                            }`}
+                          style={{ backgroundColor: color }}
+                          aria-label={`Color ${color}`}
+                          onClick={() => setColorToken(color)}
+                        />
+                      ))}
+                      <input
+                        type="color"
+                        className="mapa-token-color-input"
+                        value={colorToken}
+                        onChange={e => setColorToken(e.target.value)}
+                        title="Elegir color personalizado"
+                        aria-label="Elegir color personalizado"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {esMaster && (
                   <div className="mapa-token-tipo-grupo" role="group" aria-label="Tipo de token">
@@ -2356,9 +2671,8 @@ export function Mapa({
                         <button
                           key={cat}
                           type="button"
-                          className={`mapa-bandeja-filtro-btn${
-                            categoriaToken === cat ? " activo" : ""
-                          }`}
+                          className={`mapa-bandeja-filtro-btn${categoriaToken === cat ? " activo" : ""
+                            }`}
                           onClick={() =>
                             setCategoriaToken(prev => (prev === cat ? "" : cat))
                           }
@@ -2380,7 +2694,7 @@ export function Mapa({
                 <button
                   type="button"
                   className="mapa-btn-primario"
-                  disabled={!previewUrlToken || subiendoToken}
+                  disabled={subiendoToken}
                   onClick={() => void alCrearNuevoToken()}
                 >
                   <Plus size={14} aria-hidden="true" />
@@ -2399,9 +2713,8 @@ export function Mapa({
                       type="button"
                       role="tab"
                       aria-selected={filtroCategoriaBandeja === "Todas"}
-                      className={`mapa-bandeja-filtro-btn${
-                        filtroCategoriaBandeja === "Todas" ? " activo" : ""
-                      }`}
+                      className={`mapa-bandeja-filtro-btn${filtroCategoriaBandeja === "Todas" ? " activo" : ""
+                        }`}
                       onClick={() => setFiltroCategoriaBandeja("Todas")}
                     >
                       Todas
@@ -2412,9 +2725,8 @@ export function Mapa({
                         type="button"
                         role="tab"
                         aria-selected={filtroCategoriaBandeja === cat}
-                        className={`mapa-bandeja-filtro-btn${
-                          filtroCategoriaBandeja === cat ? " activo" : ""
-                        }`}
+                        className={`mapa-bandeja-filtro-btn${filtroCategoriaBandeja === cat ? " activo" : ""
+                          }`}
                         onClick={() => setFiltroCategoriaBandeja(cat)}
                       >
                         {cat}
@@ -2501,9 +2813,8 @@ export function Mapa({
                             ) : onActualizarPlantilla ? (
                               <button
                                 type="button"
-                                className={`mapa-bandeja-cat-badge${
-                                  pl.categoria ? "" : " vacia"
-                                }`}
+                                className={`mapa-bandeja-cat-badge${pl.categoria ? "" : " vacia"
+                                  }`}
                                 onClick={() => {
                                   setPlantillaEditandoCatId(pl.id);
                                   setCategoriaEdicionValor(pl.categoria || "");
@@ -2577,12 +2888,12 @@ export function Mapa({
                   onClick={() => {
                     const pos = rejillaActiva.imanActivo
                       ? ajustarARejilla(
-                          tokenSeleccionado.x,
-                          tokenSeleccionado.y,
-                          n,
-                          n,
-                          rejillaActiva
-                        )
+                        tokenSeleccionado.x,
+                        tokenSeleccionado.y,
+                        n,
+                        n,
+                        rejillaActiva
+                      )
                       : { x: tokenSeleccionado.x, y: tokenSeleccionado.y };
                     void onActualizarToken(tokenSeleccionado.id, {
                       celdasAncho: n,
@@ -2649,14 +2960,46 @@ export function Mapa({
       {/* Viewport interactivo (Zoom + Pan) */}
       <div
         ref={viewportRef}
-        className={`mapa-viewport${modoPing ? " modo-ping" : ""}${
-          dibujandoActivo ? " modo-dibujo" : ""
-        }${espacioPulsado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
+        className={`mapa-viewport${modoPing ? " modo-ping" : ""}${dibujandoActivo ? " modo-dibujo" : ""
+          }${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
         onWheel={alGirarRueda}
         onPointerDown={alBajarPunteroViewport}
         onPointerMove={alMoverPunteroViewport}
         onPointerUp={alSoltarPunteroViewport}
         onPointerCancel={alSoltarPunteroViewport}
+        onDragOver={e => {
+          if (e.dataTransfer.types.includes("text/x-limbo-token-id")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={e => {
+          const tokenId = e.dataTransfer.getData("text/x-limbo-token-id");
+          if (!tokenId) return;
+          e.preventDefault();
+          const token = tokensEnLimbo.find(t => t.id === tokenId);
+          if (!token || !puedeEditarToken(token, esMaster, miUsuarioId)) return;
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const xCrudo = limitar(((e.clientX - rect.left) / rect.width) * 100, 0, 100);
+          const yCrudo = limitar(((e.clientY - rect.top) / rect.height) * 100, 0, 100);
+          const pos = rejillaActiva.imanActivo
+            ? ajustarARejilla(
+              xCrudo,
+              yCrudo,
+              token.celdasAncho,
+              token.celdasAlto,
+              rejillaActiva
+            )
+            : { x: xCrudo, y: yCrudo };
+          void onActualizarToken(token.id, {
+            enLimbo: false,
+            x: pos.x,
+            y: pos.y
+          });
+        }}
       >
         <div
           className="mapa-transform"
@@ -2688,8 +3031,8 @@ export function Mapa({
                   if (img.naturalWidth > 0 && img.naturalHeight > 0) {
                     setDimsNaturales(prev =>
                       prev &&
-                      prev.w === img.naturalWidth &&
-                      prev.h === img.naturalHeight
+                        prev.w === img.naturalWidth &&
+                        prev.h === img.naturalHeight
                         ? prev
                         : { w: img.naturalWidth, h: img.naturalHeight }
                     );
@@ -2780,10 +3123,7 @@ export function Mapa({
               const seleccionado = token.id === tokenSeleccionadoId;
               const enArrastre =
                 arrastreToken?.tokenId === token.id ? arrastreToken : null;
-              const escalaActual =
-                redimensionToken?.tokenId === token.id
-                  ? redimensionToken.escala
-                  : token.escala;
+              const escalaActual = token.escala;
               const posX = enArrastre ? enArrastre.xActual : token.x;
               const posY = enArrastre ? enArrastre.yActual : token.y;
               const anchoPct =
@@ -2794,15 +3134,24 @@ export function Mapa({
                 (token.celdasAlto / Math.max(4, rejillaActiva.filas)) *
                 100 *
                 escalaActual;
+              const esDeMaster = Boolean(
+                token.esMonstruo ||
+                masterIds.has(token.autorId) ||
+                (esMaster && miUsuarioId && token.autorId === miUsuarioId) ||
+                (esMaster && (!token.autorId || token.autorId === "local"))
+              );
+              const anchoTokenPx = (anchoPct / 100) * tamanoCanvas.w;
+              const etiquetaFontPx = Math.max(
+                8,
+                Math.min(30, anchoTokenPx * 0.22)
+              );
 
               return (
                 <div
                   key={token.id}
-                  className={`mapa-token${editable ? " editable" : ""}${
-                    seleccionado ? " seleccionado" : ""
-                  }${enArrastre ? " arrastrando" : ""}${
-                    token.esMonstruo ? " monstruo" : ""
-                  }`}
+                  className={`mapa-token${editable ? " editable" : ""}${seleccionado ? " seleccionado" : ""
+                    }${enArrastre ? " arrastrando" : ""}${token.esMonstruo ? " monstruo" : ""
+                    }${esDeMaster ? " de-master" : ""}`}
                   style={
                     {
                       left: `${posX}%`,
@@ -2827,15 +3176,16 @@ export function Mapa({
                     className="mapa-token-img"
                     draggable={false}
                   />
-                  <span className="mapa-token-etiqueta">{token.nombre}</span>
-                  {editable && (
-                    <span
-                      className="mapa-token-tirador"
-                      title="Arrastra para redimensionar token"
-                      aria-label={`Redimensionar ${token.nombre}`}
-                      onPointerDown={e => iniciarRedimensionToken(e, token)}
-                    />
-                  )}
+                  <span
+                    className="mapa-token-etiqueta"
+                    style={
+                      esDeMaster
+                        ? { fontSize: `${etiquetaFontPx.toFixed(1)}px` }
+                        : undefined
+                    }
+                  >
+                    {token.nombre}
+                  </span>
                 </div>
               );
             })}
@@ -2859,67 +3209,62 @@ export function Mapa({
               </div>
             ))}
           </div>
-
-          {/* Contenedor vertical derecho: Limbo de tokens justo al lado del mapa */}
-          <aside
-            ref={limboRef}
-            className={`mapa-limbo${sobreLimbo ? " destino-limbo" : ""}`}
-            style={{ height: `${tamanoCanvas.h}px` }}
-            aria-label="Limbo de tokens"
-            onPointerDown={e => e.stopPropagation()}
-            onWheel={e => e.stopPropagation()}
-          >
-            <span className="mapa-limbo-titulo">Limbo</span>
-            {tokensEnLimbo.length === 0 ? (
-              <span className="mapa-limbo-vacio">—</span>
-            ) : (
-              <div className="mapa-limbo-lista">
-                {tokensEnLimbo.map(token => {
-                  const editable = puedeEditarToken(token);
-                  return (
-                    <div
-                      key={token.id}
-                      className={`mapa-limbo-item${editable ? " editable" : ""}`}
-                      title={
-                        editable
-                          ? `${token.nombre} — Clic para devolver al mapa`
-                          : `${token.nombre} (${token.autorNombre})`
-                      }
-                    >
-                      <button
-                        type="button"
-                        className="mapa-limbo-token-btn"
-                        disabled={!editable}
-                        onClick={() =>
-                          void onActualizarToken(token.id, {
-                            enLimbo: false,
-                            x: 50,
-                            y: 50
-                          })
-                        }
-                      >
-                        <img src={token.imagenUrl} alt={token.nombre} />
-                        <span className="mapa-limbo-nombre">{token.nombre}</span>
-                      </button>
-                      {editable && (
-                        <button
-                          type="button"
-                          className="mapa-limbo-borrar"
-                          onClick={() => void onEliminarToken(token.id)}
-                          aria-label={`Eliminar ${token.nombre} del Limbo`}
-                          title="Eliminar definitivamente al Almacén"
-                        >
-                          <X size={10} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </aside>
         </div>
       </div>
+
+      {/* Contenedor horizontal: Limbo de tokens al lado de Archivador */}
+      <aside
+        ref={limboRef}
+        className={`mapa-limbo${sobreLimbo ? " destino-limbo" : ""}${esMaster ? " con-master" : ""
+          }`}
+        aria-label="Limbo de tokens"
+        onPointerDown={e => e.stopPropagation()}
+        onWheel={e => e.stopPropagation()}
+      >
+        <span className="mapa-limbo-titulo">Limbo</span>
+        {tokensEnLimbo.length === 0 ? (
+          <span className="mapa-limbo-vacio">—</span>
+        ) : (
+          <div className="mapa-limbo-lista">
+            {tokensEnLimbo.map(token => {
+              const editable = puedeEditarToken(token, esMaster, miUsuarioId);
+              return (
+                <div
+                  key={token.id}
+                  className={`mapa-limbo-item${editable ? " editable" : ""}`}
+                  title={
+                    editable
+                      ? `${token.nombre} — Arrastra al mapa o pulsa para devolverlo`
+                      : `${token.nombre} (${token.autorNombre})`
+                  }
+                >
+                  <button
+                    type="button"
+                    className="mapa-limbo-token-btn"
+                    disabled={!editable}
+                    onPointerDown={e => iniciarArrastreDesdeLimbo(e, token)}
+                  >
+                    <img src={token.imagenUrl} alt={token.nombre} draggable={false} />
+                    <span className="mapa-limbo-nombre">{token.nombre}</span>
+                  </button>
+                  {editable && (
+                    <button
+                      type="button"
+                      className="mapa-limbo-borrar"
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={() => void onEliminarToken(token.id)}
+                      aria-label={`Eliminar ${token.nombre} del Limbo`}
+                      title="Eliminar definitivamente"
+                    >
+                      <X size={10} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </aside>
 
       {/* Dock inferior izquierdo: Crear token y Almacén encima de Dados rápidos */}
       <div className="mapa-tokens-dock" role="toolbar" aria-label="Crear token y almacén">
@@ -2928,11 +3273,12 @@ export function Mapa({
           className={`pizarra-tool-btn mapa-btn-crear-token${panelAbierto === "tokens" ? " activo" : ""}`}
           onClick={() => {
             setErrorPanel(null);
+            setTokenSeleccionadoId(null);
             setPanelAbierto(prev => (prev === "tokens" ? null : "tokens"));
           }}
           title="Crear nuevos tokens en el mapa"
         >
-          <Users size={22} aria-hidden="true" />
+          <Users size={16} aria-hidden="true" />
           <span>Crear token</span>
         </button>
 
@@ -2941,49 +3287,19 @@ export function Mapa({
           className={`pizarra-tool-btn mapa-btn-almacen${panelAbierto === "bandeja" ? " activo" : ""}`}
           onClick={() => {
             setErrorPanel(null);
+            setTokenSeleccionadoId(null);
             setPlantillaEditandoCatId(null);
             setPanelAbierto(prev => (prev === "bandeja" ? null : "bandeja"));
           }}
           title="Abrir almacén de tokens guardados"
         >
-          <IconoCofre size={22} />
+          <IconoCofre size={16} />
           <span>Almacén</span>
           {plantillasVisibles.length > 0 && (
             <span className="mapa-bandeja-badge">
               {plantillasVisibles.length}
             </span>
           )}
-        </button>
-      </div>
-
-      {/* Zoom flotante abajo a la derecha (no tapa la barra de iniciativa) */}
-      <div className="mapa-zoom-grupo mapa-zoom-flotante" role="group" aria-label="Zoom del mapa">
-        <button
-          type="button"
-          className="mapa-zoom-btn"
-          onClick={() => aplicarZoom(1 / 1.2)}
-          title="Alejar"
-          aria-label="Alejar"
-        >
-          <Minus size={13} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="mapa-zoom-btn mapa-zoom-reset"
-          onClick={() => centrarVista(1)}
-          title="Restablecer zoom al 100% y centrar"
-        >
-          <RotateCcw size={12} aria-hidden="true" />
-          <span>{Math.round(zoom * 100)}%</span>
-        </button>
-        <button
-          type="button"
-          className="mapa-zoom-btn"
-          onClick={() => aplicarZoom(1.2)}
-          title="Acercar"
-          aria-label="Acercar"
-        >
-          <Plus size={13} aria-hidden="true" />
         </button>
       </div>
 
@@ -2995,6 +3311,31 @@ export function Mapa({
         <span>·</span>
         <span>Alt+arrastrar token: libre</span>
       </div>
+
+      {limboFantasma && (
+        <div
+          className="mapa-limbo-fantasma"
+          style={{
+            position: "fixed",
+            left: limboFantasma.x,
+            top: limboFantasma.y,
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+            zIndex: 95
+          }}
+        >
+          <img
+            src={limboFantasma.token.imagenUrl}
+            alt={limboFantasma.token.nombre}
+            style={{
+              width: 44,
+              height: 44,
+              objectFit: "contain",
+              filter: "drop-shadow(0 6px 14px rgb(0 0 0 / 70%))"
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

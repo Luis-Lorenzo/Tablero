@@ -28,6 +28,10 @@ import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
+import {
+  obtenerColorDadoGuardado,
+  sanitizarColorDado
+} from "../../preview/datos";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
   cargarCalibracion,
@@ -276,6 +280,8 @@ function SalaRealContent({
     obtenerVolumenMusica
   );
   const [audioBloqueado, setAudioBloqueado] = useState(false);
+  const [tiempoMusica, setTiempoMusica] = useState(0);
+  const [duracionMusica, setDuracionMusica] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioSrcActualRef = useRef<string>("");
@@ -768,7 +774,7 @@ function SalaRealContent({
         }
 
         if (delta !== 0) {
-          reproducirSonidoMonedas();
+          reproducirSonidoMonedas(delta);
           const jugador = jugadores.find(j => (j.userId ?? j.id) === jugadorId);
           if (jugador) {
             const asientoId = jugador.id;
@@ -1110,6 +1116,9 @@ function SalaRealContent({
           ? `${dados.join(" + ")}${modTxt} = ${roll.total}`
           : undefined;
 
+        const colorDado = sanitizarColorDado(roll.colorDado);
+        const colorAristasDado = sanitizarColorDado(roll.colorAristasDado);
+
         setTiradasAsiento(prev => ({
           ...prev,
           [asientoId]: {
@@ -1117,7 +1126,9 @@ function SalaRealContent({
             total: roll.total,
             especial: roll.especial ?? null,
             caras: roll.caras ?? 20,
-            desglose
+            desglose,
+            ...(colorDado ? { colorDado } : {}),
+            ...(colorAristasDado ? { colorAristasDado } : {})
           }
         }));
 
@@ -1247,6 +1258,8 @@ function SalaRealContent({
         audio.load();
       }
       setAudioBloqueado(false);
+      setTiempoMusica(0);
+      setDuracionMusica(0);
       return;
     }
 
@@ -1259,6 +1272,8 @@ function SalaRealContent({
     if (!musicaAmbiente.reproduciendo) {
       audio.pause();
       setAudioBloqueado(false);
+      setTiempoMusica(0);
+      setDuracionMusica(0);
       return;
     }
 
@@ -1286,6 +1301,8 @@ function SalaRealContent({
     const audio = audioRef.current;
     if (!audio || !musicaAmbienteRef.current.reproduciendo) {
       setAudioBloqueado(false);
+      setTiempoMusica(0);
+      setDuracionMusica(0);
       return;
     }
     void audio
@@ -1375,12 +1392,19 @@ function SalaRealContent({
     caras: number;
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
+    colorDado?: string;
+    colorAristasDado?: string;
   }): Promise<void> {
     try {
+      const colorDado =
+        sanitizarColorDado(tirada.colorDado) ?? obtenerColorDadoGuardado(user.id);
+      const colorAristasDado = sanitizarColorDado(tirada.colorAristasDado);
       await mesasApi.enviarTirada(mesa.id, {
         ...tirada,
         secreta: false,
-        soloMaster: Boolean(tirada.soloMaster)
+        soloMaster: Boolean(tirada.soloMaster),
+        ...(colorDado ? { colorDado } : {}),
+        ...(colorAristasDado ? { colorAristasDado } : {})
       });
     } catch (tiradaError) {
       setError(describeError(tiradaError));
@@ -1572,6 +1596,35 @@ function SalaRealContent({
     },
     [mostrarAvisoBreve]
   );
+
+  async function transferirDivisa(
+    destino: JugadorPreview,
+    divisaId: string,
+    cantidad: number
+  ): Promise<boolean> {
+    if (!destino.usuarioId) return false;
+    setError(null);
+    try {
+      const res = await mesasApi.transferirDivisa(mesa.id, {
+        receptorId: destino.usuarioId,
+        divisaId,
+        cantidad
+      });
+      if (res.divisasSaldos) {
+        setDivisasSaldos(res.divisasSaldos);
+      }
+      if (divisaId === (divisasConfig[0]?.id ?? "principal")) {
+        setDivisa(res.divisa);
+      }
+      mostrarAvisoBreve(
+        `Enviadas ${cantidad} monedas a ${destino.apodo?.trim() || destino.nombre}.`
+      );
+      return true;
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+      return false;
+    }
+  }
 
   async function cambiarDivisaNombre(nombre: string): Promise<void> {
     try {
@@ -1940,6 +1993,7 @@ function SalaRealContent({
           divisasSaldos={divisasSaldos}
           onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
           onCambiarDivisa={cambiarDivisa}
+          onTransferirDivisa={transferirDivisa}
           onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
           mochila={mochila}
           onMochila={setMochila}
@@ -2021,6 +2075,7 @@ function SalaRealContent({
         divisasSaldos={divisasSaldos}
         onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
         onCambiarDivisa={cambiarDivisa}
+        onTransferirDivisa={transferirDivisa}
         onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
         onCompartirATodos={compartirATodos}
         onEnviarAPizarra={enviarAPizarra}
@@ -2038,6 +2093,8 @@ function SalaRealContent({
         }
         onCambiarApodo={!esMaster ? cambiarApodo : undefined}
         musicaAmbiente={musicaAmbiente}
+        musicaTiempo={tiempoMusica}
+        musicaDuracion={duracionMusica}
         onActualizarMusica={esMaster ? actualizarMusica : undefined}
         onSubirMusica={esMaster ? subirMusica : undefined}
       />
@@ -2046,7 +2103,23 @@ function SalaRealContent({
 
   return (
     <div>
-      <audio ref={audioRef} onEnded={alTerminarPista} hidden />
+      <audio
+        ref={audioRef}
+        onEnded={alTerminarPista}
+        onTimeUpdate={e => {
+          const t = e.currentTarget.currentTime;
+          setTiempoMusica(Number.isFinite(t) ? t : 0);
+        }}
+        onLoadedMetadata={e => {
+          const d = e.currentTarget.duration;
+          setDuracionMusica(Number.isFinite(d) ? d : 0);
+        }}
+        onDurationChange={e => {
+          const d = e.currentTarget.duration;
+          setDuracionMusica(Number.isFinite(d) ? d : 0);
+        }}
+        hidden
+      />
       {contenido}
 
       {audioBloqueado && musicaAmbiente.reproduciendo && pistaActual && (

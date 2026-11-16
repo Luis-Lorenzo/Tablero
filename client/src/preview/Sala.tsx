@@ -38,6 +38,7 @@ import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
+import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
 import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
 import { ChatSala } from "./ChatSala";
 import {
@@ -78,7 +79,11 @@ import {
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion
 } from "./sonido";
-import { reproducirSonidoRoll, reproducirSonidoTirada } from "./sonidoDados";
+import {
+  reproducirSonidoRoll,
+  reproducirSonidoRollSecreto,
+  reproducirSonidoTirada
+} from "./sonidoDados";
 import { COLORES_DIVISA, COLORES_MACRO } from "./tipos";
 import type {
   Asiento,
@@ -124,6 +129,23 @@ const MUSICA_VACIA: MusicaAmbienteMesa = {
   volumenMaster: 0.7
 };
 
+type TiradaAsientoConColor = TiradaAsiento & { color?: string; colorAristasDado?: string };
+
+const CLAVE_COLOR_DADO = "pocketrol.colorDado";
+const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
+
+function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
+  try {
+    const guardado = window.localStorage.getItem(clave);
+    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
+      return guardado;
+    }
+  } catch {
+    // Ignoramos errores de almacenamiento
+  }
+  return fallback;
+}
+
 interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
@@ -150,7 +172,7 @@ interface SalaProps {
   miUsuarioId?: string;
   mensajesChat?: MensajeSala[];
   onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
-  tiradasAsiento?: Record<string, TiradaAsiento>;
+  tiradasAsiento?: Record<string, TiradaAsientoConColor>;
   onTiradaPublica?: (tirada: {
     total: number;
     formula: string;
@@ -159,6 +181,9 @@ interface SalaProps {
     caras: number;
     especial: TipoEspecialTirada;
     soloMaster?: boolean;
+    color?: string;
+    colorDado?: string;
+    colorAristasDado?: string;
   }) => void | Promise<void>;
   colorJugador?: string;
   nombreJugador?: string;
@@ -176,6 +201,11 @@ interface SalaProps {
   divisasSaldos?: Record<string, number>;
   onGuardarDivisasConfig?: (divisas: DivisaConfig[]) => void | Promise<void>;
   onCambiarDivisa?: (nueva: number, delta: number, divisaId?: string) => void | Promise<void>;
+  onTransferirDivisa?: (
+    destino: JugadorPreview,
+    divisaId: string,
+    cantidad: number
+  ) => void | Promise<boolean | void>;
   onCambiarDivisaNombre?: (nombre: string) => void | Promise<void>;
   divisaAsiento?: Record<string, DivisaAsientoDelta>;
   mochila?: ObjetoMochila[];
@@ -188,8 +218,18 @@ interface SalaProps {
   onConsultarResumenMaster?: () => Promise<PublicJugadorResumenInventario[]>;
   onCambiarApodo?: (apodo: string) => void | Promise<void>;
   musicaAmbiente?: MusicaAmbienteMesa;
+  musicaTiempo?: number;
+  musicaDuracion?: number;
   onActualizarMusica?: (musica: MusicaAmbienteMesa) => void | Promise<void>;
   onSubirMusica?: (archivo: File) => void | Promise<void>;
+}
+
+function formatearTiempoMusica(segundos: number): string {
+  if (!Number.isFinite(segundos) || segundos < 0) return "00:00";
+  const total = Math.floor(segundos);
+  const mins = Math.floor(total / 60);
+  const segs = total % 60;
+  return `${String(mins).padStart(2, "0")}:${String(segs).padStart(2, "0")}`;
 }
 
 /** Tamaño de referencia para convertir píxeles de arrastre en porcentajes. */
@@ -395,11 +435,21 @@ function lanzarGruposDados(
 
 function IconoDadoPoligono({
   caras,
-  valor
+  valor,
+  color,
+  colorAristas
 }: {
   caras: number;
   valor?: number | string;
+  color?: string;
+  colorAristas?: string;
 }) {
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   const etiqueta =
     valor !== undefined ? (
       <text
@@ -407,8 +457,10 @@ function IconoDadoPoligono({
         y={caras === 4 ? "16.8" : "14.5"}
         textAnchor="middle"
         fontSize="5.6"
-        fill="currentColor"
-        stroke="none"
+        fill={color ? "#ffffff" : "currentColor"}
+        stroke={color ? "#090612" : "none"}
+        strokeWidth={color ? "0.9" : undefined}
+        paintOrder={color ? "stroke fill" : undefined}
         fontFamily="'Press Start 2P', monospace"
       >
         {valor}
@@ -424,6 +476,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -441,6 +494,7 @@ function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.6"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -455,6 +509,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -469,6 +524,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -483,6 +539,7 @@ function IconoDadoPoligono({
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinejoin="round"
+          style={estiloPoligono}
         />
         {etiqueta}
       </svg>
@@ -498,6 +555,7 @@ function IconoDadoPoligono({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
+          style={estiloPoligono}
         />
         <circle
           cx="12"
@@ -512,7 +570,7 @@ function IconoDadoPoligono({
       </svg>
     );
   }
-  return <IconoD20 valor={valor} />;
+  return <IconoD20 valor={valor} color={color} colorAristas={colorAristas} />;
 }
 
 function limitar(valor: number, min: number, max: number): number {
@@ -563,7 +621,21 @@ function centroide(quad: QuadMapa): Punto {
   return { x: suma.x / 4, y: suma.y / 4 };
 }
 
-function IconoD20({ valor = 20 }: { valor?: number | string }) {
+function IconoD20({
+  valor,
+  color,
+  colorAristas
+}: {
+  valor?: number | string;
+  color?: string;
+  colorAristas?: string;
+}) {
+  const aristas = colorAristas || "#b794f4";
+  const estiloPoligono = color
+    ? { fill: color, stroke: aristas }
+    : colorAristas
+      ? { stroke: aristas }
+      : undefined;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
@@ -572,18 +644,35 @@ function IconoD20({ valor = 20 }: { valor?: number | string }) {
         stroke="currentColor"
         strokeWidth="1.4"
         strokeLinejoin="round"
+        style={estiloPoligono}
       />
-      <text
-        x="12"
-        y="14.5"
-        textAnchor="middle"
-        fontSize="5.6"
-        fill="currentColor"
-        stroke="none"
-        fontFamily="'Press Start 2P', monospace"
-      >
-        {valor}
-      </text>
+      <polygon
+        points="12,6.5 17.5,15.5 6.5,15.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.05"
+        strokeLinejoin="round"
+        opacity="0.7"
+        style={estiloPoligono}
+      />
+      <line x1="12" y1="2" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="21" y1="7" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="3" y1="7" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="12" y1="22" x2="17.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      <line x1="12" y1="22" x2="6.5" y2="15.5" stroke="currentColor" strokeWidth="1.05" opacity="0.7" />
+      {valor !== undefined && (
+        <text
+          x="12"
+          y="14.5"
+          textAnchor="middle"
+          fontSize="5.6"
+          fill="currentColor"
+          stroke="none"
+          fontFamily="'Press Start 2P', monospace"
+        >
+          {valor}
+        </text>
+      )}
     </svg>
   );
 }
@@ -755,6 +844,7 @@ export function Sala({
   divisasSaldos,
   onGuardarDivisasConfig,
   onCambiarDivisa,
+  onTransferirDivisa,
   onCambiarDivisaNombre,
   divisaAsiento,
   mochila,
@@ -763,6 +853,8 @@ export function Sala({
   onConsultarResumenMaster,
   onCambiarApodo,
   musicaAmbiente,
+  musicaTiempo = 0,
+  musicaDuracion = 0,
   onActualizarMusica,
   onSubirMusica
 }: SalaProps) {
@@ -815,6 +907,30 @@ export function Sala({
   );
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
+  const [colorDado, setColorDado] = useState<string>(() =>
+    cargarColorDadoLocal(colorJugador || "#e8c56a")
+  );
+  const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
+    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+  );
+
+  function actualizarColorDado(nuevoColor: string): void {
+    setColorDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
+
+  function actualizarColorAristasDado(nuevoColor: string): void {
+    setColorAristasDado(nuevoColor);
+    try {
+      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
+    } catch {
+      // Ignoramos errores de almacenamiento
+    }
+  }
   const [sonidoSilenciado, setSonidoSilenciado] = useState<boolean>(
     estaSonidoSilenciado
   );
@@ -1058,7 +1174,7 @@ export function Sala({
   const [sobreMapa, setSobreMapa] = useState(false);
   const [mensajesLocales, setMensajesLocales] = useState<MensajeSala[]>([]);
   const [tiradasAsientoLocales, setTiradasAsientoLocales] = useState<
-    Record<string, TiradaAsiento>
+    Record<string, TiradaAsientoConColor>
   >({});
   const [positActivo, setPositActivo] = useState<string | null>(null);
   const [visorDoc, setVisorDoc] = useState<DocumentoMesa | null>(null);
@@ -1938,7 +2054,9 @@ export function Sala({
     total: number,
     especial: TipoEspecialTirada = null,
     caras = 20,
-    desglose?: string
+    desglose?: string,
+    color?: string,
+    colorAristasDado?: string
   ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
@@ -1947,7 +2065,7 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total, especial, caras, desglose }
+      [asientoId]: { id: tiradaId, total, especial, caras, desglose, color, colorAristasDado }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -2170,7 +2288,11 @@ export function Sala({
     const totalPasos = opciones?.rapido ? 8 : 12;
     const intervaloMs = opciones?.rapido ? 55 : 70;
 
-    reproducirSonidoRoll();
+    if (esSecretaMaster) {
+      reproducirSonidoRollSecreto();
+    } else {
+      reproducirSonidoRoll();
+    }
 
     setSelectorAbierto(false);
     setCompuestaAbierta(false);
@@ -2206,6 +2328,9 @@ export function Sala({
           if (onTiradaPublica) {
             void onTiradaPublica({
               ...resultadoFinal,
+              color: colorDado,
+              colorDado,
+              colorAristasDado,
               ...(esSoloMaster ? { soloMaster: true } : {})
             });
           } else {
@@ -2228,7 +2353,9 @@ export function Sala({
               resultadoFinal.total,
               resultadoFinal.especial,
               resultadoFinal.caras,
-              desglose
+              desglose,
+              colorDado,
+              colorAristasDado
             );
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
@@ -2620,7 +2747,7 @@ export function Sala({
 
   function emitirDivisaLocal(delta: number, total: number): void {
     if (delta === 0) return;
-    reproducirSonidoMonedas();
+    reproducirSonidoMonedas(delta);
     const miAsiento =
       jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.id ?? "master";
     const idDelta = `${Date.now()}-${Math.random()}`;
@@ -3181,23 +3308,48 @@ export function Sala({
                         }
                   }
                 >
-                  {tiradaSobreAsiento && !ajuste && (
-                    <div
-                      key={tiradaSobreAsiento.id}
-                      className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
-                      aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
-                    >
-                      {tiradaSobreAsiento.desglose && (
-                        <span className="asiento-d20-suma">
-                          {tiradaSobreAsiento.desglose}
-                        </span>
-                      )}
-                      <IconoDadoPoligono
-                        caras={tiradaSobreAsiento.caras ?? 20}
-                        valor={tiradaSobreAsiento.total}
-                      />
-                    </div>
-                  )}
+                  {tiradaSobreAsiento && !ajuste && (() => {
+                    const colorDadoAsiento =
+                      tiradaSobreAsiento.colorDado ||
+                      tiradaSobreAsiento.color ||
+                      (esMio ? colorDado : jugador.color);
+                    const colorAristasAsiento =
+                      tiradaSobreAsiento.colorAristasDado ||
+                      (esMio ? colorAristasDado : "#b794f4");
+                    const auraEspecial =
+                      tiradaSobreAsiento.especial === "critico"
+                        ? "drop-shadow(0 0 6px #3ddc84) drop-shadow(0 0 15px rgb(61 220 132 / 92%))"
+                        : tiradaSobreAsiento.especial === "pifia"
+                          ? "drop-shadow(0 0 6px #ff5c77) drop-shadow(0 0 15px rgb(255 92 119 / 92%))"
+                          : undefined;
+                    return (
+                      <div
+                        key={tiradaSobreAsiento.id}
+                        className={`asiento-d20${tiradaSobreAsiento.especial ? ` ${tiradaSobreAsiento.especial}` : ""}`}
+                        style={
+                          {
+                            color: colorAristasAsiento,
+                            "--dado-color": colorDadoAsiento,
+                            "--dado-aristas": colorAristasAsiento,
+                            ...(auraEspecial ? { filter: auraEspecial } : {})
+                          } as CSSProperties
+                        }
+                        aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
+                      >
+                        {tiradaSobreAsiento.desglose && (
+                          <span className="asiento-d20-suma">
+                            {tiradaSobreAsiento.desglose}
+                          </span>
+                        )}
+                        <IconoDadoPoligono
+                          caras={tiradaSobreAsiento.caras ?? 20}
+                          valor={tiradaSobreAsiento.total}
+                          color={colorDadoAsiento}
+                          colorAristas={colorAristasAsiento}
+                        />
+                      </div>
+                    );
+                  })()}
                   {divisaDeltaSobreAsiento && !ajuste && (
                     <div
                       key={divisaDeltaSobreAsiento.id}
@@ -3352,6 +3504,21 @@ export function Sala({
                   <Disc3 size={14} strokeWidth={2.2} aria-hidden="true" />
                 </button>
 
+                {musicaActual.pistas.length > 0 && (
+                  <span
+                    className={`sala-musica-estado${musicaActual.loop ? " bucle" : ""}`}
+                    aria-label={
+                      musicaActual.loop
+                        ? "Reproducción en bucle"
+                        : `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}`
+                    }
+                  >
+                    {musicaActual.loop
+                      ? "BUCLE"
+                      : `${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
+                  </span>
+                )}
+
                 {esMaster && musicaPopoverAbierto && (
                   <div
                     className="sala-musica-popover"
@@ -3440,12 +3607,17 @@ export function Sala({
                                 type="button"
                                 className="sala-musica-pista-nombre"
                                 onClick={() =>
-                                  emitirMusica({
-                                    indiceActual: idx,
-                                    reproduciendo: true
-                                  })
+                                  emitirMusica(
+                                    activa && musicaActual.reproduciendo
+                                      ? { reproduciendo: false }
+                                      : { indiceActual: idx, reproduciendo: true }
+                                  )
                                 }
-                                title={pista.nombre}
+                                title={
+                                  activa && musicaActual.reproduciendo
+                                    ? `Pausar ${pista.nombre}`
+                                    : `Reproducir ${pista.nombre}`
+                                }
                               >
                                 <span className="sala-musica-pista-indice">
                                   {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
@@ -3648,7 +3820,15 @@ export function Sala({
           </div>
 
           {!ajuste && !esMaster && onCambiarApodo && (
-            <div className="sala-apodo-flotante">
+            <div
+              className="sala-apodo-flotante"
+              style={{
+                border: "none",
+                background: "transparent",
+                boxShadow: "none",
+                padding: 0,
+              }}
+            >
               {editandoApodo ? (
                 <form
                   className="sala-apodo-form"
@@ -3704,6 +3884,7 @@ export function Sala({
                 <>
                   <span
                     className={`sala-apodo-texto${miApodo ? "" : " vacio"}`}
+                    style={{ fontSize: "14px" }}
                     title={miApodo || "Sin apodo"}
                   >
                     {miApodo || "Sin apodo"}
@@ -3718,7 +3899,7 @@ export function Sala({
                     title="Cambiar nombre de personaje en esta mesa"
                     aria-label="Cambiar nombre de personaje en esta mesa"
                   >
-                    <Pencil size={13} strokeWidth={2.2} aria-hidden="true" />
+                    <Pencil size={15} strokeWidth={2.2} aria-hidden="true" />
                   </button>
                 </>
               )}
@@ -3945,168 +4126,36 @@ export function Sala({
               el => el.tipo !== "macro" && !el.archivado
             );
             return (
-              <div
-                className="divisa-popover hud-enviar-popover"
-                role="dialog"
-                aria-label="Enviar a jugador"
+              <PopoverPalomaEnviar
+                esMaster={esMaster}
+                hostName={hostName}
+                destinatarios={destinos}
+                destinoId={enviarDestinoId}
+                onCambiarDestinoId={setEnviarDestinoId}
+                mochila={mochilaActual}
+                elementosEnviables={enviables}
+                divisasLista={divisasLista}
+                saldoDeDivisa={idDivisa =>
+                  divisasSaldos && idDivisa in divisasSaldos
+                    ? divisasSaldos[idDivisa]
+                    : divisasSaldos && divisasConfig && divisasConfig.length > 0
+                      ? (divisasSaldos[idDivisa] ?? 0)
+                      : idDivisa === "principal"
+                        ? (divisa ?? divisaLocal)
+                        : (divisasSaldosLocal[idDivisa] ?? 0)
+                }
+                onEnviarChat={onEnviarChat ?? enviarChatLocal}
+                onEnviarObjetoMochila={onEnviarObjetoMochila}
+                onEnviarElemento={onEnviarElemento}
+                onTransferirDivisa={onTransferirDivisa}
+                onMostrarAviso={mostrarAviso}
+                onCerrar={() => setEnviarPopoverAbierto(false)}
                 style={{
                   top: 184,
                   maxHeight: "65vh",
                   overflowY: "auto"
                 }}
-              >
-                <div className="dados-selector-cabecera">
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <IconoPaloma size={16} />
-                    <span>Enviar a jugador</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="dados-cerrar"
-                    onClick={() => setEnviarPopoverAbierto(false)}
-                    aria-label="Cerrar panel de envío"
-                  >
-                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                </div>
-
-                {destinos.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-                    No hay otros jugadores activos en la mesa.
-                  </p>
-                ) : (
-                  <>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                        1. Destinatario
-                      </span>
-                      <div className="mochila-destinos" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {destinos.map(j => {
-                          const seleccionado = (enviarDestinoId ?? destinos[0]?.id) === j.id;
-                          return (
-                            <button
-                              key={j.id}
-                              type="button"
-                              className={`mochila-destino-chip${seleccionado ? " activo" : ""}`}
-                              onClick={() => setEnviarDestinoId(j.id)}
-                              style={{
-                                borderColor: seleccionado ? j.color : undefined,
-                                boxShadow: seleccionado ? `0 0 0 1px ${j.color}` : undefined
-                              }}
-                            >
-                              {j.apodo?.trim() ? j.apodo.trim() : j.nombre}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>
-                        2. Elemento o item
-                      </span>
-                      {mochilaActual.length === 0 && enviables.length === 0 ? (
-                        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-                          No tienes objetos en la mochila ni elementos en la mesa para enviar.
-                        </p>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                          {mochilaActual.map(item => (
-                            <button
-                              key={`mochila-${item.id}`}
-                              type="button"
-                              className="macro-lanzar-btn"
-                              style={{ width: "100%", justifyContent: "space-between" }}
-                              onClick={() => {
-                                const destino =
-                                  destinos.find(
-                                    j => j.id === (enviarDestinoId ?? destinos[0]?.id)
-                                  ) ?? destinos[0];
-                                if (!destino) return;
-                                if (onEnviarObjetoMochila) {
-                                  void onEnviarObjetoMochila(destino, item, 1);
-                                } else {
-                                  mostrarAviso(`${item.nombre} enviado a ${destino.nombre}.`);
-                                }
-                                setEnviarPopoverAbierto(false);
-                              }}
-                            >
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                <span>{item.emoji ?? "🎒"}</span>
-                                <span>{item.nombre}</span>
-                              </span>
-                              <span style={{ fontSize: 11, opacity: 0.75 }}>
-                                Mochila (x{item.cantidad})
-                              </span>
-                            </button>
-                          ))}
-
-                          {enviables.map(elem => {
-                            const etiqueta =
-                              elem.tipo === "posit"
-                                ? elem.texto.trim() || "Posit sin texto"
-                                : elem.nombre;
-                            const icono =
-                              elem.tipo === "posit"
-                                ? "📝"
-                                : elem.tipo === "archivo"
-                                  ? "📄"
-                                  : elem.tipo === "objeto"
-                                    ? elem.emoji ?? "🎒"
-                                    : "◆";
-                            const sub =
-                              elem.tipo === "posit"
-                                ? "Posit"
-                                : elem.tipo === "archivo"
-                                  ? "Doc"
-                                  : elem.tipo === "objeto"
-                                    ? `x${elem.cantidad}`
-                                    : "Macro";
-                            return (
-                              <button
-                                key={elem.id}
-                                type="button"
-                                className="macro-lanzar-btn"
-                                style={{ width: "100%", justifyContent: "space-between" }}
-                                onClick={() => {
-                                  const destino =
-                                    destinos.find(
-                                      j => j.id === (enviarDestinoId ?? destinos[0]?.id)
-                                    ) ?? destinos[0];
-                                  if (!destino) return;
-                                  if (onEnviarElemento) {
-                                    void onEnviarElemento(destino, elem);
-                                  } else {
-                                    mostrarAviso(`Enviado (${etiqueta}) a ${destino.nombre}.`);
-                                  }
-                                  setEnviarPopoverAbierto(false);
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap"
-                                  }}
-                                >
-                                  <span>{icono}</span>
-                                  <span>{etiqueta}</span>
-                                </span>
-                                <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
-                                  {sub}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+              />
             );
           })()}
 
@@ -5044,7 +5093,83 @@ export function Sala({
                 }}
               >
                 <div className="dados-selector-cabecera">
-                  <span>Tirada de dados</span>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                    <span>Tirada de dados</span>
+                    <div
+                      style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+                      role="group"
+                      aria-label="Colores de tus dados"
+                    >
+                      <label
+                        title="Color principal (fondo del dado)"
+                        aria-label="Color principal del dado"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "20px",
+                          height: "20px",
+                          padding: 0,
+                          borderRadius: "5px",
+                          border: tiradaSecreta
+                            ? "1.5px solid #c084fc"
+                            : "1.5px solid #e8c56a",
+                          backgroundColor: colorDado,
+                          boxShadow: "1.5px 1.5px 0 #090612",
+                          cursor: "pointer",
+                          overflow: "hidden"
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={colorDado}
+                          onChange={e => actualizarColorDado(e.target.value)}
+                          aria-label="Elegir color principal del dado"
+                          style={{
+                            opacity: 0,
+                            width: "100%",
+                            height: "100%",
+                            padding: 0,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        />
+                      </label>
+                      <label
+                        title="Color secundario (aristas del dado)"
+                        aria-label="Color secundario de las aristas del dado"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "20px",
+                          height: "20px",
+                          padding: 0,
+                          borderRadius: "5px",
+                          border: `2.5px solid ${colorAristasDado}`,
+                          backgroundColor: "#14101f",
+                          boxShadow: "1.5px 1.5px 0 #090612",
+                          cursor: "pointer",
+                          overflow: "hidden"
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={colorAristasDado}
+                          onChange={e => actualizarColorAristasDado(e.target.value)}
+                          aria-label="Elegir color secundario de aristas del dado"
+                          style={{
+                            opacity: 0,
+                            width: "100%",
+                            height: "100%",
+                            padding: 0,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     className="dados-cerrar"
@@ -5991,6 +6116,30 @@ export function Sala({
               <span className="dock-etiqueta">Dados</span>
             </div>
 
+            {esMaster && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
+                  onClick={() => {
+                    setMacrosAbierto(false);
+                    if (selectorAbierto && tiradaSecreta) {
+                      setSelectorAbierto(false);
+                    } else {
+                      setTiradaSecreta(true);
+                      setSelectorAbierto(true);
+                    }
+                  }}
+                  aria-expanded={selectorAbierto && tiradaSecreta}
+                  title="Dados privados (tirada secreta del Máster)"
+                  aria-label="Dados privados"
+                >
+                  <IconoD20 />
+                </button>
+                <span className="dock-etiqueta">Secreto</span>
+              </div>
+            )}
+
             <div className="dock-item">
               <button
                 type="button"
@@ -6008,30 +6157,6 @@ export function Sala({
               </button>
               <span className="dock-etiqueta">Macros</span>
             </div>
-
-            {esMaster && (
-              <div className="dock-item">
-                <button
-                  type="button"
-                  className={`dock-btn dock-btn-secreto${selectorAbierto && tiradaSecreta ? " activo" : ""}`}
-                  onClick={() => {
-                    setMacrosAbierto(false);
-                    if (selectorAbierto && tiradaSecreta) {
-                      setSelectorAbierto(false);
-                    } else {
-                      setTiradaSecreta(true);
-                      setSelectorAbierto(true);
-                    }
-                  }}
-                  aria-expanded={selectorAbierto && tiradaSecreta}
-                  title="Dados negros (tirada secreta del Máster)"
-                  aria-label="Dados negros"
-                >
-                  <IconoD20 />
-                </button>
-                <span className="dock-etiqueta">Secreto</span>
-              </div>
-            )}
 
             <div className="dock-item">
               <button

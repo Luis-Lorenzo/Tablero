@@ -603,6 +603,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         especial?: "critico" | "pifia" | null;
         secreta?: boolean;
         soloMaster?: boolean;
+        colorDado?: string;
+        colorAristasDado?: string;
       };
       const resultado = await context.chatService.registrarTirada(
         req.currentUser!,
@@ -615,7 +617,9 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           caras: body.caras,
           especial: body.especial,
           secreta: Boolean(body.secreta),
-          soloMaster: Boolean(body.soloMaster)
+          soloMaster: Boolean(body.soloMaster),
+          colorDado: body.colorDado,
+          colorAristasDado: body.colorAristasDado
         }
       );
 
@@ -843,6 +847,134 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       }
 
       res.json({ divisa: guardada, divisaId, divisasSaldos });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/divisa/transferir", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      const miembros = [mesa.hostId, ...mesa.players];
+      if (!miembros.includes(actor.id)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as {
+        receptorId?: unknown;
+        divisaId?: unknown;
+        cantidad?: unknown;
+      };
+      const receptorId = typeof body.receptorId === "string" ? body.receptorId.trim() : "";
+      if (!receptorId || receptorId === actor.id || !miembros.includes(receptorId)) {
+        throw errors.invalidRequest();
+      }
+
+      const cantidad =
+        typeof body.cantidad === "number" && Number.isFinite(body.cantidad)
+          ? Math.trunc(body.cantidad)
+          : 0;
+      if (cantidad <= 0) {
+        throw errors.invalidRequest();
+      }
+
+      const divisasConfig = resolverDivisasConfig(mesa);
+      const divisaId = sanitizarDivisaId(body.divisaId);
+      const esPrincipal = divisaId === (divisasConfig[0]?.id ?? "principal") || divisaId === "principal";
+
+      const leerSaldo = async (usuarioId: string): Promise<number> => {
+        if (!mesaEstado.getEstadoCompleto) return 0;
+        const est = await mesaEstado.getEstadoCompleto(mesaId, usuarioId);
+        if (est.divisasSaldos && typeof est.divisasSaldos[divisaId] === "number") {
+          return Math.max(0, Math.trunc(est.divisasSaldos[divisaId]));
+        }
+        return esPrincipal ? Math.max(0, Math.trunc(est.divisa ?? 0)) : 0;
+      };
+
+      const saldoEmisorActual = await leerSaldo(actor.id);
+      if (saldoEmisorActual < cantidad) {
+        res.status(400).json({
+          error: {
+            code: "SALDO_INSUFICIENTE",
+            message: "No tienes suficientes monedas para enviar esa cantidad."
+          }
+        });
+        return;
+      }
+
+      const saldoReceptorActual = await leerSaldo(receptorId);
+      const nuevoSaldoEmisor = sanitizarDivisa(saldoEmisorActual - cantidad);
+      const nuevoSaldoReceptor = sanitizarDivisa(saldoReceptorActual + cantidad);
+
+      const guardarSaldoUsuario = async (
+        usuarioId: string,
+        nuevoValor: number
+      ): Promise<Record<string, number>> => {
+        if (mesaEstado.saveDivisaSaldo) {
+          const resSaldo = await mesaEstado.saveDivisaSaldo(
+            mesaId,
+            usuarioId,
+            divisaId,
+            nuevoValor
+          );
+          return resSaldo.divisasSaldos;
+        }
+        if (mesaEstado.saveDivisa && divisaId === "principal") {
+          const v = await mesaEstado.saveDivisa(mesaId, usuarioId, nuevoValor);
+          return { principal: v };
+        }
+        return { [divisaId]: nuevoValor };
+      };
+
+      const saldosEmisor = await guardarSaldoUsuario(actor.id, nuevoSaldoEmisor);
+      await guardarSaldoUsuario(receptorId, nuevoSaldoReceptor);
+
+      const receptorUsuario = await context.userRepository.findById(receptorId);
+      const divisaMeta = divisasConfig.find(d => d.id === divisaId);
+      const divisaNombre = divisaMeta?.nombre ?? (mesa.divisaNombre ?? "Divisa");
+      const actorNombre = nombreDeUsuario(actor);
+      const receptorNombre = receptorUsuario ? nombreDeUsuario(receptorUsuario) : "Jugador";
+      const ahora = new Date().toISOString();
+
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:divisa",
+        mesaId,
+        userId: actor.id,
+        nombre: actorNombre,
+        color: divisaMeta?.color ?? mesa.colores?.[actor.id] ?? "#e8c56a",
+        divisaId,
+        divisa: saldosEmisor[divisaId] ?? nuevoSaldoEmisor,
+        divisaNombre,
+        delta: -cantidad,
+        jugadorId: actor.id,
+        jugadorNombre: actorNombre,
+        createdAt: ahora
+      });
+
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:divisa",
+        mesaId,
+        userId: receptorId,
+        nombre: receptorNombre,
+        color: divisaMeta?.color ?? mesa.colores?.[receptorId] ?? "#e8c56a",
+        divisaId,
+        divisa: nuevoSaldoReceptor,
+        divisaNombre,
+        delta: cantidad,
+        jugadorId: receptorId,
+        jugadorNombre: receptorNombre,
+        createdAt: ahora
+      });
+
+      res.json({
+        divisa: saldosEmisor[divisaId] ?? nuevoSaldoEmisor,
+        divisaId,
+        divisasSaldos: saldosEmisor
+      });
     } catch (error) {
       next(error);
     }
