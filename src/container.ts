@@ -49,7 +49,12 @@ import {
 } from "./repositories/transferencia.repository.js";
 import { PgTransferenciaRepository } from "./repositories/pg-transferencia.repository.js";
 import { MemoryAlmacen, R2Almacen, type AlmacenArchivos } from "./lib/almacen.js";
-import { r2Configurado } from "./lib/config.js";
+import { brevoConfigurado, r2Configurado } from "./lib/config.js";
+import {
+  BrevoEmailSender,
+  MemoryEmailSender,
+  type EmailSender
+} from "./lib/mailer.js";
 import { ArchivoService } from "./services/archivo.service.js";
 import { MesasBroadcaster } from "./realtime/mesas-broadcaster.js";
 import { AuthService } from "./services/auth.service.js";
@@ -126,9 +131,29 @@ export async function createContainer(): Promise<Container> {
     }
   }
 
+  let mailer: EmailSender;
+  if (brevoConfigurado(config.brevo)) {
+    mailer = new BrevoEmailSender(config.brevo, logger);
+    logger.info("Proveedor de correo: Brevo transaccional", {
+      templateId: config.brevo.templateId,
+      senderEmail: config.brevo.senderEmail
+    });
+  } else {
+    mailer = new MemoryEmailSender(logger);
+    logger.warn(
+      "BREVO_API_KEY sin configurar: los correos de verificación se registran en memoria."
+    );
+  }
+
   const hasher = new BcryptPasswordHasher();
 
-  const authService = new AuthService(userRepository, hasher, logger);
+  const authService = new AuthService(
+    userRepository,
+    hasher,
+    logger,
+    mailer,
+    config.appUrl
+  );
   const userService = new UserService(userRepository, logger);
   const bloqueoService = new BloqueoService(logger);
   const archivoService = new ArchivoService(

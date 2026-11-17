@@ -26,11 +26,31 @@ export interface User {
   lockedUntil: Date | null;
   /** Nombre visible opcional. Único entre usuarios activos cuando está definido. */
   nickname: string | null;
+  /** Indica si la dirección de correo electrónico ha sido verificada. */
+  emailVerified?: boolean;
+  /** Hash SHA-256 del token de verificación de correo (nunca el token en claro). */
+  verificationTokenHash?: string | null;
+  /** Fecha de caducidad del token de verificación de correo. */
+  verificationExpiresAt?: Date | null;
+  /** Instante del último envío de correo de verificación (para limitar reenvíos). */
+  verificationSentAt?: Date | null;
 }
 
 export interface UserRepository {
   findByEmail(email: string): Promise<User | undefined>;
   findById(id: string): Promise<User | undefined>;
+  /** Busca un usuario por el hash SHA-256 de su token de verificación. */
+  findByVerificationTokenHash?(tokenHash: string): Promise<User | undefined>;
+  /**
+   * Consume atómicamente el token de verificación si sigue coincidiendo con
+   * `tokenHash`, marcando la cuenta como verificada (`ACTIVE` + `emailVerified = true`)
+   * y limpiando el hash y su fecha de caducidad. Devuelve el usuario actualizado
+   * o `undefined` si otro proceso ya consumió o invalidó el token.
+   */
+  consumeVerificationToken?(
+    userId: string,
+    tokenHash: string
+  ): Promise<User | undefined>;
   /** Busca un usuario no borrado por su nombre visible (sin distinguir mayúsculas). */
   findByNickname(nickname: string): Promise<User | undefined>;
   /**
@@ -50,19 +70,28 @@ export function createUser(input: {
   role?: UserRole;
   status?: UserStatus;
   nickname?: string | null;
+  emailVerified?: boolean;
+  verificationTokenHash?: string | null;
+  verificationExpiresAt?: Date | null;
+  verificationSentAt?: Date | null;
 }): User {
+  const status = input.status ?? "PENDING";
   return {
     id: crypto.randomUUID(),
     email: input.email.trim().toLowerCase(),
     passwordHash: input.passwordHash,
     role: input.role ?? "USER",
-    status: input.status ?? "PENDING",
+    status,
     deleted: false,
     createdAt: new Date(),
     failedLoginAt: [],
     blocked: false,
     lockedUntil: null,
-    nickname: input.nickname ?? null
+    nickname: input.nickname ?? null,
+    emailVerified: input.emailVerified ?? status === "ACTIVE",
+    verificationTokenHash: input.verificationTokenHash ?? null,
+    verificationExpiresAt: input.verificationExpiresAt ?? null,
+    verificationSentAt: input.verificationSentAt ?? null
   };
 }
 
@@ -117,6 +146,30 @@ export class MemoryUserRepository implements UserRepository {
 
   async findById(id: string) {
     return this.users.get(id);
+  }
+
+  async findByVerificationTokenHash(tokenHash: string) {
+    if (!tokenHash) return undefined;
+    return [...this.users.values()].find(
+      user => !user.deleted && user.verificationTokenHash === tokenHash
+    );
+  }
+
+  async consumeVerificationToken(userId: string, tokenHash: string) {
+    const user = this.users.get(userId);
+    if (!user || user.deleted || user.verificationTokenHash !== tokenHash) {
+      return undefined;
+    }
+    const updated: User = {
+      ...user,
+      status: "ACTIVE",
+      emailVerified: true,
+      verificationTokenHash: null,
+      verificationExpiresAt: null,
+      failedLoginAt: [...user.failedLoginAt]
+    };
+    this.users.set(userId, updated);
+    return updated;
   }
 
   async findByNickname(nickname: string) {

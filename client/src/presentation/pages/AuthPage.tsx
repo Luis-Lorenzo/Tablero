@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Clock, Eye, EyeOff, Loader2, Lock, LogIn, Mail, Moon, Sun, UserPlus } from "lucide-react";
+import { Clock, Eye, EyeOff, Loader2, Lock, LogIn, Mail, Moon, RefreshCw, Sun, UserPlus } from "lucide-react";
 import { alternarModoClaro, obtenerModoClaro } from "../../preview/datos";
 import { authApi } from "../../api/auth.api";
 import type { PublicUser } from "../../api/types";
@@ -21,6 +21,8 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPendingNotice, setIsPendingNotice] = useState(false);
+  const [canResendEmail, setCanResendEmail] = useState<string | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
 
@@ -40,10 +42,12 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     try {
       if (mode === "register") {
         await authApi.register(email, password);
+        const registeredEmail = email.trim();
         setMode("login");
         setPassword("");
+        setCanResendEmail(registeredEmail);
         setMessage(
-          "Cuenta creada. Un administrador debe aprobarla antes de que puedas iniciar sesión."
+          "Cuenta creada. Te hemos enviado un enlace de verificación por correo (caduca en 30 minutos). Revisa tu bandeja de entrada para activarla."
         );
         return;
       }
@@ -55,10 +59,32 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
         submitError && typeof submitError === "object" && "code" in submitError
           ? String((submitError as { code: unknown }).code)
           : "";
-      setIsPendingNotice(code === "ACCOUNT_PENDING");
+      const pending = code === "ACCOUNT_PENDING";
+      setIsPendingNotice(pending);
+      if (pending && email.trim()) {
+        setCanResendEmail(email.trim());
+      }
       setError(describeError(submitError));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    const targetEmail = (canResendEmail || email).trim();
+    if (!targetEmail || resendBusy) return;
+    setResendBusy(true);
+    setError(null);
+    try {
+      await authApi.resendVerification(targetEmail);
+      setMessage(
+        "Te hemos enviado un nuevo enlace de verificación (válido durante 30 minutos). Revisa tu correo."
+      );
+      setIsPendingNotice(false);
+    } catch (resendErr) {
+      setError(describeError(resendErr));
+    } finally {
+      setResendBusy(false);
     }
   }
 
@@ -67,6 +93,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     setError(null);
     setMessage(null);
     setIsPendingNotice(false);
+    setCanResendEmail(null);
   }
 
   return (
@@ -122,6 +149,26 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
               {isPendingNotice && <Clock size={16} aria-hidden="true" />}
               <span>{error}</span>
             </p>
+          )}
+          {canResendEmail && mode === "login" && (
+            <button
+              type="button"
+              className="ghost small auth-reenviar-btn"
+              onClick={() => void handleResendVerification()}
+              disabled={resendBusy || busy}
+            >
+              {resendBusy ? (
+                <>
+                  <Loader2 size={14} className="icono-girando" aria-hidden="true" />
+                  <span>Reenviando correo…</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={14} aria-hidden="true" />
+                  <span>Reenviar correo de verificación</span>
+                </>
+              )}
+            </button>
           )}
 
           <form onSubmit={handleSubmit} className="form">

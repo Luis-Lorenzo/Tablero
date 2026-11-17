@@ -18,11 +18,16 @@ interface UserRow {
   blocked: boolean;
   locked_until: Date | null;
   nickname: string | null;
+  email_verified: boolean;
+  verification_token_hash: string | null;
+  verification_expires_at: Date | null;
+  verification_sent_at: Date | null;
 }
 
 const SELECT_COLUMNS = `
   id, email, password_hash, role, status, deleted, created_at,
-  failed_login_at, blocked, locked_until, nickname
+  failed_login_at, blocked, locked_until, nickname,
+  email_verified, verification_token_hash, verification_expires_at, verification_sent_at
 `;
 
 function toUser(row: UserRow): User {
@@ -37,7 +42,15 @@ function toUser(row: UserRow): User {
     failedLoginAt: (row.failed_login_at ?? []).map(fallo => new Date(fallo)),
     blocked: row.blocked,
     lockedUntil: row.locked_until ? new Date(row.locked_until) : null,
-    nickname: row.nickname
+    nickname: row.nickname,
+    emailVerified: Boolean(row.email_verified || row.status === "ACTIVE"),
+    verificationTokenHash: row.verification_token_hash,
+    verificationExpiresAt: row.verification_expires_at
+      ? new Date(row.verification_expires_at)
+      : null,
+    verificationSentAt: row.verification_sent_at
+      ? new Date(row.verification_sent_at)
+      : null
   };
 }
 
@@ -56,6 +69,36 @@ export class PgUserRepository implements UserRepository {
     const result = await this.pool.query<UserRow>(
       `SELECT ${SELECT_COLUMNS} FROM users WHERE id = $1 LIMIT 1`,
       [id]
+    );
+    return result.rows[0] ? toUser(result.rows[0]) : undefined;
+  }
+
+  async findByVerificationTokenHash(tokenHash: string): Promise<User | undefined> {
+    if (!tokenHash) return undefined;
+    const result = await this.pool.query<UserRow>(
+      `SELECT ${SELECT_COLUMNS} FROM users
+       WHERE deleted = FALSE AND verification_token_hash = $1
+       LIMIT 1`,
+      [tokenHash]
+    );
+    return result.rows[0] ? toUser(result.rows[0]) : undefined;
+  }
+
+  async consumeVerificationToken(
+    userId: string,
+    tokenHash: string
+  ): Promise<User | undefined> {
+    const result = await this.pool.query<UserRow>(
+      `UPDATE users
+       SET status = 'ACTIVE',
+           email_verified = TRUE,
+           verification_token_hash = NULL,
+           verification_expires_at = NULL
+       WHERE id = $1
+         AND deleted = FALSE
+         AND verification_token_hash = $2
+       RETURNING ${SELECT_COLUMNS}`,
+      [userId, tokenHash]
     );
     return result.rows[0] ? toUser(result.rows[0]) : undefined;
   }
@@ -90,12 +133,14 @@ export class PgUserRepository implements UserRepository {
   }
 
   async save(user: User): Promise<void> {
+    const emailVerified = Boolean(user.emailVerified ?? user.status === "ACTIVE");
     await this.pool.query(
       `
         INSERT INTO users (
           id, email, password_hash, role, status, deleted, created_at,
-          failed_login_at, blocked, locked_until, nickname
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          failed_login_at, blocked, locked_until, nickname,
+          email_verified, verification_token_hash, verification_expires_at, verification_sent_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           password_hash = EXCLUDED.password_hash,
@@ -105,7 +150,11 @@ export class PgUserRepository implements UserRepository {
           failed_login_at = EXCLUDED.failed_login_at,
           blocked = EXCLUDED.blocked,
           locked_until = EXCLUDED.locked_until,
-          nickname = EXCLUDED.nickname
+          nickname = EXCLUDED.nickname,
+          email_verified = EXCLUDED.email_verified,
+          verification_token_hash = EXCLUDED.verification_token_hash,
+          verification_expires_at = EXCLUDED.verification_expires_at,
+          verification_sent_at = EXCLUDED.verification_sent_at
       `,
       [
         user.id,
@@ -118,7 +167,11 @@ export class PgUserRepository implements UserRepository {
         user.failedLoginAt.map(fallo => fallo.toISOString()),
         user.blocked,
         user.lockedUntil ? user.lockedUntil.toISOString() : null,
-        user.nickname
+        user.nickname,
+        emailVerified,
+        user.verificationTokenHash ?? null,
+        user.verificationExpiresAt ? user.verificationExpiresAt.toISOString() : null,
+        user.verificationSentAt ? user.verificationSentAt.toISOString() : null
       ]
     );
   }

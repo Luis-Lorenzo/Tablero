@@ -3,10 +3,21 @@ const MESSAGES: Record<string, string> = {
   WEAK_PASSWORD: "La contraseña debe tener al menos 8 caracteres.",
   EMAIL_EXISTS: "Ya existe una cuenta con ese correo.",
   INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
-  ACCOUNT_PENDING: "Tu cuenta está pendiente de aprobación por un administrador.",
+  ACCOUNT_PENDING:
+    "Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada o solicita un nuevo enlace.",
   ACCOUNT_REJECTED: "Tu cuenta ha sido rechazada.",
   ACCOUNT_LOCKED:
     "La cuenta está bloqueada temporalmente por demasiados intentos fallidos. Inténtalo más tarde.",
+  INVALID_VERIFICATION_TOKEN:
+    "El enlace de verificación no es válido o ya fue utilizado.",
+  EXPIRED_VERIFICATION_TOKEN:
+    "El enlace de verificación ha caducado. Solicita un nuevo correo de verificación.",
+  EMAIL_ALREADY_VERIFIED:
+    "Tu correo electrónico ya estaba verificado. Puedes iniciar sesión.",
+  VERIFICATION_RATE_LIMITED:
+    "Acabamos de enviarte un correo. Espera un minuto antes de solicitar otro.",
+  EMAIL_DELIVERY_FAILED:
+    "No se pudo enviar el correo de verificación en este momento. Inténtalo de nuevo más tarde.",
   FORBIDDEN: "No tienes permisos para realizar esta acción.",
   USER_NOT_FOUND: "El usuario indicado no existe.",
   MESA_NOT_FOUND: "Esa mesa ya no existe. Puede que la haya cerrado su anfitrión.",

@@ -3031,3 +3031,94 @@ html.modo-claro .apodo-propio-input:focus {
   outline: 2px solid rgb(124 92 191 / 35%);
   border-color: #7C5CBF;
 }
+
+/* ===================================================================== */
+/* VERIFICACIÓN DE CORREO ELECTRÓNICO (/verificar-correo)                */
+/* ===================================================================== */
+
+.auth-reenviar-btn {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.verify-card {
+  text-align: center;
+}
+
+.verify-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.verify-estado h1 {
+  margin: 0;
+}
+
+.verify-icono-caja {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgb(232 197 106 / 45%);
+  background: rgb(26 20 38 / 88%);
+  color: #e8c56a;
+}
+
+.verify-icono-caja.ok {
+  border-color: rgb(110 231 160 / 60%);
+  background: rgb(20 52 35 / 88%);
+  color: #86efac;
+}
+
+.verify-icono-caja.aviso {
+  border-color: rgb(245 197 66 / 65%);
+  background: rgb(56 42 16 / 88%);
+  color: #fde047;
+}
+
+.verify-icono-caja.ko {
+  border-color: rgb(244 114 140 / 60%);
+  background: rgb(56 18 28 / 88%);
+  color: #fda4af;
+}
+
+.verify-reenvio-form {
+  width: 100%;
+  text-align: left;
+  margin-top: 4px;
+}
+
+.verify-acciones-fila {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+html.modo-claro .verify-icono-caja {
+  background: #FFF6DC;
+  border-color: #B8862B;
+  color: #8A5A10;
+}
+
+html.modo-claro .verify-icono-caja.ok {
+  background: rgb(232 250 242 / 95%);
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
+html.modo-claro .verify-icono-caja.aviso {
+  background: #FFF6DC;
+  border-color: #B8862B;
+  color: #8A5A10;
+}
+
+html.modo-claro .verify-icono-caja.ko {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}

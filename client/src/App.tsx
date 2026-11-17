@@ -6,6 +6,7 @@ import { ApiError } from "./api/client";
 import { mesasApi } from "./api/mesas.api";
 import type { PublicMesa, PublicUser } from "./api/types";
 import { AuthPage } from "./presentation/pages/AuthPage";
+import { VerifyEmailPage } from "./presentation/pages/VerifyEmailPage";
 import { DashboardPage } from "./presentation/pages/DashboardPage";
 import { AdminUsersPage } from "./presentation/pages/AdminUsersPage";
 import { RecepcionPage } from "./presentation/pages/RecepcionPage";
@@ -59,6 +60,10 @@ async function resolverMotivoSalidaMesa(
 function App() {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rutaActual, setRutaActual] = useState(() => ({
+    pathname: window.location.pathname,
+    search: window.location.search
+  }));
   const [view, setView] = useState<View>("recepcion");
   const [gestionMesaId, setGestionMesaId] = useState<string | null>(null);
   /** Mesa que aloja el usuario ahora mismo (para el botón "Listar mesa"). */
@@ -92,6 +97,17 @@ function App() {
     };
     window.addEventListener("pocketrol:tema", alCambiarTema);
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
+  }, []);
+
+  useEffect(() => {
+    const alPopState = () => {
+      setRutaActual({
+        pathname: window.location.pathname,
+        search: window.location.search
+      });
+    };
+    window.addEventListener("popstate", alPopState);
+    return () => window.removeEventListener("popstate", alPopState);
   }, []);
 
   useEffect(() => {
@@ -212,6 +228,20 @@ function App() {
       setView("sala");
     }
   }, []);
+
+  if (rutaActual.pathname.replace(/\/+$/, "") === "/verificar-correo") {
+    const params = new URLSearchParams(rutaActual.search);
+    const token = params.get("token") ?? "";
+    return (
+      <VerifyEmailPage
+        token={token}
+        onGoToLogin={() => {
+          window.history.pushState({}, "", "/");
+          setRutaActual({ pathname: "/", search: "" });
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return (
