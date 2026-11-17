@@ -57,10 +57,13 @@ export class BrevoEmailSender implements EmailSender {
     }
 
     if (!response.ok) {
+      const detalle = await response.text().catch(() => "");
       this.logger.error("Brevo rechazó el envío del correo de verificación", {
         toEmail: input.toEmail,
         templateId: this.config.templateId,
-        status: response.status
+        senderEmail: this.config.senderEmail,
+        status: response.status,
+        detalle: detalle.slice(0, 300)
       });
       throw errors.emailDeliveryFailed();
     }

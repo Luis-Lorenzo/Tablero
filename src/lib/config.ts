@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 function read(name: string, fallback = ""): string {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   return value && value.length > 0 ? value : fallback;
 }
 
