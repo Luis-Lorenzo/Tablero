@@ -10402,7 +10402,6 @@ html.modo-claro .mapa-toggle-fila.activo,
 html.modo-claro .pizarra-tool-btn.activo,
 html.modo-claro .pizarra-grosor-btn.activo,
 html.modo-claro .dados-lanzar,
-html.modo-claro .macro-lanzar-btn,
 html.modo-claro .master-btn-dorado,
 html.modo-claro .mapa-btn-primario,
 html.modo-claro .mapa-btn-confirmar,
@@ -10415,7 +10414,6 @@ html.modo-claro .archivador-accion-principal {
 }
 
 html.modo-claro .dados-lanzar:hover:not(:disabled),
-html.modo-claro .macro-lanzar-btn:hover:not(:disabled),
 html.modo-claro .mapa-btn-primario:hover,
 html.modo-claro .archivador-btn-subir:hover:not(:disabled) {
   background: #D49724;
@@ -11035,4 +11033,179 @@ html.modo-claro .mesa-visor-posit-editor {
   border: none;
   color: inherit;
   box-shadow: none;
+}
+
+/* Macros y selector de dados en modo claro */
+
+html.modo-claro .dados-secreto-toggle {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #2A1F3D;
+  font-weight: 700;
+}
+
+html.modo-claro .dados-secreto-toggle:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .dados-secreto-toggle.activo {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .dados-secreto-toggle.luna {
+  background: #FCEAD8;
+  border: 1.5px solid #D9791B;
+  color: #6E3208;
+  font-weight: 700;
+}
+
+html.modo-claro .dados-secreto-toggle.luna:hover {
+  background: #F8DCC0;
+  border-color: #B55B0C;
+  color: #4A1F02;
+}
+
+html.modo-claro .dados-secreto-toggle.luna.activo {
+  background: #D9791B;
+  border-color: #9A4E0B;
+  color: #FFF8EC;
+  box-shadow: 0 3px 10px rgb(154 78 11 / 28%);
+}
+
+html.modo-claro .dados-secreto-punto {
+  background: #8E7CC3;
+  border-color: #4A3570;
+}
+
+html.modo-claro .dados-secreto-toggle.activo .dados-secreto-punto {
+  background: #FFF8EC;
+  border-color: #FFF8EC;
+  box-shadow: none;
+}
+
+html.modo-claro .macro-fila {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  box-shadow: 0 2px 8px rgb(60 40 90 / 12%);
+}
+
+html.modo-claro .macro-fila:hover {
+  background: #FFF8EC;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro .macro-lanzar-btn {
+  background: transparent;
+  border: none;
+  color: #2A1F3D;
+  box-shadow: none;
+}
+
+html.modo-claro .macro-icono-badge {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #4A3570;
+}
+
+html.modo-claro .macro-nombre {
+  color: #1E1430;
+  font-weight: 800;
+}
+
+html.modo-claro .macro-formula {
+  color: #534469;
+  font-weight: 700;
+}
+
+html.modo-claro .macro-accion-btn {
+  background: #EEE8FA;
+  border: 1px solid #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .macro-accion-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .macro-accion-btn.borrar:hover {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .macros-buscador {
+  background: #FFFDF8;
+  border: 1.5px solid #8E7CC3;
+  color: #534469;
+}
+
+html.modo-claro .macros-buscador input {
+  background: transparent;
+  border: none;
+  color: #2A1F3D;
+}
+
+html.modo-claro .macro-icono-opcion {
+  background: #EEE8FA;
+  border: 1px solid #8E7CC3;
+  color: #3B2A6B;
+}
+
+html.modo-claro .macro-icono-opcion:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .macro-icono-opcion.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .dados-grupo-card {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-selector.secreta,
+html.modo-claro .dados-selector.dados-selector-unificado.secreta {
+  background: rgb(255 248 236 / 95%);
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .dados-visibilidad-tabs {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+}
+
+html.modo-claro .dados-formula-barra,
+html.modo-claro .dados-compuesta-item {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-formula-texto,
+html.modo-claro .dados-compuesta-item-dado {
+  color: #1E1430;
+}
+
+html.modo-claro .dado-tipo-cant {
+  color: #7A4F0C;
+}
+
+html.modo-claro .dados-secreta-aviso {
+  background: #EEE8FA;
+  border-color: #7C5CBF;
+  color: #3B2A6B;
 }
