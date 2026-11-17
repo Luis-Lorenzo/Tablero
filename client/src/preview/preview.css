@@ -11312,11 +11312,17 @@ html.modo-claro .proyeccion-reabrir-flotante:hover {
 html.modo-claro .master-panel-titulo-wrap h2 {
   color: #1E1430;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
-html.modo-claro .master-panel-titulo-wrap p,
+html.modo-claro .master-panel-titulo-wrap p {
+  color: #3D2E54;
+  font-weight: 500;
+}
+
 html.modo-claro .master-estado-vacio,
 html.modo-claro .master-lista-vacia {
   color: #534469;
@@ -11325,7 +11331,13 @@ html.modo-claro .master-lista-vacia {
 
 html.modo-claro .master-corona,
 html.modo-claro .master-estado-etiqueta {
-  color: #8A5A10;
+  color: #6E4508;
+  font-weight: 800;
+}
+
+html.modo-claro .master-estado-info strong {
+  color: #1E1430;
+  font-weight: 700;
 }
 
 html.modo-claro .master-estado-caja {
@@ -11340,14 +11352,52 @@ html.modo-claro .master-titulo-input {
   color: #2A1F3D;
 }
 
+html.modo-claro .master-titulo-input::placeholder {
+  color: #534469;
+  opacity: 1;
+}
+
+html.modo-claro .master-imagen-card {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 14%);
+}
+
 html.modo-claro .master-imagen-thumb {
-  background: #EFE7DA;
-  border: 1px solid rgb(184 134 43 / 35%);
+  background: #F4EFE6;
+  border: 1px solid rgb(184 134 43 / 40%);
 }
 
 html.modo-claro .master-imagen-nombre {
   color: #1E1430;
+  font-size: 0.84rem;
   font-weight: 700;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn,
+html.modo-claro .archivador-visor .master-accion-btn,
+html.modo-claro .pizarra-page .master-accion-btn {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #2A1F3D;
+  font-weight: 700;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn:hover,
+html.modo-claro .archivador-visor .master-accion-btn:hover,
+html.modo-claro .pizarra-page .master-accion-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn.activo,
+html.modo-claro .archivador-visor .master-accion-btn.activo,
+html.modo-claro .pizarra-page .master-accion-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+  font-weight: 800;
 }
 
 html.modo-claro .master-proyeccion-pill {
