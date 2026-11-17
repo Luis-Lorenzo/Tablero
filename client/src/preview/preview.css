@@ -11232,3 +11232,150 @@ html.modo-claro .dados-secreta-aviso {
   border-color: #7C5CBF;
   color: #3B2A6B;
 }
+
+/* Modal Revelación del Máster y Dirección de Escena en modo claro */
+
+html.modo-claro .proyeccion-master-overlay {
+  background: radial-gradient(
+    ellipse at center,
+    rgb(255 248 236 / 72%) 0%,
+    rgb(60 40 90 / 42%) 100%
+  );
+  backdrop-filter: blur(8px);
+}
+
+html.modo-claro .proyeccion-master-marco {
+  background: rgb(255 248 236 / 96%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 12px 36px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .proyeccion-master-sello {
+  color: #8A5A10;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+html.modo-claro .proyeccion-master-cerrar-x {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .proyeccion-master-cerrar-x:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .proyeccion-master-lienzo {
+  background: #F4EFE6;
+  border: 1.5px solid #B8862B;
+}
+
+html.modo-claro .proyeccion-master-titulo {
+  color: #1E1430;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+html.modo-claro .proyeccion-btn-secundario {
+  background: #EEE8FA;
+  border: 2px solid #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro .proyeccion-btn-secundario:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .proyeccion-reabrir-flotante {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .proyeccion-reabrir-flotante:hover {
+  background: #EEE8FA;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro .master-panel-titulo-wrap h2 {
+  color: #1E1430;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+html.modo-claro .master-panel-titulo-wrap p,
+html.modo-claro .master-estado-vacio,
+html.modo-claro .master-lista-vacia {
+  color: #534469;
+  border-color: #B8862B;
+}
+
+html.modo-claro .master-corona,
+html.modo-claro .master-estado-etiqueta {
+  color: #8A5A10;
+}
+
+html.modo-claro .master-estado-caja {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-titulo-input {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-imagen-thumb {
+  background: #EFE7DA;
+  border: 1px solid rgb(184 134 43 / 35%);
+}
+
+html.modo-claro .master-imagen-nombre {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .master-proyeccion-pill {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 18%);
+}
+
+html.modo-claro .master-pill-mini-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-pill-mini-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro .master-quitar-btn,
+html.modo-claro .master-pill-mini-btn.quitar {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .master-quitar-btn:hover,
+html.modo-claro .master-pill-mini-btn.quitar:hover {
+  background: #F7D4DC;
+}
