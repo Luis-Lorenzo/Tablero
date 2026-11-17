@@ -634,7 +634,7 @@ function SalaRealContent({
         onVolver("Has sido expulsado de la mesa.");
         return;
       }
-      if (actualizada.estado !== "EN_CURSO") {
+      if (actualizada.estado !== "EN_CURSO" && !esMaster) {
         onActualizarMesa(actualizada);
         onVolver("La partida ha terminado y la mesa ha vuelto a espera.");
         return;
@@ -1646,7 +1646,7 @@ function SalaRealContent({
   }
 
   async function volverAEspera() {
-    if (!esMaster) {
+    if (!esMaster || mesa.estado !== "EN_CURSO") {
       onVolver();
       return;
     }
@@ -1658,6 +1658,18 @@ function SalaRealContent({
       onVolver();
     } catch (volverError) {
       setError(describeError(volverError));
+    }
+  }
+
+  async function iniciarPartidaDesdeSala() {
+    if (!esMaster || mesa.estado === "EN_CURSO") return;
+    setError(null);
+    try {
+      const actualizada = await mesasApi.iniciar(mesa.id);
+      onActualizarMesa(actualizada);
+      setEstadoAviso("Partida iniciada: los jugadores ya están entrando en la sala.");
+    } catch (iniciarError) {
+      setError(describeError(iniciarError));
     }
   }
 
@@ -2044,6 +2056,8 @@ function SalaRealContent({
         onVolver={volverAEspera}
         hostName={mesa.hostName}
         esMaster={esMaster}
+        estadoPartida={mesa.estado}
+        onEmpezarPartida={esMaster ? iniciarPartidaDesdeSala : undefined}
         miUsuarioId={user.id}
         mensajesChat={mensajesChat}
         onEnviarChat={enviarChat}

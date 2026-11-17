@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, Palette, Play, Trash2, UserX } from "lucide-react";
+import { ArrowLeft, Check, Crown, DoorOpen, Palette, Play, Trash2, UserX, Wrench } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -313,24 +313,56 @@ export function GestionMesaPage({
       </div>
 
       <div className="gestion-pie">
-        <div className="gestion-pie-principales">
-          {gestiona && (
-            <button
-              type="button"
-              className="primary amarillo"
-              onClick={() => void iniciarPartida()}
-              disabled={busy || mesa.estado === "EN_CURSO"}
-            >
-              <Play size={15} aria-hidden="true" />
-              <span>{mesa.estado === "EN_CURSO" ? "Partida iniciada" : "Empezar partida"}</span>
-            </button>
-          )}
-
-          {onAbrirSala && (
-            <button type="button" className="primary verde" onClick={entrarEnSala}>
-              <DoorOpen size={15} aria-hidden="true" />
-              <span>{mesa.estado === "EN_CURSO" ? "Ir a la partida" : "Entrar en la sala"}</span>
-            </button>
+        <div className="gestion-pie-columna">
+          <div className="gestion-pie-principales">
+            {mesa.estado === "ESPERA" ? (
+              gestiona ? (
+                <>
+                  {onAbrirSala && (
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={entrarEnSala}
+                      disabled={busy}
+                      title="Entra solo tú en la sala para preparar mapas, notas o música; los jugadores siguen esperando"
+                    >
+                      <Wrench size={15} aria-hidden="true" />
+                      <span>Preparar sala</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="primary amarillo"
+                    onClick={() => void iniciarPartida()}
+                    disabled={busy}
+                    title="Inicia la partida y mete a todos los jugadores en la sala"
+                  >
+                    <Play size={15} aria-hidden="true" />
+                    <span>Empezar partida</span>
+                  </button>
+                </>
+              ) : (
+                <span className="pill pending">
+                  Esperando a que el Máster inicie la partida…
+                </span>
+              )
+            ) : (
+              <>
+                <span className="pill on gestion-estado-vivo">● Partida en curso</span>
+                {onAbrirSala && (
+                  <button type="button" className="primary verde" onClick={entrarEnSala}>
+                    <DoorOpen size={15} aria-hidden="true" />
+                    <span>Ir a la partida</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          {gestiona && mesa.estado === "ESPERA" && (
+            <p className="muted gestion-ayuda-inicio">
+              <strong>Preparar sala</strong> te permite entrar solo para montar la sesión.{" "}
+              <strong>Empezar partida</strong> la inicia para todos los jugadores.
+            </p>
           )}
         </div>
 

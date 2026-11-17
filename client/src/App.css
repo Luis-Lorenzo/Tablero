@@ -1529,7 +1529,31 @@ button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
 .gestion-pie-principales {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+}
+
+.gestion-pie-columna {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gestion-estado-vivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.gestion-ayuda-inicio {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.gestion-ayuda-inicio strong {
+  color: #f4e7c1;
 }
 
 .aviso-rol {
@@ -2919,4 +2943,8 @@ html.modo-claro .cuenta-form {
 
 html.modo-claro .details dt {
   color: #534469;
+}
+
+html.modo-claro .gestion-ayuda-inicio strong {
+  color: #2A1F3D;
 }

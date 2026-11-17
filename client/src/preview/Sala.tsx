@@ -177,6 +177,8 @@ interface SalaProps {
   onRechazarSolicitud?: (solicitud: SolicitudTransferencia) => void;
   onSimularRecepcion?: () => void;
   esMaster?: boolean;
+  estadoPartida?: "ESPERA" | "EN_CURSO";
+  onEmpezarPartida?: () => void | Promise<void>;
   miUsuarioId?: string;
   mensajesChat?: MensajeSala[];
   onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
@@ -831,6 +833,8 @@ export function Sala({
   onRechazarSolicitud,
   onSimularRecepcion,
   esMaster = false,
+  estadoPartida,
+  onEmpezarPartida,
   miUsuarioId = "master",
   mensajesChat,
   onEnviarChat,
@@ -883,6 +887,7 @@ export function Sala({
   const [editandoApodo, setEditandoApodo] = useState(false);
   const [apodoTexto, setApodoTexto] = useState("");
   const [guardandoApodo, setGuardandoApodo] = useState(false);
+  const [iniciandoPartida, setIniciandoPartida] = useState(false);
   const miJugador =
     jugadores.find(j => j.id === yoAsientoId) ??
     jugadores.find(
@@ -3433,6 +3438,36 @@ export function Sala({
               <Moon size={16} strokeWidth={2.2} aria-hidden="true" />
             )}
           </button>
+
+          {!ajuste && esMaster && onEmpezarPartida && (
+            <div className="sala-master-partida-ctrl">
+              {estadoPartida === "ESPERA" ? (
+                <>
+                  <button
+                    type="button"
+                    className="sala-btn sala-empezar-btn"
+                    disabled={iniciandoPartida}
+                    onClick={async () => {
+                      if (iniciandoPartida) return;
+                      setIniciandoPartida(true);
+                      try {
+                        await onEmpezarPartida();
+                      } finally {
+                        setIniciandoPartida(false);
+                      }
+                    }}
+                    title="Inicia la partida y mete a todos los jugadores en la sala"
+                  >
+                    <Play size={14} strokeWidth={2.4} aria-hidden="true" />
+                    <span>{iniciandoPartida ? "Iniciando…" : "Empezar partida"}</span>
+                  </button>
+                  <span className="sala-partida-estado espera">Preparando sala</span>
+                </>
+              ) : (
+                <span className="sala-partida-estado en-curso">● En curso</span>
+              )}
+            </div>
+          )}
 
           <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
             <div className="sala-barra-grupo">
