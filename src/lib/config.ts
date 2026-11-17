@@ -29,11 +29,17 @@ export const config = {
     /** Tamaño máximo por archivo subido (30 MiB por defecto). */
     maxBytes: Number(process.env.ARCHIVO_MAX_BYTES) || 30 * 1024 * 1024
   },
-  appUrl: read("APP_URL", "http://localhost:5173").replace(/\/+$/, ""),
+  appUrl: read("APP_URL", read("APP_BASE_URL", "http://localhost:5173")).replace(
+    /\/+$/,
+    ""
+  ),
   brevo: {
-    apiKey: read("BREVO_API_KEY"),
+    apiKey: read("BREVO_API_KEY", read("EMAIL_API_KEY")),
     templateId: Number(process.env.BREVO_TEMPLATE_ID) || 5,
-    senderEmail: read("BREVO_SENDER_EMAIL", "infoluisloxc@gmail.com"),
+    senderEmail: read(
+      "BREVO_SENDER_EMAIL",
+      read("EMAIL_FROM", "infoluisloxc@gmail.com")
+    ),
     senderName: read("BREVO_SENDER_NAME", "Pocket Rol")
   }
 } as const;
