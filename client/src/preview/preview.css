@@ -291,24 +291,24 @@
 }
 
 .asiento-nombre {
-  padding: 0 4px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  padding: 3px 10px;
+  border: 1.5px solid rgb(232 197 106 / 55%);
+  border-radius: 999px;
+  background: rgb(12 9 20 / 92%);
   color: #ffffff;
-  font-size: 0.66rem;
+  font-size: 11.5px;
   font-weight: 600;
   line-height: 1.25;
   white-space: nowrap;
-  opacity: 0.92;
-  box-shadow: none;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 90%);
+  opacity: 1;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 55%);
+  text-shadow: none;
 }
 
 .asiento.master .asiento-nombre {
-  border: none;
-  background: transparent;
-  color: #ffffff;
+  border-color: #e8c56a;
+  background: rgb(12 9 20 / 92%);
+  color: #f6e3b0;
 }
 
 .asiento-apodo {
@@ -353,9 +353,9 @@
 }
 
 .asiento.seleccionado .asiento-nombre {
-  border: none;
-  background: transparent;
-  color: #ffffff;
+  border-color: #e8c56a;
+  background: rgb(32 25 46 / 94%);
+  color: #f6e3b0;
 }
 
 .asiento.seleccionado .asiento-apodo {
