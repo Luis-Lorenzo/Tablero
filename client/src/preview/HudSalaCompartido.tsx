@@ -95,6 +95,7 @@ function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): s
 
 export interface HudSalaCompartidoProps {
   jugadores: JugadorPreview[];
+  mesaId?: string;
   esMaster?: boolean;
   miUsuarioId?: string;
   hostName?: string;
@@ -488,6 +489,7 @@ function IconoArchivador() {
  */
 export function HudSalaCompartido({
   jugadores,
+  mesaId,
   esMaster = false,
   miUsuarioId = "master",
   hostName,
@@ -1260,7 +1262,7 @@ export function HudSalaCompartido({
     try {
       const cuadrada = await recortarImagenCuadrada(file);
       if (onCambiarDivisa) {
-        const subido = await archivosApi.subir(cuadrada);
+        const subido = await archivosApi.subir(cuadrada, mesaId);
         setNuevoObjArchivo({
           archivoId: subido.id,
           archivoNombre: subido.nombre

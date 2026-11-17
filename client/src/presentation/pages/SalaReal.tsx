@@ -654,10 +654,10 @@ function SalaRealContent({
 
   const cargarArchivos = useCallback(() => {
     void archivosApi
-      .listar()
+      .listar(mesa.id)
       .then(setArchivosDisponibles)
       .catch(() => undefined);
-  }, []);
+  }, [mesa.id]);
 
   useEffect(() => {
     let activo = true;
@@ -1214,7 +1214,7 @@ function SalaRealContent({
   const subirMusica = useCallback(
     async (archivo: File) => {
       try {
-        const subido = await archivosApi.subir(archivo);
+        const subido = await archivosApi.subir(archivo, mesa.id);
         setArchivosDisponibles(prev =>
           prev.some(item => item.id === subido.id) ? prev : [subido, ...prev]
         );
@@ -1913,7 +1913,7 @@ function SalaRealContent({
     archivo: File,
     _categoria: "escena" | "token"
   ): Promise<{ archivoId?: string; url: string; titulo: string }> {
-    const subido = await archivosApi.subir(archivo);
+    const subido = await archivosApi.subir(archivo, mesa.id);
     cargarArchivos();
     return {
       archivoId: subido.id,
@@ -1946,6 +1946,7 @@ function SalaRealContent({
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={() => setFase("sala")}
+        mesaId={mesa.id}
         esMaster={esMaster}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
@@ -1989,6 +1990,7 @@ function SalaRealContent({
         />
         <HudSalaCompartido
           jugadores={jugadores}
+          mesaId={mesa.id}
           esMaster={esMaster}
           miUsuarioId={user.id}
           hostName={mesa.hostName}
@@ -2034,6 +2036,7 @@ function SalaRealContent({
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
         onVolver={() => setFase("sala")}
+        mesaId={mesa.id}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
@@ -2048,6 +2051,7 @@ function SalaRealContent({
     contenido = (
       <Sala
         jugadores={jugadores}
+        mesaId={mesa.id}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
         onAbrirPizarra={() => setFase("pizarra")}

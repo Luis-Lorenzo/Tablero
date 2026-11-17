@@ -4,6 +4,7 @@ import type { Archivo, ArchivoRepository } from "./archivo.repository.js";
 interface ArchivoRow {
   id: string;
   owner_id: string;
+  mesa_id: string | null;
   nombre: string;
   clave: string;
   tipo: string;
@@ -11,12 +12,13 @@ interface ArchivoRow {
   created_at: Date;
 }
 
-const SELECT_COLUMNS = `id, owner_id, nombre, clave, tipo, tamano, created_at`;
+const SELECT_COLUMNS = `id, owner_id, mesa_id, nombre, clave, tipo, tamano, created_at`;
 
 function toArchivo(row: ArchivoRow): Archivo {
   return {
     id: row.id,
     ownerId: row.owner_id,
+    mesaId: row.mesa_id,
     nombre: row.nombre,
     clave: row.clave,
     tipo: row.tipo,
@@ -28,14 +30,32 @@ function toArchivo(row: ArchivoRow): Archivo {
 export class PgArchivoRepository implements ArchivoRepository {
   constructor(private readonly pool: Pool) {}
 
-  async listByOwner(ownerId: string): Promise<Archivo[]> {
+  async listByOwner(ownerId: string, mesaId?: string): Promise<Archivo[]> {
+    if (mesaId) {
+      const { rows } = await this.pool.query<ArchivoRow>(
+        `SELECT ${SELECT_COLUMNS} FROM archivos
+         WHERE owner_id = $1 AND (mesa_id IS NULL OR mesa_id = $2)
+         ORDER BY created_at DESC`,
+        [ownerId, mesaId]
+      );
+      return rows.map(toArchivo);
+    }
+
     const { rows } = await this.pool.query<ArchivoRow>(
       `SELECT ${SELECT_COLUMNS} FROM archivos
-       WHERE owner_id = $1
+       WHERE owner_id = $1 AND mesa_id IS NULL
        ORDER BY created_at DESC`,
       [ownerId]
     );
 
+    return rows.map(toArchivo);
+  }
+
+  async listByMesa(mesaId: string): Promise<Archivo[]> {
+    const { rows } = await this.pool.query<ArchivoRow>(
+      `SELECT ${SELECT_COLUMNS} FROM archivos WHERE mesa_id = $1`,
+      [mesaId]
+    );
     return rows.map(toArchivo);
   }
 
@@ -59,9 +79,10 @@ export class PgArchivoRepository implements ArchivoRepository {
 
   async save(archivo: Archivo): Promise<void> {
     await this.pool.query(
-      `INSERT INTO archivos (id, owner_id, nombre, clave, tipo, tamano, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO archivos (id, owner_id, mesa_id, nombre, clave, tipo, tamano, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
+         mesa_id = EXCLUDED.mesa_id,
          nombre = EXCLUDED.nombre,
          clave = EXCLUDED.clave,
          tipo = EXCLUDED.tipo,
@@ -69,6 +90,7 @@ export class PgArchivoRepository implements ArchivoRepository {
       [
         archivo.id,
         archivo.ownerId,
+        archivo.mesaId ?? null,
         archivo.nombre,
         archivo.clave,
         archivo.tipo,
@@ -80,5 +102,13 @@ export class PgArchivoRepository implements ArchivoRepository {
 
   async delete(id: string): Promise<void> {
     await this.pool.query(`DELETE FROM archivos WHERE id = $1`, [id]);
+  }
+
+  async deleteByMesa(mesaId: string): Promise<Archivo[]> {
+    const { rows } = await this.pool.query<ArchivoRow>(
+      `DELETE FROM archivos WHERE mesa_id = $1 RETURNING ${SELECT_COLUMNS}`,
+      [mesaId]
+    );
+    return rows.map(toArchivo);
   }
 }

@@ -177,6 +177,7 @@ interface SalaProps {
   onRechazarSolicitud?: (solicitud: SolicitudTransferencia) => void;
   onSimularRecepcion?: () => void;
   esMaster?: boolean;
+  mesaId?: string;
   estadoPartida?: "ESPERA" | "EN_CURSO";
   onEmpezarPartida?: () => void | Promise<void>;
   miUsuarioId?: string;
@@ -833,6 +834,7 @@ export function Sala({
   onRechazarSolicitud,
   onSimularRecepcion,
   esMaster = false,
+  mesaId,
   estadoPartida,
   onEmpezarPartida,
   miUsuarioId = "master",
@@ -2589,7 +2591,7 @@ export function Sala({
     try {
       for (const file of Array.from(files)) {
         try {
-          const subido = await archivosApi.subir(file);
+          const subido = await archivosApi.subir(file, mesaId);
           setArchivosSubidosLocal(prev =>
             prev.some(a => a.id === subido.id) ? prev : [subido, ...prev]
           );
@@ -2653,7 +2655,7 @@ export function Sala({
                 : "ninguna";
 
         try {
-          const creado = await archivosApi.subir(file);
+          const creado = await archivosApi.subir(file, mesaId);
           setArchivosSubidosLocal(prev =>
             prev.some(a => a.id === creado.id) ? prev : [creado, ...prev]
           );
@@ -2881,7 +2883,7 @@ export function Sala({
     try {
       const cuadrada = await recortarImagenCuadrada(file);
       if (onCambiarDivisa) {
-        const subido = await archivosApi.subir(cuadrada);
+        const subido = await archivosApi.subir(cuadrada, mesaId);
         setNuevoObjArchivo({
           archivoId: subido.id,
           archivoNombre: subido.nombre
@@ -6848,6 +6850,7 @@ export function Sala({
 
           {panelMasterAbierto && esMaster && (
             <PanelImagenesMasterModal
+              mesaId={mesaId}
               imagenEscena={imagenEscena}
               imagenProyectada={imagenProyectada}
               onCambiarEscena={onCambiarEscena}

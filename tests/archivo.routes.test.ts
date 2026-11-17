@@ -27,6 +27,13 @@ function montar() {
   const users = new MemoryUserRepository();
   const mesas = new MemoryMesaRepository();
   const hasher = new FakePasswordHasher();
+  const archivoService = new ArchivoService(
+    new MemoryArchivoRepository(),
+    new MemoryAlmacen(),
+    logger,
+    config.archivos.maxBytes,
+    mesas
+  );
 
   const context: AppContext = {
     config,
@@ -36,14 +43,9 @@ function montar() {
     authService: new AuthService(users, hasher, logger),
     userService: new UserService(users, logger),
     bloqueoService: new BloqueoService(logger),
-    mesaService: new MesaService(mesas, users, logger),
+    mesaService: new MesaService(mesas, users, logger, archivoService),
     chatService: new ChatService(mesas, users),
-    archivoService: new ArchivoService(
-      new MemoryArchivoRepository(),
-      new MemoryAlmacen(),
-      logger,
-      config.archivos.maxBytes
-    ),
+    archivoService,
     mesasNotifier: new NoopMesasNotifier()
   };
 
@@ -165,5 +167,52 @@ describe("rutas de /api/archivos", () => {
       .get("/api/archivos/no-es-un-uuid")
       .set("Cookie", cookie);
     expect(response.status).toBe(404);
+  });
+
+  it("separa archivos de recepción y de mesa, y al cerrar la mesa borra solo los de la mesa", async () => {
+    const personal = await subir(cookie, "personal.pdf");
+    expect(personal.status).toBe(201);
+
+    const mesaCreada = await request(montado.app)
+      .post("/api/mesas")
+      .set("Cookie", cookie);
+    expect(mesaCreada.status).toBe(201);
+    const mesaId = mesaCreada.body.id as string;
+
+    const deMesa = await request(montado.app)
+      .post(`/api/archivos?nombre=escena.pdf&mesaId=${encodeURIComponent(mesaId)}`)
+      .set("Cookie", cookie)
+      .set("Content-Type", "application/pdf")
+      .send(PDF);
+    expect(deMesa.status).toBe(201);
+
+    const enRecepcion = await request(montado.app)
+      .get("/api/archivos")
+      .set("Cookie", cookie);
+    expect(enRecepcion.status).toBe(200);
+    expect(enRecepcion.body.map((a: { id: string }) => a.id)).toEqual([personal.body.id]);
+
+    const enMesa = await request(montado.app)
+      .get(`/api/archivos?mesaId=${encodeURIComponent(mesaId)}`)
+      .set("Cookie", cookie);
+    expect(enMesa.status).toBe(200);
+    expect(enMesa.body.map((a: { id: string }) => a.id)).toContain(personal.body.id);
+    expect(enMesa.body.map((a: { id: string }) => a.id)).toContain(deMesa.body.id);
+
+    const cerrar = await request(montado.app)
+      .delete(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookie);
+    expect(cerrar.status).toBe(204);
+
+    const archivoMesaTrasCierre = await request(montado.app)
+      .get(`/api/archivos/${deMesa.body.id}`)
+      .set("Cookie", cookie);
+    expect(archivoMesaTrasCierre.status).toBe(404);
+
+    const archivoPersonalTrasCierre = await request(montado.app)
+      .get(`/api/archivos/${personal.body.id}`)
+      .set("Cookie", cookie);
+    expect(archivoPersonalTrasCierre.status).toBe(200);
+    expect(archivoPersonalTrasCierre.body).toEqual(PDF);
   });
 });

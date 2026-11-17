@@ -131,8 +131,6 @@ export async function createContainer(): Promise<Container> {
   const authService = new AuthService(userRepository, hasher, logger);
   const userService = new UserService(userRepository, logger);
   const bloqueoService = new BloqueoService(logger);
-  const mesaService = new MesaService(mesaRepository, userRepository, logger);
-  const chatService = new ChatService(mesaRepository, userRepository, chatRepository);
   const archivoService = new ArchivoService(
     archivoRepository,
     almacen,
@@ -140,6 +138,13 @@ export async function createContainer(): Promise<Container> {
     config.archivos.maxBytes,
     mesaRepository
   );
+  const mesaService = new MesaService(
+    mesaRepository,
+    userRepository,
+    logger,
+    archivoService
+  );
+  const chatService = new ChatService(mesaRepository, userRepository, chatRepository);
   const transferenciaService = new TransferenciaService(
     mesaRepository,
     archivoService,
