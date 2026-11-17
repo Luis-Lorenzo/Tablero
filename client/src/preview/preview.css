@@ -11184,15 +11184,38 @@ html.modo-claro .dados-selector.dados-selector-unificado.secreta {
 }
 
 html.modo-claro .dados-visibilidad-tabs {
-  background: #EEE8FA;
-  border-color: #8E7CC3;
+  background: #DCE0EA;
+  border: 1.5px solid #9AA2B4;
 }
 
-html.modo-claro .dados-formula-barra,
-html.modo-claro .dados-compuesta-item {
-  background: #FFFDF8;
-  border-color: #B8862B;
+html.modo-claro .dados-formula-barra {
+  background: #DCE0EA;
+  border: 1.5px solid #9AA2B4;
   color: #2A1F3D;
+}
+
+html.modo-claro .dados-compuesta-item {
+  background: #E4E7F0;
+  border: 1.5px solid #9AA2B4;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-compuesta-item-controles button {
+  background: #F4F6FA;
+  border: 1px solid #9AA2B4;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-compuesta-item-controles button:hover {
+  background: #FFFFFF;
+  border-color: #6E778A;
+  color: #1E1430;
+}
+
+html.modo-claro .dados-compuesta-item-controles button.quitar:hover {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
 }
 
 html.modo-claro .dados-formula-texto,

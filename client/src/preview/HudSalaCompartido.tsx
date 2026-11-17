@@ -3075,11 +3075,15 @@ export function HudSalaCompartido({
                       height: "20px",
                       padding: 0,
                       borderRadius: "5px",
-                      border: tiradaSecreta
-                        ? "1.5px solid #c084fc"
-                        : "1.5px solid #e8c56a",
+                      border: modoClaro
+                        ? "1.5px solid #8E96A8"
+                        : tiradaSecreta
+                          ? "1.5px solid #c084fc"
+                          : "1.5px solid #e8c56a",
                       backgroundColor: colorDado,
-                      boxShadow: "1.5px 1.5px 0 #090612",
+                      boxShadow: modoClaro
+                        ? "0 2px 5px rgb(100 110 130 / 28%)"
+                        : "1.5px 1.5px 0 #090612",
                       cursor: "pointer",
                       overflow: "hidden"
                     }}
@@ -3111,8 +3115,10 @@ export function HudSalaCompartido({
                       padding: 0,
                       borderRadius: "5px",
                       border: `2.5px solid ${colorAristasDado}`,
-                      backgroundColor: "#14101f",
-                      boxShadow: "1.5px 1.5px 0 #090612",
+                      backgroundColor: modoClaro ? "#D8DCE6" : "#14101f",
+                      boxShadow: modoClaro
+                        ? "0 2px 5px rgb(100 110 130 / 28%)"
+                        : "1.5px 1.5px 0 #090612",
                       cursor: "pointer",
                       overflow: "hidden"
                     }}
