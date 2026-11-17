@@ -21,7 +21,7 @@ import type {
  * perder el trabajo de calibración entre recargas.
  */
 
-const CLAVE_CALIBRACION = "pocketrol.preview.calibracion.v1";
+const CLAVE_CALIBRACION = "pocketrol.preview.calibracion.v4";
 // v2: los jugadores pasan a ir en orden de llegada (Aria, Celeste, Elena,
 // Borin, Dorian, Fenrir). La lista guardada por la v1 traía otro orden.
 const CLAVE_JUGADORES = "pocketrol.preview.jugadores.v2";
@@ -107,6 +107,7 @@ export function cargarCalibracion(): Calibracion {
   return {
     asientos: { ...CALIBRACION_INICIAL.asientos, ...(guardada.asientos ?? {}) },
     pizarra: { ...CALIBRACION_INICIAL.pizarra, ...(guardada.pizarra ?? {}) },
+    chat: { ...CALIBRACION_INICIAL.chat, ...(guardada.chat ?? {}) },
     mapa: normalizarMapa(guardada.mapa),
     dock: { ...CALIBRACION_INICIAL.dock, ...(guardada.dock ?? {}) }
   };

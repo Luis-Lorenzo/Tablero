@@ -19,6 +19,7 @@ import { ArchivoService } from "../src/services/archivo.service.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
+import { ChatService } from "../src/services/chat.service.js";
 import { UserService } from "../src/services/user.service.js";
 import { MesasBroadcaster } from "../src/realtime/mesas-broadcaster.js";
 import type { AppContext } from "../src/api/context.js";
@@ -75,6 +76,7 @@ describe("canal en vivo /ws", () => {
       userService: new UserService(users, logger),
       bloqueoService: new BloqueoService(logger),
       mesaService: new MesaService(mesas, users, logger),
+      chatService: new ChatService(mesas, users),
       archivoService: new ArchivoService(
         new MemoryArchivoRepository(),
         new MemoryAlmacen(),
@@ -143,5 +145,51 @@ describe("canal en vivo /ws", () => {
     expect(JSON.parse(mensaje)).toEqual({ type: "mesas:changed" });
 
     ws.close();
+  });
+
+  it("envía eventos dirigidos únicamente al usuario destinatario", async () => {
+    const userC = await aprobar("c@pocket.test");
+    const userD = await aprobar("d@pocket.test");
+
+    const cookieC = await sesionDe("c@pocket.test");
+    const cookieD = await sesionDe("d@pocket.test");
+
+    const wsC = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+      headers: { Cookie: cookieC }
+    });
+    const wsD = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+      headers: { Cookie: cookieD }
+    });
+
+    await Promise.all([
+      new Promise<void>((resolve, reject) => {
+        wsC.on("open", () => resolve());
+        wsC.on("error", reject);
+      }),
+      new Promise<void>((resolve, reject) => {
+        wsD.on("open", () => resolve());
+        wsD.on("error", reject);
+      })
+    ]);
+
+    const mensajesC: unknown[] = [];
+    const mensajesD: unknown[] = [];
+    wsC.on("message", data => mensajesC.push(JSON.parse(String(data))));
+    wsD.on("message", data => mensajesD.push(JSON.parse(String(data))));
+
+    broadcaster.notificarUsuario(userD.id, {
+      type: "transferencia:recibida",
+      emisorId: userC.id
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 60));
+
+    expect(mensajesD).toEqual([
+      { type: "transferencia:recibida", emisorId: userC.id }
+    ]);
+    expect(mensajesC).toEqual([]);
+
+    wsC.close();
+    wsD.close();
   });
 });

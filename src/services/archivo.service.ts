@@ -20,6 +20,7 @@ export interface EntradaArchivo {
   nombre: string;
   tipo: string;
   datos: Uint8Array;
+  mesaId?: string;
 }
 
 export interface ArchivoConDatos {
@@ -54,16 +55,36 @@ export class ArchivoService {
       throw errors.archivoDemasiadoGrande();
     }
 
+    let mesaId: string | null = null;
+    if (entrada.mesaId) {
+      if (!esUuid(entrada.mesaId)) {
+        throw errors.mesaNotFound();
+      }
+      if (this.mesas) {
+        const mesa = await this.mesas.findById(entrada.mesaId);
+        if (!mesa) throw errors.mesaNotFound();
+        const esMiembro =
+          mesa.hostId === actor.id ||
+          mesa.players.includes(actor.id) ||
+          actor.role === "ADMIN";
+        if (!esMiembro) throw errors.mesaForbidden();
+      }
+      mesaId = entrada.mesaId;
+    }
+
     const id = randomUUID();
     const tipo = normalizarTipo(entrada.tipo);
     const nombre = limpiarNombre(entrada.nombre);
-    const clave = `archivos/${actor.id}/${id}${extensionDe(tipo)}`;
+    const clave = mesaId
+      ? `archivos/${actor.id}/mesas/${mesaId}/${id}${extensionDe(tipo)}`
+      : `archivos/${actor.id}/${id}${extensionDe(tipo)}`;
 
     await this.almacen.guardar(clave, entrada.datos, tipo);
 
     const archivo: Archivo = {
       id,
       ownerId: actor.id,
+      mesaId,
       nombre,
       clave,
       tipo,
@@ -76,6 +97,7 @@ export class ArchivoService {
     this.logger.info("Archivo subido", {
       id,
       ownerId: actor.id,
+      mesaId,
       tipo,
       tamano: archivo.tamano
     });
@@ -83,8 +105,9 @@ export class ArchivoService {
     return archivo;
   }
 
-  async listar(actor: User): Promise<Archivo[]> {
-    return this.archivos.listByOwner(actor.id);
+  async listar(actor: User, mesaId?: string): Promise<Archivo[]> {
+    const mesaFiltro = mesaId && esUuid(mesaId) ? mesaId : undefined;
+    return this.archivos.listByOwner(actor.id, mesaFiltro);
   }
 
   async obtener(actor: User, id: string): Promise<ArchivoConDatos> {
@@ -98,13 +121,151 @@ export class ArchivoService {
     return { archivo, datos };
   }
 
+  async obtenerStream(
+    actor: User,
+    id: string,
+    range?: string
+  ): Promise<
+    | {
+        archivo: Archivo;
+        stream: ReadableStream<Uint8Array>;
+        status?: number;
+        contentRange?: string;
+        contentLength?: number;
+      }
+    | { archivo: Archivo; datos: Uint8Array }
+  > {
+    const archivo = await this.autorizadoLectura(actor, id);
+
+    if (this.almacen.leerStream) {
+      const resultado = await this.almacen.leerStream(archivo.clave, range);
+      if (!resultado) {
+        throw errors.archivoNotFound();
+      }
+      return {
+        archivo,
+        stream: resultado.stream,
+        ...(resultado.status !== undefined ? { status: resultado.status } : {}),
+        ...(resultado.contentRange ? { contentRange: resultado.contentRange } : {}),
+        ...(resultado.contentLength !== undefined
+          ? { contentLength: resultado.contentLength }
+          : {})
+      };
+    }
+
+    const datos = await this.almacen.leer(archivo.clave);
+    if (!datos) {
+      throw errors.archivoNotFound();
+    }
+    return { archivo, datos };
+  }
+
+  async obtenerMetadatos(actor: User, id: string): Promise<Archivo> {
+    return this.autorizado(actor, id);
+  }
+
+  /**
+   * Comparte un archivo existente del emisor con el receptor creando una nueva
+   * entrada de metadatos que apunta a la misma clave en R2 (sin duplicar bytes).
+   */
+  async clonarPara(
+    emisorId: string,
+    archivoId: string,
+    receptor: User,
+    mesaId?: string
+  ): Promise<Archivo> {
+    if (!esUuid(archivoId)) {
+      throw errors.archivoNotFound();
+    }
+
+    const origen = await this.archivos.findById(archivoId);
+    if (!origen || origen.ownerId !== emisorId) {
+      throw errors.archivoNotFound();
+    }
+
+    const clon: Archivo = {
+      id: randomUUID(),
+      ownerId: receptor.id,
+      mesaId: mesaId ?? null,
+      nombre: origen.nombre,
+      clave: origen.clave,
+      tipo: origen.tipo,
+      tamano: origen.tamano,
+      createdAt: new Date()
+    };
+
+    await this.archivos.save(clon);
+
+    this.logger.info("Archivo compartido por referencia", {
+      origenId: origen.id,
+      nuevoId: clon.id,
+      ownerId: receptor.id,
+      mesaId: clon.mesaId
+    });
+
+    return clon;
+  }
+
   async borrar(actor: User, id: string): Promise<void> {
     const archivo = await this.autorizado(actor, id);
 
-    await this.almacen.borrar(archivo.clave);
     await this.archivos.delete(id);
+    const restantes = await this.archivos.countByClave(archivo.clave);
+    if (restantes === 0) {
+      await this.almacen.borrar(archivo.clave);
+    }
 
-    this.logger.info("Archivo borrado", { id, ownerId: actor.id });
+    this.logger.info("Archivo borrado", {
+      id,
+      ownerId: actor.id,
+      objetoBorrado: restantes === 0
+    });
+  }
+
+  /**
+   * Elimina todos los archivos vinculados a una mesa (sin tocar los archivos
+   * personales de recepción de cada cuenta) y borra de Cloudflare R2 las claves
+   * que ya no queden referenciadas por ningún otro registro.
+   */
+  async borrarPorMesa(mesaId: string): Promise<void> {
+    const borrados = this.archivos.deleteByMesa
+      ? await this.archivos.deleteByMesa(mesaId)
+      : await (async () => {
+          const lista = this.archivos.listByMesa
+            ? await this.archivos.listByMesa(mesaId)
+            : [];
+          for (const item of lista) {
+            await this.archivos.delete(item.id);
+          }
+          return lista;
+        })();
+
+    if (borrados.length === 0) return;
+
+    const clavesUnicas = new Set(borrados.map(a => a.clave));
+    let objetosR2Borrados = 0;
+
+    for (const clave of clavesUnicas) {
+      const restantes = await this.archivos.countByClave(clave);
+      if (restantes === 0) {
+        try {
+          await this.almacen.borrar(clave);
+          objetosR2Borrados += 1;
+        } catch (error) {
+          this.logger.warn("No se pudo borrar objeto R2 al cerrar mesa", {
+            mesaId,
+            clave,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
+    this.logger.info("Archivos de mesa limpiados", {
+      mesaId,
+      registrosBorrados: borrados.length,
+      objetosR2Borrados
+    });
   }
 
   private async autorizadoLectura(actor: User, id: string): Promise<Archivo> {
@@ -134,7 +295,10 @@ export class ArchivoService {
           mesa.players.includes(archivo.ownerId);
         const usadoComoImagen =
           mesa.imagenEscena?.id === id || mesa.imagenProyectada?.id === id;
-        return duenoEnMesa || usadoComoImagen;
+        const usadoComoMusica = Boolean(
+          mesa.musicaAmbiente?.pistas.some(p => p.archivoId === id)
+        );
+        return duenoEnMesa || usadoComoImagen || usadoComoMusica;
       });
 
       if (compartidoEnMesa) {

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { ArrowLeft, Check, Crown, DoorOpen, Palette, Pencil, Play, Trash2, UserX, Wrench } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { PALETA_JUGADOR } from "../paleta";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface GestionMesaPageProps {
   mesaId: string;
@@ -37,7 +40,10 @@ export function GestionMesaPage({
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [paletaDe, setPaletaDe] = useState<string | null>(null);
+  const [paletaAbierta, setPaletaAbierta] = useState(false);
+  const [apodoInput, setApodoInput] = useState("");
+  const [expulsarObjetivo, setExpulsarObjetivo] = useState<{ id: string; nombre: string } | null>(null);
+  const [confirmCerrar, setConfirmCerrar] = useState(false);
 
   const refrescar = useCallback(async () => {
     try {
@@ -53,6 +59,10 @@ export function GestionMesaPage({
   useEffect(() => {
     void refrescar();
   }, [refrescar]);
+
+  useEffect(() => {
+    setApodoInput(mesa?.playerApodos?.[user.id] ?? "");
+  }, [mesa?.id, mesa?.playerApodos, user.id]);
 
   useMesasLive(refrescar, onSessionExpired);
 
@@ -79,18 +89,14 @@ export function GestionMesaPage({
     }
   }
 
-  async function expulsar(playerId: string, nombre: string) {
-    if (!mesa) return;
-    const confirmado = window.confirm(
-      `¿Expulsar a ${nombre}? No podrá volver a entrar en esta mesa.`
-    );
-    if (!confirmado) return;
-
+  async function confirmarExpulsar() {
+    if (!mesa || !expulsarObjetivo) return;
     setBusy(true);
     setError(null);
     setAviso(null);
     try {
-      await mesasApi.expulsar(mesa.id, playerId);
+      await mesasApi.expulsar(mesa.id, expulsarObjetivo.id);
+      setExpulsarObjetivo(null);
       await refrescar();
     } catch (expulsarError) {
       setError(describeError(expulsarError));
@@ -99,17 +105,13 @@ export function GestionMesaPage({
     }
   }
 
-  async function cerrar() {
+  async function confirmarCerrarMesa() {
     if (!mesa) return;
-    const confirmado = window.confirm(
-      `¿Cerrar "Mesa ${mesa.hostName}"? Los jugadores se quedarán sin mesa.`
-    );
-    if (!confirmado) return;
-
     setBusy(true);
     setError(null);
     try {
       await mesasApi.cerrar(mesa.id);
+      setConfirmCerrar(false);
       onVolver();
     } catch (cerrarError) {
       setError(describeError(cerrarError));
@@ -143,9 +145,44 @@ export function GestionMesaPage({
     try {
       const actualizada = await mesasApi.ponerColor(mesa.id, color);
       setMesa(actualizada);
-      setPaletaDe(null);
+      setPaletaAbierta(false);
     } catch (colorError) {
       setError(describeError(colorError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function guardarApodo(evento: FormEvent) {
+    evento.preventDefault();
+    if (!mesa) return;
+    const limpio = apodoInput.trim().slice(0, 24);
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, limpio);
+      setMesa(actualizada);
+      setAviso(limpio ? "Nickname guardado para la partida." : "Nickname eliminado.");
+    } catch (apodoError) {
+      setError(describeError(apodoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quitarApodo() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, "");
+      setMesa(actualizada);
+      setApodoInput("");
+      setAviso("Nickname eliminado.");
+    } catch (apodoError) {
+      setError(describeError(apodoError));
     } finally {
       setBusy(false);
     }
@@ -157,7 +194,7 @@ export function GestionMesaPage({
 
   if (loading) {
     return (
-      <section className="card">
+      <section className="card loading-card">
         <p className="muted">Cargando mesa…</p>
       </section>
     );
@@ -169,7 +206,8 @@ export function GestionMesaPage({
         <h2>Página no disponible para tu rol</h2>
         <p className="muted">Solo los miembros de la mesa pueden verla.</p>
         <button type="button" className="ghost" onClick={onVolver}>
-          Volver a la recepción
+          <ArrowLeft size={15} aria-hidden="true" />
+          <span>Volver a la recepción</span>
         </button>
       </section>
     );
@@ -178,14 +216,20 @@ export function GestionMesaPage({
   const total = mesa.players.length;
   const color = colorPorJugadores(total);
   const miColor = mesa.colores?.[user.id] ?? null;
+  const soyJugadorEnMesa = mesa.players.some(jugador => jugador.id === user.id);
+  const miApodo = mesa.playerApodos?.[user.id]?.trim() ?? "";
 
   return (
     <section className="card gestion">
       <div className="gestion-cabecera">
         <button type="button" className="ghost small" onClick={onVolver}>
-          ← Volver
+          <ArrowLeft size={14} aria-hidden="true" />
+          <span>Volver</span>
         </button>
         <h2>Mesa {mesa.hostName}</h2>
+        <span className={mesa.estado === "EN_CURSO" ? "pill on" : "pill pending"}>
+          {mesa.estado === "EN_CURSO" ? "En curso" : "En espera"}
+        </span>
       </div>
 
       {error && <p className="feedback ko">{error}</p>}
@@ -216,120 +260,228 @@ export function GestionMesaPage({
         </p>
       )}
 
-      <h3>Tu color</h3>
-      <div className="color-propio">
-        <button
-          type="button"
-          className="color-cuadrado"
-          style={{ background: miColor ?? "transparent" }}
-          onClick={() => setPaletaDe(paletaDe === user.id ? null : user.id)}
-          disabled={busy}
-          aria-label="Elegir color"
-          title="Elegir color"
-        />
-        <span className="muted">
-          {miColor ? "Pulsa el cuadrado para cambiar tu color." : "Elige el color de tu esfera."}
-        </span>
+      <div className="gestion-bloque">
+        <h3 className="gestion-subtitulo">
+          <Palette size={15} aria-hidden="true" />
+          <span>Tu color de esfera</span>
+        </h3>
+        <div className="color-propio">
+          <button
+            type="button"
+            className="color-cuadrado"
+            style={{ background: miColor ?? "transparent" }}
+            onClick={() => setPaletaAbierta(prev => !prev)}
+            disabled={busy}
+            aria-label="Elegir color"
+            aria-expanded={paletaAbierta}
+            title="Elegir color"
+          />
+          <span className="muted">
+            {miColor ? "Pulsa el cuadrado para cambiar tu color." : "Elige el color de tu esfera."}
+          </span>
+        </div>
+
+        {paletaAbierta && (
+          <div className="paleta-colores">
+            {PALETA_JUGADOR.map(opcion => {
+              const activa = miColor === opcion;
+              return (
+                <button
+                  key={opcion}
+                  type="button"
+                  className={`paleta-color${activa ? " activa" : ""}`}
+                  style={{ background: opcion }}
+                  onClick={() => void elegirColor(opcion)}
+                  disabled={busy}
+                  aria-label={`Color ${opcion}`}
+                  title={opcion}
+                >
+                  {activa && <Check size={12} className="paleta-check" aria-hidden="true" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {paletaDe === user.id && (
-        <div className="paleta-colores">
-          {PALETA_JUGADOR.map(opcion => (
-            <button
-              key={opcion}
-              type="button"
-              className={`paleta-color${miColor === opcion ? " activa" : ""}`}
-              style={{ background: opcion }}
-              onClick={() => void elegirColor(opcion)}
+      {soyJugadorEnMesa && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <Pencil size={15} aria-hidden="true" />
+            <span>Tu nickname en esta partida</span>
+          </h3>
+          <form className="apodo-propio-form" onSubmit={evento => void guardarApodo(evento)}>
+            <input
+              type="text"
+              className="apodo-propio-input"
+              maxLength={24}
+              value={apodoInput}
+              onChange={e => setApodoInput(e.target.value)}
+              placeholder="Nombre de personaje (opcional)…"
+              aria-label="Nickname para esta partida"
               disabled={busy}
-              aria-label={`Color ${opcion}`}
-              title={opcion}
             />
-          ))}
+            <button
+              type="submit"
+              className="ghost small"
+              disabled={busy || apodoInput.trim().slice(0, 24) === miApodo}
+            >
+              Guardar
+            </button>
+            {miApodo && (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void quitarApodo()}
+                disabled={busy}
+              >
+                Quitar
+              </button>
+            )}
+          </form>
         </div>
       )}
 
-      <h3>Jugadores</h3>
-      {mesa.players.length === 0 ? (
-        <p className="muted">Nadie se ha unido todavía.</p>
-      ) : (
-        <ul className="gestion-jugadores">
-          {mesa.players.map(jugador => (
-            <li key={jugador.id}>
-              <span className="jugador-nombre">
-                <span
-                  className="jugador-color"
-                  style={{ background: mesa.colores?.[jugador.id] ?? "transparent" }}
-                  aria-hidden="true"
-                />
-                {jugador.name}
-                {jugador.id === user.id && <span className="jugador-yo"> (tú)</span>}
-              </span>
-              <span className="jugador-acciones">
-                {jugador.id === user.id && (
-                  <button
-                    type="button"
-                    className="ghost small"
-                    onClick={() =>
-                      setPaletaDe(paletaDe === jugador.id ? null : jugador.id)
-                    }
-                    disabled={busy}
-                  >
-                    Color
-                  </button>
-                )}
+      <div className="gestion-bloque">
+        <h3 className="gestion-subtitulo">Jugadores ({total})</h3>
+        {mesa.players.length === 0 ? (
+          <p className="muted">Nadie se ha unido todavía.</p>
+        ) : (
+          <ul className="gestion-jugadores">
+            {mesa.players.map(jugador => {
+              const apodoJugador = mesa.playerApodos?.[jugador.id]?.trim();
+              return (
+                <li key={jugador.id}>
+                  <span className="jugador-nombre">
+                    <span
+                      className="jugador-color"
+                      style={{ background: mesa.colores?.[jugador.id] ?? "transparent" }}
+                      aria-hidden="true"
+                    />
+                    {apodoJugador ? `${apodoJugador} (${jugador.name})` : jugador.name}
+                    {jugador.id === user.id && <span className="jugador-yo"> (tú)</span>}
+                  </span>
                 {gestiona && (
-                  <>
+                  <span className="jugador-acciones">
                     <button
                       type="button"
                       className="ghost small"
                       disabled={busy || mesa.pendingHostId === jugador.id}
                       onClick={() => void ceder(jugador.id)}
                     >
-                      {mesa.pendingHostId === jugador.id
-                        ? "Esperando…"
-                        : "Dar rol de anfitrión"}
+                      <Crown size={13} aria-hidden="true" />
+                      <span>
+                        {mesa.pendingHostId === jugador.id
+                          ? "Esperando…"
+                          : "Dar rol de anfitrión"}
+                      </span>
                     </button>
                     <button
                       type="button"
                       className="danger small"
                       disabled={busy}
-                      onClick={() => void expulsar(jugador.id, jugador.name)}
+                      onClick={() =>
+                        setExpulsarObjetivo({ id: jugador.id, nombre: jugador.name })
+                      }
                     >
-                      Expulsar
+                      <UserX size={13} aria-hidden="true" />
+                      <span>Expulsar</span>
                     </button>
-                  </>
+                  </span>
                 )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="acciones-cuenta">
-        {onAbrirSala && (
-          <button type="button" className="primary verde" onClick={entrarEnSala}>
-            {mesa.estado === "EN_CURSO" ? "Ir a la partida" : "Entrar en la sala"}
-          </button>
+              </li>
+              );
+            })}
+          </ul>
         )}
+      </div>
 
-        {gestiona && (
-          <button
-            type="button"
-            className="primary amarillo"
-            onClick={() => void iniciarPartida()}
-            disabled={busy || mesa.estado === "EN_CURSO"}
-          >
-            {mesa.estado === "EN_CURSO" ? "Partida iniciada" : "Empezar partida"}
-          </button>
-        )}
+      <div className="gestion-pie">
+        <div className="gestion-pie-columna">
+          <div className="gestion-pie-principales">
+            {mesa.estado === "ESPERA" ? (
+              gestiona ? (
+                <>
+                  {onAbrirSala && (
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={entrarEnSala}
+                      disabled={busy}
+                      title="Entra solo tú en la sala para preparar mapas, notas o música; los jugadores siguen esperando"
+                    >
+                      <Wrench size={15} aria-hidden="true" />
+                      <span>Preparar sala</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="primary amarillo"
+                    onClick={() => void iniciarPartida()}
+                    disabled={busy}
+                    title="Inicia la partida y mete a todos los jugadores en la sala"
+                  >
+                    <Play size={15} aria-hidden="true" />
+                    <span>Empezar partida</span>
+                  </button>
+                </>
+              ) : (
+                <span className="pill pending">
+                  Esperando a que el Máster inicie la partida…
+                </span>
+              )
+            ) : (
+              <>
+                <span className="pill on gestion-estado-vivo">● Partida en curso</span>
+                {onAbrirSala && (
+                  <button type="button" className="primary verde" onClick={entrarEnSala}>
+                    <DoorOpen size={15} aria-hidden="true" />
+                    <span>Ir a la partida</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          {gestiona && mesa.estado === "ESPERA" && (
+            <p className="muted gestion-ayuda-inicio">
+              <strong>Preparar sala</strong> te permite entrar solo para montar la sesión.{" "}
+              <strong>Empezar partida</strong> la inicia para todos los jugadores.
+            </p>
+          )}
+        </div>
 
         {esAnfitrion && (
-          <button type="button" className="danger" onClick={cerrar} disabled={busy}>
-            Cerrar mesa
+          <button
+            type="button"
+            className="danger"
+            onClick={() => setConfirmCerrar(true)}
+            disabled={busy}
+          >
+            <Trash2 size={15} aria-hidden="true" />
+            <span>Cerrar mesa</span>
           </button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={expulsarObjetivo !== null}
+        title={expulsarObjetivo ? `¿Expulsar a ${expulsarObjetivo.nombre}?` : ""}
+        description="No podrá volver a entrar en esta mesa."
+        confirmLabel="Expulsar"
+        busy={busy}
+        onConfirm={() => void confirmarExpulsar()}
+        onCancel={() => setExpulsarObjetivo(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmCerrar}
+        title={`¿Cerrar "Mesa ${mesa.hostName}"?`}
+        description="Los jugadores conectados se quedarán sin mesa."
+        confirmLabel="Cerrar mesa"
+        busy={busy}
+        onConfirm={() => void confirmarCerrarMesa()}
+        onCancel={() => setConfirmCerrar(false)}
+      />
     </section>
   );
 }

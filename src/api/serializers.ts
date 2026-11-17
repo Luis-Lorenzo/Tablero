@@ -1,10 +1,22 @@
 import type { Archivo } from "../repositories/archivo.repository.js";
 import {
+  resolverDivisasConfig,
+  type DivisaConfig,
+  type MusicaAmbienteMesa,
+  type PistaMusicaMesa
+} from "../repositories/mesa.repository.js";
+import {
   isActiveUser,
   isUserLocked,
   type User
 } from "../repositories/user.repository.js";
 import type { MesaVista } from "../services/mesa.service.js";
+import type {
+  ArchivoTransferidoMeta,
+  ObjetoTransferido,
+  PositTransferido,
+  Transferencia
+} from "../services/transferencia.service.js";
 import { vistaDe } from "../lib/archivos.js";
 
 export interface PublicUser {
@@ -53,10 +65,16 @@ export interface PublicMesa {
   /** Si el máster ya ha empezado la partida. */
   estado: MesaVista["estado"];
   colores: Record<string, string>;
+  playerApodos?: Record<string, string>;
   imagenEscena: PublicImagenMesa | null;
   imagenProyectada: PublicImagenMesa | null;
+  divisaNombre?: string;
+  divisasConfig?: DivisaConfig[];
+  musicaAmbiente?: MusicaAmbienteMesa | null;
   createdAt: string;
 }
+
+export type { MusicaAmbienteMesa, PistaMusicaMesa };
 
 export function toPublicMesa(mesa: MesaVista): PublicMesa {
   return {
@@ -71,8 +89,12 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     pendingHostId: mesa.pendingHostId,
     estado: mesa.estado,
     colores: mesa.colores ?? {},
+    playerApodos: mesa.playerApodos ?? {},
     imagenEscena: mesa.imagenEscena ?? null,
     imagenProyectada: mesa.imagenProyectada ?? null,
+    divisaNombre: mesa.divisaNombre ?? "Divisa",
+    divisasConfig: resolverDivisasConfig(mesa),
+    musicaAmbiente: mesa.musicaAmbiente ?? null,
     createdAt: mesa.createdAt.toISOString()
   };
 }
@@ -96,4 +118,59 @@ export function toPublicArchivo(archivo: Archivo): PublicArchivo {
     tamano: archivo.tamano,
     createdAt: archivo.createdAt.toISOString()
   };
+}
+
+export type PublicTransferencia =
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "posit";
+      posit: PositTransferido;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "archivo";
+      archivo: ArchivoTransferidoMeta;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      mesaId: string;
+      emisorId: string;
+      emisorNombre: string;
+      receptorId: string;
+      tipo: "objeto";
+      objeto: ObjetoTransferido;
+      createdAt: string;
+    };
+
+export function toPublicTransferencia(
+  transferencia: Transferencia
+): PublicTransferencia {
+  const base = {
+    id: transferencia.id,
+    mesaId: transferencia.mesaId,
+    emisorId: transferencia.emisorId,
+    emisorNombre: transferencia.emisorNombre,
+    receptorId: transferencia.receptorId,
+    createdAt: transferencia.createdAt.toISOString()
+  };
+
+  if (transferencia.tipo === "posit") {
+    return { ...base, tipo: "posit", posit: transferencia.posit };
+  }
+
+  if (transferencia.tipo === "objeto") {
+    return { ...base, tipo: "objeto", objeto: transferencia.objeto };
+  }
+
+  return { ...base, tipo: "archivo", archivo: transferencia.archivo };
 }

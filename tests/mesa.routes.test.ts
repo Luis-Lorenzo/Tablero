@@ -15,6 +15,7 @@ import { ArchivoService } from "../src/services/archivo.service.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
+import { ChatService } from "../src/services/chat.service.js";
 import { UserService } from "../src/services/user.service.js";
 import type { AppContext } from "../src/api/context.js";
 
@@ -23,11 +24,18 @@ const PASSWORD = "secreto123";
 /** Espía del canal en vivo: guarda cuántas veces se ha avisado. */
 function notificadorEspia() {
   const avisos: number[] = [];
+  const envios: Array<{ userIds: readonly string[]; payload: unknown }> = [];
   return {
     notificarCambio: () => {
       avisos.push(avisos.length + 1);
     },
-    avisos
+    notificarUsuario: () => {},
+    enviarAUsuarios: (userIds: readonly string[], payload: unknown) => {
+      envios.push({ userIds, payload });
+    },
+    mapaActualizado: () => {},
+    avisos,
+    envios
   };
 }
 
@@ -47,6 +55,7 @@ function montar() {
     userService: new UserService(users, logger),
     bloqueoService: new BloqueoService(logger),
     mesaService: new MesaService(mesas, users, logger),
+    chatService: new ChatService(mesas, users),
     archivoService: new ArchivoService(
       new MemoryArchivoRepository(),
       new MemoryAlmacen(),
@@ -441,5 +450,501 @@ describe("rutas de /api/mesas", () => {
       .send({ archivoId: null });
     expect(retirarProyeccion.status).toBe(200);
     expect(retirarProyeccion.body.imagenProyectada).toBeNull();
+  });
+
+  it("persiste elementos en mesa por usuario y sanea contenidoLocal", async () => {
+    await aprobar("ajena-estado@pocket.test");
+    const cookieAnfitrion = await sesionDe("anfitrion@pocket.test");
+    const cookieAjena = await sesionDe("ajena-estado@pocket.test");
+
+    const creada = await request(app).post("/api/mesas").set("Cookie", cookieAnfitrion);
+    const mesaId = creada.body.id as string;
+
+    const guardar = await request(app)
+      .patch(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieAnfitrion)
+      .send({
+        elementos: [
+          {
+            id: "el-1",
+            tipo: "archivo",
+            archivoId: "abc",
+            nombre: "mapa.png",
+            contenidoLocal: "data:image/png;base64,SECRET"
+          }
+        ]
+      });
+    expect(guardar.status).toBe(204);
+
+    const obtener = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieAnfitrion);
+    expect(obtener.status).toBe(200);
+    expect(obtener.body.elementos).toEqual([
+      { id: "el-1", tipo: "archivo", archivoId: "abc", nombre: "mapa.png" }
+    ]);
+
+    const ajena = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieAjena);
+    expect(ajena.status).toBe(403);
+  });
+
+  it("persiste y sincroniza pizarra y vista escena y respeta congelada del máster", async () => {
+    await aprobar("jugadora-piz@pocket.test");
+    const cookieMaster = await sesionDe("anfitrion@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-piz@pocket.test");
+
+    const creada = await request(app).post("/api/mesas").set("Cookie", cookieMaster);
+    const mesaId = creada.body.id as string;
+
+    const unirse = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora);
+    expect(unirse.status).toBe(200);
+
+    const guardar = await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .send({
+        posits: [{ id: "p1", texto: "Pista", color: "#fff", x: 10, y: 20, giro: 0 }],
+        trazos: [],
+        documentos: [{ id: "d1", nombre: "nota.txt", url: "blob:secret" }],
+        trazosEscena: [{ id: "t1", color: "#f4f7ff", grosor: 4, puntos: [] }],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: { d1: { w: 40, h: 30 } },
+        congelada: true
+      });
+    expect(guardar.status).toBe(204);
+
+    const obtener = await request(app)
+      .get(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieJugadora);
+    expect(obtener.status).toBe(200);
+    expect(obtener.body.congelada).toBe(true);
+    expect(obtener.body.documentos).toEqual([{ id: "d1", nombre: "nota.txt" }]);
+    expect(obtener.body.trazosEscena).toHaveLength(1);
+    expect(obtener.body.tamanoImagenesEscena).toEqual({ d1: { w: 40, h: 30 } });
+
+    const edicionBloqueada = await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieJugadora)
+      .send({
+        posits: [],
+        trazos: [],
+        documentos: [],
+        trazosEscena: [],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: {},
+        congelada: false
+      });
+    expect(edicionBloqueada.status).toBe(403);
+  });
+
+  it("persiste divisa, nombre de divisa (solo máster), mochila y transferencia de objetos", async () => {
+    const { app, aprobar, sesionDe } = montar();
+    await aprobar("host-dm@pocket.test");
+    await aprobar("jug-inv@pocket.test");
+
+    const cookieMaster = await sesionDe("host-dm@pocket.test");
+    const cookieJugadora = await sesionDe("jug-inv@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send();
+    const mesaId = crear.body.id as string;
+    const jugadoraId = (
+      await request(app)
+        .post(`/api/mesas/${mesaId}/unirse`)
+        .set("Cookie", cookieJugadora)
+        .send()
+    ).body.players[0].id as string;
+
+    // Nombre de divisa: solo el máster puede cambiarlo
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa-nombre`)
+      .set("Cookie", cookieJugadora)
+      .send({ nombre: "Créditos" })
+      .expect(403);
+
+    const ren = await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa-nombre`)
+      .set("Cookie", cookieMaster)
+      .send({ nombre: "Oro" })
+      .expect(200);
+    expect(ren.body.divisaNombre).toBe("Oro");
+
+    // Divisa del jugador
+    const divRes = await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa`)
+      .set("Cookie", cookieJugadora)
+      .send({ divisa: 250, delta: 250 })
+      .expect(200);
+    expect(divRes.body.divisa).toBe(250);
+
+    // Mochila en estado
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieJugadora)
+      .send({
+        mochila: [
+          {
+            id: "obj-1",
+            nombre: "Poción curativa",
+            descripcion: "Recupera 2d4+2 PG",
+            cantidad: 3,
+            emoji: "🧪"
+          }
+        ]
+      })
+      .expect(204);
+
+    const estado = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieJugadora)
+      .expect(200);
+    expect(estado.body.divisa).toBe(250);
+    expect(estado.body.mochila).toEqual([
+      {
+        id: "obj-1",
+        nombre: "Poción curativa",
+        descripcion: "Recupera 2d4+2 PG",
+        cantidad: 3,
+        emoji: "🧪"
+      }
+    ]);
+
+    // Transferencia de objeto entre miembros
+    const comp = await request(app)
+      .post(`/api/mesas/${mesaId}/compartir`)
+      .set("Cookie", cookieJugadora)
+      .send({
+        receptorId: crear.body.hostId,
+        tipo: "objeto",
+        objeto: {
+          idOrigen: "obj-1",
+          nombre: "Poción curativa",
+          descripcion: "Recupera 2d4+2 PG",
+          cantidad: 1,
+          emoji: "🧪"
+        }
+      })
+      .expect(201);
+    expect(comp.body.tipo).toBe("objeto");
+    expect(jugadoraId).toBeTruthy();
+
+    const aceptada = await request(app)
+      .post(`/api/mesas/${mesaId}/compartir/${comp.body.id}/aceptar`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(aceptada.body.tipo).toBe("objeto");
+    expect(aceptada.body.objeto.nombre).toBe("Poción curativa");
+  });
+
+  it("permite a cada participante fijar y limpiar su apodo de personaje por mesa", async () => {
+    const master = await aprobar("master-apodo@pocket.test");
+    const jugadora = await aprobar("jugadora-apodo@pocket.test");
+    await aprobar("ajena-apodo@pocket.test");
+
+    const cookieMaster = await sesionDe("master-apodo@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-apodo@pocket.test");
+    const cookieAjena = await sesionDe("ajena-apodo@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send()
+      .expect(200);
+
+    const avisosAntes = notifier.avisos.length;
+
+    // Una persona ajena a la mesa no puede cambiar apodo
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieAjena)
+      .send({ apodo: "Intruso" })
+      .expect(403);
+
+    // Un valor no string devuelve 400
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieJugadora)
+      .send({ apodo: 123 })
+      .expect(400);
+
+    // La jugadora fija su apodo (recortado a 24 caracteres)
+    const setJugadora = await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieJugadora)
+      .send({ apodo: "  Lyra Sombraluna la Sabia Extra  " })
+      .expect(200);
+
+    expect(setJugadora.body.playerApodos).toEqual({
+      [jugadora.id]: "Lyra Sombraluna la Sabia"
+    });
+    expect(notifier.avisos.length).toBe(avisosAntes + 1);
+
+    // El máster también puede fijar su apodo sin pisar el de la jugadora
+    const setMaster = await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieMaster)
+      .send({ apodo: "Narrador" })
+      .expect(200);
+
+    expect(setMaster.body.playerApodos).toEqual({
+      [jugadora.id]: "Lyra Sombraluna la Sabia",
+      [master.id]: "Narrador"
+    });
+
+    // La jugadora limpia su apodo enviando cadena vacía
+    const clearJugadora = await request(app)
+      .patch(`/api/mesas/${mesaId}/apodo`)
+      .set("Cookie", cookieJugadora)
+      .send({ apodo: "   " })
+      .expect(200);
+
+    expect(clearJugadora.body.playerApodos).toEqual({
+      [master.id]: "Narrador"
+    });
+  });
+
+  it("gestiona múltiples divisas por mesa, saldos por jugador y resumen del máster", async () => {
+    const master = await aprobar("master-multi@pocket.test");
+    const jugadora = await aprobar("jugadora-multi@pocket.test");
+    const cookieMaster = await sesionDe("master-multi@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-multi@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    expect(crear.body.divisasConfig).toEqual([
+      { id: "principal", nombre: "Divisa", color: "#e8c56a" }
+    ]);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send()
+      .expect(200);
+
+    // Un jugador no puede configurar divisas
+    await request(app)
+      .put(`/api/mesas/${mesaId}/divisas`)
+      .set("Cookie", cookieJugadora)
+      .send({ divisas: [{ id: "oro", nombre: "Oro", color: "#ffd700" }] })
+      .expect(403);
+
+    // El máster configura múltiples divisas (máximo 12, sanitiza nombre y color)
+    const muchas = Array.from({ length: 14 }, (_, i) => ({
+      id: `div_${i}`,
+      nombre: i === 0 ? "  Piezas de Oro Legendarias  " : `Moneda ${i}`,
+      color: i === 0 ? "no-hex" : "#6ea8fe"
+    }));
+    const putDiv = await request(app)
+      .put(`/api/mesas/${mesaId}/divisas`)
+      .set("Cookie", cookieMaster)
+      .send({ divisas: muchas })
+      .expect(200);
+    expect(putDiv.body.divisasConfig).toHaveLength(12);
+    expect(putDiv.body.divisasConfig[0]).toEqual({
+      id: "div_0",
+      nombre: "Piezas de Oro Legendaria",
+      color: "#e8c56a"
+    });
+
+    // Actualiza divisa principal y secundaria
+    await request(app)
+      .put(`/api/mesas/${mesaId}/divisas`)
+      .set("Cookie", cookieMaster)
+      .send({
+        divisas: [
+          { id: "principal", nombre: "Oro", color: "#e8c56a" },
+          { id: "plata", nombre: "Plata", color: "#cbd5e1" }
+        ]
+      })
+      .expect(200);
+
+    const p1 = await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa`)
+      .set("Cookie", cookieJugadora)
+      .send({ divisaId: "principal", divisa: 100, delta: 100 })
+      .expect(200);
+    expect(p1.body.divisa).toBe(100);
+    expect(p1.body.divisasSaldos.principal).toBe(100);
+
+    const p2 = await request(app)
+      .patch(`/api/mesas/${mesaId}/divisa`)
+      .set("Cookie", cookieJugadora)
+      .send({ divisaId: "plata", divisa: 45, delta: 45 })
+      .expect(200);
+    expect(p2.body.divisa).toBe(45);
+    expect(p2.body.divisasSaldos).toEqual({ principal: 100, plata: 45 });
+
+    const ultimoEnvio = notifier.envios.at(-1);
+    expect(ultimoEnvio?.userIds).toEqual([master.id, jugadora.id]);
+    expect(ultimoEnvio?.payload).toMatchObject({
+      type: "mesa:divisa",
+      mesaId,
+      userId: jugadora.id,
+      color: "#cbd5e1",
+      divisaId: "plata",
+      divisa: 45,
+      divisaNombre: "Plata",
+      delta: 45
+    });
+
+    const estado = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieJugadora)
+      .expect(200);
+    expect(estado.body.divisa).toBe(100);
+    expect(estado.body.divisasSaldos).toEqual({ principal: 100, plata: 45 });
+
+    const resumen = await request(app)
+      .get(`/api/mesas/${mesaId}/master-resumen`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(resumen.body.divisasConfig).toEqual([
+      { id: "principal", nombre: "Oro", color: "#e8c56a" },
+      { id: "plata", nombre: "Plata", color: "#cbd5e1" }
+    ]);
+    expect(resumen.body.jugadores[0].divisasSaldos).toEqual({
+      principal: 100,
+      plata: 45
+    });
+  });
+
+  it("permite al máster compartir un elemento a todos los demás participantes", async () => {
+    const master = await aprobar("master-todos@pocket.test");
+    const j1 = await aprobar("j1-todos@pocket.test");
+    const j2 = await aprobar("j2-todos@pocket.test");
+    const cookieMaster = await sesionDe("master-todos@pocket.test");
+    const cookieJ1 = await sesionDe("j1-todos@pocket.test");
+    const cookieJ2 = await sesionDe("j2-todos@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app).post(`/api/mesas/${mesaId}/unirse`).set("Cookie", cookieJ1).send().expect(200);
+    await request(app).post(`/api/mesas/${mesaId}/unirse`).set("Cookie", cookieJ2).send().expect(200);
+
+    // Un jugador no puede usar compartir-todos
+    await request(app)
+      .post(`/api/mesas/${mesaId}/compartir-todos`)
+      .set("Cookie", cookieJ1)
+      .send({ tipo: "posit", posit: { texto: "Hola", color: "#f7ffae" } })
+      .expect(403);
+
+    const resPosit = await request(app)
+      .post(`/api/mesas/${mesaId}/compartir-todos`)
+      .set("Cookie", cookieMaster)
+      .send({ tipo: "posit", posit: { texto: "Pista general", color: "#96fbc7", giro: 3 } })
+      .expect(200);
+    expect(resPosit.body.destinatarios).toBe(2);
+
+    const envioPosit = notifier.envios.at(-1);
+    expect(envioPosit?.userIds).toEqual([j1.id, j2.id]);
+    expect(envioPosit?.payload).toMatchObject({
+      type: "mesa:compartir-todos",
+      mesaId,
+      emisorId: master.id,
+      elemento: {
+        tipo: "posit",
+        posit: { texto: "Pista general", color: "#96fbc7", giro: 3 }
+      }
+    });
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/compartir-todos`)
+      .set("Cookie", cookieMaster)
+      .send({
+        tipo: "objeto",
+        objeto: { nombre: "Llave maestra", descripcion: "Abre el cofre", cantidad: 1, emoji: "🔑" }
+      })
+      .expect(200);
+
+    const envioObj = notifier.envios.at(-1);
+    expect(envioObj?.payload).toMatchObject({
+      type: "mesa:compartir-todos",
+      mesaId,
+      elemento: {
+        tipo: "objeto",
+        objeto: { nombre: "Llave maestra", descripcion: "Abre el cofre", cantidad: 1, emoji: "🔑" }
+      }
+    });
+  });
+
+  it("persiste objetos en pizarra y variantes de macro en mesa-estado", async () => {
+    await aprobar("master-piz@pocket.test");
+    const cookieMaster = await sesionDe("master-piz@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .send({
+        posits: [],
+        trazos: [],
+        documentos: [],
+        trazosEscena: [],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: {},
+        congelada: false,
+        objetos: [
+          { id: "piz-obj-1", nombre: "Mapa antiguo", x: 10, y: 20, url: "blob:local" }
+        ]
+      })
+      .expect(204);
+
+    const pizarra = await request(app)
+      .get(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(pizarra.body.objetos).toEqual([
+      { id: "piz-obj-1", nombre: "Mapa antiguo", x: 10, y: 20 }
+    ]);
+
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieMaster)
+      .send({
+        elementos: [
+          { id: "macro-1", tipo: "macro", variante: "dado", formula: "1d20+5", contenidoLocal: "data:foo" }
+        ]
+      })
+      .expect(204);
+
+    const estado = await request(app)
+      .get(`/api/mesas/${mesaId}/estado`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(estado.body.elementos).toEqual([
+      { id: "macro-1", tipo: "macro", variante: "dado", formula: "1d20+5" }
+    ]);
   });
 });

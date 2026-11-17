@@ -1,6 +1,7 @@
 import { errors } from "../lib/errors.js";
 import { esUuid } from "../lib/archivos.js";
 import type { Logger } from "../lib/logger.js";
+import type { ArchivoService } from "./archivo.service.js";
 import {
   nombreDeUsuario,
   type User,
@@ -8,10 +9,14 @@ import {
 } from "../repositories/user.repository.js";
 import {
   createMesa,
+  resolverDivisasConfig,
+  sanitizarDivisasConfig,
+  type DivisaConfig,
   type EstadoMesa,
   type ImagenMesa,
   type Mesa,
-  type MesaRepository
+  type MesaRepository,
+  type MusicaAmbienteMesa
 } from "../repositories/mesa.repository.js";
 
 /** Cuántos jugadores caben en una mesa (el anfitrión no ocupa plaza). */
@@ -42,8 +47,12 @@ export interface MesaVista {
   /** Si el máster ya ha empezado la partida. */
   estado: EstadoMesa;
   colores?: Record<string, string>;
+  playerApodos?: Record<string, string>;
   imagenEscena: ImagenMesa | null;
   imagenProyectada: ImagenMesa | null;
+  divisaNombre?: string;
+  divisasConfig?: DivisaConfig[];
+  musicaAmbiente?: MusicaAmbienteMesa | null;
   createdAt: Date;
 }
 
@@ -68,7 +77,8 @@ export class MesaService {
   constructor(
     private readonly mesas: MesaRepository,
     private readonly users: UserRepository,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly archivos?: ArchivoService
   ) { }
 
   async inicio(): Promise<Array<MesaVista | null>> {
@@ -275,10 +285,18 @@ export class MesaService {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
-    if (mesa.hostId !== actor.id) throw errors.forbidden();
+    if (mesa.hostId !== actor.id && actor.role !== "ADMIN") {
+      throw errors.forbidden();
+    }
 
+    await this.archivos?.borrarPorMesa(mesaId);
     await this.mesas.delete(mesaId);
-    this.logger.info("Mesa cerrada", { mesaId, hostId: actor.id });
+    this.logger.info("Mesa cerrada", {
+      mesaId,
+      hostId: mesa.hostId,
+      cerradaPor: actor.id,
+      esAdmin: actor.role === "ADMIN"
+    });
   }
 
   private async mesaDeAnfitrion(hostId: string): Promise<Mesa | undefined> {
@@ -370,8 +388,12 @@ export class MesaService {
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
       colores: mesa.colores ?? {},
+      playerApodos: mesa.apodos ?? {},
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
+      divisaNombre: mesa.divisaNombre?.trim() || "Divisa",
+      divisasConfig: resolverDivisasConfig(mesa),
+      musicaAmbiente: mesa.musicaAmbiente ?? null,
       createdAt: mesa.createdAt
     }));
   }
@@ -437,6 +459,78 @@ export class MesaService {
     } else {
       delete mesa.colores[actor.id];
     }
+    await this.mesas.save(mesa);
+    return this.vista(mesa);
+  }
+
+  async cambiarApodo(
+    actor: User,
+    mesaId: string,
+    apodo: string | null
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+
+    const esAnfitrion = mesa.hostId === actor.id;
+    const esJugador = (mesa.players ?? []).includes(actor.id);
+    if (!esAnfitrion && !esJugador) {
+      throw errors.mesaForbidden();
+    }
+
+    if (!mesa.apodos) mesa.apodos = {};
+    const limpio = typeof apodo === "string" ? apodo.trim().slice(0, 24) : "";
+    if (limpio) {
+      mesa.apodos[actor.id] = limpio;
+    } else {
+      delete mesa.apodos[actor.id];
+    }
+    await this.mesas.save(mesa);
+    return this.vista(mesa);
+  }
+
+  async cambiarDivisaNombre(
+    actor: User,
+    mesaId: string,
+    nombreBruto: string
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+    if (mesa.hostId !== actor.id) throw errors.forbidden();
+
+    const limpio = nombreBruto.trim().slice(0, 24) || "Divisa";
+    mesa.divisaNombre = limpio;
+    if (Array.isArray(mesa.divisasConfig) && mesa.divisasConfig.length > 0) {
+      const idx = mesa.divisasConfig.findIndex(d => d.id === "principal");
+      const targetIdx = idx >= 0 ? idx : 0;
+      mesa.divisasConfig = mesa.divisasConfig.map((d, i) =>
+        i === targetIdx ? { ...d, nombre: limpio } : d
+      );
+    }
+    await this.mesas.save(mesa);
+    return this.vista(mesa);
+  }
+
+  async guardarDivisasConfig(
+    actor: User,
+    mesaId: string,
+    divisas: unknown
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+    this.exigirAnfitrionOAdmin(actor, mesa);
+
+    if (!Array.isArray(divisas)) {
+      throw errors.invalidRequest();
+    }
+
+    const limpias = sanitizarDivisasConfig(divisas);
+    if (limpias.length === 0) {
+      throw errors.invalidRequest();
+    }
+
+    mesa.divisasConfig = limpias;
+    const principal = limpias.find(d => d.id === "principal") ?? limpias[0];
+    mesa.divisaNombre = principal.nombre;
     await this.mesas.save(mesa);
     return this.vista(mesa);
   }

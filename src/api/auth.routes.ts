@@ -21,6 +21,30 @@ export function createAuthRouter(
     }
   });
 
+  router.post("/verify-email", async (req, res, next) => {
+    try {
+      const { token } = (req.body ?? {}) as { token?: unknown };
+      const user = await context.authService.verifyEmail(
+        typeof token === "string" ? token : ""
+      );
+      res.json(toPublicUser(user));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/resend-verification", async (req, res, next) => {
+    try {
+      const { email } = (req.body ?? {}) as { email?: unknown };
+      await context.authService.resendVerification(
+        typeof email === "string" ? email : ""
+      );
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/login", async (req, res, next) => {
     try {
       const { email, password } = req.body ?? {};

@@ -1,38 +1,75 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
+import { ApiError } from "../../api/client";
+import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
-import type { PublicMesa, PublicUser } from "../../api/types";
+import { usersApi } from "../../api/users.api";
+import type {
+  EventoTirada,
+  MensajeChat,
+  PublicArchivo,
+  PublicMesa,
+  PublicTransferencia,
+  PublicUser
+} from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
-import { Sala } from "../../preview/Sala";
+import {
+  Sala,
+  type MusicaAmbienteMesa
+} from "../../preview/Sala";
+import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
+import { reproducirSonidoTirada } from "../../preview/sonidoDados";
+import {
+  obtenerColorDadoGuardado,
+  sanitizarColorDado
+} from "../../preview/datos";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
 import {
-  CLAVE_DOCS_PIZARRA,
-  CLAVE_PIZARRA_CONGELADA,
-  CLAVE_POSITS,
-  CLAVE_TRAZOS_PIZARRA,
   cargarCalibracion,
-  cargarDocumentosMesa,
-  cargarDocumentosPizarra,
-  cargarPizarraCongelada,
-  cargarPosits,
-  cargarPositsMesa,
-  cargarTrazosPizarra,
-  guardarCalibracion,
-  guardarDocumentosMesa,
-  guardarDocumentosPizarra,
-  guardarPizarraCongelada,
-  guardarPosits,
-  guardarPositsMesa,
-  guardarTrazosPizarra
+  guardarCalibracion
 } from "../../preview/calibracion";
+import {
+  calcularPosicionRecepcion,
+  crearElementoDesdeArchivo,
+  nuevoIdElemento
+} from "../../preview/compartir";
+import {
+  estaMusicaSilenciada,
+  obtenerVolumenMusica,
+  reproducirSonidoMonedas,
+  reproducirSonidoNotificacion,
+  reproducirSonidoPing
+} from "../../preview/sonido";
 import type {
   Calibracion,
+  DivisaAsientoDelta,
+  DivisaConfig,
   DocumentoMesa,
+  ElementoMesa,
+  EstadoMapaCompartido,
   ImagenEscenaPreview,
   JugadorPreview,
+  MapaFondoConfig,
+  MapaIniciativaEstado,
+  MapaRejillaConfig,
+  MensajeSala,
+  ObjetoMochila,
+  PingVisual,
+  PlantillaTokenMapa,
   PositPreview,
+  SolicitudTransferencia,
+  TipoEspecialTirada,
+  TiradaAsiento,
+  TokenMapa,
   TrazoPizarra
 } from "../../preview/tipos";
 import "../../preview/preview.css";
@@ -41,11 +78,41 @@ interface SalaRealProps {
   mesa: PublicMesa;
   user: PublicUser;
   onActualizarMesa: (mesa: PublicMesa) => void;
-  onVolver: () => void;
+  onVolver: (motivo?: string) => void;
   onSessionExpired?: () => void;
 }
 
 type Fase = "sala" | "pizarra" | "mapa" | "archivador";
+type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
+
+function elegirPosicionLibrePizarra(
+  existentes: Array<{ x: number; y: number }>
+): { x: number; y: number } {
+  const min = 12;
+  const max = 82;
+  const minDist = 13;
+  let mejor = {
+    x: Number((min + Math.random() * (max - min)).toFixed(2)),
+    y: Number((min + Math.random() * (max - min)).toFixed(2))
+  };
+  let mejorDist = -1;
+  for (let intento = 0; intento < 32; intento += 1) {
+    const x = Number((min + Math.random() * (max - min)).toFixed(2));
+    const y = Number((min + Math.random() * (max - min)).toFixed(2));
+    const distMin = existentes.reduce((acc, item) => {
+      const d = Math.hypot(item.x - x, item.y - y);
+      return Math.min(acc, d);
+    }, Number.POSITIVE_INFINITY);
+    if (distMin >= minDist) {
+      return { x, y };
+    }
+    if (distMin > mejorDist) {
+      mejorDist = distMin;
+      mejor = { x, y };
+    }
+  }
+  return mejor;
+}
 
 const PALETA_COLORES = [
   "#74569b",
@@ -60,6 +127,8 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   const lista: JugadorPreview[] = [
     {
       id: "master",
+      usuarioId: mesa.hostId,
+      userId: mesa.hostId,
       nombre: mesa.hostName,
       color: mesa.colores?.[mesa.hostId] ?? "#e8c56a",
       esMaster: true,
@@ -70,7 +139,10 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   mesa.players.forEach((jugador, indice) => {
     lista.push({
       id: `p${indice + 1}`,
+      usuarioId: jugador.id,
+      userId: jugador.id,
       nombre: jugador.name,
+      apodo: mesa.playerApodos?.[jugador.id],
       color:
         mesa.colores?.[jugador.id] ??
         jugador.color ??
@@ -83,6 +155,65 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
   return lista;
 }
 
+const DURACION_D20_ASIENTO = 3500;
+
+const MUSICA_DEFECTO: MusicaAmbienteMesa = {
+  pistas: [],
+  indiceActual: 0,
+  reproduciendo: false,
+  loop: false,
+  aleatorio: false,
+  volumenMaster: 0.7
+};
+
+const ESTADO_MAPA_DEFECTO: EstadoMapaCompartido = {
+  fondo: null,
+  rejilla: {
+    visible: true,
+    columnas: 20,
+    filas: 12,
+    filasAuto: true,
+    offsetX: 0,
+    offsetY: 0,
+    color: "#ffffff",
+    opacidad: 0.35,
+    imanActivo: true
+  },
+  tokens: [],
+  plantillas: []
+};
+
+function aSolicitudCliente(t: PublicTransferencia): SolicitudTransferencia {
+  if (t.tipo === "posit") {
+    return {
+      id: t.id,
+      emisorNombre: t.emisorNombre,
+      tipo: "posit",
+      textoPosit: t.posit.texto,
+      colorPosit: t.posit.color,
+      giroPosit: t.posit.giro
+    };
+  }
+
+  if (t.tipo === "objeto") {
+    return {
+      id: t.id,
+      emisorNombre: t.emisorNombre,
+      tipo: "objeto",
+      objeto: t.objeto
+    };
+  }
+
+  return {
+    id: t.id,
+    emisorNombre: t.emisorNombre,
+    tipo: "archivo",
+    nombreArchivo: t.archivo.nombre,
+    mimeArchivo: t.archivo.tipo,
+    vistaArchivo: t.archivo.vista
+  };
+}
+
 function SalaRealContent({
   mesa,
   user,
@@ -92,27 +223,92 @@ function SalaRealContent({
 }: SalaRealProps) {
   const [fase, setFase] = useState<Fase>("sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
-  const [posits, setPosits] = useState<PositPreview[]>(cargarPosits);
-  const [trazosPizarra, setTrazosPizarra] =
-    useState<TrazoPizarra[]>(cargarTrazosPizarra);
-  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>(
-    cargarDocumentosPizarra
-  );
-  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(
-    cargarPizarraCongelada
-  );
-  const [positsMesa, setPositsMesa] = useState<PositPreview[]>(() =>
-    cargarPositsMesa(user.id)
-  );
-  const [documentosMesa, setDocumentosMesa] = useState<DocumentoMesa[]>(() =>
-    cargarDocumentosMesa(user.id)
-  );
+  const [posits, setPosits] = useState<PositPreview[]>([]);
+  const [elementosMesa, setElementosMesa] = useState<ElementoMesa[]>([]);
+  const [archivosDisponibles, setArchivosDisponibles] = useState<PublicArchivo[]>([]);
+  const [colaSolicitudes, setColaSolicitudes] = useState<SolicitudTransferencia[]>([]);
+  const [estadoAviso, setEstadoAviso] = useState<string | null>(null);
+  const [trazosPizarra, setTrazosPizarra] = useState<TrazoPizarra[]>([]);
+  const [documentosPizarra, setDocumentosPizarra] = useState<DocumentoMesa[]>([]);
+  const [objetosPizarra, setObjetosPizarra] = useState<ObjetoPizarra[]>([]);
+  const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
+  const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
+  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
+    Record<string, { w: number; h: number }>
+  >({});
+  const [pizarraCongelada, setPizarraCongelada] = useState<boolean>(false);
   const [proyeccionOcultadaId, setProyeccionOcultadaId] = useState<
     string | null
-  >(null);
+  >(() => {
+    try {
+      return window.localStorage.getItem(`pocketrol.proyeccion_oculta.${mesa.id}`);
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      const key = `pocketrol.proyeccion_oculta.${mesa.id}`;
+      if (proyeccionOcultadaId) {
+        window.localStorage.setItem(key, proyeccionOcultadaId);
+      } else {
+        window.localStorage.removeItem(key);
+      }
+    } catch {
+      // Ignora errores de almacenamiento local.
+    }
+  }, [mesa.id, proyeccionOcultadaId]);
   const [error, setError] = useState<string | null>(null);
+  const [mensajesChat, setMensajesChat] = useState<MensajeSala[]>([]);
+  const [tiradasAsiento, setTiradasAsiento] = useState<Record<string, TiradaAsiento>>({});
+  const [divisaAsiento, setDivisaAsiento] = useState<Record<string, DivisaAsientoDelta>>({});
+  const [divisa, setDivisa] = useState<number>(0);
+  const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
+  const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
+  const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
+  const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
+  const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
+  const [musicaAmbiente, setMusicaAmbiente] = useState<MusicaAmbienteMesa>(() => {
+    const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
+    return rem ?? MUSICA_DEFECTO;
+  });
+  const [musicaSilenciadaLocal, setMusicaSilenciadaLocal] = useState<boolean>(
+    estaMusicaSilenciada
+  );
+  const [volumenMusicaLocal, setVolumenMusicaLocal] = useState<number>(
+    obtenerVolumenMusica
+  );
+  const [audioBloqueado, setAudioBloqueado] = useState(false);
+  const [tiempoMusica, setTiempoMusica] = useState(0);
+  const [duracionMusica, setDuracionMusica] = useState(0);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioSrcActualRef = useRef<string>("");
+  const musicaAmbienteRef = useRef<MusicaAmbienteMesa>(musicaAmbiente);
+  musicaAmbienteRef.current = musicaAmbiente;
+
+  const recepcionesRef = useRef(0);
+  const positsPendientesEnvioRef = useRef<Map<string, string>>(new Map());
+  const avisoTimerRef = useRef<number | null>(null);
+  const timersAsiento = useRef<Record<string, number>>({});
+  const timersDivisa = useRef<Record<string, number>>({});
+  const estadoCargadoRef = useRef(false);
+  const pizarraCargadaRef = useRef(false);
+  const ignorarGuardadoPizarraRef = useRef(false);
   const esMaster = mesa.hostId === user.id;
+  const divisasConfig = useMemo<DivisaConfig[]>(() => {
+    const rem = (mesa as PublicMesa & { divisasConfig?: DivisaConfig[] }).divisasConfig;
+    if (Array.isArray(rem) && rem.length > 0) return rem;
+    return [
+      {
+        id: "principal",
+        nombre: mesa.divisaNombre ?? "Divisa",
+        color: "#e8c56a"
+      }
+    ];
+  }, [mesa]);
+  const jugadores = useMemo(() => construirJugadores(mesa), [mesa]);
   const indiceJugador = mesa.players.findIndex(p => p.id === user.id);
   const jugadorActual =
     indiceJugador >= 0 ? mesa.players[indiceJugador] : undefined;
@@ -124,12 +320,37 @@ function SalaRealContent({
     : (mesa.colores?.[user.id] ??
       jugadorActual?.color ??
       PALETA_COLORES[
-        (indiceJugador >= 0 ? indiceJugador : 0) % PALETA_COLORES.length
+      (indiceJugador >= 0 ? indiceJugador : 0) % PALETA_COLORES.length
       ]);
   const imagenEscena = mesa.imagenEscena ?? null;
   const imagenProyectada = mesa.imagenProyectada ?? null;
   const proyeccionOculta = Boolean(
     imagenProyectada && proyeccionOcultadaId === imagenProyectada.id
+  );
+
+  const mostrarAvisoBreve = useCallback((texto: string) => {
+    setEstadoAviso(texto);
+    if (avisoTimerRef.current !== null) {
+      window.clearTimeout(avisoTimerRef.current);
+    }
+    avisoTimerRef.current = window.setTimeout(() => setEstadoAviso(null), 3200);
+  }, []);
+
+  const agregarPingVisual = useCallback((ping: PingVisual) => {
+    reproducirSonidoPing();
+    setPingsActivos(prev => [...prev, ping]);
+    window.setTimeout(() => {
+      setPingsActivos(prev => prev.filter(item => item.id !== ping.id));
+    }, 2400);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (avisoTimerRef.current !== null) {
+        window.clearTimeout(avisoTimerRef.current);
+      }
+    },
+    []
   );
 
   useEffect(() => {
@@ -146,60 +367,1286 @@ function SalaRealContent({
     guardarCalibracion(calibracion);
   }, [calibracion]);
 
-  useEffect(() => {
-    guardarPosits(posits);
-  }, [posits]);
+  const aplicarEstadoPizarraRemoto = useCallback(
+    (datos: {
+      posits?: unknown[];
+      trazos?: unknown[];
+      documentos?: unknown[];
+      objetos?: unknown[];
+      objetosPizarra?: unknown[];
+      trazosEscena?: unknown[];
+      positsEscena?: unknown[];
+      docsEscena?: unknown[];
+      tamanoImagenesEscena?: Record<string, { w: number; h: number }>;
+      congelada?: boolean;
+    }) => {
+      ignorarGuardadoPizarraRef.current = true;
+      setPosits(Array.isArray(datos.posits) ? (datos.posits as PositPreview[]) : []);
+      setTrazosPizarra(
+        Array.isArray(datos.trazos) ? (datos.trazos as TrazoPizarra[]) : []
+      );
+      setDocumentosPizarra(
+        Array.isArray(datos.documentos)
+          ? (datos.documentos as DocumentoMesa[])
+          : []
+      );
+      const listaObjetos = Array.isArray(datos.objetos)
+        ? datos.objetos
+        : Array.isArray(datos.objetosPizarra)
+          ? datos.objetosPizarra
+          : [];
+      setObjetosPizarra(listaObjetos as ObjetoPizarra[]);
+      setTrazosEscena(
+        Array.isArray(datos.trazosEscena)
+          ? (datos.trazosEscena as TrazoPizarra[])
+          : []
+      );
+      setPositsEscena(
+        Array.isArray(datos.positsEscena)
+          ? (datos.positsEscena as PositPreview[])
+          : []
+      );
+      setDocsEscena(
+        Array.isArray(datos.docsEscena)
+          ? (datos.docsEscena as DocumentoMesa[])
+          : []
+      );
+      setTamanoImagenesEscena(datos.tamanoImagenesEscena ?? {});
+      setPizarraCongelada(Boolean(datos.congelada));
+    },
+    []
+  );
 
   useEffect(() => {
-    guardarTrazosPizarra(trazosPizarra);
-  }, [trazosPizarra]);
+    let cancelado = false;
+    mesasApi
+      .listarChat(mesa.id)
+      .then(lista => {
+        if (!cancelado) {
+          setMensajesChat(lista);
+        }
+      })
+      .catch(chatError => {
+        if (!cancelado) {
+          setError(describeError(chatError));
+        }
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [mesa.id]);
 
   useEffect(() => {
-    guardarDocumentosPizarra(documentosPizarra);
-  }, [documentosPizarra]);
-
-  useEffect(() => {
-    guardarPizarraCongelada(pizarraCongelada);
-  }, [pizarraCongelada]);
-
-  useEffect(() => {
-    function alCambiarStorage(evento: StorageEvent) {
-      if (evento.key === CLAVE_POSITS) setPosits(cargarPosits());
-      if (evento.key === CLAVE_TRAZOS_PIZARRA) {
-        setTrazosPizarra(cargarTrazosPizarra());
+    const timersMap = timersAsiento.current;
+    return () => {
+      for (const timerId of Object.values(timersMap)) {
+        window.clearTimeout(timerId);
       }
-      if (evento.key === CLAVE_DOCS_PIZARRA) {
-        setDocumentosPizarra(cargarDocumentosPizarra());
-      }
-      if (evento.key === CLAVE_PIZARRA_CONGELADA) {
-        setPizarraCongelada(cargarPizarraCongelada());
-      }
-    }
-    window.addEventListener("storage", alCambiarStorage);
-    return () => window.removeEventListener("storage", alCambiarStorage);
+    };
   }, []);
 
   useEffect(() => {
-    guardarPositsMesa(positsMesa, user.id);
-  }, [positsMesa, user.id]);
+    let activo = true;
+    void usersApi
+      .obtenerMacros()
+      .then(({ macros: remotas }) => {
+        if (activo && Array.isArray(remotas)) setMacros(remotas);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [user.id]);
+
+  const actualizarMacros = useCallback((nuevas: import("../../preview/tipos").MacroTirada[]) => {
+    setMacros(nuevas);
+    void usersApi.guardarMacros(nuevas).catch(() => {
+      setError("No se pudieron guardar las macros en tu perfil.");
+    });
+  }, []);
 
   useEffect(() => {
-    guardarDocumentosMesa(documentosMesa, user.id);
-  }, [documentosMesa, user.id]);
+    let activo = true;
+    pizarraCargadaRef.current = false;
+    void mesasApi
+      .obtenerPizarra(mesa.id)
+      .then(datos => {
+        if (!activo) return;
+        aplicarEstadoPizarraRemoto(datos);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (activo) pizarraCargadaRef.current = true;
+      });
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id, aplicarEstadoPizarraRemoto]);
 
+  useEffect(() => {
+    if (!pizarraCargadaRef.current) return;
+    if (ignorarGuardadoPizarraRef.current) {
+      ignorarGuardadoPizarraRef.current = false;
+      return;
+    }
+    if (pizarraCongelada && !esMaster) return;
+
+    const timer = window.setTimeout(() => {
+      const limpiarDocs = (lista: DocumentoMesa[]) =>
+        lista.map(({ url: _url, ...resto }) => resto);
+      const limpiarObjetos = (lista: ObjetoPizarra[]) =>
+        lista.map(({ imagenLocal: _img, ...resto }) => resto);
+      const objetosLimpios = limpiarObjetos(objetosPizarra);
+      const payload = {
+        posits,
+        trazos: trazosPizarra,
+        documentos: limpiarDocs(documentosPizarra),
+        objetos: objetosLimpios,
+        trazosEscena,
+        positsEscena,
+        docsEscena: limpiarDocs(docsEscena),
+        tamanoImagenesEscena,
+        congelada: pizarraCongelada
+      };
+      void mesasApi
+        .guardarPizarra(mesa.id, payload)
+        .catch(() => undefined);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    mesa.id,
+    esMaster,
+    posits,
+    trazosPizarra,
+    documentosPizarra,
+    objetosPizarra,
+    trazosEscena,
+    positsEscena,
+    docsEscena,
+    tamanoImagenesEscena,
+    pizarraCongelada
+  ]);
+
+  useEffect(() => {
+    let activo = true;
+    estadoCargadoRef.current = false;
+    void mesasApi
+      .obtenerEstado(mesa.id)
+      .then(res => {
+        if (!activo) return;
+        const rawRes = res as {
+          elementos: unknown[];
+          divisa?: number;
+          divisasSaldos?: Record<string, number>;
+          mochila?: unknown[];
+        };
+        const cargados = Array.isArray(rawRes.elementos)
+          ? (rawRes.elementos as ElementoMesa[])
+          : [];
+        setElementosMesa(cargados);
+        const saldos =
+          rawRes.divisasSaldos && typeof rawRes.divisasSaldos === "object"
+            ? rawRes.divisasSaldos
+            : typeof rawRes.divisa === "number"
+              ? { [divisasConfig[0]?.id ?? "principal"]: rawRes.divisa }
+              : {};
+        setDivisasSaldos(saldos);
+        setDivisa(
+          typeof rawRes.divisa === "number"
+            ? rawRes.divisa
+            : (saldos[divisasConfig[0]?.id ?? "principal"] ?? 0)
+        );
+        setMochila(
+          Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (activo) estadoCargadoRef.current = true;
+      });
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id]);
+
+  useEffect(() => {
+    let activo = true;
+    void mesasApi
+      .obtenerMapa(mesa.id)
+      .then(mapa => {
+        if (activo && mapa) setEstadoMapa(mapa);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [mesa.id, fase === "mapa"]);
+
+  useEffect(() => {
+    if (!estadoCargadoRef.current) return;
+    const timer = window.setTimeout(() => {
+      const limpios = elementosMesa.map(el =>
+        el.tipo === "archivo"
+          ? {
+            id: el.id,
+            tipo: el.tipo,
+            archivoId: el.archivoId,
+            nombre: el.nombre,
+            mime: el.mime,
+            vista: el.vista,
+            tamano: el.tamano,
+            x: el.x,
+            y: el.y,
+            archivado: el.archivado,
+            remitente: el.remitente
+          }
+          : el.tipo === "objeto"
+            ? {
+              id: el.id,
+              tipo: el.tipo,
+              nombre: el.nombre,
+              descripcion: el.descripcion,
+              cantidad: el.cantidad,
+              emoji: el.emoji,
+              archivoId: el.archivoId,
+              archivoNombre: el.archivoNombre,
+              x: el.x,
+              y: el.y,
+              archivado: el.archivado,
+              remitente: el.remitente
+            }
+            : el
+      );
+      const mochilaLimpia = mochila.map(({ imagenLocal: _img, ...resto }) => resto);
+      void mesasApi.guardarEstado(mesa.id, limpios, mochilaLimpia).catch(() => undefined);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [mesa.id, elementosMesa, mochila]);
   const refrescar = useCallback(async () => {
     try {
       const actualizada = await mesasApi.obtener(mesa.id);
+      const sigueEnMesa =
+        actualizada.hostId === user.id ||
+        actualizada.players.some(p => p.id === user.id);
+      if (!sigueEnMesa) {
+        onVolver("Has sido expulsado de la mesa.");
+        return;
+      }
+      if (actualizada.estado !== "EN_CURSO" && !esMaster) {
+        onActualizarMesa(actualizada);
+        onVolver("La partida ha terminado y la mesa ha vuelto a espera.");
+        return;
+      }
       onActualizarMesa(actualizada);
     } catch (refrescoError) {
+      if (
+        refrescoError instanceof ApiError &&
+        (refrescoError.status === 403 || refrescoError.status === 404)
+      ) {
+        onVolver("La mesa se ha cerrado.");
+        return;
+      }
       setError(describeError(refrescoError));
     }
-  }, [mesa.id, onActualizarMesa]);
+  }, [mesa.id, user.id, onActualizarMesa, onVolver]);
 
-  useMesasLive(refrescar, onSessionExpired);
+  const cargarArchivos = useCallback(() => {
+    void archivosApi
+      .listar(mesa.id)
+      .then(setArchivosDisponibles)
+      .catch(() => undefined);
+  }, [mesa.id]);
+
+  useEffect(() => {
+    let activo = true;
+    const sincronizarPendientes = () => {
+      void mesasApi
+        .pendientesCompartir(mesa.id)
+        .then(lista => {
+          if (!activo) return;
+          setColaSolicitudes(prev => {
+            const idsActivos = new Set(lista.map(t => t.id));
+            const filtrada = prev.filter(s => idsActivos.has(s.id));
+            const existentes = new Set(filtrada.map(s => s.id));
+            const nuevas = lista
+              .filter(t => !existentes.has(t.id))
+              .map(aSolicitudCliente);
+            if (nuevas.length === 0 && filtrada.length === prev.length) return prev;
+            return [...filtrada, ...nuevas];
+          });
+        })
+        .catch(() => undefined);
+    };
+
+    sincronizarPendientes();
+    const intervalo = window.setInterval(sincronizarPendientes, 4000);
+    const alEnfocar = () => {
+      if (document.visibilityState !== "hidden") {
+        sincronizarPendientes();
+      }
+    };
+    window.addEventListener("focus", alEnfocar);
+    document.addEventListener("visibilitychange", alEnfocar);
+
+    void archivosApi
+      .listar()
+      .then(lista => {
+        if (activo) setArchivosDisponibles(lista);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", alEnfocar);
+      document.removeEventListener("visibilitychange", alEnfocar);
+    };
+  }, [mesa.id]);
+
+  const alMensajeEnVivo = useCallback(
+    (evento: Record<string, unknown>) => {
+      if (evento.type === "mesa:ping" && evento.mesaId === mesa.id && evento.ping) {
+        const bruto = evento.ping as PingVisual & { autorId?: string };
+        if (bruto.autorId !== user.id) {
+          agregarPingVisual(bruto);
+        }
+        return;
+      }
+
+      if (evento.type === "pizarra:actualizada" && evento.mesaId === mesa.id) {
+        if (evento.autorId !== user.id && evento.estado && typeof evento.estado === "object") {
+          aplicarEstadoPizarraRemoto(
+            evento.estado as Parameters<typeof aplicarEstadoPizarraRemoto>[0]
+          );
+        }
+        return;
+      }
+
+      if (evento.type === "mesa:mapa-actualizado" && evento.mesaId === mesa.id && evento.mapa) {
+        setEstadoMapa(evento.mapa as EstadoMapaCompartido);
+        return;
+      }
+
+      if (evento.type === "mesa:musica-actualizada" && evento.mesaId === mesa.id) {
+        const siguiente = (evento.musica ?? evento.musicaAmbiente) as
+          | MusicaAmbienteMesa
+          | undefined;
+        if (siguiente) {
+          setMusicaAmbiente(siguiente);
+        }
+        return;
+      }
+
+      if (evento.type === "transferencia:recibida" && evento.transferencia) {
+        const transferencia = evento.transferencia as PublicTransferencia;
+        if (transferencia.mesaId !== mesa.id) return;
+
+        reproducirSonidoNotificacion();
+        const solicitud = aSolicitudCliente(transferencia);
+        setColaSolicitudes(prev =>
+          prev.some(item => item.id === solicitud.id) ? prev : [...prev, solicitud]
+        );
+        return;
+      }
+
+      if (evento.type === "mesa:divisa" && evento.mesaId === mesa.id) {
+        const jugadorId = String(evento.jugadorId ?? "");
+        const jugadorNombre = String(evento.jugadorNombre ?? "Alguien");
+        const delta = Number(evento.delta ?? 0);
+        const total = Number(evento.divisa ?? 0);
+        const divisaId =
+          typeof evento.divisaId === "string"
+            ? evento.divisaId
+            : (divisasConfig[0]?.id ?? "principal");
+        const configDivisa = divisasConfig.find(d => d.id === divisaId);
+        const nombreDivisa = String(
+          evento.divisaNombre ?? configDivisa?.nombre ?? "Divisa"
+        );
+        const creado = String(evento.createdAt ?? new Date().toISOString());
+
+        if (jugadorId === user.id) {
+          setDivisasSaldos(prev => ({ ...prev, [divisaId]: total }));
+          if (divisaId === (divisasConfig[0]?.id ?? "principal")) {
+            setDivisa(total);
+          }
+        }
+
+        if (delta !== 0) {
+          reproducirSonidoMonedas(delta);
+          const jugador = jugadores.find(j => (j.userId ?? j.id) === jugadorId);
+          if (jugador) {
+            const asientoId = jugador.id;
+            const prevTimer = timersDivisa.current[asientoId];
+            if (prevTimer !== undefined) window.clearTimeout(prevTimer);
+            const idDelta = `${Date.now()}-${Math.random()}`;
+            setDivisaAsiento(prev => ({
+              ...prev,
+              [asientoId]: { id: idDelta, delta }
+            }));
+            timersDivisa.current[asientoId] = window.setTimeout(() => {
+              setDivisaAsiento(prev => {
+                if (prev[asientoId]?.id !== idDelta) return prev;
+                const copia = { ...prev };
+                delete copia[asientoId];
+                return copia;
+              });
+              delete timersDivisa.current[asientoId];
+            }, 3200);
+          }
+
+          const signo = delta > 0 ? `+${delta}` : String(delta);
+          setMensajesChat(prev => [
+            ...prev,
+            {
+              id: `divisa-${Date.now()}-${Math.random()}`,
+              autorId: jugadorId,
+              autorNombre: jugadorNombre,
+              texto: `${signo} ${nombreDivisa} (Total: ${total})`,
+              destinatarioId: null,
+              destinatarioNombre: null,
+              createdAt: creado,
+              esSistema: true,
+              esDivisa: true
+            }
+          ]);
+        }
+        return;
+      }
+
+      if (evento.type === "mesa:compartir-todos" && evento.mesaId === mesa.id) {
+        if (evento.emisorId === user.id) return;
+        const emisorNombre = String(evento.emisorNombre ?? "Alguien");
+        const elem = (
+          evento.elemento && typeof evento.elemento === "object"
+            ? evento.elemento
+            : evento
+        ) as Record<string, unknown>;
+        const pos = calcularPosicionRecepcion(recepcionesRef.current);
+        recepcionesRef.current += 1;
+        reproducirSonidoNotificacion();
+
+        if (
+          elem.tipo === "posit" &&
+          elem.posit &&
+          typeof elem.posit === "object"
+        ) {
+          const p = elem.posit as {
+            texto?: string;
+            color?: string;
+            giro?: number;
+          };
+          setElementosMesa(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "posit",
+              texto: p.texto ?? "",
+              color: p.color ?? "#f7ffae",
+              giro: typeof p.giro === "number" ? p.giro : -1.5,
+              x: pos.x,
+              y: pos.y,
+              remitente: emisorNombre
+            }
+          ]);
+          mostrarAvisoBreve(`${emisorNombre} compartió una nota con todos.`);
+        } else if (
+          elem.tipo === "archivo" &&
+          elem.archivo &&
+          typeof elem.archivo === "object"
+        ) {
+          const arch = elem.archivo as PublicArchivo;
+          setElementosMesa(prev => [
+            ...prev,
+            crearElementoDesdeArchivo(arch, pos, emisorNombre)
+          ]);
+          cargarArchivos();
+          mostrarAvisoBreve(`${emisorNombre} compartió un archivo con todos.`);
+        } else if (
+          elem.tipo === "objeto" &&
+          elem.objeto &&
+          typeof elem.objeto === "object"
+        ) {
+          const obj = elem.objeto as {
+            nombre: string;
+            descripcion?: string;
+            cantidad?: number;
+            emoji?: string;
+            archivoId?: string;
+            archivoNombre?: string;
+          };
+          setElementosMesa(prev => [
+            ...prev,
+            {
+              id: nuevoIdElemento(),
+              tipo: "objeto",
+              nombre: obj.nombre,
+              descripcion: obj.descripcion ?? "",
+              cantidad: Math.max(1, obj.cantidad ?? 1),
+              ...(obj.emoji ? { emoji: obj.emoji } : {}),
+              ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
+              ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
+              x: pos.x,
+              y: pos.y,
+              remitente: emisorNombre
+            }
+          ]);
+          if (obj.archivoId) cargarArchivos();
+          mostrarAvisoBreve(`${emisorNombre} compartió un objeto con todos.`);
+        }
+        return;
+      }
+
+      if (evento.type === "transferencia:resuelta") {
+        const nombre = String(evento.receptorNombre ?? "El jugador");
+        const transferenciaId = typeof evento.id === "string" ? evento.id : "";
+        if (evento.estado === "ACEPTADA") {
+          mostrarAvisoBreve(`${nombre} aceptó lo que le pasaste.`);
+          if (transferenciaId && positsPendientesEnvioRef.current.has(transferenciaId)) {
+            const positLocalId = positsPendientesEnvioRef.current.get(transferenciaId)!;
+            positsPendientesEnvioRef.current.delete(transferenciaId);
+            setElementosMesa(prev => prev.filter(el => el.id !== positLocalId));
+          }
+          if (evento.tipo === "objeto" && evento.objeto && typeof evento.objeto === "object") {
+            const obj = evento.objeto as { idOrigen?: string; cantidad?: number };
+            if (obj.idOrigen) {
+              const cant = Math.max(1, obj.cantidad ?? 1);
+              setMochila(prev =>
+                prev.flatMap(item => {
+                  if (item.id !== obj.idOrigen) return [item];
+                  const restante = item.cantidad - cant;
+                  return restante > 0 ? [{ ...item, cantidad: restante }] : [];
+                })
+              );
+              setElementosMesa(prev =>
+                prev.flatMap(el => {
+                  if (el.id !== obj.idOrigen || el.tipo !== "objeto") return [el];
+                  const restante = el.cantidad - cant;
+                  return restante > 0 ? [{ ...el, cantidad: restante }] : [];
+                })
+              );
+            }
+          }
+        } else if (evento.estado === "RECHAZADA") {
+          if (transferenciaId) {
+            positsPendientesEnvioRef.current.delete(transferenciaId);
+          }
+          mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
+        }
+      }
+    },
+    [
+      mesa.id,
+      user.id,
+      jugadores,
+      divisasConfig,
+      cargarArchivos,
+      aplicarEstadoPizarraRemoto,
+      agregarPingVisual,
+      mostrarAvisoBreve
+    ]
+  );
+
+  async function enviarElemento(destino: JugadorPreview, elemento: ElementoMesa) {
+    if (!destino.usuarioId) return;
+    setError(null);
+    try {
+      if (elemento.tipo === "posit") {
+        const transferencia = await mesasApi.compartir(mesa.id, {
+          receptorId: destino.usuarioId,
+          tipo: "posit",
+          posit: {
+            texto: elemento.texto,
+            color: elemento.color,
+            giro: elemento.giro
+          }
+        });
+        if (transferencia?.id) {
+          positsPendientesEnvioRef.current.set(transferencia.id, elemento.id);
+        }
+      } else if (elemento.tipo === "objeto") {
+        await mesasApi.compartir(mesa.id, {
+          receptorId: destino.usuarioId,
+          tipo: "objeto",
+          objeto: {
+            idOrigen: elemento.id,
+            nombre: elemento.nombre,
+            descripcion: elemento.descripcion,
+            cantidad: elemento.cantidad,
+            emoji: elemento.emoji,
+            archivoId: elemento.archivoId,
+            archivoNombre: elemento.archivoNombre
+          }
+        });
+      } else if (elemento.tipo === "archivo") {
+        await mesasApi.compartir(mesa.id, {
+          receptorId: destino.usuarioId,
+          tipo: "archivo",
+          archivoId: elemento.archivoId
+        });
+      }
+      mostrarAvisoBreve(`Solicitud enviada a ${destino.nombre}.`);
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  async function enviarObjetoMochila(
+    destino: JugadorPreview,
+    objeto: ObjetoMochila,
+    cantidadEnviar: number = 1
+  ) {
+    if (!destino.usuarioId) return;
+    setError(null);
+    try {
+      await mesasApi.compartir(mesa.id, {
+        receptorId: destino.usuarioId,
+        tipo: "objeto",
+        objeto: {
+          idOrigen: objeto.id,
+          nombre: objeto.nombre,
+          descripcion: objeto.descripcion,
+          cantidad: Math.max(1, Math.min(objeto.cantidad, cantidadEnviar)),
+          emoji: objeto.emoji,
+          archivoId: objeto.archivoId,
+          archivoNombre: objeto.archivoNombre
+        }
+      });
+      mostrarAvisoBreve(`Objeto enviado a ${destino.nombre}.`);
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  async function aceptarSolicitud(solicitud: SolicitudTransferencia) {
+    setError(null);
+    try {
+      const res = await mesasApi.aceptarCompartir(mesa.id, solicitud.id);
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+
+      if (res.tipo === "posit") {
+        setElementosMesa(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "posit",
+            texto: res.posit.texto,
+            color: res.posit.color,
+            giro: res.posit.giro,
+            x: pos.x,
+            y: pos.y,
+            remitente: solicitud.emisorNombre
+          }
+        ]);
+      } else if (res.tipo === "objeto") {
+        const pasoObj = (recepcionesRef.current - 1) % 6;
+        const posObj = {
+          x: Number((50 + ((pasoObj % 3) - 1) * 5).toFixed(2)),
+          y: Number((70.5 + Math.floor(pasoObj / 3) * 3.5).toFixed(2))
+        };
+        setElementosMesa(prev => [
+          ...prev,
+          {
+            id: nuevoIdElemento(),
+            tipo: "objeto",
+            nombre: res.objeto.nombre,
+            descripcion: res.objeto.descripcion,
+            cantidad: Math.max(1, res.objeto.cantidad),
+            ...(res.objeto.emoji ? { emoji: res.objeto.emoji } : {}),
+            ...(res.objeto.archivoId ? { archivoId: res.objeto.archivoId } : {}),
+            ...(res.objeto.archivoNombre ? { archivoNombre: res.objeto.archivoNombre } : {}),
+            x: posObj.x,
+            y: posObj.y,
+            remitente: solicitud.emisorNombre
+          }
+        ]);
+        if (res.objeto.archivoId) cargarArchivos();
+      } else {
+        setElementosMesa(prev => [
+          ...prev,
+          crearElementoDesdeArchivo(res.archivo, pos, solicitud.emisorNombre)
+        ]);
+        cargarArchivos();
+      }
+      setColaSolicitudes(prev => prev.filter(s => s.id !== solicitud.id));
+    } catch (aceptarError) {
+      setError(describeError(aceptarError));
+      setColaSolicitudes(prev => prev.filter(s => s.id !== solicitud.id));
+    }
+  }
+
+  async function rechazarSolicitud(solicitud: SolicitudTransferencia) {
+    setColaSolicitudes(prev => prev.filter(s => s.id !== solicitud.id));
+    try {
+      await mesasApi.rechazarCompartir(mesa.id, solicitud.id);
+    } catch {
+      // Si ya no estaba pendiente, no interrumpimos al usuario.
+    }
+  }
+
+  const alRecibirMensajeChat = useCallback(
+    (mensaje: MensajeChat) => {
+      if (mensaje.mesaId !== mesa.id) return;
+      setMensajesChat(prev =>
+        prev.some(item => item.id === mensaje.id) ? prev : [...prev, mensaje]
+      );
+    },
+    [mesa.id]
+  );
+
+  const alRecibirTirada = useCallback(
+    (roll: EventoTirada) => {
+      if (roll.mesaId !== mesa.id) return;
+
+      const jugador = jugadores.find(j => (j.userId ?? j.id) === roll.jugadorId);
+      if (jugador) {
+        const asientoId = jugador.id;
+        const prevTimer = timersAsiento.current[asientoId];
+        if (prevTimer !== undefined) {
+          window.clearTimeout(prevTimer);
+        }
+
+        const dados = Array.isArray(roll.dados) ? roll.dados : [];
+        const mod = roll.bonificador ?? 0;
+        const tieneDesglose = dados.length > 1 || mod !== 0;
+        const modTxt = mod > 0 ? ` + ${mod}` : mod < 0 ? ` - ${Math.abs(mod)}` : "";
+        const desglose = tieneDesglose
+          ? `${dados.join(" + ")}${modTxt} = ${roll.total}`
+          : undefined;
+
+        const colorDado = sanitizarColorDado(roll.colorDado);
+        const colorAristasDado = sanitizarColorDado(roll.colorAristasDado);
+
+        setTiradasAsiento(prev => ({
+          ...prev,
+          [asientoId]: {
+            id: roll.id,
+            total: roll.total,
+            especial: roll.especial ?? null,
+            caras: roll.caras ?? 20,
+            desglose,
+            ...(colorDado ? { colorDado } : {}),
+            ...(colorAristasDado ? { colorAristasDado } : {})
+          }
+        }));
+
+        timersAsiento.current[asientoId] = window.setTimeout(() => {
+          setTiradasAsiento(prev => {
+            if (prev[asientoId]?.id !== roll.id) return prev;
+            const copia = { ...prev };
+            delete copia[asientoId];
+            return copia;
+          });
+          delete timersAsiento.current[asientoId];
+        }, DURACION_D20_ASIENTO);
+      }
+
+      if (roll.jugadorId !== user.id) {
+        reproducirSonidoTirada(roll.especial ?? null);
+      }
+
+      setMensajesChat(prev => {
+        const idSistema = `roll-${roll.id}`;
+        if (prev.some(item => item.id === idSistema)) return prev;
+        return [
+          ...prev,
+          {
+            id: idSistema,
+            autorId: roll.jugadorId,
+            autorNombre: roll.jugadorNombre,
+            texto: `Tiró ${roll.formula} → ${roll.total}`,
+            destinatarioId: roll.soloMaster ? mesa.hostId : null,
+            destinatarioNombre: roll.soloMaster ? mesa.hostName : null,
+            createdAt: roll.createdAt,
+            esSistema: true
+          }
+        ];
+      });
+    },
+    [jugadores, mesa.hostId, mesa.hostName, mesa.id]
+  );
+
+  useEffect(() => {
+    const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
+    if (rem) {
+      setMusicaAmbiente(rem);
+    }
+  }, [mesa]);
+
+  useEffect(() => {
+    const sincronizarLocal = () => {
+      setMusicaSilenciadaLocal(estaMusicaSilenciada());
+      setVolumenMusicaLocal(obtenerVolumenMusica());
+    };
+    window.addEventListener("pocketrol:musica-local", sincronizarLocal);
+    window.addEventListener("storage", sincronizarLocal);
+    return () => {
+      window.removeEventListener("pocketrol:musica-local", sincronizarLocal);
+      window.removeEventListener("storage", sincronizarLocal);
+    };
+  }, []);
+
+  const actualizarMusica = useCallback(
+    async (siguiente: MusicaAmbienteMesa) => {
+      setMusicaAmbiente(siguiente);
+      try {
+        const api = mesasApi as unknown as {
+          actualizarMusica?: (id: string, musica: MusicaAmbienteMesa) => Promise<PublicMesa>;
+        };
+        if (api.actualizarMusica) {
+          const actualizada = await api.actualizarMusica(mesa.id, siguiente);
+          const rem = (
+            actualizada as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }
+          ).musicaAmbiente;
+          if (rem) {
+            setMusicaAmbiente(rem);
+          }
+        }
+      } catch (musicaError) {
+        setError(describeError(musicaError));
+      }
+    },
+    [mesa.id]
+  );
+
+  const subirMusica = useCallback(
+    async (archivo: File) => {
+      try {
+        const subido = await archivosApi.subir(archivo, mesa.id);
+        setArchivosDisponibles(prev =>
+          prev.some(item => item.id === subido.id) ? prev : [subido, ...prev]
+        );
+        const actual = musicaAmbienteRef.current;
+        const estabaVacia = actual.pistas.length === 0;
+        const siguiente: MusicaAmbienteMesa = {
+          ...actual,
+          pistas: [
+            ...actual.pistas,
+            { archivoId: subido.id, nombre: subido.nombre }
+          ],
+          indiceActual: estabaVacia ? 0 : actual.indiceActual,
+          reproduciendo: estabaVacia ? true : actual.reproduciendo
+        };
+        await actualizarMusica(siguiente);
+      } catch (subidaError) {
+        setError(describeError(subidaError));
+      }
+    },
+    [actualizarMusica]
+  );
+
+  const pistaActual = musicaAmbiente.pistas[musicaAmbiente.indiceActual] ?? null;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.loop = musicaAmbiente.pistas.length === 1 && musicaAmbiente.loop;
+    audio.muted = musicaSilenciadaLocal;
+    audio.volume = Math.max(
+      0,
+      Math.min(1, (musicaAmbiente.volumenMaster ?? 0.7) * volumenMusicaLocal)
+    );
+
+    if (!pistaActual) {
+      audio.pause();
+      if (audioSrcActualRef.current) {
+        audioSrcActualRef.current = "";
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      setAudioBloqueado(false);
+      setTiempoMusica(0);
+      setDuracionMusica(0);
+      return;
+    }
+
+    const siguienteSrc = archivosApi.url(pistaActual.archivoId);
+    if (audioSrcActualRef.current !== siguienteSrc) {
+      audioSrcActualRef.current = siguienteSrc;
+      audio.src = siguienteSrc;
+    }
+
+    if (!musicaAmbiente.reproduciendo) {
+      audio.pause();
+      setAudioBloqueado(false);
+      setTiempoMusica(0);
+      setDuracionMusica(0);
+      return;
+    }
+
+    void audio
+      .play()
+      .then(() => {
+        setAudioBloqueado(false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          setAudioBloqueado(true);
+        }
+      });
+  }, [
+    pistaActual,
+    musicaAmbiente.pistas.length,
+    musicaAmbiente.loop,
+    musicaAmbiente.reproduciendo,
+    musicaAmbiente.volumenMaster,
+    musicaSilenciadaLocal,
+    volumenMusicaLocal
+  ]);
+
+  const reintentarAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !musicaAmbienteRef.current.reproduciendo) {
+      setAudioBloqueado(false);
+      setTiempoMusica(0);
+      setDuracionMusica(0);
+      return;
+    }
+    void audio
+      .play()
+      .then(() => {
+        setAudioBloqueado(false);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!audioBloqueado) return;
+    const alInteractuar = () => {
+      reintentarAudio();
+    };
+    window.addEventListener("pointerdown", alInteractuar, { capture: true });
+    window.addEventListener("keydown", alInteractuar, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", alInteractuar, { capture: true });
+      window.removeEventListener("keydown", alInteractuar, { capture: true });
+    };
+  }, [audioBloqueado, reintentarAudio]);
+
+  const alTerminarPista = useCallback(() => {
+    const actual = musicaAmbienteRef.current;
+    if (!esMaster || actual.pistas.length === 0) return;
+
+    if (actual.pistas.length === 1) {
+      if (!actual.loop) {
+        void actualizarMusica({ ...actual, reproduciendo: false });
+      }
+      return;
+    }
+
+    let siguienteIndice = actual.indiceActual;
+    let sigueReproduciendo = true;
+
+    if (actual.aleatorio) {
+      const candidatos = actual.pistas
+        .map((_, idx) => idx)
+        .filter(idx => idx !== actual.indiceActual);
+      siguienteIndice =
+        candidatos[Math.floor(Math.random() * candidatos.length)] ?? 0;
+    } else if (actual.indiceActual + 1 < actual.pistas.length) {
+      siguienteIndice = actual.indiceActual + 1;
+    } else if (actual.loop) {
+      siguienteIndice = 0;
+    } else {
+      siguienteIndice = 0;
+      sigueReproduciendo = false;
+    }
+
+    void actualizarMusica({
+      ...actual,
+      indiceActual: siguienteIndice,
+      reproduciendo: sigueReproduciendo
+    });
+  }, [esMaster, actualizarMusica]);
+
+  useMesasLive(
+    refrescar,
+    onSessionExpired,
+    {
+      onChatMessage: alRecibirMensajeChat,
+      onDiceRoll: alRecibirTirada
+    },
+    alMensajeEnVivo
+  );
+
+  async function enviarChat(texto: string, destinatarioId: string | null): Promise<void> {
+    setError(null);
+    try {
+      const creado = await mesasApi.enviarChat(mesa.id, texto, destinatarioId);
+      setMensajesChat(prev =>
+        prev.some(item => item.id === creado.id) ? prev : [...prev, creado]
+      );
+    } catch (chatError) {
+      setError(describeError(chatError));
+    }
+  }
+
+  async function enviarTiradaPublica(tirada: {
+    total: number;
+    formula: string;
+    dados: number[];
+    bonificador: number;
+    caras: number;
+    especial: TipoEspecialTirada;
+    soloMaster?: boolean;
+    colorDado?: string;
+    colorAristasDado?: string;
+  }): Promise<void> {
+    try {
+      const colorDado =
+        sanitizarColorDado(tirada.colorDado) ?? obtenerColorDadoGuardado(user.id);
+      const colorAristasDado = sanitizarColorDado(tirada.colorAristasDado);
+      await mesasApi.enviarTirada(mesa.id, {
+        ...tirada,
+        secreta: false,
+        soloMaster: Boolean(tirada.soloMaster),
+        ...(colorDado ? { colorDado } : {}),
+        ...(colorAristasDado ? { colorAristasDado } : {})
+      });
+    } catch (tiradaError) {
+      setError(describeError(tiradaError));
+    }
+  }
+
+  async function cambiarDivisa(
+    nueva: number,
+    delta: number,
+    divisaId?: string
+  ): Promise<void> {
+    const idDivisa = divisaId ?? divisasConfig[0]?.id ?? "principal";
+    const limpia = Math.max(0, Math.trunc(nueva));
+    if (idDivisa === (divisasConfig[0]?.id ?? "principal")) {
+      setDivisa(limpia);
+    }
+    setDivisasSaldos(prev => ({ ...prev, [idDivisa]: limpia }));
+    try {
+      const api = mesasApi as unknown as {
+        cambiarDivisa?: (
+          id: string,
+          divisa: number,
+          delta?: number,
+          divisaId?: string
+        ) => Promise<unknown>;
+        guardarDivisa: (
+          id: string,
+          divisa: number,
+          delta?: number,
+          divisaId?: string
+        ) => Promise<unknown>;
+      };
+      if (typeof api.cambiarDivisa === "function") {
+        await api.cambiarDivisa(mesa.id, limpia, delta, idDivisa);
+      } else {
+        await api.guardarDivisa(mesa.id, limpia, delta, idDivisa);
+      }
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+    }
+  }
+
+  async function guardarDivisasConfig(config: DivisaConfig[]): Promise<void> {
+    try {
+      const api = mesasApi as unknown as {
+        guardarDivisasConfig?: (
+          id: string,
+          divisasConfig: DivisaConfig[]
+        ) => Promise<PublicMesa>;
+      };
+      if (typeof api.guardarDivisasConfig === "function") {
+        const actualizada = await api.guardarDivisasConfig(mesa.id, config);
+        onActualizarMesa(actualizada);
+      }
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+    }
+  }
+
+  async function compartirATodos(elemento: ElementoMesa): Promise<void> {
+    if (elemento.tipo === "macro") return;
+    setError(null);
+    try {
+      const payload =
+        elemento.tipo === "posit"
+          ? {
+              tipo: "posit" as const,
+              posit: {
+                texto: elemento.texto,
+                color: elemento.color,
+                giro: elemento.giro
+              }
+            }
+          : elemento.tipo === "objeto"
+            ? {
+                tipo: "objeto" as const,
+                objeto: {
+                  idOrigen: elemento.id,
+                  nombre: elemento.nombre,
+                  descripcion: elemento.descripcion,
+                  cantidad: elemento.cantidad,
+                  emoji: elemento.emoji,
+                  archivoId: elemento.archivoId,
+                  archivoNombre: elemento.archivoNombre
+                }
+              }
+            : {
+                tipo: "archivo" as const,
+                archivoId: elemento.archivoId
+              };
+      const api = mesasApi as unknown as {
+        compartirATodos?: (
+          id: string,
+          body: typeof payload
+        ) => Promise<{ destinatarios?: number } | undefined>;
+      };
+      if (typeof api.compartirATodos === "function") {
+        const res = await api.compartirATodos(mesa.id, payload);
+        if (res && res.destinatarios === 0) {
+          mostrarAvisoBreve("No hay otros jugadores en la mesa para compartir.");
+        } else {
+          mostrarAvisoBreve("Compartido con todos los jugadores de la mesa.");
+        }
+      } else {
+        mostrarAvisoBreve("Compartido con toda la mesa.");
+      }
+    } catch (envioError) {
+      setError(describeError(envioError));
+    }
+  }
+
+  const enviarAPizarra = useCallback(
+    (elemento: ElementoMesa) => {
+      if (elemento.tipo === "macro") return;
+      const existentes = [
+        ...posits.map(p => ({ x: p.x, y: p.y })),
+        ...documentosPizarra.map(d => ({ x: d.x, y: d.y })),
+        ...objetosPizarra.map(o => ({ x: o.x, y: o.y }))
+      ];
+      const pos = elegirPosicionLibrePizarra(existentes);
+      setElementosMesa(prev => prev.filter(el => el.id !== elemento.id));
+      if (elemento.tipo === "posit") {
+        setPosits(prev => [
+          ...prev,
+          {
+            id: elemento.id,
+            texto: elemento.texto,
+            color: elemento.color,
+            giro: elemento.giro,
+            x: pos.x,
+            y: pos.y,
+            ...(elemento.autorNombre ? { autorNombre: elemento.autorNombre } : {}),
+            ...(elemento.autorColor ? { autorColor: elemento.autorColor } : {}),
+            ...(elemento.esMaster !== undefined ? { esMaster: elemento.esMaster } : {})
+          }
+        ]);
+      } else if (elemento.tipo === "archivo") {
+        setDocumentosPizarra(prev => [
+          ...prev,
+          {
+            id: elemento.archivoId,
+            nombre: elemento.nombre,
+            tipo: elemento.mime,
+            vista: elemento.vista,
+            tamano: elemento.tamano,
+            x: pos.x,
+            y: pos.y,
+            url: elemento.contenidoLocal ?? archivosApi.url(elemento.archivoId)
+          }
+        ]);
+      } else if (elemento.tipo === "objeto") {
+        setObjetosPizarra(prev => [
+          ...prev,
+          {
+            ...elemento,
+            x: pos.x,
+            y: pos.y
+          }
+        ]);
+      }
+      mostrarAvisoBreve("Enviado a la pizarra.");
+    },
+    [posits, documentosPizarra, objetosPizarra, mostrarAvisoBreve]
+  );
+
+  const sacarDePizarraAMesa = useCallback(
+    (elemento: ElementoMesa) => {
+      const tipo = (elemento as { tipo?: string }).tipo ?? "objeto";
+      if (tipo === "objeto") {
+        setObjetosPizarra(prev => prev.filter(o => o.id !== elemento.id));
+      } else if (tipo === "posit") {
+        setPosits(prev => prev.filter(p => p.id !== elemento.id));
+      } else if (tipo === "archivo") {
+        setDocumentosPizarra(prev => prev.filter(d => d.id !== elemento.id));
+      }
+      const pos = calcularPosicionRecepcion(recepcionesRef.current);
+      recepcionesRef.current += 1;
+      const paraMesa: ElementoMesa =
+        tipo === "objeto"
+          ? {
+              ...(elemento as ObjetoPizarra),
+              tipo: "objeto",
+              x: pos.x,
+              y: pos.y
+            }
+          : { ...elemento, x: pos.x, y: pos.y };
+      setElementosMesa(prev => [...prev, paraMesa]);
+      mostrarAvisoBreve("Devuelto a tu mesa.");
+    },
+    [mostrarAvisoBreve]
+  );
+
+  async function transferirDivisa(
+    destino: JugadorPreview,
+    divisaId: string,
+    cantidad: number
+  ): Promise<boolean> {
+    if (!destino.usuarioId) return false;
+    setError(null);
+    try {
+      const res = await mesasApi.transferirDivisa(mesa.id, {
+        receptorId: destino.usuarioId,
+        divisaId,
+        cantidad
+      });
+      if (res.divisasSaldos) {
+        setDivisasSaldos(res.divisasSaldos);
+      }
+      if (divisaId === (divisasConfig[0]?.id ?? "principal")) {
+        setDivisa(res.divisa);
+      }
+      mostrarAvisoBreve(
+        `Enviadas ${cantidad} monedas a ${destino.apodo?.trim() || destino.nombre}.`
+      );
+      return true;
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+      return false;
+    }
+  }
+
+  async function cambiarDivisaNombre(nombre: string): Promise<void> {
+    try {
+      const actualizada = await mesasApi.cambiarDivisaNombre(mesa.id, nombre);
+      onActualizarMesa(actualizada);
+    } catch (divisaError) {
+      setError(describeError(divisaError));
+    }
+  }
+
+  async function cambiarApodo(apodo: string): Promise<void> {
+    setError(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, apodo);
+      onActualizarMesa(actualizada);
+    } catch (apodoError) {
+      setError(describeError(apodoError));
+    }
+  }
 
   async function volverAEspera() {
-    if (!esMaster) {
+    if (!esMaster || mesa.estado !== "EN_CURSO") {
       onVolver();
       return;
     }
@@ -214,40 +1661,313 @@ function SalaRealContent({
     }
   }
 
-    async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
-      if (!esMaster) return;
-      setError(null);
-      try {
-        const actualizada = await mesasApi.ponerEscena(
-          mesa.id,
-          imagen ? imagen.id : null,
-          imagen ? imagen.titulo : null
-        );
-        onActualizarMesa(actualizada);
-      } catch (escenaError) {
-        setError(describeError(escenaError));
-      }
+  async function iniciarPartidaDesdeSala() {
+    if (!esMaster || mesa.estado === "EN_CURSO") return;
+    setError(null);
+    try {
+      const actualizada = await mesasApi.iniciar(mesa.id);
+      onActualizarMesa(actualizada);
+      setEstadoAviso("Partida iniciada: los jugadores ya están entrando en la sala.");
+    } catch (iniciarError) {
+      setError(describeError(iniciarError));
     }
+  }
 
-      async function proyectarImagen(imagen: ImagenEscenaPreview | null) {
-        if (!esMaster) return;
-        setError(null);
-        setProyeccionOcultadaId(null);
-        try {
-          const actualizada = await mesasApi.proyectar(
-            mesa.id,
-            imagen ? imagen.id : null,
-            imagen ? imagen.titulo : null
-          );
-          onActualizarMesa(actualizada);
-        } catch (proyeccionError) {
-          setError(describeError(proyeccionError));
+  const yoAsientoId =
+    jugadores.find(j => j.usuarioId === user.id)?.id ?? "master";
+
+  async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
+    if (!esMaster) return;
+    setError(null);
+    try {
+      const actualizada = await mesasApi.ponerEscena(
+        mesa.id,
+        imagen ? imagen.id : null,
+        imagen ? imagen.titulo : null
+      );
+      onActualizarMesa(actualizada);
+    } catch (escenaError) {
+      setError(describeError(escenaError));
+    }
+  }
+
+  async function proyectarImagen(imagen: ImagenEscenaPreview | null) {
+    if (!esMaster) return;
+    setError(null);
+    setProyeccionOcultadaId(null);
+    try {
+      const actualizada = await mesasApi.proyectar(
+        mesa.id,
+        imagen ? imagen.id : null,
+        imagen ? imagen.titulo : null
+      );
+      onActualizarMesa(actualizada);
+    } catch (proyeccionError) {
+      setError(describeError(proyeccionError));
+    }
+  }
+
+  function enviarPing(datos: {
+    x: number;
+    y: number;
+    vista: "pizarra" | "escena" | "mapa";
+  }): void {
+    const ping: PingVisual = {
+      id: crypto.randomUUID(),
+      x: datos.x,
+      y: datos.y,
+      color: colorJugadorActual,
+      vista: datos.vista,
+      autorNombre: nombreJugadorActual
+    };
+    agregarPingVisual(ping);
+    void mesasApi
+      .enviarPing(mesa.id, {
+        x: datos.x,
+        y: datos.y,
+        vista: datos.vista,
+        color: colorJugadorActual
+      })
+      .catch(() => undefined);
+  }
+
+  async function cambiarFondoYRejilla(
+    fondo: MapaFondoConfig | null,
+    rejilla: MapaRejillaConfig
+  ): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, fondo, rejilla }));
+    try {
+      const actualizado = await mesasApi.guardarMapaFondo(mesa.id, { fondo, rejilla });
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function crearTokenMapa(
+    token: Omit<TokenMapa, "id" | "autorId" | "autorNombre" | "autorColor">,
+    guardarPlantilla = false,
+    categoria?: string
+  ): Promise<void> {
+    try {
+      const actualizado = await mesasApi.crearTokenMapa(mesa.id, {
+        ...token,
+        guardarPlantilla,
+        ...(categoria !== undefined ? { categoria } : {})
+      });
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarTokenMapa(
+    tokenId: string,
+    patch: Partial<
+      Pick<TokenMapa, "x" | "y" | "celdasAncho" | "celdasAlto" | "escala" | "nombre" | "enLimbo">
+    >
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      tokens: prev.tokens.map(t => (t.id === tokenId ? { ...t, ...patch } : t))
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarTokenMapa(mesa.id, tokenId, patch);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarTokenMapa(tokenId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      tokens: prev.tokens.filter(t => t.id !== tokenId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTokenMapa(mesa.id, tokenId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarPlantillaMapa(
+    plantillaId: string,
+    patch: { categoria?: string; nombre?: string }
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.map(p => {
+        if (p.id !== plantillaId) return p;
+        const siguiente = { ...p } as PlantillaTokenMapa & { categoria?: string };
+        if (patch.nombre !== undefined && patch.nombre.trim()) {
+          siguiente.nombre = patch.nombre.trim().slice(0, 120);
         }
-      }
+        if (patch.categoria !== undefined) {
+          const cat = patch.categoria.trim().slice(0, 40);
+          if (cat) {
+            siguiente.categoria = cat;
+          } else {
+            delete siguiente.categoria;
+          }
+        }
+        return siguiente;
+      })
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarPlantillaMapa(
+        mesa.id,
+        plantillaId,
+        patch
+      );
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
 
-  const jugadores = construirJugadores(mesa);
+  async function eliminarPlantillaMapa(plantillaId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      plantillas: prev.plantillas.filter(p => p.id !== plantillaId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarPlantillaMapa(mesa.id, plantillaId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
 
-          let contenido: ReactNode;
+  async function cambiarIniciativaMapa(iniciativa: MapaIniciativaEstado): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, iniciativa }));
+    try {
+      const actualizado = await mesasApi.guardarMapaIniciativa(mesa.id, iniciativa);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function terminarTurnoIniciativaMapa(): Promise<void> {
+    try {
+      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function agregarTrazoMapa(trazo: TrazoPizarra): Promise<void> {
+    const trazoConAutor: TrazoPizarra = {
+      ...trazo,
+      autorId: trazo.autorId ?? user.id
+    };
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: [...(prev.trazos ?? []), trazoConAutor]
+    }));
+    try {
+      const actualizado = await mesasApi.agregarTrazoMapa(mesa.id, trazo);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarTrazoMapa(trazoId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTrazoMapa(mesa.id, trazoId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function borrarTrazosMapa(): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, trazos: [] }));
+    try {
+      const actualizado = await mesasApi.borrarTrazosMapa(mesa.id);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function cambiarDibujoCongeladoMapa(congelado: boolean): Promise<void> {
+    setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
+    try {
+      const actualizado = await mesasApi.congelarDibujoMapa(mesa.id, congelado);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function crearAreaMapa(area: {
+    tipo: "circulo" | "cono";
+    x: number;
+    y: number;
+    celdas: number;
+    angulo?: number;
+    color?: string;
+  }): Promise<void> {
+    try {
+      const actualizado = await mesasApi.crearAreaMapa(mesa.id, area);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarAreaMapa(
+    areaId: string,
+    patch: { x?: number; y?: number; celdas?: number; angulo?: number; color?: string }
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      areas: (prev.areas ?? []).map(a => (a.id === areaId ? { ...a, ...patch } : a))
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarAreaMapa(mesa.id, areaId, patch);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarAreaMapa(areaId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      areas: (prev.areas ?? []).filter(a => a.id !== areaId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarAreaMapa(mesa.id, areaId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function subirImagenMapa(
+    archivo: File,
+    _categoria: "escena" | "token"
+  ): Promise<{ archivoId?: string; url: string; titulo: string }> {
+    const subido = await archivosApi.subir(archivo, mesa.id);
+    cargarArchivos();
+    return {
+      archivoId: subido.id,
+      url: archivosApi.url(subido.id),
+      titulo: subido.nombre
+    };
+  }
+
+  let contenido: ReactNode;
   if (fase === "pizarra") {
     contenido = (
       <Pizarra
@@ -257,9 +1977,21 @@ function SalaRealContent({
         onTrazos={setTrazosPizarra}
         documentosPizarra={documentosPizarra}
         onDocumentosPizarra={setDocumentosPizarra}
+        objetosPizarra={objetosPizarra}
+        onObjetosPizarra={setObjetosPizarra}
+        onSacarDePizarraAMesa={sacarDePizarraAMesa}
+        trazosEscena={trazosEscena}
+        onTrazosEscena={setTrazosEscena}
+        positsEscena={positsEscena}
+        onPositsEscena={setPositsEscena}
+        docsEscena={docsEscena}
+        onDocsEscena={setDocsEscena}
+        tamanoImagenesEscena={tamanoImagenesEscena}
+        onTamanoImagenesEscena={setTamanoImagenesEscena}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={() => setFase("sala")}
+        mesaId={mesa.id}
         esMaster={esMaster}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
@@ -267,41 +1999,122 @@ function SalaRealContent({
         imagenProyectada={imagenProyectada}
         onCambiarEscena={cambiarEscena}
         onProyectarImagen={proyectarImagen}
+        onArchivosCambiados={cargarArchivos}
+        pingsActivos={pingsActivos}
+        onEnviarPing={enviarPing}
       />
     );
   } else if (fase === "mapa") {
-    contenido = <Mapa onVolver={() => setFase("sala")} />;
+    contenido = (
+      <>
+        <Mapa
+          onVolver={() => setFase("sala")}
+          pingsActivos={pingsActivos}
+          onEnviarPing={enviarPing}
+          colorJugador={colorJugadorActual}
+          nombreJugador={nombreJugadorActual}
+          esMaster={esMaster}
+          miUsuarioId={user.id}
+          jugadores={jugadores}
+          tiradasAsiento={tiradasAsiento}
+          estadoMapa={estadoMapa}
+          onCambiarFondoYRejilla={cambiarFondoYRejilla}
+          onCrearToken={crearTokenMapa}
+          onActualizarToken={actualizarTokenMapa}
+          onEliminarToken={eliminarTokenMapa}
+          onActualizarPlantilla={actualizarPlantillaMapa}
+          onEliminarPlantilla={eliminarPlantillaMapa}
+          onCambiarIniciativa={cambiarIniciativaMapa}
+          onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}
+          onAgregarTrazo={agregarTrazoMapa}
+          onEliminarTrazo={eliminarTrazoMapa}
+          onBorrarTrazos={borrarTrazosMapa}
+          onCambiarDibujoCongelado={cambiarDibujoCongeladoMapa}
+          onCrearArea={crearAreaMapa}
+          onActualizarArea={actualizarAreaMapa}
+          onEliminarArea={eliminarAreaMapa}
+          archivosDisponibles={archivosDisponibles}
+          onSubirImagenMapa={subirImagenMapa}
+        />
+        <HudSalaCompartido
+          jugadores={jugadores}
+          mesaId={mesa.id}
+          esMaster={esMaster}
+          miUsuarioId={user.id}
+          hostName={mesa.hostName}
+          yoAsientoId={yoAsientoId}
+          dibujoCongelado={Boolean(estadoMapa.dibujoCongelado)}
+          mensajesChat={mensajesChat}
+          onEnviarChat={enviarChat}
+          onTiradaPublica={enviarTiradaPublica}
+          macros={macros}
+          onMacros={actualizarMacros}
+          divisa={divisa}
+          divisaNombre={mesa.divisaNombre ?? "Divisa"}
+          divisasConfig={divisasConfig}
+          divisasSaldos={divisasSaldos}
+          onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
+          onCambiarDivisa={cambiarDivisa}
+          onTransferirDivisa={transferirDivisa}
+          onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
+          mochila={mochila}
+          onMochila={setMochila}
+          onEnviarObjetoMochila={enviarObjetoMochila}
+          onConsultarResumenMaster={
+            esMaster
+              ? async () => {
+                const res = await mesasApi.resumenInventarioMaster(mesa.id);
+                return res.jugadores;
+              }
+              : undefined
+          }
+          onSolicitarArchivos={cargarArchivos}
+          elementosMesa={elementosMesa}
+          onElementosMesa={setElementosMesa}
+          archivosDisponibles={archivosDisponibles}
+          onEnviarElemento={enviarElemento}
+          onAbrirArchivador={() => setFase("archivador")}
+          onCompartirATodos={compartirATodos}
+        />
+      </>
+    );
   } else if (fase === "archivador") {
     contenido = (
       <Archivador
-        posits={positsMesa}
-        onPosits={setPositsMesa}
-        documentosMesa={documentosMesa}
-        onDocumentosMesa={setDocumentosMesa}
+        elementosMesa={elementosMesa}
+        onElementosMesa={setElementosMesa}
         onVolver={() => setFase("sala")}
+        mesaId={mesa.id}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
         onCambiarEscena={cambiarEscena}
         onProyectarImagen={proyectarImagen}
+        onArchivosCambio={setArchivosDisponibles}
+        proyeccionOculta={proyeccionOculta}
+        onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
       />
     );
   } else {
     contenido = (
       <Sala
         jugadores={jugadores}
+        mesaId={mesa.id}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
-        positsMesa={positsMesa}
-        onPositsMesa={setPositsMesa}
-        documentosMesa={documentosMesa}
-        onDocumentosMesa={setDocumentosMesa}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
         onAbrirArchivador={() => setFase("archivador")}
         onVolver={volverAEspera}
         hostName={mesa.hostName}
         esMaster={esMaster}
+        estadoPartida={mesa.estado}
+        onEmpezarPartida={esMaster ? iniciarPartidaDesdeSala : undefined}
+        miUsuarioId={user.id}
+        mensajesChat={mensajesChat}
+        onEnviarChat={enviarChat}
+        tiradasAsiento={tiradasAsiento}
+        onTiradaPublica={enviarTiradaPublica}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
         imagenEscena={imagenEscena}
@@ -310,44 +2123,110 @@ function SalaRealContent({
         onProyectarImagen={proyectarImagen}
         proyeccionOculta={proyeccionOculta}
         onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
+        yoAsientoId={yoAsientoId}
+        posits={posits}
+        elementosMesa={elementosMesa}
+        onElementosMesa={setElementosMesa}
+        archivosDisponibles={archivosDisponibles}
+        onSolicitarArchivos={cargarArchivos}
+        onEnviarElemento={enviarElemento}
+        solicitudPendiente={colaSolicitudes[0] ?? null}
+        onAceptarSolicitud={s => void aceptarSolicitud(s)}
+        onRechazarSolicitud={s => void rechazarSolicitud(s)}
+        macros={macros}
+        onMacros={actualizarMacros}
+        divisa={divisa}
+        divisaNombre={mesa.divisaNombre ?? "Divisa"}
+        divisasConfig={divisasConfig}
+        divisasSaldos={divisasSaldos}
+        onGuardarDivisasConfig={esMaster ? guardarDivisasConfig : undefined}
+        onCambiarDivisa={cambiarDivisa}
+        onTransferirDivisa={transferirDivisa}
+        onCambiarDivisaNombre={esMaster ? cambiarDivisaNombre : undefined}
+        onCompartirATodos={compartirATodos}
+        onEnviarAPizarra={enviarAPizarra}
+        divisaAsiento={divisaAsiento}
+        mochila={mochila}
+        onMochila={setMochila}
+        onEnviarObjetoMochila={enviarObjetoMochila}
+        onConsultarResumenMaster={
+          esMaster
+            ? async () => {
+              const res = await mesasApi.resumenInventarioMaster(mesa.id);
+              return res.jugadores;
+            }
+            : undefined
+        }
+        onCambiarApodo={!esMaster ? cambiarApodo : undefined}
+        musicaAmbiente={musicaAmbiente}
+        musicaTiempo={tiempoMusica}
+        musicaDuracion={duracionMusica}
+        onActualizarMusica={esMaster ? actualizarMusica : undefined}
+        onSubirMusica={esMaster ? subirMusica : undefined}
       />
     );
   }
 
-            return (
-            <div>
-              {contenido}
+  return (
+    <div>
+      <audio
+        ref={audioRef}
+        onEnded={alTerminarPista}
+        onTimeUpdate={e => {
+          const t = e.currentTarget.currentTime;
+          setTiempoMusica(Number.isFinite(t) ? t : 0);
+        }}
+        onLoadedMetadata={e => {
+          const d = e.currentTarget.duration;
+          setDuracionMusica(Number.isFinite(d) ? d : 0);
+        }}
+        onDurationChange={e => {
+          const d = e.currentTarget.duration;
+          setDuracionMusica(Number.isFinite(d) ? d : 0);
+        }}
+        hidden
+      />
+      {contenido}
 
-              {imagenProyectada && !proyeccionOculta && (
-                <ProyeccionMasterModal
-                  imagen={imagenProyectada}
-                  esMaster={esMaster}
-                  onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
-                  onRetirarTodos={esMaster ? () => void proyectarImagen(null) : undefined}
-                />
-              )}
+      {audioBloqueado && musicaAmbiente.reproduciendo && pistaActual && (
+        <button
+          type="button"
+          className="proyeccion-reabrir-flotante"
+          onClick={reintentarAudio}
+        >
+          Activar música ambiente
+        </button>
+      )}
 
-              {error && (
-                <div
-                  style={{
-                    position: "fixed",
-                    bottom: 20,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    zIndex: 80,
-                    padding: "10px 18px",
-                    borderRadius: 999,
-                    background: "rgba(180, 60, 60, 0.9)",
-                    color: "#fff"
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-            </div>
-            );
+      {imagenProyectada && !proyeccionOculta && (
+        <ProyeccionMasterModal
+          imagen={imagenProyectada}
+          esMaster={esMaster}
+          onCerrarLocal={() => setProyeccionOcultadaId(imagenProyectada.id)}
+          onRetirarTodos={esMaster ? () => void proyectarImagen(null) : undefined}
+        />
+      )}
+
+      {fase !== "sala" && imagenProyectada && proyeccionOculta && (
+        <button
+          type="button"
+          className="proyeccion-reabrir-flotante"
+          onClick={() => setProyeccionOcultadaId(null)}
+        >
+          Ver imagen del Máster
+        </button>
+      )}
+
+      {estadoAviso && !error && (
+        <div className="sala-aviso sala-aviso-ok">{estadoAviso}</div>
+      )}
+      {error && (
+        <div className="sala-aviso sala-aviso-error">{error}</div>
+      )}
+    </div>
+  );
 }
 
-            export function SalaReal(props: SalaRealProps) {
+export function SalaReal(props: SalaRealProps) {
   return <SalaRealContent key={props.user.id} {...props} />;
 }

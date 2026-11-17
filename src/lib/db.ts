@@ -14,6 +14,8 @@ export function createPool(connectionString: string): pg.Pool {
   return new pg.Pool({
     connectionString,
     max: 5,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
     ssl: isLocal ? undefined : { rejectUnauthorized: false }
   });
 }

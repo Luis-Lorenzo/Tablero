@@ -5,6 +5,17 @@ import type {
   Dispatch,
   SetStateAction
 } from "react";
+import {
+  ArrowLeft,
+  Crown,
+  Download,
+  Eye,
+  Image as ImageIcon,
+  Plus,
+  Sparkles,
+  Trash2,
+  X
+} from "lucide-react";
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
@@ -16,21 +27,23 @@ import {
 } from "./calibracion";
 import type {
   DocumentoMesa,
-  ImagenEscenaPreview,
-  PositPreview
+  ElementoMesa,
+  ImagenEscenaPreview
 } from "./tipos";
 
 interface ArchivadorProps {
-  posits: PositPreview[];
-  onPosits: Dispatch<SetStateAction<PositPreview[]>>;
-  documentosMesa: DocumentoMesa[];
-  onDocumentosMesa: Dispatch<SetStateAction<DocumentoMesa[]>>;
+  elementosMesa: ElementoMesa[];
+  onElementosMesa: Dispatch<SetStateAction<ElementoMesa[]>>;
   onVolver: () => void;
+  mesaId?: string;
   esMaster?: boolean;
   imagenEscena?: ImagenEscenaPreview | null;
   imagenProyectada?: ImagenEscenaPreview | null;
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
+  proyeccionOculta?: boolean;
+  onReabrirProyeccion?: () => void;
+  onArchivosCambio?: (archivos: PublicArchivo[]) => void;
 }
 
 /** Formatos aceptados por el servidor (coinciden con `TIPOS_PERMITIDOS`). */
@@ -92,6 +105,9 @@ export function DocumentoVisorModal({
   imagenProyectada?: ImagenEscenaPreview | null;
   onCambiarEscena?: (imagen: ImagenEscenaPreview | null) => void;
   onProyectarImagen?: (imagen: ImagenEscenaPreview | null) => void;
+  proyeccionOculta?: boolean;
+  onReabrirProyeccion?: () => void;
+  onArchivosCambio?: (archivos: PublicArchivo[]) => void;
 }) {
   const docxRef = useRef<HTMLDivElement>(null);
   const urlPersonalizada = "url" in archivo ? archivo.url : undefined;
@@ -176,7 +192,17 @@ return (
                 )
               }
             >
-              {enProyeccion ? "✦ Quitar proyección" : "✦ Mostrar a todos"}
+              {enProyeccion ? (
+                <>
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>Quitar proyección</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>Mostrar a todos</span>
+                </>
+              )}
             </button>
           )}
           {esMaster && esImagen && onCambiarEscena && (
@@ -195,7 +221,17 @@ return (
                 )
               }
             >
-              {enEscena ? "🖼 Quitar de pizarra" : "🖼 Fijar en pizarra"}
+              {enEscena ? (
+                <>
+                  <ImageIcon size={13} aria-hidden="true" />
+                  <span>Quitar de pizarra</span>
+                </>
+              ) : (
+                <>
+                  <ImageIcon size={13} aria-hidden="true" />
+                  <span>Fijar en pizarra</span>
+                </>
+              )}
             </button>
           )}
           <a
@@ -203,7 +239,8 @@ return (
             href={descargaUrl}
             download={archivo.nombre}
           >
-            Descargar
+            <Download size={13} aria-hidden="true" />
+            <span>Descargar</span>
           </a>
           <button
             type="button"
@@ -211,7 +248,8 @@ return (
             onClick={onCerrar}
             aria-label="Cerrar"
           >
-            Cerrar
+            <X size={13} aria-hidden="true" />
+            <span>Cerrar</span>
           </button>
         </div>
       </header>
@@ -279,7 +317,9 @@ export function ProyeccionMasterModal({
       >
         <div className="proyeccion-master-cabecera">
           <span className="proyeccion-master-sello">
-            ✦ REVELACIÓN DEL MÁSTER ✦
+            <Sparkles size={13} aria-hidden="true" />
+            <span>REVELACIÓN DEL MÁSTER</span>
+            <Sparkles size={13} aria-hidden="true" />
           </span>
           <button
             type="button"
@@ -288,7 +328,7 @@ export function ProyeccionMasterModal({
             title="Ocultar en mi vista"
             aria-label="Ocultar en mi vista"
           >
-            ×
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
 
@@ -342,6 +382,7 @@ export function ProyeccionMasterModal({
  * o desde la propia pizarra.
  */
 export function PanelImagenesMasterModal({
+  mesaId,
   tituloPanel = "DIRECCIÓN DE ESCENA DEL MÁSTER",
   imagenEscena,
   imagenProyectada,
@@ -349,6 +390,7 @@ export function PanelImagenesMasterModal({
   onProyectarImagen,
   onCerrar
 }: {
+  mesaId?: string;
   tituloPanel?: string;
   imagenEscena?: ImagenEscenaPreview | null;
   imagenProyectada?: ImagenEscenaPreview | null;
@@ -371,7 +413,7 @@ export function PanelImagenesMasterModal({
       new URLSearchParams(window.location.search).get("preview") === "1";
 
     archivosApi
-      .listar()
+      .listar(mesaId)
       .then(lista => {
         if (!activo) return;
         setImagenes(
@@ -425,7 +467,7 @@ export function PanelImagenesMasterModal({
             ...prev
           ]);
         } else {
-          const creado = await archivosApi.subir(archivo);
+          const creado = await archivosApi.subir(archivo, mesaId);
           if (creado.vista === "imagen") {
             setImagenes(prev => [
               { id: creado.id, nombre: creado.nombre },
@@ -466,7 +508,7 @@ export function PanelImagenesMasterModal({
         <header className="master-panel-cabecera">
           <div className="master-panel-titulo-wrap">
             <span className="master-corona" aria-hidden="true">
-              👑
+              <Crown size={20} />
             </span>
             <div>
               <h2>{tituloPanel}</h2>
@@ -482,14 +524,15 @@ export function PanelImagenesMasterModal({
             onClick={onCerrar}
             aria-label="Cerrar panel de Máster"
           >
-            ×
+            <X size={16} aria-hidden="true" />
           </button>
         </header>
 
         <div className="master-estado-grid">
           <div className="master-estado-caja">
             <span className="master-estado-etiqueta">
-              ✦ Opción A · Pantalla de todos
+              <Sparkles size={12} aria-hidden="true" />
+              <span>Opción A · Pantalla de todos</span>
             </span>
             {imagenProyectada ? (
               <div className="master-estado-activo">
@@ -517,7 +560,8 @@ export function PanelImagenesMasterModal({
 
           <div className="master-estado-caja">
             <span className="master-estado-etiqueta">
-              🖼 Opción B · Pizarra de la sala
+              <ImageIcon size={12} aria-hidden="true" />
+              <span>Opción B · Pizarra de la sala</span>
             </span>
             {imagenEscena ? (
               <div className="master-estado-activo">
@@ -559,7 +603,8 @@ export function PanelImagenesMasterModal({
             onClick={() => selector.current?.click()}
             disabled={subiendo}
           >
-            {subiendo ? "Subiendo…" : "+ Subir imagen"}
+            <Plus size={14} aria-hidden="true" />
+            <span>{subiendo ? "Subiendo…" : "Subir imagen"}</span>
           </button>
           <input
             ref={selector}
@@ -606,7 +651,8 @@ export function PanelImagenesMasterModal({
                             )
                           }
                         >
-                          {esProyectada ? "✦ Quitar" : "✦ Mostrar a todos"}
+                          <Sparkles size={12} aria-hidden="true" />
+                          <span>{esProyectada ? "Quitar" : "Mostrar a todos"}</span>
                         </button>
                       )}
                       {onCambiarEscena && (
@@ -619,7 +665,8 @@ export function PanelImagenesMasterModal({
                             )
                           }
                         >
-                          {esEscena ? "🖼 Quitar" : "🖼 Pizarra"}
+                          <ImageIcon size={12} aria-hidden="true" />
+                          <span>{esEscena ? "Quitar" : "Pizarra"}</span>
                         </button>
                       )}
                     </div>
@@ -635,16 +682,18 @@ export function PanelImagenesMasterModal({
 }
 
 export function Archivador({
-  posits,
-  onPosits,
-  documentosMesa,
-  onDocumentosMesa,
+  elementosMesa,
+  onElementosMesa,
   onVolver,
+  mesaId,
   esMaster,
   imagenEscena,
   imagenProyectada,
   onCambiarEscena,
-  onProyectarImagen
+  onProyectarImagen,
+  proyeccionOculta,
+  onReabrirProyeccion,
+  onArchivosCambio
 }: ArchivadorProps) {
   const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -653,18 +702,23 @@ export function Archivador({
   const [error, setError] = useState<string | null>(null);
 
   const selector = useRef<HTMLInputElement>(null);
+  const onArchivosCambioRef = useRef(onArchivosCambio);
+  onArchivosCambioRef.current = onArchivosCambio;
 
   const sincronizarLista = useCallback(
     (lista: PublicArchivo[]) => {
       setArchivos(lista);
       setError(null);
+      onArchivosCambioRef.current?.(lista);
       const ids = new Set(lista.map(archivo => archivo.id));
-      onDocumentosMesa(prev => {
-        const filtrados = prev.filter(doc => ids.has(doc.id));
+      onElementosMesa(prev => {
+        const filtrados = prev.filter(
+          el => el.tipo !== "archivo" || ids.has(el.archivoId)
+        );
         return filtrados.length === prev.length ? prev : filtrados;
       });
     },
-    [onDocumentosMesa]
+    [onElementosMesa]
   );
 
   const cargarArchivos = useCallback(async () => {
@@ -673,7 +727,7 @@ export function Archivador({
 
     setCargando(true);
     try {
-      const lista = await archivosApi.listar();
+      const lista = await archivosApi.listar(mesaId);
       sincronizarLista(lista);
     } catch (fallo) {
       if (!esPreview) {
@@ -690,7 +744,7 @@ export function Archivador({
       new URLSearchParams(window.location.search).get("preview") === "1";
 
     archivosApi
-      .listar()
+      .listar(mesaId)
       .then(lista => {
         if (!activo) return;
         sincronizarLista(lista);
@@ -717,7 +771,7 @@ export function Archivador({
     setError(null);
     try {
       for (const archivo of elegidos) {
-        await archivosApi.subir(archivo);
+        await archivosApi.subir(archivo, mesaId);
       }
       await cargarArchivos();
     } catch (fallo) {
@@ -728,48 +782,75 @@ export function Archivador({
   }
 
   function desarchivarPosit(id: string): void {
-    onPosits(prev =>
-      prev.map(posit =>
-        posit.id === id ? { ...posit, archivado: false } : posit
+    onElementosMesa(prev =>
+      prev.map(el =>
+        el.id === id ? { ...el, archivado: false } : el
       )
     );
   }
 
   function borrarPosit(id: string): void {
-    onPosits(prev => prev.filter(posit => posit.id !== id));
+    onElementosMesa(prev => prev.filter(el => el.id !== id));
   }
 
-  function desarchivarDocumento(archivo: PublicArchivo): void {
-    const desplazamiento = (documentosMesa.length % 5) * 3;
-    const docMesa: DocumentoMesa = {
-      id: archivo.id,
-      nombre: archivo.nombre,
-      tipo: archivo.tipo,
-      vista: archivo.vista,
-      tamano: archivo.tamano,
-      x: Math.min(90, Math.max(10, 74 - desplazamiento)),
-      y: Math.min(86, Math.max(14, 34 + desplazamiento))
-    };
+  const archivosEnMesa = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "archivo" }> =>
+      el.tipo === "archivo" && !el.archivado
+  );
 
-    onDocumentosMesa(prev =>
-      prev.some(doc => doc.id === archivo.id) ? prev : [...prev, docMesa]
-    );
+  function desarchivarDocumento(archivo: PublicArchivo): void {
+    const desplazamiento = (archivosEnMesa.length % 5) * 3;
+    const x = Math.min(90, Math.max(10, 74 - desplazamiento));
+    const y = Math.min(86, Math.max(14, 34 + desplazamiento));
+
+    onElementosMesa(prev => {
+      const existente = prev.find(
+        el => el.tipo === "archivo" && el.archivoId === archivo.id
+      );
+      if (existente) {
+        if (!existente.archivado) return prev;
+        return prev.map(el =>
+          el.id === existente.id ? { ...el, archivado: false, x, y } : el
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: archivo.id,
+          tipo: "archivo",
+          archivoId: archivo.id,
+          nombre: archivo.nombre,
+          mime: archivo.tipo,
+          vista: archivo.vista,
+          tamano: archivo.tamano,
+          x,
+          y
+        }
+      ];
+    });
   }
 
   async function borrarArchivo(archivo: PublicArchivo): Promise<void> {
     try {
       await archivosApi.borrar(archivo.id);
       if (visor?.id === archivo.id) setVisor(null);
-      onDocumentosMesa(prev => prev.filter(doc => doc.id !== archivo.id));
+      onElementosMesa(prev =>
+        prev.filter(
+          el => !(el.tipo === "archivo" && el.archivoId === archivo.id)
+        )
+      );
       await cargarArchivos();
     } catch (fallo) {
       setError(describeError(fallo));
     }
   }
 
-  const positsArchivados = posits.filter(posit => posit.archivado);
+  const positsArchivados = elementosMesa.filter(
+    (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+      el.tipo === "posit" && Boolean(el.archivado)
+  );
   const archivosArchivados = archivos.filter(
-    archivo => !documentosMesa.some(doc => doc.id === archivo.id)
+    archivo => !archivosEnMesa.some(doc => doc.archivoId === archivo.id)
   );
 
   return (
@@ -780,21 +861,44 @@ export function Archivador({
           className={`archivador-barra${esMaster ? " archivador-barra-master" : ""}`}
         >
           <button type="button" className="archivador-btn" onClick={onVolver}>
-            ← Volver
+            <ArrowLeft size={14} aria-hidden="true" />
+            <span>Volver</span>
           </button>
 
           <h1 className="archivador-titulo">
-            {esMaster ? "👑 ARCHIVADOR DEL MÁSTER" : "ARCHIVADOR"}
+            {esMaster ? (
+              <>
+                <Crown size={15} aria-hidden="true" />
+                <span>ARCHIVADOR DEL MÁSTER</span>
+              </>
+            ) : (
+              "ARCHIVADOR"
+            )}
           </h1>
 
-          <button
-            type="button"
-            className="archivador-btn archivador-btn-subir"
-            onClick={() => selector.current?.click()}
-            disabled={subiendo}
-          >
-            {subiendo ? "Subiendo…" : "+ Añadir archivo"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {proyeccionOculta && onReabrirProyeccion && (
+              <button
+                type="button"
+                className="archivador-btn"
+                onClick={onReabrirProyeccion}
+                title="Volver a mostrar la imagen proyectada por el Máster"
+              >
+                <Eye size={14} aria-hidden="true" />
+                <span>Ver proyección</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="archivador-btn archivador-btn-subir"
+              onClick={() => selector.current?.click()}
+              disabled={subiendo}
+            >
+              <Plus size={14} aria-hidden="true" />
+              <span>{subiendo ? "Subiendo…" : "Añadir archivo"}</span>
+            </button>
+          </div>
         </header>
 
         <input
@@ -857,7 +961,7 @@ export function Archivador({
                         aria-label="Borrar posit"
                         onClick={() => borrarPosit(posit.id)}
                       >
-                        ×
+                        <Trash2 size={14} aria-hidden="true" />
                       </button>
                     </div>
                   </article>
@@ -939,9 +1043,17 @@ export function Archivador({
                             )
                           }
                         >
-                          {imagenProyectada?.id === archivo.id
-                            ? "✦ Quitar proyección"
-                            : "✦ Mostrar a todos"}
+                          {imagenProyectada?.id === archivo.id ? (
+                            <>
+                              <Sparkles size={12} aria-hidden="true" />
+                              <span>Quitar proyección</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={12} aria-hidden="true" />
+                              <span>Mostrar a todos</span>
+                            </>
+                          )}
                         </button>
                       )}
                       {onCambiarEscena && (
@@ -959,9 +1071,17 @@ export function Archivador({
                             )
                           }
                         >
-                          {imagenEscena?.id === archivo.id
-                            ? "🖼 En pizarra (Quitar)"
-                            : "🖼 Fijar en pizarra"}
+                          {imagenEscena?.id === archivo.id ? (
+                            <>
+                              <ImageIcon size={12} aria-hidden="true" />
+                              <span>En pizarra (Quitar)</span>
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon size={12} aria-hidden="true" />
+                              <span>Fijar en pizarra</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
@@ -982,7 +1102,7 @@ export function Archivador({
                     aria-label={`Borrar ${archivo.nombre}`}
                     onClick={() => void borrarArchivo(archivo)}
                   >
-                    ×
+                    <Trash2 size={14} aria-hidden="true" />
                   </button>
                 </div>
               </article>

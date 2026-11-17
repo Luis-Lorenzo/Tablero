@@ -9,6 +9,7 @@ import type {
   User,
   UserRepository
 } from "../repositories/user.repository.js";
+import type { EstadoMapaCompartido } from "../repositories/mapa-estado.repository.js";
 import type { MesasNotifier } from "./mesas-notifier.js";
 
 const RUTA = "/ws";
@@ -45,6 +46,8 @@ export class MesasBroadcaster implements MesasNotifier {
   private readonly wss = new WebSocketServer({ noServer: true });
   private readonly parser: ParserSesion;
   private readonly vivos = new Set<WebSocket>();
+  private readonly socketsPorUsuario = new Map<string, Set<WebSocket>>();
+  private readonly usuariosPorSocket = new Map<WebSocket, string>();
   private readonly temporizador: NodeJS.Timeout;
 
   constructor(private readonly deps: Dependencias) {
@@ -54,10 +57,33 @@ export class MesasBroadcaster implements MesasNotifier {
       deps.sessionStore
     ) as unknown as ParserSesion;
 
-    this.wss.on("connection", socket => {
+    this.wss.on("connection", (socket, req) => {
       this.vivos.add(socket);
+      const userId = (req as PeticionConSesion).session?.userId;
+      if (userId) {
+        this.usuariosPorSocket.set(socket, userId);
+        let conjunto = this.socketsPorUsuario.get(userId);
+        if (!conjunto) {
+          conjunto = new Set();
+          this.socketsPorUsuario.set(userId, conjunto);
+        }
+        conjunto.add(socket);
+      }
+
       socket.on("pong", () => this.vivos.add(socket));
-      socket.on("close", () => this.vivos.delete(socket));
+      socket.on("close", () => {
+        this.vivos.delete(socket);
+        this.usuariosPorSocket.delete(socket);
+        if (userId) {
+          const conjunto = this.socketsPorUsuario.get(userId);
+          if (conjunto) {
+            conjunto.delete(socket);
+            if (conjunto.size === 0) {
+              this.socketsPorUsuario.delete(userId);
+            }
+          }
+        }
+      });
       socket.on("error", error =>
         deps.logger.warn("Error en el canal en vivo", { message: error.message })
       );
@@ -83,6 +109,59 @@ export class MesasBroadcaster implements MesasNotifier {
         cliente.send(mensaje);
       }
     }
+  }
+
+  /** Envía un evento dirigido únicamente a las sesiones abiertas de un usuario. */
+  notificarUsuario(userId: string, evento: unknown): void {
+    const conjunto = this.socketsPorUsuario.get(userId);
+    if (!conjunto || conjunto.size === 0) return;
+
+    const mensaje = JSON.stringify(evento);
+    for (const cliente of conjunto) {
+      if (cliente.readyState === WebSocket.OPEN) {
+        cliente.send(mensaje);
+      }
+    }
+  }
+
+  /** Indica si el usuario tiene al menos un WebSocket abierto ahora mismo. */
+  estaConectado(userId: string): boolean {
+    const conjunto = this.socketsPorUsuario.get(userId);
+    if (!conjunto || conjunto.size === 0) return false;
+    for (const cliente of conjunto) {
+      if (cliente.readyState === WebSocket.OPEN) return true;
+    }
+    return false;
+  }
+
+  /** Envía un evento en tiempo real solo a los usuarios indicados. */
+  enviarAUsuarios(userIds: readonly string[], payload: unknown): void {
+    const objetivos = new Set(userIds);
+    if (objetivos.size === 0) return;
+
+    const mensaje = JSON.stringify(payload);
+
+    for (const cliente of this.wss.clients) {
+      if (cliente.readyState !== WebSocket.OPEN) continue;
+      const userId = this.usuariosPorSocket.get(cliente);
+      if (userId && objetivos.has(userId)) {
+        cliente.send(mensaje);
+      }
+    }
+  }
+
+  /** Difunde el estado actualizado del mapa táctico a los miembros de la mesa. */
+  mapaActualizado(
+    userIds: readonly string[],
+    mesaId: string,
+    mapa: EstadoMapaCompartido
+  ): void {
+    this.enviarAUsuarios(userIds, {
+      type: "mesa:mapa-actualizado",
+      tipo: "mesa:mapa-actualizado",
+      mesaId,
+      mapa
+    });
   }
 
   /** Cierra el canal y libera el temporizador de latidos. */
@@ -124,6 +203,7 @@ export class MesasBroadcaster implements MesasNotifier {
     }
 
     this.wss.handleUpgrade(req, socket, head, ws => {
+      this.usuariosPorSocket.set(ws, usuario.id);
       this.wss.emit("connection", ws, req);
     });
   }

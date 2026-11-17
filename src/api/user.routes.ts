@@ -1,13 +1,43 @@
 import { Router, type RequestHandler } from "express";
 import type { AppContext } from "./context.js";
 import { toPublicUser } from "./serializers.js";
+import { errors } from "../lib/errors.js";
 import { requireAdmin } from "../middleware/auth.middleware.js";
+import {
+  MemoryUserMacrosRepository,
+  sanitizarMacros
+} from "../repositories/user-macros.repository.js";
 
 export function createUserRouter(
   context: AppContext,
   requireAuth: RequestHandler
 ): Router {
   const router = Router();
+  const userMacros =
+    context.userMacrosRepository ?? new MemoryUserMacrosRepository();
+
+  router.get("/me/macros", requireAuth, async (req, res, next) => {
+    try {
+      const macros = await userMacros.getMacros(req.currentUser!.id);
+      res.json({ macros });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/me/macros", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { macros?: unknown };
+      if (!Array.isArray(body.macros)) {
+        throw errors.invalidRequest();
+      }
+      const limpias = sanitizarMacros(body.macros);
+      await userMacros.saveMacros(req.currentUser!.id, limpias);
+      res.json({ macros: limpias });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/", requireAuth, requireAdmin, async (req, res, next) => {
     try {

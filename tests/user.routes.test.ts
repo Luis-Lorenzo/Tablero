@@ -8,6 +8,7 @@ import {
   createUser,
   MemoryUserRepository
 } from "../src/repositories/user.repository.js";
+import { MemoryUserMacrosRepository } from "../src/repositories/user-macros.repository.js";
 import { MemoryMesaRepository } from "../src/repositories/mesa.repository.js";
 import { MemoryArchivoRepository } from "../src/repositories/archivo.repository.js";
 import { MemoryAlmacen } from "../src/lib/almacen.js";
@@ -15,6 +16,7 @@ import { ArchivoService } from "../src/services/archivo.service.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
+import { ChatService } from "../src/services/chat.service.js";
 import { UserService } from "../src/services/user.service.js";
 import { NoopMesasNotifier } from "../src/realtime/mesas-notifier.js";
 import type { AppContext } from "../src/api/context.js";
@@ -30,11 +32,13 @@ function montar() {
     config,
     logger,
     userRepository: users,
+    userMacrosRepository: new MemoryUserMacrosRepository(),
     mesaRepository: mesas,
     authService: new AuthService(users, hasher, logger),
     userService: new UserService(users, logger),
     bloqueoService: new BloqueoService(logger),
     mesaService: new MesaService(mesas, users, logger),
+    chatService: new ChatService(mesas, users),
     archivoService: new ArchivoService(
       new MemoryArchivoRepository(),
       new MemoryAlmacen(),
@@ -132,5 +136,74 @@ describe("ruta PATCH /api/users/me/nickname", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.nickname).toBeNull();
+  });
+});
+
+describe("rutas GET/PATCH /api/users/me/macros", () => {
+  let montado: ReturnType<typeof montar>;
+
+  beforeEach(async () => {
+    montado = montar();
+    await montado.aprobar("jugadora@pocket.test");
+  });
+
+  it("exige sesión", async () => {
+    const getRes = await request(montado.app).get("/api/users/me/macros");
+    expect(getRes.status).toBe(401);
+
+    const patchRes = await request(montado.app)
+      .patch("/api/users/me/macros")
+      .send({ macros: [] });
+    expect(patchRes.status).toBe(401);
+  });
+
+  it("persiste y sanitiza las macros del usuario", async () => {
+    const cookie = await montado.sesionDe("jugadora@pocket.test");
+
+    const inicial = await request(montado.app)
+      .get("/api/users/me/macros")
+      .set("Cookie", cookie);
+    expect(inicial.status).toBe(200);
+    expect(inicial.body.macros).toEqual([]);
+
+    const guardada = await request(montado.app)
+      .patch("/api/users/me/macros")
+      .set("Cookie", cookie)
+      .send({
+        macros: [
+          {
+            id: "m-1",
+            nombre: "  Bola de fuego  ",
+            icono: "flame",
+            grupos: [{ caras: 6, cantidad: 8 }],
+            bonificador: 2
+          },
+          {
+            id: "",
+            nombre: "Inválida",
+            icono: "sword",
+            grupos: [],
+            bonificador: 0
+          }
+        ]
+      });
+
+    expect(guardada.status).toBe(200);
+    expect(guardada.body.macros).toEqual([
+      {
+        id: "m-1",
+        nombre: "Bola de fuego",
+        icono: "flame",
+        grupos: [{ id: "g-1", caras: 6, cantidad: 8 }],
+        bonificador: 2
+      }
+    ]);
+
+    const recargada = await request(montado.app)
+      .get("/api/users/me/macros")
+      .set("Cookie", cookie);
+    expect(recargada.status).toBe(200);
+    expect(recargada.body.macros).toHaveLength(1);
+    expect(recargada.body.macros[0].nombre).toBe("Bola de fuego");
   });
 });

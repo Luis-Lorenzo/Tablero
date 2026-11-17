@@ -122,6 +122,11 @@ se suben valores reales al repositorio.
 | `ADMIN_EMAIL` | Correo del primer administrador. |
 | `ADMIN_PASSWORD` | Contraseña del primer administrador. |
 | `PORT` | Puerto del servidor (lo define Render; por defecto 8080). |
+| `APP_URL` | URL pública base de la aplicación para generar los enlaces `/verificar-correo?token=...` (por defecto `http://localhost:5173`). |
+| `BREVO_API_KEY` | API Key transaccional de Brevo (`v3/smtp/email`). Si falta en desarrollo/tests, los envíos se registran en memoria. |
+| `BREVO_TEMPLATE_ID` | ID numérico de la plantilla activa en Brevo (por defecto `5`). Recibe `params.verification_url`. |
+| `BREVO_SENDER_EMAIL` | Dirección de correo remitente configurada en Brevo (`infoluisloxc@gmail.com`). |
+| `BREVO_SENDER_NAME` | Nombre visible del remitente en los correos (`Pocket Rol`). |
 
 ## Bloqueo por intentos fallidos
 
@@ -213,35 +218,33 @@ entrar sin depender de nadie. Si ya existe un usuario con ese correo, se
 promociona a administrador y se aprueba. Las credenciales de prueba no se
 publican en el repositorio: se envían junto con la entrega.
 
-## Aprobación de cuentas
+## Verificación de cuentas por correo electrónico (Brevo)
 
-Las cuentas nuevas no pueden iniciar sesión hasta que un administrador las
-aprueba. El registro crea el usuario con `status = 'PENDING'` y el inicio de
-sesión responde `ACCOUNT_PENDING` mientras siga en ese estado.
+Al registrarse (`POST /api/auth/register`), la cuenta se crea con `status = 'PENDING'` y `email_verified = FALSE`:
+
+1. Se genera un token aleatorio criptográficamente seguro (32 bytes en hexadecimal).
+2. En la base de datos (`users`) se guarda **únicamente** su hash SHA-256 (`verification_token_hash`) junto con una caducidad de **30 minutos** (`verification_expires_at`).
+3. Se envía automáticamente un correo transaccional mediante la API oficial de Brevo (`POST https://api.brevo.com/v3/smtp/email`) usando la plantilla `BREVO_TEMPLATE_ID` (`5`) y pasando el enlace `{{ params.verification_url }}` (`${APP_URL}/verificar-correo?token=TOKEN`).
+4. Al abrir `/verificar-correo?token=...`, el frontend llama a `POST /api/auth/verify-email`. Si el token es válido y no ha caducado, el servidor activa atómicamente la cuenta (`status = 'ACTIVE'`, `email_verified = TRUE`) y limpia el hash y la fecha de caducidad para impedir su reutilización.
+5. Si el enlace caduca, el usuario puede solicitar uno nuevo (`POST /api/auth/resend-verification`), lo que invalida el token anterior, genera uno nuevo por 30 minutos y aplica un límite de frecuencia (60 segundos por cuenta).
 
 | `status` | Significado |
 | --- | --- |
-| `PENDING` | Registrada y pendiente de aprobación (estado inicial). |
-| `ACTIVE` | Aprobada; puede iniciar sesión. |
+| `PENDING` | Registrada y pendiente de verificar su correo electrónico (estado inicial). |
+| `ACTIVE` | Correo verificado (o aprobada); puede iniciar sesión. |
 | `REJECTED` | Rechazada; no puede iniciar sesión. |
 
-La aprobación se hace directamente en la base de datos (en Neon,
-**SQL Editor**):
+Las cuentas que ya tenían `status = 'ACTIVE'` antes de introducir la verificación por correo se migran automáticamente a `email_verified = TRUE` mediante `db/schema.sql`. También se puede activar o rechazar manualmente desde SQL:
 
 ```sql
--- Aprobar una cuenta
-UPDATE users SET status = 'ACTIVE'
+-- Activar manualmente una cuenta
+UPDATE users SET status = 'ACTIVE', email_verified = TRUE, verification_token_hash = NULL, verification_expires_at = NULL
 WHERE lower(email) = lower('persona@correo.com');
 
 -- Rechazarla
 UPDATE users SET status = 'REJECTED'
 WHERE lower(email) = lower('persona@correo.com');
 ```
-
-También vale cualquier cliente de PostgreSQL. El panel de administración de la
-aplicación expone el `status` de cada usuario, de modo que se ve quién está
-pendiente antes de aprobarlo; añadir un botón de aprobación en la propia
-interfaz sería el siguiente paso.
 
 ## Recepción (mesas)
 
