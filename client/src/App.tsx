@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListChecks, Moon, ShieldAlert, Sun } from "lucide-react";
+import { ListChecks, Moon, ShieldAlert, Sun, Volume2, VolumeX } from "lucide-react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
 import { ApiError } from "./api/client";
@@ -19,6 +19,12 @@ import { PanelIzquierdo } from "./presentation/components/PanelIzquierdo";
 import { PanelDerecho } from "./presentation/components/PanelDerecho";
 import { useMesasLive } from "./presentation/hooks/useMesasLive";
 import { alternarModoClaro, aplicarModoClaroDOM, obtenerModoClaro } from "./preview/datos";
+import {
+  alternarHogueraSilenciada,
+  detenerSonidoHoguera,
+  estaHogueraSilenciada,
+  iniciarSonidoHoguera
+} from "./preview/sonidoHoguera";
 
 type View = "recepcion" | "cuenta" | "moderar" | "gestion" | "sala";
 
@@ -73,6 +79,7 @@ function App() {
   /** Aviso mostrado en recepción tras un cierre de mesa o expulsión en caliente. */
   const [avisoSala, setAvisoSala] = useState<string | null>(null);
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
+  const [hogueraSilenciada, setHogueraSilenciada] = useState<boolean>(estaHogueraSilenciada);
   /** Mesa de la que el usuario salió manualmente para no forzarle a volver. */
   const salidaManualMesaIdRef = useRef<string | null>(null);
   const viewRef = useRef<View>(view);
@@ -98,6 +105,20 @@ function App() {
     window.addEventListener("pocketrol:tema", alCambiarTema);
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
   }, []);
+
+  const enLobbyConHoguera =
+    !loading && Boolean(user) && view !== "sala" && view !== "gestion";
+
+  useEffect(() => {
+    if (!enLobbyConHoguera || hogueraSilenciada) {
+      detenerSonidoHoguera();
+      return;
+    }
+    iniciarSonidoHoguera();
+    return () => {
+      detenerSonidoHoguera();
+    };
+  }, [enLobbyConHoguera, hogueraSilenciada]);
 
   useEffect(() => {
     const alPopState = () => {
@@ -307,6 +328,28 @@ function App() {
                 <Sun size={16} strokeWidth={2.2} aria-hidden="true" />
               ) : (
                 <Moon size={16} strokeWidth={2.2} aria-hidden="true" />
+              )}
+            </button>
+            <button
+              type="button"
+              className={`topbar-tema-btn${hogueraSilenciada ? " silenciada" : ""}`}
+              onClick={() => setHogueraSilenciada(alternarHogueraSilenciada())}
+              title={
+                hogueraSilenciada
+                  ? "Sonido de hoguera apagado (pulsa para activar)"
+                  : "Sonido de hoguera activo (pulsa para apagar)"
+              }
+              aria-label={
+                hogueraSilenciada
+                  ? "Activar sonido de hoguera"
+                  : "Apagar sonido de hoguera"
+              }
+              aria-pressed={!hogueraSilenciada}
+            >
+              {hogueraSilenciada ? (
+                <VolumeX size={16} strokeWidth={2.2} aria-hidden="true" />
+              ) : (
+                <Volume2 size={16} strokeWidth={2.2} aria-hidden="true" />
               )}
             </button>
             <ArchivosMenu />
