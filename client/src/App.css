@@ -733,6 +733,12 @@ button.mesa-cuerpo:disabled {
   color: #bfe8c9;
 }
 
+.mesa-badge-estado.en-espera {
+  background: rgb(196 158 74 / 22%);
+  border: 1px solid rgb(196 158 74 / 52%);
+  color: #f0dcae;
+}
+
 .mesa-lleno {
   display: inline-block;
   padding: 4px 10px;
@@ -2731,6 +2737,12 @@ html.modo-claro .mesa-badge-estado.en-curso {
   color: #156E52;
 }
 
+html.modo-claro .mesa-badge-estado.en-espera {
+  background: rgb(226 169 59 / 22%);
+  border: 1px solid #B8862B;
+  color: #8A5A10;
+}
+
 html.modo-claro .mesa-botones {
   border-top-color: rgb(184 134 43 / 24%);
 }
@@ -2947,4 +2959,44 @@ html.modo-claro .details dt {
 
 html.modo-claro .gestion-ayuda-inicio strong {
   color: #2A1F3D;
+}
+
+.apodo-propio-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.apodo-propio-input {
+  flex: 1 1 220px;
+  max-width: 300px;
+  min-width: 160px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid rgb(135 114 166 / 45%);
+  background: rgb(18 14 27 / 88%);
+  color: #f4eefc;
+  font-size: 0.9rem;
+}
+
+.apodo-propio-input:focus {
+  outline: 2px solid rgb(232 197 106 / 55%);
+  border-color: #e8c56a;
+}
+
+html.modo-claro .apodo-propio-input {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .apodo-propio-input::placeholder {
+  color: #534469;
+  opacity: 1;
+}
+
+html.modo-claro .apodo-propio-input:focus {
+  outline: 2px solid rgb(124 92 191 / 35%);
+  border-color: #7C5CBF;
 }

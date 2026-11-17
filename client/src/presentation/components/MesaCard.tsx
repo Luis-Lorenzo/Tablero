@@ -121,8 +121,10 @@ export function MesaCard({
     <>
       <div className="mesa-cabecera-card">
         <span className="mesa-etiqueta">Mesa {mesa.hostName}</span>
-        {mesa.estado === "EN_CURSO" && (
-          <span className="mesa-badge-estado en-curso">En curso</span>
+        {mesa.estado === "EN_CURSO" ? (
+          <span className="pill on mesa-badge-estado en-curso">● Partida en curso</span>
+        ) : (
+          <span className="pill pending mesa-badge-estado en-espera">En espera</span>
         )}
         {llena && <span className="mesa-lleno">LLENO</span>}
       </div>

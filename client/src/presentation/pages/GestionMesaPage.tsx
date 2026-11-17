@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, Palette, Play, Trash2, UserX, Wrench } from "lucide-react";
+import type { FormEvent } from "react";
+import { ArrowLeft, Check, Crown, DoorOpen, Palette, Pencil, Play, Trash2, UserX, Wrench } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -40,6 +41,7 @@ export function GestionMesaPage({
   const [aviso, setAviso] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
+  const [apodoInput, setApodoInput] = useState("");
   const [expulsarObjetivo, setExpulsarObjetivo] = useState<{ id: string; nombre: string } | null>(null);
   const [confirmCerrar, setConfirmCerrar] = useState(false);
 
@@ -57,6 +59,10 @@ export function GestionMesaPage({
   useEffect(() => {
     void refrescar();
   }, [refrescar]);
+
+  useEffect(() => {
+    setApodoInput(mesa?.playerApodos?.[user.id] ?? "");
+  }, [mesa?.id, mesa?.playerApodos, user.id]);
 
   useMesasLive(refrescar, onSessionExpired);
 
@@ -147,6 +153,41 @@ export function GestionMesaPage({
     }
   }
 
+  async function guardarApodo(evento: FormEvent) {
+    evento.preventDefault();
+    if (!mesa) return;
+    const limpio = apodoInput.trim().slice(0, 24);
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, limpio);
+      setMesa(actualizada);
+      setAviso(limpio ? "Nickname guardado para la partida." : "Nickname eliminado.");
+    } catch (apodoError) {
+      setError(describeError(apodoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quitarApodo() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarApodo(mesa.id, "");
+      setMesa(actualizada);
+      setApodoInput("");
+      setAviso("Nickname eliminado.");
+    } catch (apodoError) {
+      setError(describeError(apodoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function entrarEnSala() {
     if (mesa && onAbrirSala) onAbrirSala(mesa);
   }
@@ -175,6 +216,8 @@ export function GestionMesaPage({
   const total = mesa.players.length;
   const color = colorPorJugadores(total);
   const miColor = mesa.colores?.[user.id] ?? null;
+  const soyJugadorEnMesa = mesa.players.some(jugador => jugador.id === user.id);
+  const miApodo = mesa.playerApodos?.[user.id]?.trim() ?? "";
 
   return (
     <section className="card gestion">
@@ -261,23 +304,63 @@ export function GestionMesaPage({
         )}
       </div>
 
+      {soyJugadorEnMesa && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <Pencil size={15} aria-hidden="true" />
+            <span>Tu nickname en esta partida</span>
+          </h3>
+          <form className="apodo-propio-form" onSubmit={evento => void guardarApodo(evento)}>
+            <input
+              type="text"
+              className="apodo-propio-input"
+              maxLength={24}
+              value={apodoInput}
+              onChange={e => setApodoInput(e.target.value)}
+              placeholder="Nombre de personaje (opcional)…"
+              aria-label="Nickname para esta partida"
+              disabled={busy}
+            />
+            <button
+              type="submit"
+              className="ghost small"
+              disabled={busy || apodoInput.trim().slice(0, 24) === miApodo}
+            >
+              Guardar
+            </button>
+            {miApodo && (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void quitarApodo()}
+                disabled={busy}
+              >
+                Quitar
+              </button>
+            )}
+          </form>
+        </div>
+      )}
+
       <div className="gestion-bloque">
         <h3 className="gestion-subtitulo">Jugadores ({total})</h3>
         {mesa.players.length === 0 ? (
           <p className="muted">Nadie se ha unido todavía.</p>
         ) : (
           <ul className="gestion-jugadores">
-            {mesa.players.map(jugador => (
-              <li key={jugador.id}>
-                <span className="jugador-nombre">
-                  <span
-                    className="jugador-color"
-                    style={{ background: mesa.colores?.[jugador.id] ?? "transparent" }}
-                    aria-hidden="true"
-                  />
-                  {jugador.name}
-                  {jugador.id === user.id && <span className="jugador-yo"> (tú)</span>}
-                </span>
+            {mesa.players.map(jugador => {
+              const apodoJugador = mesa.playerApodos?.[jugador.id]?.trim();
+              return (
+                <li key={jugador.id}>
+                  <span className="jugador-nombre">
+                    <span
+                      className="jugador-color"
+                      style={{ background: mesa.colores?.[jugador.id] ?? "transparent" }}
+                      aria-hidden="true"
+                    />
+                    {apodoJugador ? `${apodoJugador} (${jugador.name})` : jugador.name}
+                    {jugador.id === user.id && <span className="jugador-yo"> (tú)</span>}
+                  </span>
                 {gestiona && (
                   <span className="jugador-acciones">
                     <button
@@ -307,7 +390,8 @@ export function GestionMesaPage({
                   </span>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
