@@ -11028,3 +11028,11 @@ html.modo-claro .dock-badge {
   font-size: 0.72rem;
   font-weight: 800;
 }
+
+html.modo-claro .posit textarea,
+html.modo-claro .mesa-visor-posit-editor {
+  background: transparent;
+  border: none;
+  color: inherit;
+  box-shadow: none;
+}

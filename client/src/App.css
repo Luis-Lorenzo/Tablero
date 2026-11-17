@@ -2556,7 +2556,7 @@ html.modo-claro .escena-pixel-barra {
 
 html.modo-claro input,
 html.modo-claro select,
-html.modo-claro textarea {
+html.modo-claro textarea:not(.posit textarea):not(.mesa-visor-posit-editor) {
   background: #FFFDF8;
   border-color: #8E7CC3;
   color: #2A1F3D;
