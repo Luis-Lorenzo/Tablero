@@ -11455,3 +11455,49 @@ html.modo-claro .mesa-macro-rombo-nombre {
   color: #1E1430;
   box-shadow: 0 3px 8px rgb(60 40 90 / 22%);
 }
+
+/* Objetos en mesa, mapa, pizarra y mochila en modo claro */
+
+html.modo-claro .mesa-objeto-cuadro,
+html.modo-claro .mochila-slot,
+html.modo-claro .mochila-detalle-cuadro {
+  background: linear-gradient(135deg, #FFF6DC 0%, #F5DFA6 100%);
+  border: 2px solid #B8862B;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .mochila-slot:hover,
+html.modo-claro .mesa-objeto:hover .mesa-objeto-cuadro {
+  background: linear-gradient(135deg, #FBECC2 0%, #F0D696 100%);
+  border-color: #8A5A10;
+}
+
+html.modo-claro .mesa-objeto-nombre {
+  background: #FFF6DC;
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+  box-shadow: 0 3px 8px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .pizarra-objeto-tarjeta {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 2px solid #B8862B;
+  color: #1E1430;
+  box-shadow: 0 8px 20px rgb(60 40 90 / 24%);
+}
+
+html.modo-claro .pizarra-objeto-tarjeta:hover {
+  border-color: #8A5A10;
+  box-shadow: 0 10px 24px rgb(60 40 90 / 30%);
+}
+
+html.modo-claro .pizarra-objeto-tarjeta-nombre,
+html.modo-claro .mochila-mesa-desc {
+  color: #1E1430;
+}
+
+html.modo-claro .paloma-item-fila {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+}
