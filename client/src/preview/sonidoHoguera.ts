@@ -1,9 +1,8 @@
 const CLAVE_HOGUERA_SILENCIADA = "pocketrol_hoguera_silenciada";
+const RUTA_AUDIO_HOGUERA = "/BucleLobby.wav";
+const VOLUMEN_HOGUERA = 0.25;
 
-let audioCtx: AudioContext | null = null;
-let nodoMaestro: GainNode | null = null;
-let fuenteBase: AudioBufferSourceNode | null = null;
-let timerChispas: number | null = null;
+let audio: HTMLAudioElement | null = null;
 let activo = false;
 let listenerDesbloqueo: (() => void) | null = null;
 
@@ -28,85 +27,15 @@ export function alternarHogueraSilenciada(): boolean {
   return nuevo;
 }
 
-function obtenerContexto(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  const Ctor =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
-  if (!Ctor) return null;
-  if (!audioCtx) {
-    audioCtx = new Ctor();
+function obtenerAudio(): HTMLAudioElement | null {
+  if (typeof window === "undefined" || typeof Audio === "undefined") return null;
+  if (!audio) {
+    audio = new Audio(RUTA_AUDIO_HOGUERA);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = VOLUMEN_HOGUERA;
   }
-  return audioCtx;
-}
-
-function crearBufferRuidoMarron(ctx: AudioContext, duracionSeg: number): AudioBuffer {
-  const longitud = Math.floor(ctx.sampleRate * duracionSeg);
-  const buffer = ctx.createBuffer(1, longitud, ctx.sampleRate);
-  const datos = buffer.getChannelData(0);
-  let ultimo = 0;
-
-  for (let i = 0; i < longitud; i++) {
-    const blanco = Math.random() * 2 - 1;
-    ultimo = (ultimo + 0.03 * blanco) / 1.03;
-    datos[i] = ultimo * 2.2;
-  }
-
-  // Suavizado en los extremos para que el bucle no haga clic.
-  const fade = Math.min(2048, Math.floor(longitud / 8));
-  for (let i = 0; i < fade; i++) {
-    const k = i / fade;
-    datos[i] *= k;
-    datos[longitud - 1 - i] *= k;
-  }
-
-  return buffer;
-}
-
-function crearBufferChispa(ctx: AudioContext): AudioBuffer {
-  const duracion = 0.024;
-  const longitud = Math.floor(ctx.sampleRate * duracion);
-  const buffer = ctx.createBuffer(1, longitud, ctx.sampleRate);
-  const datos = buffer.getChannelData(0);
-
-  for (let i = 0; i < longitud; i++) {
-    const env = Math.pow(1 - i / longitud, 2.6);
-    datos[i] = (Math.random() * 2 - 1) * env;
-  }
-
-  return buffer;
-}
-
-function programarChispa(): void {
-  if (!activo || !audioCtx || !nodoMaestro) return;
-
-  const esperaMs = 190 + Math.random() * 520;
-  timerChispas = window.setTimeout(() => {
-    if (!activo || !audioCtx || !nodoMaestro) return;
-    if (audioCtx.state === "running") {
-      try {
-        const src = audioCtx.createBufferSource();
-        src.buffer = crearBufferChispa(audioCtx);
-
-        const filtro = audioCtx.createBiquadFilter();
-        filtro.type = "bandpass";
-        filtro.frequency.value = 1700 + Math.random() * 2200;
-        filtro.Q.value = 2.2;
-
-        const ganancia = audioCtx.createGain();
-        ganancia.gain.value = 0.015 + Math.random() * 0.025;
-
-        src.connect(filtro);
-        filtro.connect(ganancia);
-        ganancia.connect(nodoMaestro);
-        src.start();
-      } catch {
-        // Ignorar errores puntuales de audio.
-      }
-    }
-    programarChispa();
-  }, esperaMs);
+  return audio;
 }
 
 function limpiarDesbloqueo(): void {
@@ -116,112 +45,67 @@ function limpiarDesbloqueo(): void {
   listenerDesbloqueo = null;
 }
 
-function arrancarNodos(ctx: AudioContext): void {
-  if (!activo || fuenteBase) return;
-
-  const master = ctx.createGain();
-  master.gain.setValueAtTime(0.0001, ctx.currentTime);
-  master.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 0.45);
-  master.connect(ctx.destination);
-  nodoMaestro = master;
-
-  const src = ctx.createBufferSource();
-  src.buffer = crearBufferRuidoMarron(ctx, 4);
-  src.loop = true;
-
-  const pasoBajo = ctx.createBiquadFilter();
-  pasoBajo.type = "lowpass";
-  pasoBajo.frequency.value = 230;
-
-  const gananciaBase = ctx.createGain();
-  gananciaBase.gain.value = 0.032;
-
-  src.connect(pasoBajo);
-  pasoBajo.connect(gananciaBase);
-  gananciaBase.connect(master);
-  src.start();
-  fuenteBase = src;
-
-  programarChispa();
+function registrarDesbloqueo(): void {
+  if (listenerDesbloqueo || typeof window === "undefined") return;
+  listenerDesbloqueo = () => {
+    if (!activo) {
+      limpiarDesbloqueo();
+      return;
+    }
+    const el = obtenerAudio();
+    if (!el) return;
+    void el
+      .play()
+      .then(() => {
+        limpiarDesbloqueo();
+      })
+      .catch(() => {});
+  };
+  window.addEventListener("pointerdown", listenerDesbloqueo, { passive: true });
+  window.addEventListener("keydown", listenerDesbloqueo, { passive: true });
 }
 
 /**
- * Inicia el sonido tenue y en bucle de la hoguera del lobby.
- * Si el navegador aún bloquea el audio hasta el primer clic/tecla,
- * se reanuda automáticamente en cuanto el usuario interactúa.
+ * Inicia el audio de la hoguera del lobby (/BucleLobby.wav) en bucle de forma tenue.
+ * Si el navegador bloquea la reproducción automática hasta la primera interacción,
+ * se reanuda automáticamente en cuanto el usuario hace clic o pulsa una tecla.
  */
 export function iniciarSonidoHoguera(): void {
   if (estaHogueraSilenciada()) return;
-  const ctx = obtenerContexto();
-  if (!ctx) return;
+  const el = obtenerAudio();
+  if (!el) return;
 
   activo = true;
+  el.loop = true;
+  el.volume = VOLUMEN_HOGUERA;
 
-  if (ctx.state === "running") {
-    arrancarNodos(ctx);
-    return;
-  }
-
-  void ctx
-    .resume()
+  void el
+    .play()
     .then(() => {
-      if (activo && ctx.state === "running") {
-        arrancarNodos(ctx);
+      if (activo) {
         limpiarDesbloqueo();
       }
     })
-    .catch(() => {});
-
-  if (!listenerDesbloqueo && typeof window !== "undefined") {
-    listenerDesbloqueo = () => {
-      const actual = obtenerContexto();
-      if (!actual || !activo) {
-        limpiarDesbloqueo();
-        return;
+    .catch(() => {
+      if (activo) {
+        registrarDesbloqueo();
       }
-      void actual
-        .resume()
-        .then(() => {
-          if (activo && actual.state === "running") {
-            arrancarNodos(actual);
-            limpiarDesbloqueo();
-          }
-        })
-        .catch(() => {});
-    };
-    window.addEventListener("pointerdown", listenerDesbloqueo, { passive: true });
-    window.addEventListener("keydown", listenerDesbloqueo, { passive: true });
-  }
+    });
 }
 
 /**
- * Detiene el sonido de la hoguera y libera los nodos activos.
+ * Pausa y reinicia el audio de la hoguera.
  */
 export function detenerSonidoHoguera(): void {
   activo = false;
   limpiarDesbloqueo();
 
-  if (timerChispas !== null) {
-    window.clearTimeout(timerChispas);
-    timerChispas = null;
-  }
-
-  if (fuenteBase) {
+  if (audio) {
     try {
-      fuenteBase.stop();
-      fuenteBase.disconnect();
+      audio.pause();
+      audio.currentTime = 0;
     } catch {
-      // Ya detenida.
+      // Ignorar si no estaba listo.
     }
-    fuenteBase = null;
-  }
-
-  if (nodoMaestro) {
-    try {
-      nodoMaestro.disconnect();
-    } catch {
-      // Ya desconectada.
-    }
-    nodoMaestro = null;
   }
 }
