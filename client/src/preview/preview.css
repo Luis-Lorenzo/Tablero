@@ -11626,3 +11626,73 @@ html.modo-claro .tirada-panel.secreta .tirada-num {
   color: #111111;
   text-shadow: none;
 }
+
+/* Visor de objeto en mesa (.mochila-mesa-visor / .archivo-visor) en modo claro */
+
+html.modo-claro .archivo-visor-caja,
+html.modo-claro .archivo-visor-ventana.mochila-mesa-modal {
+  background: rgb(255 248 236 / 96%);
+  border: 2px solid #B8862B;
+  color: #111111;
+  box-shadow: 0 12px 32px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .archivo-visor-cabecera,
+html.modo-claro .archivo-visor-barra {
+  border-bottom: 1.5px solid rgb(184 134 43 / 45%);
+  background: rgb(255 246 220 / 70%);
+}
+
+html.modo-claro .archivo-visor-nombre,
+html.modo-claro .archivo-visor-titulo {
+  color: #111111;
+  font-weight: 800;
+}
+
+html.modo-claro .archivo-visor-descargar,
+html.modo-claro .mochila-mesa-visor .mochila-accion-sec,
+html.modo-claro .mochila-accion-sec {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 1.5px solid #B8862B;
+  color: #111111;
+  font-weight: 700;
+}
+
+html.modo-claro .archivo-visor-descargar:hover,
+html.modo-claro .mochila-mesa-visor .mochila-accion-sec:hover,
+html.modo-claro .mochila-accion-sec:hover {
+  background: linear-gradient(180deg, #F9E8BA 0%, #EED394 100%);
+  border-color: #8A5A10;
+  color: #111111;
+}
+
+html.modo-claro .archivo-visor-cerrar {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .archivo-visor-cerrar:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .mochila-mesa-visor .transferencia-btn-rechazar {
+  background: #FCE8EC;
+  border: 1.5px solid #C94A5A;
+  color: #701320;
+  font-weight: 700;
+}
+
+html.modo-claro .mochila-mesa-visor .transferencia-btn-rechazar:hover {
+  background: #F7D4DC;
+  border-color: #A83242;
+  color: #4A0A13;
+}
+
+html.modo-claro .archivo-visor-marco {
+  background: #FAF3E6;
+  color: #111111;
+}
