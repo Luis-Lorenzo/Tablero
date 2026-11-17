@@ -634,7 +634,7 @@ function SalaRealContent({
         onVolver("Has sido expulsado de la mesa.");
         return;
       }
-      if (actualizada.estado !== "EN_CURSO") {
+      if (actualizada.estado !== "EN_CURSO" && !esMaster) {
         onActualizarMesa(actualizada);
         onVolver("La partida ha terminado y la mesa ha vuelto a espera.");
         return;
@@ -654,10 +654,10 @@ function SalaRealContent({
 
   const cargarArchivos = useCallback(() => {
     void archivosApi
-      .listar()
+      .listar(mesa.id)
       .then(setArchivosDisponibles)
       .catch(() => undefined);
-  }, []);
+  }, [mesa.id]);
 
   useEffect(() => {
     let activo = true;
@@ -1214,7 +1214,7 @@ function SalaRealContent({
   const subirMusica = useCallback(
     async (archivo: File) => {
       try {
-        const subido = await archivosApi.subir(archivo);
+        const subido = await archivosApi.subir(archivo, mesa.id);
         setArchivosDisponibles(prev =>
           prev.some(item => item.id === subido.id) ? prev : [subido, ...prev]
         );
@@ -1646,7 +1646,7 @@ function SalaRealContent({
   }
 
   async function volverAEspera() {
-    if (!esMaster) {
+    if (!esMaster || mesa.estado !== "EN_CURSO") {
       onVolver();
       return;
     }
@@ -1658,6 +1658,18 @@ function SalaRealContent({
       onVolver();
     } catch (volverError) {
       setError(describeError(volverError));
+    }
+  }
+
+  async function iniciarPartidaDesdeSala() {
+    if (!esMaster || mesa.estado === "EN_CURSO") return;
+    setError(null);
+    try {
+      const actualizada = await mesasApi.iniciar(mesa.id);
+      onActualizarMesa(actualizada);
+      setEstadoAviso("Partida iniciada: los jugadores ya están entrando en la sala.");
+    } catch (iniciarError) {
+      setError(describeError(iniciarError));
     }
   }
 
@@ -1901,7 +1913,7 @@ function SalaRealContent({
     archivo: File,
     _categoria: "escena" | "token"
   ): Promise<{ archivoId?: string; url: string; titulo: string }> {
-    const subido = await archivosApi.subir(archivo);
+    const subido = await archivosApi.subir(archivo, mesa.id);
     cargarArchivos();
     return {
       archivoId: subido.id,
@@ -1934,6 +1946,7 @@ function SalaRealContent({
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={() => setFase("sala")}
+        mesaId={mesa.id}
         esMaster={esMaster}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
@@ -1977,6 +1990,7 @@ function SalaRealContent({
         />
         <HudSalaCompartido
           jugadores={jugadores}
+          mesaId={mesa.id}
           esMaster={esMaster}
           miUsuarioId={user.id}
           hostName={mesa.hostName}
@@ -2022,6 +2036,7 @@ function SalaRealContent({
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
         onVolver={() => setFase("sala")}
+        mesaId={mesa.id}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
@@ -2036,6 +2051,7 @@ function SalaRealContent({
     contenido = (
       <Sala
         jugadores={jugadores}
+        mesaId={mesa.id}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
         onAbrirPizarra={() => setFase("pizarra")}
@@ -2044,6 +2060,8 @@ function SalaRealContent({
         onVolver={volverAEspera}
         hostName={mesa.hostName}
         esMaster={esMaster}
+        estadoPartida={mesa.estado}
+        onEmpezarPartida={esMaster ? iniciarPartidaDesdeSala : undefined}
         miUsuarioId={user.id}
         mensajesChat={mensajesChat}
         onEnviarChat={enviarChat}

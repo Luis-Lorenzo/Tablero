@@ -86,6 +86,7 @@ interface PizarraProps {
   congelada?: boolean;
   onCongelada?: Dispatch<SetStateAction<boolean>>;
   onVolver: () => void;
+  mesaId?: string;
   esMaster?: boolean;
   colorJugador?: string;
   nombreJugador?: string;
@@ -537,6 +538,7 @@ export function Pizarra({
   congelada,
   onCongelada,
   onVolver,
+  mesaId,
   esMaster,
   colorJugador,
   nombreJugador,
@@ -1244,7 +1246,7 @@ export function Pizarra({
           setArchivos(prev => [nuevo, ...prev]);
           subidos.push(nuevo);
         } else {
-          const creado = await archivosApi.subir(archivo);
+          const creado = await archivosApi.subir(archivo, mesaId);
           const nuevo = archivoAItem(creado);
           setArchivos(prev => [nuevo, ...prev]);
           subidos.push(nuevo);
@@ -2412,6 +2414,7 @@ export function Pizarra({
 
       {panelMasterAbierto && (
         <PanelImagenesMasterModal
+          mesaId={mesaId}
           tituloPanel="IMAGEN DE ESCENA DE LA PIZARRA"
           imagenEscena={imagenEscena}
           imagenProyectada={imagenProyectada}

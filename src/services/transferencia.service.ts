@@ -229,7 +229,8 @@ export class TransferenciaService {
       const archivo = await this.archivos.clonarPara(
         transferencia.emisorId,
         transferencia.archivo.id,
-        actor
+        actor,
+        mesaId
       );
       await this.transferencias.deleteById(transferenciaId);
       this.logger.info("Transferencia de archivo aceptada", {
@@ -248,7 +249,8 @@ export class TransferenciaService {
           const archivo = await this.archivos.clonarPara(
             transferencia.emisorId,
             transferencia.objeto.archivoId,
-            actor
+            actor,
+            mesaId
           );
           objetoFinal = {
             ...objetoFinal,

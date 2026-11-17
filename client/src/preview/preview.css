@@ -11705,3 +11705,100 @@ html.modo-claro .archivo-visor-marco {
   background: #FAF3E6;
   color: #111111;
 }
+
+/* Botón Empezar partida y estado del Máster en cabecera de Sala (oscuro y claro) */
+
+.sala-master-partida-ctrl {
+  position: absolute;
+  top: 14px;
+  left: 64px;
+  z-index: 26;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sala-empezar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 2px solid #f7dc88;
+  background: #e8c56a;
+  color: #1a1204;
+  font-weight: 800;
+  box-shadow: 3px 3px 0 #090612;
+  backdrop-filter: blur(8px);
+}
+
+.sala-empezar-btn:hover:not(:disabled) {
+  background: #f4d680;
+  border-color: #fff2be;
+  color: #120c02;
+}
+
+.sala-empezar-btn:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.sala-partida-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+
+.sala-partida-estado.espera {
+  background: rgb(25 19 36 / 88%);
+  border: 1.5px solid rgb(232 197 106 / 60%);
+  color: #f6e3b0;
+}
+
+.sala-partida-estado.en-curso {
+  background: rgb(18 46 31 / 88%);
+  border: 1.5px solid rgb(110 231 160 / 60%);
+  color: #b7f7cf;
+}
+
+html.modo-claro .sala-empezar-btn {
+  border: 2px solid #A8741A;
+  background: #E2A93B;
+  color: #1E1430;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-empezar-btn:hover:not(:disabled) {
+  background: #D49724;
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .sala-partida-estado.espera {
+  background: rgb(255 248 236 / 92%);
+  border: 1.5px solid #B8862B;
+  color: #8A5A10;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro .sala-partida-estado.en-curso {
+  background: rgb(232 250 242 / 92%);
+  border: 1.5px solid #1E9E78;
+  color: #156E52;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+@media (max-width: 900px) {
+  .sala-master-partida-ctrl {
+    top: 66px;
+    left: 16px;
+  }
+}

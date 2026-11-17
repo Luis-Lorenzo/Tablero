@@ -177,6 +177,9 @@ interface SalaProps {
   onRechazarSolicitud?: (solicitud: SolicitudTransferencia) => void;
   onSimularRecepcion?: () => void;
   esMaster?: boolean;
+  mesaId?: string;
+  estadoPartida?: "ESPERA" | "EN_CURSO";
+  onEmpezarPartida?: () => void | Promise<void>;
   miUsuarioId?: string;
   mensajesChat?: MensajeSala[];
   onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
@@ -831,6 +834,9 @@ export function Sala({
   onRechazarSolicitud,
   onSimularRecepcion,
   esMaster = false,
+  mesaId,
+  estadoPartida,
+  onEmpezarPartida,
   miUsuarioId = "master",
   mensajesChat,
   onEnviarChat,
@@ -883,6 +889,7 @@ export function Sala({
   const [editandoApodo, setEditandoApodo] = useState(false);
   const [apodoTexto, setApodoTexto] = useState("");
   const [guardandoApodo, setGuardandoApodo] = useState(false);
+  const [iniciandoPartida, setIniciandoPartida] = useState(false);
   const miJugador =
     jugadores.find(j => j.id === yoAsientoId) ??
     jugadores.find(
@@ -2584,7 +2591,7 @@ export function Sala({
     try {
       for (const file of Array.from(files)) {
         try {
-          const subido = await archivosApi.subir(file);
+          const subido = await archivosApi.subir(file, mesaId);
           setArchivosSubidosLocal(prev =>
             prev.some(a => a.id === subido.id) ? prev : [subido, ...prev]
           );
@@ -2648,7 +2655,7 @@ export function Sala({
                 : "ninguna";
 
         try {
-          const creado = await archivosApi.subir(file);
+          const creado = await archivosApi.subir(file, mesaId);
           setArchivosSubidosLocal(prev =>
             prev.some(a => a.id === creado.id) ? prev : [creado, ...prev]
           );
@@ -2876,7 +2883,7 @@ export function Sala({
     try {
       const cuadrada = await recortarImagenCuadrada(file);
       if (onCambiarDivisa) {
-        const subido = await archivosApi.subir(cuadrada);
+        const subido = await archivosApi.subir(cuadrada, mesaId);
         setNuevoObjArchivo({
           archivoId: subido.id,
           archivoNombre: subido.nombre
@@ -3433,6 +3440,36 @@ export function Sala({
               <Moon size={16} strokeWidth={2.2} aria-hidden="true" />
             )}
           </button>
+
+          {!ajuste && esMaster && onEmpezarPartida && (
+            <div className="sala-master-partida-ctrl">
+              {estadoPartida === "ESPERA" ? (
+                <>
+                  <button
+                    type="button"
+                    className="sala-btn sala-empezar-btn"
+                    disabled={iniciandoPartida}
+                    onClick={async () => {
+                      if (iniciandoPartida) return;
+                      setIniciandoPartida(true);
+                      try {
+                        await onEmpezarPartida();
+                      } finally {
+                        setIniciandoPartida(false);
+                      }
+                    }}
+                    title="Inicia la partida y mete a todos los jugadores en la sala"
+                  >
+                    <Play size={14} strokeWidth={2.4} aria-hidden="true" />
+                    <span>{iniciandoPartida ? "Iniciando…" : "Empezar partida"}</span>
+                  </button>
+                  <span className="sala-partida-estado espera">Preparando sala</span>
+                </>
+              ) : (
+                <span className="sala-partida-estado en-curso">● En curso</span>
+              )}
+            </div>
+          )}
 
           <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
             <div className="sala-barra-grupo">
@@ -6813,6 +6850,7 @@ export function Sala({
 
           {panelMasterAbierto && esMaster && (
             <PanelImagenesMasterModal
+              mesaId={mesaId}
               imagenEscena={imagenEscena}
               imagenProyectada={imagenProyectada}
               onCambiarEscena={onCambiarEscena}

@@ -35,6 +35,7 @@ interface ArchivadorProps {
   elementosMesa: ElementoMesa[];
   onElementosMesa: Dispatch<SetStateAction<ElementoMesa[]>>;
   onVolver: () => void;
+  mesaId?: string;
   esMaster?: boolean;
   imagenEscena?: ImagenEscenaPreview | null;
   imagenProyectada?: ImagenEscenaPreview | null;
@@ -381,6 +382,7 @@ export function ProyeccionMasterModal({
  * o desde la propia pizarra.
  */
 export function PanelImagenesMasterModal({
+  mesaId,
   tituloPanel = "DIRECCIÓN DE ESCENA DEL MÁSTER",
   imagenEscena,
   imagenProyectada,
@@ -388,6 +390,7 @@ export function PanelImagenesMasterModal({
   onProyectarImagen,
   onCerrar
 }: {
+  mesaId?: string;
   tituloPanel?: string;
   imagenEscena?: ImagenEscenaPreview | null;
   imagenProyectada?: ImagenEscenaPreview | null;
@@ -410,7 +413,7 @@ export function PanelImagenesMasterModal({
       new URLSearchParams(window.location.search).get("preview") === "1";
 
     archivosApi
-      .listar()
+      .listar(mesaId)
       .then(lista => {
         if (!activo) return;
         setImagenes(
@@ -464,7 +467,7 @@ export function PanelImagenesMasterModal({
             ...prev
           ]);
         } else {
-          const creado = await archivosApi.subir(archivo);
+          const creado = await archivosApi.subir(archivo, mesaId);
           if (creado.vista === "imagen") {
             setImagenes(prev => [
               { id: creado.id, nombre: creado.nombre },
@@ -682,6 +685,7 @@ export function Archivador({
   elementosMesa,
   onElementosMesa,
   onVolver,
+  mesaId,
   esMaster,
   imagenEscena,
   imagenProyectada,
@@ -723,7 +727,7 @@ export function Archivador({
 
     setCargando(true);
     try {
-      const lista = await archivosApi.listar();
+      const lista = await archivosApi.listar(mesaId);
       sincronizarLista(lista);
     } catch (fallo) {
       if (!esPreview) {
@@ -740,7 +744,7 @@ export function Archivador({
       new URLSearchParams(window.location.search).get("preview") === "1";
 
     archivosApi
-      .listar()
+      .listar(mesaId)
       .then(lista => {
         if (!activo) return;
         sincronizarLista(lista);
@@ -767,7 +771,7 @@ export function Archivador({
     setError(null);
     try {
       for (const archivo of elegidos) {
-        await archivosApi.subir(archivo);
+        await archivosApi.subir(archivo, mesaId);
       }
       await cargarArchivos();
     } catch (fallo) {

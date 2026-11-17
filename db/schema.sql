@@ -101,6 +101,7 @@ CREATE INDEX IF NOT EXISTS mesas_players_gin_idx ON mesas USING GIN (players);
 CREATE TABLE IF NOT EXISTS archivos (
   id         UUID PRIMARY KEY,
   owner_id   UUID NOT NULL,
+  mesa_id    UUID REFERENCES mesas(id) ON DELETE SET NULL,
   nombre     TEXT NOT NULL,
   clave      TEXT NOT NULL,
   tipo       TEXT NOT NULL,
@@ -108,11 +109,17 @@ CREATE TABLE IF NOT EXISTS archivos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE archivos ADD COLUMN IF NOT EXISTS mesa_id UUID REFERENCES mesas(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS archivos_owner_idx
   ON archivos (owner_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS archivos_clave_idx
   ON archivos (clave);
+
+CREATE INDEX IF NOT EXISTS archivos_mesa_idx
+  ON archivos (mesa_id)
+  WHERE mesa_id IS NOT NULL;
 
 -- Estado personal en mesa de cada jugador (notas/archivos colocados o archivados),
 -- aislado por (mesa_id, user_id). Los binarios viven en R2, aquí solo metadatos.

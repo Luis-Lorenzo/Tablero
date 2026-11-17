@@ -20,6 +20,7 @@ export interface EntradaArchivo {
   nombre: string;
   tipo: string;
   datos: Uint8Array;
+  mesaId?: string;
 }
 
 export interface ArchivoConDatos {
@@ -54,16 +55,36 @@ export class ArchivoService {
       throw errors.archivoDemasiadoGrande();
     }
 
+    let mesaId: string | null = null;
+    if (entrada.mesaId) {
+      if (!esUuid(entrada.mesaId)) {
+        throw errors.mesaNotFound();
+      }
+      if (this.mesas) {
+        const mesa = await this.mesas.findById(entrada.mesaId);
+        if (!mesa) throw errors.mesaNotFound();
+        const esMiembro =
+          mesa.hostId === actor.id ||
+          mesa.players.includes(actor.id) ||
+          actor.role === "ADMIN";
+        if (!esMiembro) throw errors.mesaForbidden();
+      }
+      mesaId = entrada.mesaId;
+    }
+
     const id = randomUUID();
     const tipo = normalizarTipo(entrada.tipo);
     const nombre = limpiarNombre(entrada.nombre);
-    const clave = `archivos/${actor.id}/${id}${extensionDe(tipo)}`;
+    const clave = mesaId
+      ? `archivos/${actor.id}/mesas/${mesaId}/${id}${extensionDe(tipo)}`
+      : `archivos/${actor.id}/${id}${extensionDe(tipo)}`;
 
     await this.almacen.guardar(clave, entrada.datos, tipo);
 
     const archivo: Archivo = {
       id,
       ownerId: actor.id,
+      mesaId,
       nombre,
       clave,
       tipo,
@@ -76,6 +97,7 @@ export class ArchivoService {
     this.logger.info("Archivo subido", {
       id,
       ownerId: actor.id,
+      mesaId,
       tipo,
       tamano: archivo.tamano
     });
@@ -83,8 +105,9 @@ export class ArchivoService {
     return archivo;
   }
 
-  async listar(actor: User): Promise<Archivo[]> {
-    return this.archivos.listByOwner(actor.id);
+  async listar(actor: User, mesaId?: string): Promise<Archivo[]> {
+    const mesaFiltro = mesaId && esUuid(mesaId) ? mesaId : undefined;
+    return this.archivos.listByOwner(actor.id, mesaFiltro);
   }
 
   async obtener(actor: User, id: string): Promise<ArchivoConDatos> {
@@ -148,7 +171,8 @@ export class ArchivoService {
   async clonarPara(
     emisorId: string,
     archivoId: string,
-    receptor: User
+    receptor: User,
+    mesaId?: string
   ): Promise<Archivo> {
     if (!esUuid(archivoId)) {
       throw errors.archivoNotFound();
@@ -162,6 +186,7 @@ export class ArchivoService {
     const clon: Archivo = {
       id: randomUUID(),
       ownerId: receptor.id,
+      mesaId: mesaId ?? null,
       nombre: origen.nombre,
       clave: origen.clave,
       tipo: origen.tipo,
@@ -174,7 +199,8 @@ export class ArchivoService {
     this.logger.info("Archivo compartido por referencia", {
       origenId: origen.id,
       nuevoId: clon.id,
-      ownerId: receptor.id
+      ownerId: receptor.id,
+      mesaId: clon.mesaId
     });
 
     return clon;
@@ -193,6 +219,52 @@ export class ArchivoService {
       id,
       ownerId: actor.id,
       objetoBorrado: restantes === 0
+    });
+  }
+
+  /**
+   * Elimina todos los archivos vinculados a una mesa (sin tocar los archivos
+   * personales de recepción de cada cuenta) y borra de Cloudflare R2 las claves
+   * que ya no queden referenciadas por ningún otro registro.
+   */
+  async borrarPorMesa(mesaId: string): Promise<void> {
+    const borrados = this.archivos.deleteByMesa
+      ? await this.archivos.deleteByMesa(mesaId)
+      : await (async () => {
+          const lista = this.archivos.listByMesa
+            ? await this.archivos.listByMesa(mesaId)
+            : [];
+          for (const item of lista) {
+            await this.archivos.delete(item.id);
+          }
+          return lista;
+        })();
+
+    if (borrados.length === 0) return;
+
+    const clavesUnicas = new Set(borrados.map(a => a.clave));
+    let objetosR2Borrados = 0;
+
+    for (const clave of clavesUnicas) {
+      const restantes = await this.archivos.countByClave(clave);
+      if (restantes === 0) {
+        try {
+          await this.almacen.borrar(clave);
+          objetosR2Borrados += 1;
+        } catch (error) {
+          this.logger.warn("No se pudo borrar objeto R2 al cerrar mesa", {
+            mesaId,
+            clave,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
+    this.logger.info("Archivos de mesa limpiados", {
+      mesaId,
+      registrosBorrados: borrados.length,
+      objetosR2Borrados
     });
   }
 

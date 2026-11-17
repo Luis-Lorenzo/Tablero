@@ -22,7 +22,11 @@ export function createArchivoRouter(
 
   router.get("/", requireAuth, async (req, res, next) => {
     try {
-      const archivos = await context.archivoService.listar(req.currentUser!);
+      const mesaId =
+        typeof req.query.mesaId === "string" && req.query.mesaId.trim()
+          ? req.query.mesaId.trim()
+          : undefined;
+      const archivos = await context.archivoService.listar(req.currentUser!, mesaId);
       res.json(archivos.map(toPublicArchivo));
     } catch (error) {
       next(error);
@@ -32,6 +36,10 @@ export function createArchivoRouter(
   router.post("/", requireAuth, binario, async (req, res, next) => {
     try {
       const nombre = String(req.query.nombre ?? "archivo");
+      const mesaId =
+        typeof req.query.mesaId === "string" && req.query.mesaId.trim()
+          ? req.query.mesaId.trim()
+          : undefined;
       const tipo = String(req.headers["content-type"] ?? "");
       const datos = req.body;
 
@@ -42,7 +50,8 @@ export function createArchivoRouter(
       const archivo = await context.archivoService.subir(req.currentUser!, {
         nombre,
         tipo,
-        datos: new Uint8Array(datos)
+        datos: new Uint8Array(datos),
+        ...(mesaId ? { mesaId } : {})
       });
 
       res.status(201).json(toPublicArchivo(archivo));

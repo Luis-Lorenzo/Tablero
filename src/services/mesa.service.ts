@@ -1,6 +1,7 @@
 import { errors } from "../lib/errors.js";
 import { esUuid } from "../lib/archivos.js";
 import type { Logger } from "../lib/logger.js";
+import type { ArchivoService } from "./archivo.service.js";
 import {
   nombreDeUsuario,
   type User,
@@ -76,7 +77,8 @@ export class MesaService {
   constructor(
     private readonly mesas: MesaRepository,
     private readonly users: UserRepository,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly archivos?: ArchivoService
   ) { }
 
   async inicio(): Promise<Array<MesaVista | null>> {
@@ -285,6 +287,7 @@ export class MesaService {
 
     if (mesa.hostId !== actor.id) throw errors.forbidden();
 
+    await this.archivos?.borrarPorMesa(mesaId);
     await this.mesas.delete(mesaId);
     this.logger.info("Mesa cerrada", { mesaId, hostId: actor.id });
   }
