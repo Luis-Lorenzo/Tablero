@@ -10981,3 +10981,50 @@ html.modo-claro .divisa-atajo-btn.resta:hover,
 html.modo-claro .divisa-emoji-btn.resta:hover {
   border-color: #7C5CBF;
 }
+
+/* Tipografía nítida en títulos pixelados y badge legible de Almacén */
+
+html.modo-claro .sala-titulo-visible {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+html.modo-claro .mapa-limbo-titulo {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+html.modo-claro .mapa-bandeja-badge {
+  background: #E2A93B;
+  border: 1.5px solid #A8741A;
+  color: #1E1430;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+html.modo-claro .mapa-btn-almacen.activo .mapa-bandeja-badge {
+  background: #FFF8EC;
+  border-color: #7A4F0C;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-bandeja-cat-badge {
+  background: rgb(226 169 59 / 22%);
+  border-color: #B8862B;
+  color: #7A4F0C;
+}
+
+html.modo-claro .dock-badge {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
