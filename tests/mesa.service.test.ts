@@ -148,7 +148,23 @@ describe("mesa.service", () => {
 
     // En cuanto entra como jugador, pierde el mando de esa mesa.
     await service.unirse(admin as any, mesa.id);
-    await expect(service.cerrar(admin as any, mesa.id)).rejects.toThrow("FORBIDDEN");
+    await expect(service.solicitarCesion(admin as any, mesa.id, admin.id)).rejects.toThrow("FORBIDDEN");
+  });
+
+  test("el administrador puede cerrar cualquier mesa aunque no sea suya", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const service = new MesaService(mesas, users, logger as any);
+
+    const admin = addUser(users, "admin@test.com");
+    admin.role = "ADMIN";
+    const host = addUser(users, "host@test.com");
+    const otro = addUser(users, "otro@test.com");
+    const mesa = (await service.crear(host as any)).mesa;
+
+    await expect(service.cerrar(otro as any, mesa.id)).rejects.toThrow("FORBIDDEN");
+    await expect(service.cerrar(admin as any, mesa.id)).resolves.toBeUndefined();
+    await expect(service.unirse(otro as any, mesa.id)).rejects.toThrow("MESA_NOT_FOUND");
   });
 
   test("listar filtra por nombre del anfitrión", async () => {

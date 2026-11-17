@@ -285,11 +285,18 @@ export class MesaService {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
-    if (mesa.hostId !== actor.id) throw errors.forbidden();
+    if (mesa.hostId !== actor.id && actor.role !== "ADMIN") {
+      throw errors.forbidden();
+    }
 
     await this.archivos?.borrarPorMesa(mesaId);
     await this.mesas.delete(mesaId);
-    this.logger.info("Mesa cerrada", { mesaId, hostId: actor.id });
+    this.logger.info("Mesa cerrada", {
+      mesaId,
+      hostId: mesa.hostId,
+      cerradaPor: actor.id,
+      esAdmin: actor.role === "ADMIN"
+    });
   }
 
   private async mesaDeAnfitrion(hostId: string): Promise<Mesa | undefined> {
