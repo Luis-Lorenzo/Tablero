@@ -92,7 +92,9 @@ export function MesaCard({
   // Un administrador pierde el mando de una mesa en cuanto es jugador de ella
   // (por ejemplo, tras cedérsela a otro): deja de poder gestionarla.
   const puedeGestionar = esHost || (esAdmin && !soyJugador);
-  const puedeAbandonar = soyJugador && !esAdmin;
+  // También un administrador puede abandonar si juega en la mesa; si no,
+  // se quedaría atrapado en ella sin más salida que cerrarla (solo el host).
+  const puedeAbandonar = soyJugador;
   const llena = total >= MESA_MAX_JUGADORES;
 
   const pista = esHost
