@@ -719,12 +719,20 @@ button.mesa-cuerpo:disabled {
 }
 
 .mesa-badge-estado {
+  position: absolute;
+  left: calc(50% + 52px);
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: calc(50% - 54px);
   padding: 4px 9px;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
 }
 
 .mesa-badge-estado.en-curso {
@@ -752,6 +760,14 @@ button.mesa-cuerpo:disabled {
   text-transform: uppercase;
 }
 
+.mesa-hexagono-fila {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
 .mesa-hexagono {
   display: block;
   width: 92px;
@@ -761,6 +777,16 @@ button.mesa-cuerpo:disabled {
 
 button.mesa-cuerpo:hover:not(:disabled) .mesa-hexagono {
   transform: scale(1.06);
+}
+
+@media (max-width: 480px) {
+  .mesa-badge-estado {
+    left: calc(50% + 48px);
+    max-width: calc(50% - 50px);
+    padding: 3px 7px;
+    font-size: 0.64rem;
+    letter-spacing: 0.04em;
+  }
 }
 
 .hexagono {
@@ -2459,6 +2485,11 @@ html.modo-claro .archivo-visor-caja {
   border-color: #B8862B;
   color: #2A1F3D;
   box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .cuenta-desplegable {
+  background: #FFF8EC;
+  backdrop-filter: none;
 }
 
 html.modo-claro .topbar,

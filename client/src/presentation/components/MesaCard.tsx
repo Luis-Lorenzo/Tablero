@@ -121,17 +121,19 @@ export function MesaCard({
     <>
       <div className="mesa-cabecera-card">
         <span className="mesa-etiqueta">Mesa {mesa.hostName}</span>
+        {llena && <span className="mesa-lleno">LLENO</span>}
+      </div>
+
+      <div className="mesa-hexagono-fila">
+        <span className="mesa-hexagono">
+          <Hexagono jugadores={total} />
+        </span>
         {mesa.estado === "EN_CURSO" ? (
           <span className="pill on mesa-badge-estado en-curso">● Partida en curso</span>
         ) : (
           <span className="pill pending mesa-badge-estado en-espera">En espera</span>
         )}
-        {llena && <span className="mesa-lleno">LLENO</span>}
       </div>
-
-      <span className="mesa-hexagono">
-        <Hexagono jugadores={total} />
-      </span>
 
       <div className="mesa-info">
         <span className="mesa-dato">
