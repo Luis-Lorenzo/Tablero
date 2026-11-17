@@ -1909,6 +1909,51 @@ function SalaRealContent({
     }
   }
 
+  async function crearAreaMapa(area: {
+    tipo: "circulo" | "cono";
+    x: number;
+    y: number;
+    celdas: number;
+    angulo?: number;
+    color?: string;
+  }): Promise<void> {
+    try {
+      const actualizado = await mesasApi.crearAreaMapa(mesa.id, area);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function actualizarAreaMapa(
+    areaId: string,
+    patch: { x?: number; y?: number; celdas?: number; angulo?: number; color?: string }
+  ): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      areas: (prev.areas ?? []).map(a => (a.id === areaId ? { ...a, ...patch } : a))
+    }));
+    try {
+      const actualizado = await mesasApi.actualizarAreaMapa(mesa.id, areaId, patch);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
+  async function eliminarAreaMapa(areaId: string): Promise<void> {
+    setEstadoMapa(prev => ({
+      ...prev,
+      areas: (prev.areas ?? []).filter(a => a.id !== areaId)
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarAreaMapa(mesa.id, areaId);
+      if (actualizado) setEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }
+
   async function subirImagenMapa(
     archivo: File,
     _categoria: "escena" | "token"
@@ -1985,6 +2030,9 @@ function SalaRealContent({
           onEliminarTrazo={eliminarTrazoMapa}
           onBorrarTrazos={borrarTrazosMapa}
           onCambiarDibujoCongelado={cambiarDibujoCongeladoMapa}
+          onCrearArea={crearAreaMapa}
+          onActualizarArea={actualizarAreaMapa}
+          onEliminarArea={eliminarAreaMapa}
           archivosDisponibles={archivosDisponibles}
           onSubirImagenMapa={subirImagenMapa}
         />

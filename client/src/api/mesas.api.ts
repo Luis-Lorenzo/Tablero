@@ -1,7 +1,9 @@
 import { ApiError, http } from "./client";
 import type {
+  ActualizarAreaMapaPayload,
   ActualizarPlantillaMapaPayload,
   ActualizarTokenMapaPayload,
+  CrearAreaMapaPayload,
   CrearTokenMapaPayload,
   DivisaConfig,
   EstadoMapaCompartido,
@@ -407,5 +409,26 @@ export const mesasApi = {
   congelarDibujoMapa: (mesaId: string, congelado: boolean) =>
     putJson<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/congelar`, {
       congelado
-    })
+    }),
+
+  /** Crea un área semitranslúcida (círculo o cono) en el mapa táctico. */
+  crearAreaMapa: (mesaId: string, area: CrearAreaMapaPayload) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/areas`, area),
+
+  /** Mueve, redimensiona o rota un área en el mapa táctico. */
+  actualizarAreaMapa: (
+    mesaId: string,
+    areaId: string,
+    patch: ActualizarAreaMapaPayload
+  ) =>
+    http.patch<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/areas/${encodeURIComponent(areaId)}`,
+      patch
+    ),
+
+  /** Elimina un área del mapa táctico. */
+  eliminarAreaMapa: (mesaId: string, areaId: string) =>
+    http.delete<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/areas/${encodeURIComponent(areaId)}`
+    )
 };

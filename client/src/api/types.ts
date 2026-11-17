@@ -269,6 +269,36 @@ export interface TrazoMapa {
   autorId?: string;
 }
 
+export interface AreaMapa {
+  id: string;
+  tipo: "circulo" | "cono";
+  x: number;
+  y: number;
+  celdas: number;
+  angulo: number;
+  color: string;
+  autorId: string;
+  autorNombre: string;
+}
+
+export interface CrearAreaMapaPayload {
+  id?: string;
+  tipo: "circulo" | "cono";
+  x: number;
+  y: number;
+  celdas: number;
+  angulo?: number;
+  color?: string;
+}
+
+export interface ActualizarAreaMapaPayload {
+  x?: number;
+  y?: number;
+  celdas?: number;
+  angulo?: number;
+  color?: string;
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
@@ -276,6 +306,7 @@ export interface EstadoMapaCompartido {
   plantillas: PlantillaTokenMapa[];
   iniciativa?: MapaIniciativaEstado;
   trazos?: TrazoMapa[];
+  areas?: AreaMapa[];
   dibujoCongelado?: boolean;
 }
 

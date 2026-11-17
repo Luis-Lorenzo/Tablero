@@ -1380,5 +1380,45 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.post("/:id/mapa/areas", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.crearArea(
+        req.currentUser!,
+        String(req.params.id),
+        req.body
+      );
+      res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/mapa/areas/:areaId", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.actualizarArea(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.areaId),
+        req.body
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id/mapa/areas/:areaId", requireAuth, async (req, res, next) => {
+    try {
+      const mapa = await mapaEstadoService.eliminarArea(
+        req.currentUser!,
+        String(req.params.id),
+        String(req.params.areaId)
+      );
+      res.json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }
