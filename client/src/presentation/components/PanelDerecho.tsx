@@ -73,8 +73,6 @@ function EscenaPixelRPG() {
       </svg>
 
       <div className="escena-pixel-barra">
-        <span>READY TO ROLL</span>
-        <span className="escena-pixel-sep">•</span>
         <span>MAX 6 JUGADORES</span>
       </div>
     </div>

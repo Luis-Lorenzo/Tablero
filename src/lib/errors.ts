@@ -19,6 +19,14 @@ export const errors = {
   accountPending: () => new AppError("ACCOUNT_PENDING", 403),
   accountRejected: () => new AppError("ACCOUNT_REJECTED", 403),
   accountLocked: () => new AppError("ACCOUNT_LOCKED", 403),
+  invalidVerificationToken: () =>
+    new AppError("INVALID_VERIFICATION_TOKEN", 400),
+  expiredVerificationToken: () =>
+    new AppError("EXPIRED_VERIFICATION_TOKEN", 410),
+  emailAlreadyVerified: () => new AppError("EMAIL_ALREADY_VERIFIED", 409),
+  verificationRateLimited: () =>
+    new AppError("VERIFICATION_RATE_LIMITED", 429),
+  emailDeliveryFailed: () => new AppError("EMAIL_DELIVERY_FAILED", 502),
   unauthenticated: () => new AppError("UNAUTHENTICATED", 401),
   forbidden: () => new AppError("FORBIDDEN", 403),
   userNotFound: () => new AppError("USER_NOT_FOUND", 404),

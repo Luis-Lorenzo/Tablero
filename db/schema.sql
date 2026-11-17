@@ -44,6 +44,20 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 -- cuentas no borradas; las cuentas borradas liberan su nombre.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT;
 
+-- Verificación de correo electrónico (token con hash SHA-256 y caducidad).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMPTZ;
+
+-- Migrar de forma segura las cuentas que ya estaban activas antes de introducir
+-- `email_verified`, para no bloquear a los usuarios existentes.
+UPDATE users SET email_verified = TRUE WHERE status = 'ACTIVE' AND email_verified = FALSE;
+
+CREATE INDEX IF NOT EXISTS users_verification_token_hash_idx
+  ON users (verification_token_hash)
+  WHERE verification_token_hash IS NOT NULL;
+
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
   ON users (lower(email));
 

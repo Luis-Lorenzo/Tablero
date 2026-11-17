@@ -10,5 +10,11 @@ export const authApi = {
 
   logout: () => http.post<void>("/api/auth/logout"),
 
-  me: () => http.get<PublicUser>("/api/auth/me")
+  me: () => http.get<PublicUser>("/api/auth/me"),
+
+  verifyEmail: (token: string) =>
+    http.post<PublicUser>("/api/auth/verify-email", { token }),
+
+  resendVerification: (email: string) =>
+    http.post<{ ok: boolean }>("/api/auth/resend-verification", { email })
 };

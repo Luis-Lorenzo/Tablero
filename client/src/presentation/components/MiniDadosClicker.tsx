@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { DadoPixelD6, DadoPixelPoliedro, type TipoDadoPoliedro } from "./Dado";
+import { reproducirSonidoRoll, reproducirSonidoTirada } from "../../preview/sonidoDados";
 
 interface Tirada {
   dado: string;
@@ -35,6 +36,14 @@ export function MiniDadosClicker() {
     setUltima({ dado: etiqueta, valor, max: caras });
     setTiradas(prev => prev + 1);
     setPulso(prev => prev + 1);
+
+    if (valor === caras) {
+      reproducirSonidoTirada("critico");
+    } else if (valor === 1) {
+      reproducirSonidoTirada("pifia");
+    } else {
+      reproducirSonidoRoll();
+    }
   }
 
   const esCritico = ultima !== null && ultima.valor === ultima.max;

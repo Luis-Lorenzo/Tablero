@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, RefreshCw, Search, Shield, Trash2, Users, X } from "lucide-react";
+import { mesasApi } from "../../api/mesas.api";
 import { usersApi } from "../../api/users.api";
-import type { PublicUser } from "../../api/types";
+import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
@@ -12,6 +13,7 @@ interface AdminUsersPageProps {
 }
 
 type FiltroEstado = "TODOS" | "ACTIVE" | "PENDING" | "BLOCKED" | "REJECTED";
+type SeccionModerar = "usuarios" | "salas";
 
 /**
  * Etiqueta que se muestra en la columna "Estado". Refleja el bloqueo por
@@ -39,12 +41,17 @@ export function AdminUsersPage({
   onSelfDeleted,
   onVolver
 }: AdminUsersPageProps) {
+  const esAdmin = currentUser.role === "ADMIN";
+  const [seccion, setSeccion] = useState<SeccionModerar>("usuarios");
   const [users, setUsers] = useState<PublicUser[]>([]);
+  const [mesas, setMesas] = useState<PublicMesa[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  const [busquedaSalas, setBusquedaSalas] = useState("");
   const [filtro, setFiltro] = useState<FiltroEstado>("TODOS");
   const [objetivoEliminar, setObjetivoEliminar] = useState<PublicUser | null>(null);
+  const [mesaAEliminar, setMesaAEliminar] = useState<PublicMesa | null>(null);
   const [busyDelete, setBusyDelete] = useState(false);
 
   const load = useCallback(async () => {
@@ -52,13 +59,18 @@ export function AdminUsersPage({
     setError(null);
 
     try {
-      setUsers(await usersApi.list());
+      const [listaUsuarios, listaMesas] = await Promise.all([
+        usersApi.list(),
+        esAdmin ? mesasApi.list() : Promise.resolve([])
+      ]);
+      setUsers(listaUsuarios);
+      setMesas(listaMesas);
     } catch (loadError) {
       setError(describeError(loadError));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [esAdmin]);
 
   useEffect(() => {
     void load();
@@ -85,6 +97,21 @@ export function AdminUsersPage({
     }
   }
 
+  async function confirmarEliminarMesa() {
+    if (!mesaAEliminar || !esAdmin) return;
+    setBusyDelete(true);
+    setError(null);
+    try {
+      await mesasApi.cerrar(mesaAEliminar.id);
+      setMesas(current => current.filter(item => item.id !== mesaAEliminar.id));
+      setMesaAEliminar(null);
+    } catch (deleteError) {
+      setError(describeError(deleteError));
+    } finally {
+      setBusyDelete(false);
+    }
+  }
+
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return users.filter(u => {
@@ -99,6 +126,16 @@ export function AdminUsersPage({
     });
   }, [users, busqueda, filtro]);
 
+  const mesasFiltradas = useMemo(() => {
+    const q = busquedaSalas.trim().toLowerCase();
+    if (!q) return mesas;
+    return mesas.filter(
+      m =>
+        m.hostName.toLowerCase().includes(q) ||
+        m.players.some(p => p.name.toLowerCase().includes(q))
+    );
+  }, [mesas, busquedaSalas]);
+
   return (
     <section className="card">
       <div className="card-header">
@@ -109,8 +146,12 @@ export function AdminUsersPage({
               <span>Volver</span>
             </button>
           )}
-          <h2>Usuarios</h2>
-          {!loading && <span className="badge">{users.length}</span>}
+          <h2>{seccion === "salas" ? "Salas activas" : "Usuarios"}</h2>
+          {!loading && (
+            <span className="badge">
+              {seccion === "salas" ? mesas.length : users.length}
+            </span>
+          )}
         </div>
         <button type="button" className="ghost small" onClick={load} disabled={loading}>
           <RefreshCw size={14} className={loading ? "icono-girando" : ""} aria-hidden="true" />
@@ -118,7 +159,31 @@ export function AdminUsersPage({
         </button>
       </div>
 
+      {esAdmin && (
+        <div className="tabs" style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className={seccion === "usuarios" ? "tab active" : "tab"}
+            onClick={() => setSeccion("usuarios")}
+          >
+            <Users size={14} aria-hidden="true" />
+            <span>Usuarios ({users.length})</span>
+          </button>
+          <button
+            type="button"
+            className={seccion === "salas" ? "tab active" : "tab"}
+            onClick={() => setSeccion("salas")}
+          >
+            <Shield size={14} aria-hidden="true" />
+            <span>Salas ({mesas.length})</span>
+          </button>
+        </div>
+      )}
+
       {error && <p className="feedback ko">{error}</p>}
+
+      {seccion === "usuarios" ? (
+        <>
 
       {!loading && users.length > 0 && (
         <div className="admin-controles">
@@ -234,6 +299,107 @@ export function AdminUsersPage({
         onConfirm={() => void confirmarEliminar()}
         onCancel={() => setObjetivoEliminar(null)}
       />
+        </>
+      ) : (
+        <>
+          {!loading && mesas.length > 0 && (
+            <div className="admin-controles">
+              <div className="input-con-icono admin-buscador">
+                <Search size={15} className="input-icono" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={busquedaSalas}
+                  onChange={event => setBusquedaSalas(event.target.value)}
+                  placeholder="Filtrar por anfitrión o jugador…"
+                  aria-label="Filtrar salas"
+                />
+                {busquedaSalas && (
+                  <button
+                    type="button"
+                    className="input-limpiar"
+                    onClick={() => setBusquedaSalas("")}
+                    aria-label="Limpiar filtro"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {loading && <p className="muted estado-vacio">Cargando salas…</p>}
+
+          {!loading && mesas.length === 0 && (
+            <p className="muted estado-vacio">No hay salas creadas actualmente.</p>
+          )}
+
+          {!loading && mesas.length > 0 && mesasFiltradas.length === 0 && (
+            <p className="muted estado-vacio">Ninguna sala coincide con el filtro actual.</p>
+          )}
+
+          {!loading && mesasFiltradas.length > 0 && (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sala</th>
+                    <th>Jugadores</th>
+                    <th>Estado</th>
+                    <th aria-label="Acciones" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {mesasFiltradas.map(mesa => (
+                    <tr key={mesa.id}>
+                      <td>
+                        <div className="admin-usuario-celda">
+                          <span>Mesa {mesa.hostName}</span>
+                          <span className="muted admin-nick">Anfitrión: {mesa.hostName}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-usuario-celda">
+                          <span>{mesa.players.length} / 6</span>
+                          {mesa.players.length > 0 && (
+                            <span className="muted admin-nick">
+                              {mesa.players.map(p => p.name).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={mesa.estado === "EN_CURSO" ? "pill on" : "pill pending"}>
+                          {mesa.estado === "EN_CURSO" ? "● Partida en curso" : "En espera"}
+                        </span>
+                      </td>
+                      <td className="admin-celda-accion">
+                        <button
+                          type="button"
+                          className="danger small"
+                          onClick={() => setMesaAEliminar(mesa)}
+                        >
+                          <Trash2 size={13} aria-hidden="true" />
+                          <span>Eliminar sala</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <ConfirmDialog
+            open={mesaAEliminar !== null}
+            title={`¿Eliminar la sala "Mesa ${mesaAEliminar?.hostName ?? ""}"?`}
+            description="Se cerrará la mesa para todos los jugadores y se borrarán sus archivos asociados."
+            confirmLabel="Eliminar sala"
+            busy={busyDelete}
+            onConfirm={() => void confirmarEliminarMesa()}
+            onCancel={() => setMesaAEliminar(null)}
+          />
+        </>
+      )}
     </section>
   );
 }
