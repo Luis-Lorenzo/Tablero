@@ -28,6 +28,8 @@ import {
   Plus,
   Radio,
   RotateCcw,
+  RotateCw,
+  Ruler,
   Sliders,
   Snowflake,
   Swords,
@@ -43,6 +45,7 @@ import { nuevoId } from "./calibracion";
 import { IconoDadoPoligono } from "./HudSalaCompartido";
 import { reproducirSonidoPing } from "./sonido";
 import type {
+  AreaMapa,
   EstadoMapaCompartido,
   IniciativaEntrada,
   JugadorPreview,
@@ -111,12 +114,34 @@ export interface MapaProps {
   onEliminarTrazo?: (trazoId: string) => void | Promise<void>;
   onBorrarTrazos?: () => void | Promise<void>;
   onCambiarDibujoCongelado?: (congelado: boolean) => void | Promise<void>;
+  onCrearArea?: (area: {
+    tipo: "circulo" | "cono";
+    x: number;
+    y: number;
+    celdas: number;
+    angulo?: number;
+    color?: string;
+  }) => void | Promise<void>;
+  onActualizarArea?: (
+    areaId: string,
+    patch: { x?: number; y?: number; celdas?: number; angulo?: number; color?: string }
+  ) => void | Promise<void>;
+  onEliminarArea?: (areaId: string) => void | Promise<void>;
 }
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 4;
 const ASPECTO_POR_DEFECTO = 16 / 9;
 const PRESETS_TAMANO = [1, 2, 3, 4] as const;
+const PRESETS_AREA = [1, 2, 3, 4, 6] as const;
+const COLORES_AREA = [
+  "#f97316",
+  "#ef4444",
+  "#38bdf8",
+  "#22c55e",
+  "#a855f7",
+  "#f5c542"
+] as const;
 const COLORES_DIBUJO = [
   "#f5c542",
   "#ef4444",
@@ -187,6 +212,56 @@ function ajustarARejilla(
     x: limitar(snapX, 0, 100),
     y: limitar(snapY, 0, 100)
   };
+}
+
+function puedeEditarArea(
+  area: AreaMapa,
+  esMaster: boolean,
+  miUsuarioId?: string
+): boolean {
+  return esMaster || Boolean(miUsuarioId && area.autorId === miUsuarioId);
+}
+
+function calcularCeldasLinea(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  rejilla: MapaRejillaConfig
+): Array<{ key: string; x: number; y: number; w: number; h: number }> {
+  const cols = Math.max(4, rejilla.columnas);
+  const filas = Math.max(4, rejilla.filas);
+  const cellW = 100 / cols;
+  const cellH = 100 / filas;
+  const offX = (rejilla.offsetX / 100) * cellW;
+  const offY = (rejilla.offsetY / 100) * cellH;
+
+  const c1 = Math.floor((x1 - offX) / cellW);
+  const r1 = Math.floor((y1 - offY) / cellH);
+  const c2 = Math.floor((x2 - offX) / cellW);
+  const r2 = Math.floor((y2 - offY) / cellH);
+
+  const pasos = Math.max(Math.abs(c2 - c1), Math.abs(r2 - r1));
+  const vistas = new Set<string>();
+  const celdas: Array<{ key: string; x: number; y: number; w: number; h: number }> = [];
+
+  for (let i = 0; i <= pasos; i += 1) {
+    const t = pasos === 0 ? 0 : i / pasos;
+    const col = Math.round(c1 + (c2 - c1) * t);
+    const row = Math.round(r1 + (r2 - r1) * t);
+    const key = `${col},${row}`;
+    if (vistas.has(key)) continue;
+    vistas.add(key);
+    celdas.push({
+      key,
+      x: offX + col * cellW,
+      y: offY + row * cellH,
+      w: cellW,
+      h: cellH
+    });
+  }
+
+  return celdas;
 }
 
 function leerArchivoComoDataUrl(archivo: File): Promise<string> {
@@ -333,17 +408,74 @@ export function Mapa({
   onAgregarTrazo,
   onEliminarTrazo,
   onBorrarTrazos,
-  onCambiarDibujoCongelado
+  onCambiarDibujoCongelado,
+  onCrearArea,
+  onActualizarArea,
+  onEliminarArea
 }: MapaProps) {
   const { tokens, plantillas } = estadoMapa;
   const tokensEnMapa = useMemo(() => tokens.filter(t => !t.enLimbo), [tokens]);
   const tokensEnLimbo = useMemo(() => tokens.filter(t => Boolean(t.enLimbo)), [tokens]);
   const trazos = estadoMapa.trazos ?? [];
+  const areas = estadoMapa.areas ?? [];
   const dibujoCongelado = Boolean(estadoMapa.dibujoCongelado);
   const dibujoBloqueado = dibujoCongelado && !esMaster;
 
   const [modoPing, setModoPing] = useState(false);
   const [modoDibujo, setModoDibujo] = useState(false);
+  const [reglaAbierta, setReglaAbierta] = useState(false);
+  const [modoReglaLinea, setModoReglaLinea] = useState(false);
+  const [colorArea, setColorArea] = useState<string>(COLORES_AREA[0]);
+  const [reglaLinea, setReglaLinea] = useState<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  } | null>(null);
+  const reglaLineaRef = useRef<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  } | null>(null);
+  const pointerIdReglaRef = useRef<number | null>(null);
+  const [areaSeleccionadaId, setAreaSeleccionadaId] = useState<string | null>(null);
+  const [arrastreArea, setArrastreArea] = useState<{
+    areaId: string;
+    pointerId: number;
+    inicioClientX: number;
+    inicioClientY: number;
+    xInicial: number;
+    yInicial: number;
+    xActual: number;
+    yActual: number;
+    movido: boolean;
+  } | null>(null);
+  const arrastreAreaRef = useRef<{
+    areaId: string;
+    pointerId: number;
+    inicioClientX: number;
+    inicioClientY: number;
+    xInicial: number;
+    yInicial: number;
+    xActual: number;
+    yActual: number;
+    movido: boolean;
+  } | null>(null);
+  const [rotandoArea, setRotandoArea] = useState<{
+    areaId: string;
+    pointerId: number;
+    centroClientX: number;
+    centroClientY: number;
+    anguloActual: number;
+  } | null>(null);
+  const rotandoAreaRef = useRef<{
+    areaId: string;
+    pointerId: number;
+    centroClientX: number;
+    centroClientY: number;
+    anguloActual: number;
+  } | null>(null);
   const [colorDibujo, setColorDibujo] = useState<string>(
     colorJugador || COLORES_DIBUJO[0]
   );
@@ -662,6 +794,19 @@ export function Mapa({
   function alBajarPunteroCanvas(
     evento: ReactPointerEvent<HTMLDivElement>
   ): void {
+    if (modoReglaLinea && evento.button === 0 && !espacioPulsado) {
+      const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
+      if (!punto) return;
+      evento.stopPropagation();
+      evento.preventDefault();
+      evento.currentTarget.setPointerCapture(evento.pointerId);
+      const linea = { x1: punto.x, y1: punto.y, x2: punto.x, y2: punto.y };
+      pointerIdReglaRef.current = evento.pointerId;
+      reglaLineaRef.current = linea;
+      setReglaLinea(linea);
+      return;
+    }
+
     if (!dibujandoActivo || evento.button !== 0 || espacioPulsado) return;
     const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
     if (!punto) return;
@@ -685,6 +830,16 @@ export function Mapa({
   function alMoverPunteroCanvas(
     evento: ReactPointerEvent<HTMLDivElement>
   ): void {
+    const reglaActiva = reglaLineaRef.current;
+    if (reglaActiva && pointerIdReglaRef.current === evento.pointerId) {
+      const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
+      if (!punto) return;
+      const siguiente = { ...reglaActiva, x2: punto.x, y2: punto.y };
+      reglaLineaRef.current = siguiente;
+      setReglaLinea(siguiente);
+      return;
+    }
+
     const actual = trazoEnCursoRef.current;
     if (!actual || pointerIdDibujoRef.current !== evento.pointerId) return;
     const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
@@ -709,6 +864,16 @@ export function Mapa({
   function alSoltarPunteroCanvas(
     evento: ReactPointerEvent<HTMLDivElement>
   ): void {
+    if (reglaLineaRef.current && pointerIdReglaRef.current === evento.pointerId) {
+      reglaLineaRef.current = null;
+      pointerIdReglaRef.current = null;
+      setReglaLinea(null);
+      if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
+        evento.currentTarget.releasePointerCapture(evento.pointerId);
+      }
+      return;
+    }
+
     const actual = trazoEnCursoRef.current;
     if (!actual || pointerIdDibujoRef.current !== evento.pointerId) return;
 
@@ -736,12 +901,13 @@ export function Mapa({
       return;
     }
 
-    if (dibujandoActivo && evento.button === 0 && !espacioPulsado) {
+    if ((dibujandoActivo || modoReglaLinea) && evento.button === 0 && !espacioPulsado) {
       return;
     }
 
     if (mapaBloqueado) {
       setTokenSeleccionadoId(null);
+      setAreaSeleccionadaId(null);
       return;
     }
 
@@ -751,6 +917,7 @@ export function Mapa({
     }
 
     setTokenSeleccionadoId(null);
+    setAreaSeleccionadaId(null);
     evento.currentTarget.setPointerCapture(evento.pointerId);
     arrastrePanRef.current = {
       pointerId: evento.pointerId,
@@ -819,6 +986,41 @@ export function Mapa({
       arrastreTokenRef.current = actualizado;
       setArrastreToken(actualizado);
       setSobreLimbo(movido && estaSobreLimbo(evento.clientX, evento.clientY));
+      return;
+    }
+
+    const areaActiva = arrastreAreaRef.current;
+    if (areaActiva && areaActiva.pointerId === evento.pointerId) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const dxPx = evento.clientX - areaActiva.inicioClientX;
+      const dyPx = evento.clientY - areaActiva.inicioClientY;
+      const movido = areaActiva.movido || Math.hypot(dxPx, dyPx) > 4;
+      const xActual = limitar(areaActiva.xInicial + (dxPx / rect.width) * 100, 0, 100);
+      const yActual = limitar(areaActiva.yInicial + (dyPx / rect.height) * 100, 0, 100);
+
+      const actualizado = {
+        ...areaActiva,
+        xActual,
+        yActual,
+        movido
+      };
+      arrastreAreaRef.current = actualizado;
+      setArrastreArea(actualizado);
+      return;
+    }
+
+    const rotActiva = rotandoAreaRef.current;
+    if (rotActiva && rotActiva.pointerId === evento.pointerId) {
+      const dx = evento.clientX - rotActiva.centroClientX;
+      const dy = evento.clientY - rotActiva.centroClientY;
+      const anguloActual = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+      const actualizado = { ...rotActiva, anguloActual };
+      rotandoAreaRef.current = actualizado;
+      setRotandoArea(actualizado);
     }
   }
 
@@ -931,6 +1133,124 @@ export function Mapa({
         });
       }
     }
+
+    const areaActiva = arrastreAreaRef.current;
+    if (areaActiva && areaActiva.pointerId === evento.pointerId) {
+      arrastreAreaRef.current = null;
+      setArrastreArea(null);
+      if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
+        evento.currentTarget.releasePointerCapture(evento.pointerId);
+      }
+      if (areaActiva.movido && onActualizarArea) {
+        void onActualizarArea(areaActiva.areaId, {
+          x: Number(areaActiva.xActual.toFixed(3)),
+          y: Number(areaActiva.yActual.toFixed(3))
+        });
+      }
+    }
+
+    const rotActiva = rotandoAreaRef.current;
+    if (rotActiva && rotActiva.pointerId === evento.pointerId) {
+      rotandoAreaRef.current = null;
+      setRotandoArea(null);
+      if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
+        evento.currentTarget.releasePointerCapture(evento.pointerId);
+      }
+      if (onActualizarArea) {
+        void onActualizarArea(rotActiva.areaId, {
+          angulo: rotActiva.anguloActual
+        });
+      }
+    }
+  }
+
+  function colocarAreaEnMapa(tipo: "circulo" | "cono"): void {
+    if (!onCrearArea) return;
+    let x = 50;
+    let y = 50;
+    const viewport = viewportRef.current;
+    const canvas = canvasRef.current;
+    if (viewport && canvas) {
+      const vRect = viewport.getBoundingClientRect();
+      const cRect = canvas.getBoundingClientRect();
+      if (cRect.width > 0 && cRect.height > 0) {
+        const cx = vRect.left + vRect.width / 2;
+        const cy = vRect.top + vRect.height / 2;
+        x = limitar(((cx - cRect.left) / cRect.width) * 100, 5, 95);
+        y = limitar(((cy - cRect.top) / cRect.height) * 100, 5, 95);
+      }
+    }
+    setModoReglaLinea(false);
+    setReglaAbierta(false);
+    void onCrearArea({
+      tipo,
+      x: Number(x.toFixed(2)),
+      y: Number(y.toFixed(2)),
+      celdas: tipo === "circulo" ? 2 : 3,
+      angulo: 0,
+      color: colorArea
+    });
+  }
+
+  function alBajarPunteroArea(
+    evento: ReactPointerEvent<HTMLDivElement>,
+    area: AreaMapa
+  ): void {
+    if (modoPing || dibujandoActivo || modoReglaLinea || espacioPulsado || evento.button === 1) {
+      return;
+    }
+    evento.stopPropagation();
+    setTokenSeleccionadoId(null);
+    setAreaSeleccionadaId(area.id);
+
+    if (!puedeEditarArea(area, esMaster, miUsuarioId) || evento.button !== 0) {
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.setPointerCapture(evento.pointerId);
+    }
+    const inicio = {
+      areaId: area.id,
+      pointerId: evento.pointerId,
+      inicioClientX: evento.clientX,
+      inicioClientY: evento.clientY,
+      xInicial: area.x,
+      yInicial: area.y,
+      xActual: area.x,
+      yActual: area.y,
+      movido: false
+    };
+    arrastreAreaRef.current = inicio;
+    setArrastreArea(inicio);
+  }
+
+  function alBajarRotacionArea(
+    evento: ReactPointerEvent<HTMLButtonElement>,
+    area: AreaMapa
+  ): void {
+    if (!puedeEditarArea(area, esMaster, miUsuarioId) || evento.button !== 0) return;
+    evento.stopPropagation();
+    evento.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const centroClientX = rect.left + (area.x / 100) * rect.width;
+    const centroClientY = rect.top + (area.y / 100) * rect.height;
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.setPointerCapture(evento.pointerId);
+    }
+    const rot = {
+      areaId: area.id,
+      pointerId: evento.pointerId,
+      centroClientX,
+      centroClientY,
+      anguloActual: area.angulo
+    };
+    rotandoAreaRef.current = rot;
+    setRotandoArea(rot);
   }
 
   function alBajarPunteroToken(
@@ -1541,7 +1861,11 @@ export function Mapa({
           onClick={() => {
             setModoPing(prev => {
               const siguiente = !prev;
-              if (siguiente) setModoDibujo(false);
+              if (siguiente) {
+                setModoDibujo(false);
+                setModoReglaLinea(false);
+                setReglaAbierta(false);
+              }
               return siguiente;
             });
           }}
@@ -1559,7 +1883,11 @@ export function Mapa({
             if (dibujoBloqueado) return;
             setModoDibujo(prev => {
               const siguiente = !prev;
-              if (siguiente) setModoPing(false);
+              if (siguiente) {
+                setModoPing(false);
+                setModoReglaLinea(false);
+                setReglaAbierta(false);
+              }
               return siguiente;
             });
           }}
@@ -1571,6 +1899,25 @@ export function Mapa({
         >
           <Pencil size={14} strokeWidth={2.1} aria-hidden="true" />
           <span>Dibujar</span>
+        </button>
+
+        <button
+          type="button"
+          className={`pizarra-tool-btn${reglaAbierta || modoReglaLinea ? " activo" : ""}`}
+          onClick={() => {
+            setModoPing(false);
+            setModoDibujo(false);
+            if (modoReglaLinea) {
+              setModoReglaLinea(false);
+              setReglaAbierta(false);
+            } else {
+              setReglaAbierta(prev => !prev);
+            }
+          }}
+          title="Medir distancia en casillas o colocar áreas (círculo / cono)"
+        >
+          <Ruler size={14} strokeWidth={2.1} aria-hidden="true" />
+          <span>Regla</span>
         </button>
 
         {dibujandoActivo && (
@@ -1739,6 +2086,63 @@ export function Mapa({
                 >
                   {item.etiqueta}
                 </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(reglaAbierta || modoReglaLinea) && (
+          <div
+            className="mapa-regla-paleta"
+            role="group"
+            aria-label="Herramientas de regla y áreas"
+          >
+            <button
+              type="button"
+              className={`mapa-regla-opcion${modoReglaLinea ? " activo" : ""}`}
+              onClick={() => {
+                setModoPing(false);
+                setModoDibujo(false);
+                setModoReglaLinea(prev => !prev);
+              }}
+              title="Arrastra entre dos puntos para contar casillas"
+            >
+              <Ruler size={13} aria-hidden="true" />
+              <span>Línea (2 pts)</span>
+            </button>
+
+            <button
+              type="button"
+              className="mapa-regla-opcion"
+              disabled={!onCrearArea}
+              onClick={() => colocarAreaEnMapa("circulo")}
+              title="Colocar área circular semitranslúcida"
+            >
+              <span>◯ Círculo</span>
+            </button>
+
+            <button
+              type="button"
+              className="mapa-regla-opcion"
+              disabled={!onCrearArea}
+              onClick={() => colocarAreaEnMapa("cono")}
+              title="Colocar área cónica semitranslúcida"
+            >
+              <span>◁ Cono</span>
+            </button>
+
+            <span className="mapa-barra-sep" aria-hidden="true" />
+
+            <div className="mapa-dibujo-colores" title="Color del área">
+              {COLORES_AREA.map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`mapa-color-swatch${colorArea === color ? " activo" : ""}`}
+                  style={{ backgroundColor: color }}
+                  aria-label={`Color de área ${color}`}
+                  onClick={() => setColorArea(color)}
+                />
               ))}
             </div>
           </div>
@@ -2961,7 +3365,7 @@ export function Mapa({
       <div
         ref={viewportRef}
         className={`mapa-viewport${modoPing ? " modo-ping" : ""}${dibujandoActivo ? " modo-dibujo" : ""
-          }${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
+          }${modoReglaLinea ? " modo-regla" : ""}${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
         onWheel={alGirarRueda}
         onPointerDown={alBajarPunteroViewport}
         onPointerMove={alMoverPunteroViewport}
@@ -3116,6 +3520,312 @@ export function Mapa({
                 )
               )}
             </svg>
+
+            {/* Capa 2.75: Áreas semitranslúcidas (círculos y conos) */}
+            {areas.map(area => {
+              const editable = puedeEditarArea(area, esMaster, miUsuarioId);
+              const seleccionada = area.id === areaSeleccionadaId;
+              const enArrastre = arrastreArea?.areaId === area.id ? arrastreArea : null;
+              const enRotacion = rotandoArea?.areaId === area.id ? rotandoArea : null;
+              const posX = enArrastre ? enArrastre.xActual : area.x;
+              const posY = enArrastre ? enArrastre.yActual : area.y;
+              const anguloActual = enRotacion ? enRotacion.anguloActual : area.angulo;
+
+              const cols = Math.max(4, rejillaActiva.columnas);
+              const filas = Math.max(4, rejillaActiva.filas);
+              const anchoPct = (area.celdas / cols) * 100;
+              const altoPct = (area.celdas / filas) * 100;
+
+              if (area.tipo === "circulo") {
+                return (
+                  <div
+                    key={area.id}
+                    className={`mapa-area mapa-area-circulo${seleccionada ? " seleccionada" : ""}${editable ? " editable" : ""}`}
+                    style={{
+                      left: `${posX}%`,
+                      top: `${posY}%`,
+                      width: `${anchoPct}%`,
+                      height: `${altoPct}%`,
+                      "--area-color": area.color
+                    } as CSSProperties}
+                    onPointerDown={e => alBajarPunteroArea(e, area)}
+                    onClick={e => e.stopPropagation()}
+                    title={`Círculo ${area.celdas}×${area.celdas} (${area.autorNombre})`}
+                  >
+                    <span className="mapa-area-etiqueta">
+                      {area.celdas}×{area.celdas}
+                    </span>
+
+                    {editable && onEliminarArea && (
+                      <button
+                        type="button"
+                        className="mapa-area-cerrar"
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (areaSeleccionadaId === area.id) setAreaSeleccionadaId(null);
+                          void onEliminarArea(area.id);
+                        }}
+                        title="Quitar área"
+                        aria-label="Quitar área"
+                      >
+                        <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                      </button>
+                    )}
+
+                    {seleccionada && editable && onActualizarArea && (
+                      <div
+                        className="mapa-area-controles"
+                        onPointerDown={e => e.stopPropagation()}
+                      >
+                        {PRESETS_AREA.map(tam => (
+                          <button
+                            key={tam}
+                            type="button"
+                            className={`mapa-area-tam-btn${area.celdas === tam ? " activo" : ""}`}
+                            onClick={() => void onActualizarArea(area.id, { celdas: tam })}
+                          >
+                            {tam}×{tam}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="mapa-area-tam-btn"
+                          disabled={area.celdas <= 1}
+                          onClick={() =>
+                            void onActualizarArea(area.id, {
+                              celdas: Math.max(1, area.celdas - 1)
+                            })
+                          }
+                          title="Reducir 1 casilla"
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          className="mapa-area-tam-btn"
+                          disabled={area.celdas >= 24}
+                          onClick={() =>
+                            void onActualizarArea(area.id, {
+                              celdas: Math.min(24, area.celdas + 1)
+                            })
+                          }
+                          title="Aumentar 1 casilla"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Cono: vértice en (posX%, posY%), longitud = area.celdas casillas, apertura D&D (~53.1°, medio ancho = 0.5 * L)
+              const conoAnchoPx = (anchoPct / 100) * tamanoCanvas.w;
+              const conoAltoPx = (altoPct / 100) * tamanoCanvas.h;
+              const longitudPx = Math.max(24, (conoAnchoPx + conoAltoPx) / 2);
+              const medioFondoPx = longitudPx * 0.5;
+              return (
+                <div
+                  key={area.id}
+                  className={`mapa-area mapa-area-cono${seleccionada ? " seleccionada" : ""}${editable ? " editable" : ""}`}
+                  style={{
+                    left: `${posX}%`,
+                    top: `${posY}%`,
+                    width: `${longitudPx}px`,
+                    height: `${longitudPx}px`,
+                    "--area-color": area.color
+                  } as CSSProperties}
+                  onPointerDown={e => alBajarPunteroArea(e, area)}
+                  onClick={e => e.stopPropagation()}
+                  title={`Cono ${area.celdas}×${area.celdas} (${area.autorNombre})`}
+                >
+                  <div
+                    className="mapa-area-cono-rot"
+                    style={{ transform: `rotate(${anguloActual}deg)` }}
+                  >
+                    <svg
+                      className="mapa-area-cono-svg"
+                      viewBox={`0 ${-medioFondoPx - 4} ${longitudPx + 8} ${longitudPx + 8}`}
+                      style={{
+                        width: `${longitudPx + 8}px`,
+                        height: `${longitudPx + 8}px`,
+                        left: `-4px`,
+                        top: `${-medioFondoPx - 4}px`
+                      }}
+                    >
+                      <polygon
+                        points={`0,0 ${longitudPx},${-medioFondoPx} ${longitudPx},${medioFondoPx}`}
+                        fill={area.color}
+                        fillOpacity={0.28}
+                        stroke={area.color}
+                        strokeWidth={2.5}
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+
+                    {editable && onActualizarArea && (
+                      <button
+                        type="button"
+                        className="mapa-area-rotar-handle"
+                        style={{ left: `${longitudPx}px`, top: "0px" }}
+                        onPointerDown={e => alBajarRotacionArea(e, area)}
+                        title="Arrastra para orientar el cono"
+                        aria-label="Orientar cono"
+                      >
+                        <RotateCw size={11} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+
+                  <span className="mapa-area-etiqueta cono">
+                    {area.celdas}×{area.celdas}
+                  </span>
+
+                  {editable && onEliminarArea && (
+                    <button
+                      type="button"
+                      className="mapa-area-cerrar cono"
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (areaSeleccionadaId === area.id) setAreaSeleccionadaId(null);
+                        void onEliminarArea(area.id);
+                      }}
+                      title="Quitar cono"
+                      aria-label="Quitar cono"
+                    >
+                      <X size={11} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  )}
+
+                  {seleccionada && editable && onActualizarArea && (
+                    <div
+                      className="mapa-area-controles"
+                      onPointerDown={e => e.stopPropagation()}
+                    >
+                      {PRESETS_AREA.map(tam => (
+                        <button
+                          key={tam}
+                          type="button"
+                          className={`mapa-area-tam-btn${area.celdas === tam ? " activo" : ""}`}
+                          onClick={() => void onActualizarArea(area.id, { celdas: tam })}
+                        >
+                          {tam}×{tam}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="mapa-area-tam-btn"
+                        disabled={area.celdas <= 1}
+                        onClick={() =>
+                          void onActualizarArea(area.id, {
+                            celdas: Math.max(1, area.celdas - 1)
+                          })
+                        }
+                        title="Reducir 1 casilla"
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        className="mapa-area-tam-btn"
+                        disabled={area.celdas >= 24}
+                        onClick={() =>
+                          void onActualizarArea(area.id, {
+                            celdas: Math.min(24, area.celdas + 1)
+                          })
+                        }
+                        title="Aumentar 1 casilla"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        className="mapa-area-tam-btn"
+                        onClick={() =>
+                          void onActualizarArea(area.id, { angulo: area.angulo - 45 })
+                        }
+                        title="Girar -45°"
+                      >
+                        ↺
+                      </button>
+                      <button
+                        type="button"
+                        className="mapa-area-tam-btn"
+                        onClick={() =>
+                          void onActualizarArea(area.id, { angulo: area.angulo + 45 })
+                        }
+                        title="Girar +45°"
+                      >
+                        ↻
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Capa 2.8: Línea temporal de regla entre 2 puntos (desaparece al soltar) */}
+            {reglaLinea && (() => {
+              const celdas = calcularCeldasLinea(
+                reglaLinea.x1,
+                reglaLinea.y1,
+                reglaLinea.x2,
+                reglaLinea.y2,
+                rejillaActiva
+              );
+              const total = celdas.length;
+              const midX = (reglaLinea.x1 + reglaLinea.x2) / 2;
+              const midY = (reglaLinea.y1 + reglaLinea.y2) / 2;
+              return (
+                <>
+                  <svg
+                    className="mapa-regla-svg"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    {celdas.map(celda => (
+                      <rect
+                        key={celda.key}
+                        x={celda.x}
+                        y={celda.y}
+                        width={celda.w}
+                        height={celda.h}
+                        className="mapa-regla-celda"
+                      />
+                    ))}
+                    <line
+                      x1={reglaLinea.x1}
+                      y1={reglaLinea.y1}
+                      x2={reglaLinea.x2}
+                      y2={reglaLinea.y2}
+                      className="mapa-regla-linea"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <circle
+                      cx={reglaLinea.x1}
+                      cy={reglaLinea.y1}
+                      r={0.55}
+                      className="mapa-regla-punto"
+                    />
+                    <circle
+                      cx={reglaLinea.x2}
+                      cy={reglaLinea.y2}
+                      r={0.55}
+                      className="mapa-regla-punto"
+                    />
+                  </svg>
+                  <div
+                    className="mapa-regla-etiqueta"
+                    style={{ left: `${midX}%`, top: `${midY}%` }}
+                  >
+                    {total} {total === 1 ? "casilla" : "casillas"}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Capa 3: Tokens */}
             {tokensEnMapa.map(token => {

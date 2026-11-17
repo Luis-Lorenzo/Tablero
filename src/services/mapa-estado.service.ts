@@ -2,11 +2,13 @@ import { AppError, errors } from "../lib/errors.js";
 import type { MesasNotifier } from "../realtime/mesas-notifier.js";
 import {
   clampNumero,
+  sanitizarAreaMapa,
   sanitizarFondo,
   sanitizarIniciativa,
   sanitizarMapaEstado,
   sanitizarRejilla,
   sanitizarTrazo,
+  type AreaMapa,
   type EstadoMapaCompartido,
   type MapaEstadoRepository,
   type MapaFondoConfig,
@@ -554,6 +556,121 @@ export class MapaEstadoService {
     const siguiente = sanitizarMapaEstado({
       ...actual,
       dibujoCongelado: Boolean(congelado)
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async crearArea(
+    actor: User,
+    mesaId: string,
+    raw: unknown
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+
+    const obj = (raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw
+      : {}) as Record<string, unknown>;
+    const area = sanitizarAreaMapa({
+      ...obj,
+      id:
+        typeof obj.id === "string" && obj.id.trim()
+          ? obj.id.trim()
+          : crypto.randomUUID(),
+      autorId: actor.id,
+      autorNombre: nombreDeUsuario(actor)
+    });
+    if (!area) {
+      throw errors.invalidRequest();
+    }
+
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      areas: [...(actual.areas ?? []), area]
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async actualizarArea(
+    actor: User,
+    mesaId: string,
+    areaId: string,
+    raw: unknown
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+
+    const areasActuales = actual.areas ?? [];
+    const indice = areasActuales.findIndex(a => a.id === areaId);
+    if (indice === -1) {
+      throw new AppError("AREA_NOT_FOUND", 404);
+    }
+
+    const previa = areasActuales[indice];
+    const esMaster = this.esMaster(actor, mesa);
+    if (!esMaster && previa.autorId !== actor.id) {
+      throw errors.forbidden();
+    }
+
+    const patch = (raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw
+      : {}) as Record<string, unknown>;
+    const actualizada = sanitizarAreaMapa({
+      ...previa,
+      ...(patch.x !== undefined ? { x: patch.x } : {}),
+      ...(patch.y !== undefined ? { y: patch.y } : {}),
+      ...(patch.celdas !== undefined ? { celdas: patch.celdas } : {}),
+      ...(patch.angulo !== undefined ? { angulo: patch.angulo } : {}),
+      ...(patch.color !== undefined ? { color: patch.color } : {}),
+      id: previa.id,
+      tipo: previa.tipo,
+      autorId: previa.autorId,
+      autorNombre: previa.autorNombre
+    });
+    if (!actualizada) {
+      throw errors.invalidRequest();
+    }
+
+    const nuevas = [...areasActuales];
+    nuevas[indice] = actualizada;
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      areas: nuevas
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return siguiente;
+  }
+
+  async eliminarArea(
+    actor: User,
+    mesaId: string,
+    areaId: string
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    const actual = await this.mapaEstado.getEstado(mesaId);
+
+    const areasActuales = actual.areas ?? [];
+    const area = areasActuales.find(a => a.id === areaId);
+    if (!area) {
+      throw new AppError("AREA_NOT_FOUND", 404);
+    }
+
+    const esMaster = this.esMaster(actor, mesa);
+    if (!esMaster && area.autorId !== actor.id) {
+      throw errors.forbidden();
+    }
+
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      areas: areasActuales.filter(a => a.id !== areaId)
     });
 
     await this.mapaEstado.saveEstado(mesaId, siguiente);

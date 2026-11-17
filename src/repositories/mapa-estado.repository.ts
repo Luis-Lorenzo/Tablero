@@ -73,6 +73,18 @@ export interface TrazoMapa {
   autorId?: string;
 }
 
+export interface AreaMapa {
+  id: string;
+  tipo: "circulo" | "cono";
+  x: number;
+  y: number;
+  celdas: number;
+  angulo: number;
+  color: string;
+  autorId: string;
+  autorNombre: string;
+}
+
 export interface EstadoMapaCompartido {
   fondo: MapaFondoConfig | null;
   rejilla: MapaRejillaConfig;
@@ -80,6 +92,7 @@ export interface EstadoMapaCompartido {
   plantillas: PlantillaTokenMapa[];
   iniciativa?: MapaIniciativaEstado;
   trazos?: TrazoMapa[];
+  areas?: AreaMapa[];
   dibujoCongelado?: boolean;
 }
 
@@ -102,6 +115,7 @@ export function crearMapaEstadoVacio(): EstadoMapaCompartido {
     tokens: [],
     plantillas: [],
     trazos: [],
+    areas: [],
     dibujoCongelado: false
   };
 }
@@ -418,6 +432,40 @@ export function sanitizarTrazo(raw: unknown): TrazoMapa | null {
   return trazo;
 }
 
+export function sanitizarAreaMapa(raw: unknown): AreaMapa | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.id !== "string" || !obj.id.trim()) return null;
+  const tipo = obj.tipo === "cono" ? "cono" : obj.tipo === "circulo" ? "circulo" : null;
+  if (!tipo) return null;
+
+  const autorId =
+    typeof obj.autorId === "string" && obj.autorId.trim()
+      ? obj.autorId.trim().slice(0, 120)
+      : "";
+  if (!autorId) return null;
+
+  const autorNombre =
+    typeof obj.autorNombre === "string" && obj.autorNombre.trim()
+      ? obj.autorNombre.trim().slice(0, 80)
+      : "Jugador";
+  const colorCrudo = typeof obj.color === "string" ? obj.color.trim() : "";
+  const color = COLOR_TRAZO_REGEX.test(colorCrudo) ? colorCrudo : "#f97316";
+
+  return {
+    id: obj.id.trim().slice(0, 120),
+    tipo,
+    x: clampNumero(obj.x, -100, 200, 50),
+    y: clampNumero(obj.y, -100, 200, 50),
+    celdas: clampNumero(obj.celdas, 1, 24, 2),
+    angulo: clampNumero(obj.angulo, -3600, 3600, 0),
+    color,
+    autorId,
+    autorNombre
+  };
+}
+
 export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return crearMapaEstadoVacio();
@@ -445,6 +493,13 @@ export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
         .slice(-MAX_TRAZOS_MAPA)
     : [];
 
+  const areas = Array.isArray(obj.areas)
+    ? obj.areas
+        .map(sanitizarAreaMapa)
+        .filter((a): a is AreaMapa => a !== null)
+        .slice(-50)
+    : [];
+
   return {
     fondo: sanitizarFondo(obj.fondo),
     rejilla: sanitizarRejilla(obj.rejilla),
@@ -452,6 +507,7 @@ export function sanitizarMapaEstado(raw: unknown): EstadoMapaCompartido {
     plantillas,
     ...(iniciativa ? { iniciativa } : {}),
     trazos,
+    areas,
     dibujoCongelado: Boolean(obj.dibujoCongelado)
   };
 }

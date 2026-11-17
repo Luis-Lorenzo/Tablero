@@ -11802,3 +11802,346 @@ html.modo-claro .sala-partida-estado.en-curso {
     left: 16px;
   }
 }
+
+/* ----------------------------------------------------- Regla y Áreas en Mapa */
+
+.mapa-viewport.modo-regla {
+  cursor: crosshair;
+}
+
+.mapa-regla-paleta {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e8c56a;
+  background: rgb(16 12 24 / 94%);
+  color: #f4eefc;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 50%);
+}
+
+.mapa-regla-opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid rgb(232 197 106 / 45%);
+  background: rgb(32 25 46 / 88%);
+  color: #f5efe6;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapa-regla-opcion:hover:not(:disabled) {
+  border-color: #e8c56a;
+  background: rgb(52 40 72 / 94%);
+}
+
+.mapa-regla-opcion.activo {
+  border-color: #f7dc88;
+  background: #e8c56a;
+  color: #1a1204;
+}
+
+.mapa-regla-opcion:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mapa-regla-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.mapa-regla-celda {
+  fill: rgb(232 197 106 / 26%);
+  stroke: rgb(232 197 106 / 78%);
+  stroke-width: 0.18;
+}
+
+.mapa-regla-linea {
+  stroke: #ffe58f;
+  stroke-width: 3px;
+  stroke-dasharray: 6 4;
+  stroke-linecap: round;
+}
+
+.mapa-regla-punto {
+  fill: #ffe58f;
+  stroke: #120d1d;
+  stroke-width: 0.25;
+}
+
+.mapa-regla-etiqueta {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1.5px solid #e8c56a;
+  background: rgb(14 10 22 / 94%);
+  color: #ffe8a3;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 55%);
+}
+
+.mapa-area {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  user-select: none;
+  touch-action: none;
+}
+
+.mapa-area.editable {
+  cursor: grab;
+}
+
+.mapa-area.editable:active {
+  cursor: grabbing;
+}
+
+.mapa-area.seleccionada {
+  z-index: 8;
+}
+
+.mapa-area-circulo {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--area-color, #f97316) 28%, transparent);
+  border: 2.5px solid var(--area-color, #f97316);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 30%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mapa-area-circulo.seleccionada {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 16px var(--area-color, #f97316);
+}
+
+.mapa-area-cono {
+  transform: none;
+  width: 0;
+  height: 0;
+}
+
+.mapa-area-cono-rot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.mapa-area-cono-svg {
+  position: absolute;
+  pointer-events: auto;
+  overflow: visible;
+}
+
+.mapa-area-cono.seleccionada .mapa-area-cono-svg polygon {
+  filter: drop-shadow(0 0 6px var(--area-color, #f97316));
+}
+
+.mapa-area-etiqueta {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(14 10 22 / 86%);
+  border: 1px solid var(--area-color, #f97316);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.mapa-area-etiqueta.cono {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  transform: translateX(-50%);
+}
+
+.mapa-area-cerrar {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid #ffb3cb;
+  background: rgb(42 12 24 / 94%);
+  color: #ffdce8;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s ease, transform 0.12s ease;
+  z-index: 3;
+}
+
+.mapa-area-cerrar.cono {
+  top: -12px;
+  right: auto;
+  left: -12px;
+}
+
+.mapa-area:hover .mapa-area-cerrar,
+.mapa-area.seleccionada .mapa-area-cerrar {
+  opacity: 1;
+}
+
+.mapa-area-cerrar:hover {
+  transform: scale(1.1);
+  background: #c62828;
+  color: #ffffff;
+}
+
+.mapa-area-rotar-handle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid #ffffff;
+  background: var(--area-color, #f97316);
+  color: #111111;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  z-index: 3;
+}
+
+.mapa-area-cono:hover .mapa-area-rotar-handle,
+.mapa-area-cono.seleccionada .mapa-area-rotar-handle {
+  opacity: 1;
+}
+
+.mapa-area-controles {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1.5px solid #e8c56a;
+  background: rgb(14 10 22 / 94%);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 55%);
+  white-space: nowrap;
+  z-index: 12;
+}
+
+.mapa-area-tam-btn {
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid rgb(232 197 106 / 40%);
+  background: rgb(32 25 46 / 90%);
+  color: #f5efe6;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapa-area-tam-btn:hover:not(:disabled) {
+  border-color: #e8c56a;
+  background: rgb(52 40 72 / 95%);
+}
+
+.mapa-area-tam-btn.activo {
+  border-color: #f7dc88;
+  background: #e8c56a;
+  color: #1a1204;
+}
+
+.mapa-area-tam-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Modo claro para regla y áreas en mapa */
+
+html.modo-claro .mapa-regla-paleta,
+html.modo-claro .mapa-area-controles {
+  background: rgb(255 248 236 / 96%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .mapa-regla-opcion,
+html.modo-claro .mapa-area-tam-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-regla-opcion:hover:not(:disabled),
+html.modo-claro .mapa-area-tam-btn:hover:not(:disabled) {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .mapa-regla-opcion.activo,
+html.modo-claro .mapa-area-tam-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-regla-celda {
+  fill: rgb(226 169 59 / 32%);
+  stroke: #A8741A;
+}
+
+html.modo-claro .mapa-regla-linea {
+  stroke: #8A5A10;
+}
+
+html.modo-claro .mapa-regla-punto {
+  fill: #E2A93B;
+  stroke: #2A1F3D;
+}
+
+html.modo-claro .mapa-regla-etiqueta {
+  background: rgb(255 248 236 / 96%);
+  border-color: #B8862B;
+  color: #1E1430;
+  box-shadow: 0 4px 12px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .mapa-area-etiqueta {
+  background: rgb(255 248 236 / 94%);
+  color: #111111;
+}
+
+html.modo-claro .mapa-area-cerrar {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .mapa-area-cerrar:hover {
+  background: #C94A5A;
+  color: #ffffff;
+}
