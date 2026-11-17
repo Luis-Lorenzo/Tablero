@@ -241,7 +241,7 @@
 
 .asiento {
   position: absolute;
-  z-index: 3;
+  z-index: 6;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
@@ -249,6 +249,14 @@
   gap: 5px;
   pointer-events: none;
   transition: left 0.18s ease, top 0.18s ease;
+}
+
+.asiento.master {
+  z-index: 8;
+}
+
+.asiento:has(.asiento-d20, .asiento-divisa-delta) {
+  z-index: 14;
 }
 
 .asiento.ajustable {
@@ -291,24 +299,24 @@
 }
 
 .asiento-nombre {
-  padding: 0 4px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  padding: 3px 10px;
+  border: 1.5px solid rgb(232 197 106 / 55%);
+  border-radius: 999px;
+  background: rgb(12 9 20 / 92%);
   color: #ffffff;
-  font-size: 0.66rem;
+  font-size: 11.5px;
   font-weight: 600;
   line-height: 1.25;
   white-space: nowrap;
-  opacity: 0.92;
-  box-shadow: none;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 90%);
+  opacity: 1;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 55%);
+  text-shadow: none;
 }
 
 .asiento.master .asiento-nombre {
-  border: none;
-  background: transparent;
-  color: #ffffff;
+  border-color: #e8c56a;
+  background: rgb(12 9 20 / 92%);
+  color: #f6e3b0;
 }
 
 .asiento-apodo {
@@ -353,9 +361,9 @@
 }
 
 .asiento.seleccionado .asiento-nombre {
-  border: none;
-  background: transparent;
-  color: #ffffff;
+  border-color: #e8c56a;
+  background: rgb(32 25 46 / 94%);
+  color: #f6e3b0;
 }
 
 .asiento.seleccionado .asiento-apodo {
@@ -726,7 +734,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   z-index: 24;
   transform: translate(-50%, -50%);
   display: flex;
-  gap: 14px;
+  gap: 22px;
 }
 
 .sala-dock.ajustable {
@@ -6179,6 +6187,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   position: absolute;
   bottom: calc(100% + 6px);
   left: 50%;
+  z-index: 20;
   width: 44px;
   height: 44px;
   color: #f6e3b0;
@@ -10038,4 +10047,1661 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 .mapa-panel input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* --------------------------------------------------------------- Botón Sol/Luna y Paloma inputs */
+
+.sala-tema-btn {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 26;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 2px solid #594b6b;
+  background: rgb(17 13 26 / 90%);
+  color: #f6e3b0;
+  box-shadow: 3px 3px 0 #090612;
+  backdrop-filter: blur(8px);
+}
+
+.sala-tema-btn:hover {
+  border-color: #e8c56a;
+  color: #ffe8a3;
+}
+
+.sala-tema-btn.claro {
+  background: rgb(255 248 236 / 90%);
+  border-color: #B8862B;
+  color: #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+.sala-tema-btn.claro:hover {
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  background: #FFF8EC;
+}
+
+.paloma-textarea,
+.paloma-monedas-input {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgb(232 197 106 / 35%);
+  background: rgb(10 8 16 / 85%);
+  color: #f5efe6;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.paloma-textarea {
+  resize: vertical;
+}
+
+.paloma-monedas-input {
+  width: 66px;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.paloma-monedas-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(232 197 106 / 22%);
+}
+
+.paloma-item-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 10%);
+}
+
+/* ===================================================================== */
+/* MODO CLARO ("Sala de estrategia bañada por el sol")                   */
+/* ===================================================================== */
+
+.dock-secreto-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #14101f;
+  border: 1.5px solid #c084fc;
+  color: #f3e8ff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 60%);
+  pointer-events: none;
+}
+
+.dock-secreto-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+html.modo-claro {
+  color-scheme: light;
+}
+
+html.modo-claro .sala-escena {
+  background: #EFE2CD;
+}
+
+html.modo-claro .sala-vineta {
+  background:
+    linear-gradient(to top,
+      rgb(247 239 226 / 92%) 0%,
+      rgb(247 239 226 / 52%) 7%,
+      rgb(247 239 226 / 14%) 14%,
+      transparent 22%),
+    radial-gradient(ellipse at 50% 54%,
+      transparent 56%,
+      rgb(60 40 90 / 16%) 100%);
+}
+
+/* 1 & 2 & 3 & 7. Paneles, barras, bordes dorados profundos, texto #2A1F3D/#6B5B85, sombras suaves */
+
+html.modo-claro .sala-barra,
+html.modo-claro .sala-chat,
+html.modo-claro .hud-divisa-caja,
+html.modo-claro .hud-mochila-btn,
+html.modo-claro .hud-hucha-btn,
+html.modo-claro .hud-enviar-btn,
+html.modo-claro .divisa-popover,
+html.modo-claro .dados-selector,
+html.modo-claro .dados-compuesta-modal,
+html.modo-claro .macros-popover,
+html.modo-claro .macros-modal,
+html.modo-claro .mochila-modal,
+html.modo-claro .sala-musica-popover,
+html.modo-claro .tirada-panel,
+html.modo-claro .solicitud-popup,
+html.modo-claro .master-panel-modal,
+html.modo-claro .master-resumen-popover,
+html.modo-claro .mapa-barra-flotante,
+html.modo-claro .mapa-iniciativa-cabecera,
+html.modo-claro .mapa-iniciativa-editor,
+html.modo-claro .mapa-turno-panel,
+html.modo-claro .mapa-tokens-dock,
+html.modo-claro .mapa-panel,
+html.modo-claro .mapa-limbo,
+html.modo-claro .mapa-token-barra,
+html.modo-claro .pizarra-sidebar,
+html.modo-claro .archivador-barra,
+html.modo-claro .archivador-visor-caja {
+  background: rgb(255 248 236 / 88%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .divisa-popover,
+html.modo-claro .dados-selector,
+html.modo-claro .dados-compuesta-modal,
+html.modo-claro .macros-popover,
+html.modo-claro .macros-modal,
+html.modo-claro .mochila-modal,
+html.modo-claro .sala-musica-popover,
+html.modo-claro .master-panel-modal,
+html.modo-claro .master-resumen-popover,
+html.modo-claro .mapa-panel,
+html.modo-claro .mapa-iniciativa-editor,
+html.modo-claro .archivador-visor-caja {
+  background: rgb(255 248 236 / 95%);
+}
+
+html.modo-claro .sala-barra.sala-barra-master,
+html.modo-claro .archivador-barra-master {
+  border-color: #A8741A;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-titulo-visible,
+html.modo-claro .hud-divisa-titulo,
+html.modo-claro .hud-divisa-label,
+html.modo-claro .hud-master-label,
+html.modo-claro .dados-selector-cabecera,
+html.modo-claro .dados-campo-etiqueta,
+html.modo-claro .macros-selector,
+html.modo-claro .macro-nombre,
+html.modo-claro .chat-titulo,
+html.modo-claro .chat-msg-texto,
+html.modo-claro .sala-musica-popover-titulo,
+html.modo-claro .mapa-panel-titulo,
+html.modo-claro .mapa-panel-subtitulo,
+html.modo-claro .mapa-panel-etiqueta,
+html.modo-claro .mapa-campo-fila-lbl,
+html.modo-claro .mapa-token-colores-etiqueta,
+html.modo-claro .mapa-limbo-titulo,
+html.modo-claro .mapa-token-barra-nombre,
+html.modo-claro .archivador-titulo,
+html.modo-claro .archivador-seccion-cabecera h2,
+html.modo-claro .archivador-archivo-nombre {
+  color: #2A1F3D;
+}
+
+html.modo-claro .muted,
+html.modo-claro .chat-msg-hora,
+html.modo-claro .chat-filtro-sep,
+html.modo-claro .macros-vacio,
+html.modo-claro .sala-musica-vacia,
+html.modo-claro .sala-musica-pista-indice,
+html.modo-claro .mapa-panel-vacio,
+html.modo-claro .mapa-limbo-vacio,
+html.modo-claro .mapa-ayuda-controles,
+html.modo-claro .archivador-archivo-peso,
+html.modo-claro .archivador-vacio,
+html.modo-claro .pizarra-sidebar-meta,
+html.modo-claro .pizarra-sidebar-vacio,
+html.modo-claro .tirada-etiqueta,
+html.modo-claro .tirada-desglose {
+  color: #6B5B85;
+}
+
+html.modo-claro .hud-divisa-valor {
+  color: #7A4F0C;
+}
+
+html.modo-claro .hud-hucha-label {
+  color: #8A5A10;
+  font-weight: 800;
+}
+
+html.modo-claro .mapa-iniciativa-ronda,
+html.modo-claro .mapa-iniciativa-valor,
+html.modo-claro .sala-musica-volumen-valor {
+  color: #A8741A;
+}
+
+/* Botones de la barra y controles internos */
+
+html.modo-claro .sala-btn,
+html.modo-claro .chat-compartir-btn,
+html.modo-claro .chat-plegar-btn,
+html.modo-claro .dados-cerrar,
+html.modo-claro .dados-visibilidad-tab,
+html.modo-claro .dado-tipo-btn,
+html.modo-claro .dados-stepper button,
+html.modo-claro .dados-agregar-grupo,
+html.modo-claro .dados-compuesta-toggle,
+html.modo-claro .divisa-atajo-btn,
+html.modo-claro .divisa-emoji-btn,
+html.modo-claro .hud-divisa-paso,
+html.modo-claro .mochila-destino-chip,
+html.modo-claro .macro-accion-btn,
+html.modo-claro .macros-crear-btn,
+html.modo-claro .sala-musica-mini-btn,
+html.modo-claro .sala-musica-ctrl-btn,
+html.modo-claro .sala-musica-pista,
+html.modo-claro .sala-musica-subir-btn,
+html.modo-claro .mapa-barra-flotante .pizarra-btn,
+html.modo-claro .mapa-barra-flotante .pizarra-tool-btn,
+html.modo-claro .mapa-tokens-dock .pizarra-tool-btn,
+html.modo-claro .mapa-ini-btn,
+html.modo-claro .mapa-zoom-btn,
+html.modo-claro .mapa-preset-btn,
+html.modo-claro .mapa-archivo-chip,
+html.modo-claro .mapa-panel-tab,
+html.modo-claro .mapa-bandeja-filtro-btn,
+html.modo-claro .mapa-panel-cerrar,
+html.modo-claro .mapa-token-tipo-btn,
+html.modo-claro .mapa-token-subir,
+html.modo-claro .mapa-btn-sec,
+html.modo-claro .pizarra-tool-btn,
+html.modo-claro .pizarra-grosor-btn,
+html.modo-claro .pizarra-sidebar-toggle,
+html.modo-claro .archivador-btn {
+  background: rgb(255 253 248 / 92%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 2px 6px rgb(60 40 90 / 12%);
+}
+
+html.modo-claro .sala-btn.sala-tema-btn {
+  border: 2px solid #B8862B;
+  background: rgb(255 248 236 / 92%);
+  color: #8A5A10;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-btn.sala-tema-btn:hover {
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  background: #FFF8EC;
+}
+
+html.modo-claro .sala-btn:hover:not(:disabled),
+html.modo-claro .chat-compartir-btn:hover,
+html.modo-claro .dados-visibilidad-tab:hover,
+html.modo-claro .dado-tipo-btn:hover,
+html.modo-claro .dados-stepper button:hover,
+html.modo-claro .divisa-atajo-btn:hover,
+html.modo-claro .hud-divisa-paso:hover,
+html.modo-claro .mochila-destino-chip:hover,
+html.modo-claro .macro-accion-btn:hover,
+html.modo-claro .macros-crear-btn:hover,
+html.modo-claro .sala-musica-mini-btn:hover,
+html.modo-claro .sala-musica-ctrl-btn:hover:not(:disabled),
+html.modo-claro .sala-musica-pista:hover,
+html.modo-claro .mapa-barra-flotante .pizarra-btn:hover:not(:disabled),
+html.modo-claro .mapa-barra-flotante .pizarra-tool-btn:hover:not(:disabled),
+html.modo-claro .mapa-tokens-dock .pizarra-tool-btn:hover:not(:disabled),
+html.modo-claro .mapa-ini-btn:hover,
+html.modo-claro .mapa-zoom-btn:hover,
+html.modo-claro .mapa-preset-btn:hover,
+html.modo-claro .mapa-archivo-chip:hover,
+html.modo-claro .mapa-panel-tab:hover,
+html.modo-claro .mapa-bandeja-filtro-btn:hover,
+html.modo-claro .mapa-btn-sec:hover,
+html.modo-claro .pizarra-tool-btn:hover:not(:disabled),
+html.modo-claro .archivador-btn:hover:not(:disabled) {
+  border-color: #7C5CBF;
+  background: rgb(124 92 191 / 14%);
+  color: #2A1F3D;
+}
+
+/* 4. Acento de marca / estados activos (#E2A93B con texto #2A1F3D) */
+
+html.modo-claro .master-pill-badge,
+html.modo-claro .sala-btn.activo,
+html.modo-claro .chat-compartir-btn.activo,
+html.modo-claro .dados-visibilidad-tab.activo,
+html.modo-claro .dado-tipo-btn.activo,
+html.modo-claro .dados-compuesta-toggle.activo,
+html.modo-claro .mochila-destino-chip.activo,
+html.modo-claro .hud-mochila-btn.activo,
+html.modo-claro .hud-hucha-btn.activo,
+html.modo-claro .hud-master-cuadro.activo,
+html.modo-claro .hud-divisa-centro.activo,
+html.modo-claro .sala-btn-disco.reproduciendo,
+html.modo-claro .sala-musica-pista.activa,
+html.modo-claro .mapa-barra-flotante .pizarra-tool-btn.activo,
+html.modo-claro .mapa-tokens-dock .pizarra-tool-btn.activo,
+html.modo-claro .mapa-ini-btn.activo,
+html.modo-claro .mapa-ini-btn-sig,
+html.modo-claro .mapa-candado-btn.activo,
+html.modo-claro .mapa-preset-btn.activo,
+html.modo-claro .mapa-archivo-chip.activo,
+html.modo-claro .mapa-panel-tab.activo,
+html.modo-claro .mapa-bandeja-filtro-btn.activo,
+html.modo-claro .mapa-toggle-fila.activo,
+html.modo-claro .pizarra-tool-btn.activo,
+html.modo-claro .pizarra-grosor-btn.activo,
+html.modo-claro .dados-lanzar,
+html.modo-claro .master-btn-dorado,
+html.modo-claro .mapa-btn-primario,
+html.modo-claro .mapa-btn-confirmar,
+html.modo-claro .archivador-btn-subir,
+html.modo-claro .archivador-accion-principal {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .dados-lanzar:hover:not(:disabled),
+html.modo-claro .mapa-btn-primario:hover,
+html.modo-claro .archivador-btn-subir:hover:not(:disabled) {
+  background: #D49724;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+}
+
+/* 5. Banner / acentos azul-violeta (#5B6BBF) */
+
+html.modo-claro .mapa-barra-flotante .pizarra-btn.mapa-btn-volver,
+html.modo-claro .chat-enviar-btn,
+html.modo-claro .sala-musica-ctrl-btn.activo,
+html.modo-claro .dados-visibilidad-tab.secreta.activo,
+html.modo-claro .dados-lanzar.secreta {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .mapa-barra-flotante .pizarra-btn.mapa-btn-volver:hover:not(:disabled),
+html.modo-claro .chat-enviar-btn:hover:not(:disabled) {
+  background: #4B5BB0;
+  border-color: #2A1F3D;
+  color: #FFF8EC;
+}
+
+html.modo-claro .hud-enviar-btn {
+  border: 2px solid #8E96A8;
+  background: #D8DCE6;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .hud-enviar-btn svg {
+  color: #2A1F3D;
+}
+
+html.modo-claro .hud-enviar-btn:hover,
+html.modo-claro .hud-enviar-btn.activo {
+  background: #C8CEDC;
+  border-color: #5B6BBF;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .hud-enviar-btn:hover svg,
+html.modo-claro .hud-enviar-btn.activo svg {
+  color: #2A1F3D;
+}
+
+/* Chat e Inputs en modo claro */
+
+html.modo-claro .sala-chat,
+html.modo-claro .sala-chat.en-mapa,
+html.modo-claro .chat-sala.en-mapa,
+html.modo-claro .chat-en-mapa .sala-chat {
+  background: rgb(255 248 236 / 52%);
+  backdrop-filter: blur(5px);
+  border-color: rgb(184 134 43 / 75%);
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 18%);
+}
+
+html.modo-claro .chat-cabecera,
+html.modo-claro .sala-chat.en-mapa .chat-cabecera,
+html.modo-claro .chat-sala.en-mapa .chat-cabecera,
+html.modo-claro .chat-en-mapa .chat-cabecera {
+  background: rgb(255 248 236 / 38%);
+  border-bottom-color: rgb(184 134 43 / 32%);
+}
+
+html.modo-claro .chat-mensajes,
+html.modo-claro .sala-chat.en-mapa .chat-mensajes,
+html.modo-claro .chat-sala.en-mapa .chat-mensajes,
+html.modo-claro .chat-en-mapa .chat-mensajes {
+  background: transparent;
+}
+
+html.modo-claro .chat-pie,
+html.modo-claro .sala-chat.en-mapa .chat-pie,
+html.modo-claro .chat-sala.en-mapa .chat-pie,
+html.modo-claro .chat-en-mapa .chat-pie {
+  background: rgb(255 248 236 / 35%);
+  border-top-color: rgb(184 134 43 / 32%);
+}
+
+html.modo-claro .chat-msg,
+html.modo-claro .sala-chat.en-mapa .chat-msg,
+html.modo-claro .chat-sala.en-mapa .chat-msg,
+html.modo-claro .chat-en-mapa .chat-msg {
+  background: rgb(255 253 248 / 42%);
+}
+
+html.modo-claro .chat-vacio {
+  color: #6B5B85;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-titulo,
+html.modo-claro .chat-sala.en-mapa .chat-titulo,
+html.modo-claro .chat-en-mapa .chat-titulo,
+html.modo-claro .sala-chat.en-mapa .chat-msg-texto,
+html.modo-claro .chat-sala.en-mapa .chat-msg-texto,
+html.modo-claro .chat-en-mapa .chat-msg-texto {
+  color: #2A1F3D;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-msg-hora,
+html.modo-claro .chat-sala.en-mapa .chat-msg-hora,
+html.modo-claro .chat-en-mapa .chat-msg-hora {
+  color: #6B5B85;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-compartir-btn,
+html.modo-claro .sala-chat.en-mapa .chat-plegar-btn,
+html.modo-claro .chat-sala.en-mapa .chat-compartir-btn,
+html.modo-claro .chat-sala.en-mapa .chat-plegar-btn,
+html.modo-claro .chat-en-mapa .chat-compartir-btn,
+html.modo-claro .chat-en-mapa .chat-plegar-btn {
+  background: rgb(255 253 248 / 72%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-enviar-btn,
+html.modo-claro .chat-sala.en-mapa .chat-enviar-btn,
+html.modo-claro .chat-en-mapa .chat-enviar-btn {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .sala-chat.en-mapa .chat-menciones,
+html.modo-claro .chat-sala.en-mapa .chat-menciones,
+html.modo-claro .chat-en-mapa .chat-menciones {
+  background: rgb(255 248 236 / 94%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-destinatario-chip,
+html.modo-claro .sala-chat.en-mapa .chat-destinatario-chip,
+html.modo-claro .chat-sala.en-mapa .chat-destinatario-chip,
+html.modo-claro .chat-en-mapa .chat-destinatario-chip {
+  background: rgb(226 169 59 / 24%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-msg-autor,
+html.modo-claro .chat-en-mapa .chat-msg-autor {
+  color: #8A5A10;
+  font-weight: 700;
+}
+
+html.modo-claro .chat-msg-privado-etiqueta,
+html.modo-claro .sala-chat.en-mapa .chat-msg-privado-etiqueta,
+html.modo-claro .chat-sala.en-mapa .chat-msg-privado-etiqueta,
+html.modo-claro .chat-en-mapa .chat-msg-privado-etiqueta {
+  color: #5B6BBF;
+  font-weight: 700;
+}
+
+html.modo-claro .chat-filtro-btn,
+html.modo-claro .sala-chat.en-mapa .chat-filtro-btn,
+html.modo-claro .chat-sala.en-mapa .chat-filtro-btn,
+html.modo-claro .chat-en-mapa .chat-filtro-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: #6B5B85;
+  padding: 3px 6px;
+}
+
+html.modo-claro .chat-filtro-btn:hover,
+html.modo-claro .sala-chat.en-mapa .chat-filtro-btn:hover,
+html.modo-claro .chat-sala.en-mapa .chat-filtro-btn:hover,
+html.modo-claro .chat-en-mapa .chat-filtro-btn:hover {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #7C5CBF;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-filtro-btn.activo,
+html.modo-claro .sala-chat.en-mapa .chat-filtro-btn.activo,
+html.modo-claro .chat-sala.en-mapa .chat-filtro-btn.activo,
+html.modo-claro .chat-en-mapa .chat-filtro-btn.activo {
+  background: rgb(226 169 59 / 22%);
+  border: none;
+  border-bottom: 2.5px solid #B8862B;
+  border-radius: 4px 4px 0 0;
+  box-shadow: none;
+  color: #2A1F3D;
+  font-weight: 800;
+}
+
+html.modo-claro .hud-divisa-centro {
+  background: #FFF8EC;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-msg.sistema {
+  background: rgb(91 107 191 / 12%);
+  border-color: rgb(91 107 191 / 35%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-msg.privado {
+  background: rgb(226 169 59 / 18%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-stepper input,
+html.modo-claro .divisa-custom-form input,
+html.modo-claro .mochila-modal input,
+html.modo-claro .mochila-modal textarea,
+html.modo-claro .macros-buscador,
+html.modo-claro .macro-campo-nombre input,
+html.modo-claro .paloma-textarea,
+html.modo-claro .paloma-monedas-input,
+html.modo-claro .mapa-campo input,
+html.modo-claro .mapa-campo select,
+html.modo-claro .mapa-iniciativa-input,
+html.modo-claro .mapa-bandeja-cat-input,
+html.modo-claro .archivador-input,
+html.modo-claro .sala-apodo-input {
+  background: rgb(255 253 248 / 96%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-input,
+html.modo-claro .sala-chat.en-mapa .chat-input,
+html.modo-claro .chat-sala.en-mapa .chat-input,
+html.modo-claro .chat-en-mapa .chat-input {
+  background: rgb(255 253 248 / 68%);
+  border-color: rgb(142 124 195 / 65%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .chat-input::placeholder,
+html.modo-claro .paloma-textarea::placeholder,
+html.modo-claro .mapa-campo input::placeholder,
+html.modo-claro .archivador-input::placeholder {
+  color: #6B5B85;
+  opacity: 0.85;
+}
+
+html.modo-claro .paloma-monedas-caja,
+html.modo-claro .paloma-item-fila {
+  background: rgb(238 232 250 / 55%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+/* 6. Iconos de la barra inferior (Dados, Macros, Posits, Archivador, Secreto) */
+
+html.modo-claro .dock-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #3B2A6B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .dock-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 30%);
+}
+
+html.modo-claro .dock-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .dock-btn.dock-btn-master {
+  background: #FFF3D6;
+  border-color: #B8862B;
+  color: #5B3E0B;
+}
+
+html.modo-claro .dock-btn.dock-btn-master:hover,
+html.modo-claro .dock-btn.dock-btn-master.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dock-btn.dock-btn-secreto {
+  background: #E3DCF7;
+  border: 2.5px solid #4A3B7C;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dock-btn.dock-btn-secreto:hover,
+html.modo-claro .dock-btn.dock-btn-secreto.activo {
+  background: #5B6BBF;
+  border-color: #2A1F3D;
+  color: #FFF8EC;
+}
+
+html.modo-claro .dock-secreto-badge {
+  background: #FFF8EC;
+  border-color: #4A3B7C;
+  color: #3B2A6B;
+  box-shadow: 0 2px 6px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .dock-etiqueta {
+  background: #FFF8EC;
+  border: 1.5px solid #B8862B;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.64rem;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 22%);
+}
+
+/* 8. Dados rápidos */
+
+html.modo-claro .dados-rapidos-titulo {
+  color: #2A1F3D;
+  background: rgb(226 222 242 / 92%);
+  border: 1.5px solid #8E7CC3;
+  border-radius: 8px;
+  padding: 3px 8px;
+  text-shadow: none;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .dados-rapidos {
+  background: rgb(226 222 242 / 92%);
+  backdrop-filter: blur(8px);
+  border: 2px solid #8E7CC3;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .dado-rapido-btn {
+  background: #F6F4FC;
+  border-color: var(--dado-color);
+  color: var(--dado-color);
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .dado-rapido-btn:hover:not(:disabled) {
+  background: #FFFFFF;
+  border-color: #7C5CBF;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 30%);
+}
+
+/* 9. Chips de nombre y apodos sobre madera / mapa */
+
+html.modo-claro .asiento-nombre,
+html.modo-claro .asiento.master .asiento-nombre,
+html.modo-claro .asiento.seleccionado .asiento-nombre {
+  padding: 3px 10px;
+  border: 1.5px solid #B8862B;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  color: #2A1F3D;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-shadow: none;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .asiento-apodo {
+  background: #FFF8EC;
+  border-color: color-mix(in srgb, var(--color-jugador) 72%, #B8862B);
+  color: #2A1F3D;
+  text-shadow: none;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .sala-apodo-texto {
+  color: #2A1F3D;
+  text-shadow: 0 1px 0 #FFF8EC, 0 0 8px rgb(255 248 236 / 95%);
+}
+
+html.modo-claro .sala-apodo-editar-btn {
+  color: #2A1F3D;
+}
+
+html.modo-claro .asiento-d20-suma {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 25%);
+}
+
+/* Mapa: fondo pergamino cálido, jugadores e iniciativa */
+
+html.modo-claro .mapa-page {
+  background: radial-gradient(ellipse at 50% 30%, #FFF8EC 0%, #EFE2CD 68%, #DFCEB4 100%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-jugadores-titulo-svg text {
+  fill: #2A1F3D;
+  filter: drop-shadow(0 1px 0 #FFF8EC) drop-shadow(0 2px 6px rgb(60 40 90 / 25%));
+}
+
+html.modo-claro .mapa-jugador-ficha {
+  background: #FFF8EC;
+  border: 1.5px solid #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .mapa-jugador-nombre {
+  background: #FFF8EC;
+  border-color: color-mix(in srgb, var(--jugador-color) 65%, #B8862B);
+  color: #2A1F3D;
+  box-shadow: none;
+}
+
+html.modo-claro .mapa-jugador-tirada {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .mapa-iniciativa-chip {
+  background: #FFF8EC;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-iniciativa-chip.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 24%);
+}
+
+html.modo-claro .mapa-limbo-token-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-plantilla-card,
+html.modo-claro .mapa-plantilla-invocar {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+/* Música timer, avisos, pizarra y archivador */
+
+html.modo-claro .sala-musica-estado {
+  background: rgb(255 248 236 / 90%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .sala-musica-estado.bucle {
+  background: transparent;
+  border: 1.5px solid #B8862B;
+  color: #8A5A10;
+}
+
+html.modo-claro .pizarra-page.vista-escena .pizarra-barra {
+  background: linear-gradient(180deg, #FFF8EC 0%, #EFE2CD 100%);
+  border-bottom-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-lienzo.vista-escena {
+  background: radial-gradient(ellipse at 50% 35%, #E8EFFC 0%, #FFF8EC 72%, #EFE2CD 100%);
+}
+
+html.modo-claro .archivador-page {
+  background: radial-gradient(ellipse at 50% 25%, #FFF8EC 0%, #EFE2CD 100%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .archivador-card,
+html.modo-claro .pizarra-sidebar-item {
+  background: rgb(255 248 236 / 92%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .sala-aviso,
+html.modo-claro .sala-aviso-ok {
+  background: #FFF8EC;
+  border-color: #5B6BBF;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .hud-master-cuadro {
+  background: rgb(255 248 236 / 88%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .hud-master-cuadro:hover {
+  border-color: #7C5CBF;
+  background: #FFF8EC;
+}
+
+html.modo-claro .hud-master-cuadro.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn,
+html.modo-claro .archivador-visor .master-accion-btn,
+html.modo-claro .pizarra-page .master-accion-btn,
+html.modo-claro .master-imagen-card,
+html.modo-claro .master-divisa-item,
+html.modo-claro .master-actualizar-btn {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-accion-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-divisa-jugador {
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-divisa-monto {
+  color: #A8741A;
+}
+
+html.modo-claro .divisa-atajo-btn.suma,
+html.modo-claro .divisa-emoji-btn.suma {
+  border-color: #1E9E78;
+  color: #156E52;
+  background: rgb(30 158 120 / 12%);
+}
+
+html.modo-claro .divisa-atajo-btn.resta,
+html.modo-claro .divisa-emoji-btn.resta {
+  border-color: #C94A5A;
+  color: #9E2A38;
+  background: rgb(201 74 90 / 12%);
+}
+
+html.modo-claro .divisa-atajo-btn.suma:hover,
+html.modo-claro .divisa-emoji-btn.suma:hover,
+html.modo-claro .divisa-atajo-btn.resta:hover,
+html.modo-claro .divisa-emoji-btn.resta:hover {
+  border-color: #7C5CBF;
+}
+
+/* Tipografía nítida en títulos pixelados y badge legible de Almacén */
+
+html.modo-claro .sala-titulo-visible {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+html.modo-claro .mapa-limbo-titulo {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+html.modo-claro .mapa-bandeja-badge {
+  background: #E2A93B;
+  border: 1.5px solid #A8741A;
+  color: #1E1430;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+html.modo-claro .mapa-btn-almacen.activo .mapa-bandeja-badge {
+  background: #FFF8EC;
+  border-color: #7A4F0C;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-bandeja-cat-badge {
+  background: rgb(226 169 59 / 22%);
+  border-color: #B8862B;
+  color: #7A4F0C;
+}
+
+html.modo-claro .dock-badge {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+html.modo-claro .posit textarea,
+html.modo-claro .mesa-visor-posit-editor {
+  background: transparent;
+  border: none;
+  color: inherit;
+  box-shadow: none;
+}
+
+/* Macros y selector de dados en modo claro */
+
+html.modo-claro .dados-secreto-toggle {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #2A1F3D;
+  font-weight: 700;
+}
+
+html.modo-claro .dados-secreto-toggle:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .dados-secreto-toggle.activo {
+  background: #5B6BBF;
+  border-color: #3E4C99;
+  color: #FFF8EC;
+}
+
+html.modo-claro .dados-secreto-toggle.luna {
+  background: #FCEAD8;
+  border: 1.5px solid #D9791B;
+  color: #6E3208;
+  font-weight: 700;
+}
+
+html.modo-claro .dados-secreto-toggle.luna:hover {
+  background: #F8DCC0;
+  border-color: #B55B0C;
+  color: #4A1F02;
+}
+
+html.modo-claro .dados-secreto-toggle.luna.activo {
+  background: #D9791B;
+  border-color: #9A4E0B;
+  color: #FFF8EC;
+  box-shadow: 0 3px 10px rgb(154 78 11 / 28%);
+}
+
+html.modo-claro .dados-secreto-punto {
+  background: #8E7CC3;
+  border-color: #4A3570;
+}
+
+html.modo-claro .dados-secreto-toggle.activo .dados-secreto-punto {
+  background: #FFF8EC;
+  border-color: #FFF8EC;
+  box-shadow: none;
+}
+
+html.modo-claro .macro-fila {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 1.5px solid #B8862B;
+  box-shadow: 0 2px 8px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .macro-fila:hover {
+  background: linear-gradient(180deg, #FBECC2 0%, #F0D696 100%);
+  border-color: #8A5A10;
+}
+
+html.modo-claro .macro-lanzar-btn {
+  background: transparent;
+  border: none;
+  color: #1E1430;
+  box-shadow: none;
+}
+
+html.modo-claro .macro-icono-badge {
+  background: #FFF9EA;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .macro-nombre {
+  color: #1E1430;
+  font-weight: 800;
+}
+
+html.modo-claro .macro-formula {
+  color: #3D2E54;
+  font-weight: 700;
+}
+
+html.modo-claro .macro-accion-btn {
+  background: #FFF9EA;
+  border: 1px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .macro-accion-btn:hover {
+  background: #FFFDF8;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .macro-accion-btn.borrar:hover {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .macros-buscador {
+  background: #FFFDF8;
+  border: 1.5px solid #8E7CC3;
+  color: #534469;
+}
+
+html.modo-claro .macros-buscador input {
+  background: transparent;
+  border: none;
+  color: #2A1F3D;
+}
+
+html.modo-claro .macro-icono-opcion {
+  background: #EEE8FA;
+  border: 1px solid #8E7CC3;
+  color: #3B2A6B;
+}
+
+html.modo-claro .macro-icono-opcion:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .macro-icono-opcion.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .dados-grupo-card {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-selector.secreta,
+html.modo-claro .dados-selector.dados-selector-unificado.secreta {
+  background: rgb(255 248 236 / 95%);
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .dados-visibilidad-tabs {
+  background: #DCE0EA;
+  border: 1.5px solid #9AA2B4;
+}
+
+html.modo-claro .dados-formula-barra {
+  background: #DCE0EA;
+  border: 1.5px solid #9AA2B4;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-compuesta-item {
+  background: #E4E7F0;
+  border: 1.5px solid #9AA2B4;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-compuesta-item-controles button {
+  background: #F4F6FA;
+  border: 1px solid #9AA2B4;
+  color: #2A1F3D;
+}
+
+html.modo-claro .dados-compuesta-item-controles button:hover {
+  background: #FFFFFF;
+  border-color: #6E778A;
+  color: #1E1430;
+}
+
+html.modo-claro .dados-compuesta-item-controles button.quitar:hover {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .dados-formula-texto,
+html.modo-claro .dados-compuesta-item-dado {
+  color: #1E1430;
+}
+
+html.modo-claro .dado-tipo-cant {
+  color: #7A4F0C;
+}
+
+html.modo-claro .dados-secreta-aviso {
+  background: #EEE8FA;
+  border-color: #7C5CBF;
+  color: #3B2A6B;
+}
+
+/* Modal Revelación del Máster y Dirección de Escena en modo claro */
+
+html.modo-claro .proyeccion-master-overlay {
+  background: radial-gradient(ellipse at center,
+      rgb(255 248 236 / 72%) 0%,
+      rgb(60 40 90 / 42%) 100%);
+  backdrop-filter: blur(8px);
+}
+
+html.modo-claro .proyeccion-master-marco {
+  background: rgb(255 248 236 / 96%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 12px 36px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .proyeccion-master-sello {
+  color: #8A5A10;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+html.modo-claro .proyeccion-master-cerrar-x {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .proyeccion-master-cerrar-x:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .proyeccion-master-lienzo {
+  background: #F4EFE6;
+  border: 1.5px solid #B8862B;
+}
+
+html.modo-claro .proyeccion-master-titulo {
+  color: #1E1430;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+html.modo-claro .proyeccion-btn-secundario {
+  background: #EEE8FA;
+  border: 2px solid #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro .proyeccion-btn-secundario:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .proyeccion-reabrir-flotante {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .proyeccion-reabrir-flotante:hover {
+  background: #EEE8FA;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro .master-panel-titulo-wrap h2 {
+  color: #1E1430;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+html.modo-claro .master-panel-titulo-wrap p {
+  color: #3D2E54;
+  font-weight: 500;
+}
+
+html.modo-claro .master-estado-vacio,
+html.modo-claro .master-lista-vacia {
+  color: #534469;
+  border-color: #B8862B;
+}
+
+html.modo-claro .master-corona,
+html.modo-claro .master-estado-etiqueta {
+  color: #6E4508;
+  font-weight: 800;
+}
+
+html.modo-claro .master-estado-info strong {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .master-estado-caja {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-titulo-input {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-titulo-input::placeholder {
+  color: #534469;
+  opacity: 1;
+}
+
+html.modo-claro .master-imagen-card {
+  background: #FFFDF8;
+  border: 1.5px solid #B8862B;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .master-imagen-thumb {
+  background: #F4EFE6;
+  border: 1px solid rgb(184 134 43 / 40%);
+}
+
+html.modo-claro .master-imagen-nombre {
+  color: #1E1430;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn,
+html.modo-claro .archivador-visor .master-accion-btn,
+html.modo-claro .pizarra-page .master-accion-btn {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #2A1F3D;
+  font-weight: 700;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn:hover,
+html.modo-claro .archivador-visor .master-accion-btn:hover,
+html.modo-claro .pizarra-page .master-accion-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .master-panel-modal .master-accion-btn.activo,
+html.modo-claro .archivador-visor .master-accion-btn.activo,
+html.modo-claro .pizarra-page .master-accion-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+  font-weight: 800;
+}
+
+html.modo-claro .master-proyeccion-pill {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 18%);
+}
+
+html.modo-claro .master-pill-mini-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-pill-mini-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro .master-quitar-btn,
+html.modo-claro .master-pill-mini-btn.quitar {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .master-quitar-btn:hover,
+html.modo-claro .master-pill-mini-btn.quitar:hover {
+  background: #F7D4DC;
+}
+
+/* Rombos de macros en mesa y mapa en modo claro */
+
+html.modo-claro .mesa-macro-rombo-cuadro {
+  background: linear-gradient(135deg, #FFF6DC 0%, #F5DFA6 100%) !important;
+  border: 2px solid #B8862B;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 26%);
+}
+
+html.modo-claro .mesa-macro-rombo:hover .mesa-macro-rombo-cuadro {
+  border-color: #8A5A10;
+  box-shadow:
+    0 0 14px rgb(184 134 43 / 38%),
+    0 8px 18px rgb(60 40 90 / 32%);
+}
+
+html.modo-claro .mesa-macro-rombo-icono {
+  color: #2A1F3D;
+}
+
+html.modo-claro .mesa-macro-rombo-nombre {
+  background: #FFF6DC;
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+  box-shadow: 0 3px 8px rgb(60 40 90 / 22%);
+}
+
+/* Objetos en mesa, mapa, pizarra y mochila en modo claro */
+
+html.modo-claro .mesa-objeto-cuadro,
+html.modo-claro .mochila-slot,
+html.modo-claro .mochila-detalle-cuadro {
+  background: linear-gradient(135deg, #FFF6DC 0%, #F5DFA6 100%);
+  border: 2px solid #B8862B;
+  box-shadow: 0 6px 16px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .mochila-slot:hover,
+html.modo-claro .mesa-objeto:hover .mesa-objeto-cuadro {
+  background: linear-gradient(135deg, #FBECC2 0%, #F0D696 100%);
+  border-color: #8A5A10;
+}
+
+html.modo-claro .mesa-objeto-nombre {
+  background: #FFF6DC;
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+  box-shadow: 0 3px 8px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .pizarra-objeto-tarjeta {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 2px solid #B8862B;
+  color: #1E1430;
+  box-shadow: 0 8px 20px rgb(60 40 90 / 24%);
+}
+
+html.modo-claro .pizarra-objeto-tarjeta:hover {
+  border-color: #8A5A10;
+  box-shadow: 0 10px 24px rgb(60 40 90 / 30%);
+}
+
+html.modo-claro .pizarra-objeto-tarjeta-nombre,
+html.modo-claro .mochila-mesa-desc {
+  color: #1E1430;
+}
+
+html.modo-claro .paloma-item-fila {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+}
+
+/* Panel compartir al pulsar esfera (.compartir-panel) y transferencia en modo claro */
+
+html.modo-claro .compartir-panel,
+html.modo-claro .transferencia-dialogo {
+  background: rgb(255 248 236 / 95%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 8px 24px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .compartir-panel-titulo {
+  color: #111111;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+html.modo-claro .compartir-destino-pill {
+  background: #FFF6DC;
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+  font-weight: 600;
+}
+
+html.modo-claro .compartir-jugador-chip,
+html.modo-claro .compartir-btn-sec,
+html.modo-claro .transferencia-btn-rechazar {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #2A1F3D;
+  font-weight: 700;
+}
+
+html.modo-claro .compartir-jugador-chip:hover,
+html.modo-claro .compartir-btn-sec:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #1E1430;
+}
+
+html.modo-claro .transferencia-btn-rechazar:hover {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .transferencia-btn-aceptar {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .compartir-nuevo-posit input {
+  background: #FFFDF8;
+  border: 1.5px solid #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .compartir-nuevo-posit input::placeholder {
+  color: #534469;
+  opacity: 1;
+}
+
+html.modo-claro .compartir-dropzone {
+  background: #F6F2FC;
+  border: 2px dashed #8E7CC3;
+  color: #2A1F3D;
+  font-weight: 600;
+}
+
+html.modo-claro .compartir-dropzone:hover,
+html.modo-claro .compartir-dropzone.sobre {
+  background: #FFF6DC;
+  border-color: #B8862B;
+  color: #1E1430;
+}
+
+html.modo-claro .compartir-subtitulo {
+  color: #3D2E54;
+  font-weight: 800;
+}
+
+html.modo-claro .compartir-item {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+}
+
+html.modo-claro .compartir-item-nombre,
+html.modo-claro .transferencia-texto {
+  color: #1E1430;
+  font-weight: 600;
+}
+
+html.modo-claro .mesa-elemento-badge {
+  background: #FFF9EA;
+  border: 1px solid #B8862B;
+  color: #6E4508;
+  font-weight: 800;
+}
+
+html.modo-claro .transferencia-preview-posit,
+html.modo-claro .arrastre-fantasma {
+  background: #FFF6DC;
+  border: 1.5px solid #B8862B;
+  color: #1E1430;
+}
+
+/* Cabecera de Tirada de dados (normal y secreta) en negro en modo claro */
+
+html.modo-claro .dados-selector-cabecera,
+html.modo-claro .dados-selector.secreta .dados-selector-cabecera {
+  color: #111111;
+}
+
+html.modo-claro .tirada-panel.secreta {
+  background: rgb(255 248 236 / 95%);
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .tirada-panel .tirada-num,
+html.modo-claro .tirada-panel.secreta .tirada-icono svg,
+html.modo-claro .tirada-panel.secreta .tirada-num {
+  color: #111111;
+  text-shadow: none;
+}
+
+/* Visor de objeto en mesa (.mochila-mesa-visor / .archivo-visor) en modo claro */
+
+html.modo-claro .archivo-visor-caja,
+html.modo-claro .archivo-visor-ventana.mochila-mesa-modal {
+  background: rgb(255 248 236 / 96%);
+  border: 2px solid #B8862B;
+  color: #111111;
+  box-shadow: 0 12px 32px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .archivo-visor-cabecera,
+html.modo-claro .archivo-visor-barra {
+  border-bottom: 1.5px solid rgb(184 134 43 / 45%);
+  background: rgb(255 246 220 / 70%);
+}
+
+html.modo-claro .archivo-visor-nombre,
+html.modo-claro .archivo-visor-titulo {
+  color: #111111;
+  font-weight: 800;
+}
+
+html.modo-claro .archivo-visor-descargar,
+html.modo-claro .mochila-mesa-visor .mochila-accion-sec,
+html.modo-claro .mochila-accion-sec {
+  background: linear-gradient(180deg, #FFF6DC 0%, #F6E4B5 100%);
+  border: 1.5px solid #B8862B;
+  color: #111111;
+  font-weight: 700;
+}
+
+html.modo-claro .archivo-visor-descargar:hover,
+html.modo-claro .mochila-mesa-visor .mochila-accion-sec:hover,
+html.modo-claro .mochila-accion-sec:hover {
+  background: linear-gradient(180deg, #F9E8BA 0%, #EED394 100%);
+  border-color: #8A5A10;
+  color: #111111;
+}
+
+html.modo-claro .archivo-visor-cerrar {
+  background: #EEE8FA;
+  border: 1.5px solid #8E7CC3;
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .archivo-visor-cerrar:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .mochila-mesa-visor .transferencia-btn-rechazar {
+  background: #FCE8EC;
+  border: 1.5px solid #C94A5A;
+  color: #701320;
+  font-weight: 700;
+}
+
+html.modo-claro .mochila-mesa-visor .transferencia-btn-rechazar:hover {
+  background: #F7D4DC;
+  border-color: #A83242;
+  color: #4A0A13;
+}
+
+html.modo-claro .archivo-visor-marco {
+  background: #FAF3E6;
+  color: #111111;
 }

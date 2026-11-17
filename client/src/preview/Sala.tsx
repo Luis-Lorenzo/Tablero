@@ -20,6 +20,7 @@ import {
   Search,
   Shuffle,
   Sparkles,
+  Sun,
   Trash2,
   Upload,
   Users,
@@ -47,7 +48,14 @@ import {
   nuevoIdElemento,
   tipoCortoArchivo
 } from "./compartir";
-import { CALIBRACION_INICIAL, COLORES_POSIT, FONDO_SALA } from "./datos";
+import {
+  alternarModoClaro,
+  CALIBRACION_INICIAL,
+  COLORES_POSIT,
+  FONDO_SALA,
+  FONDO_SALA_DIA,
+  obtenerModoClaro
+} from "./datos";
 import type { PublicJugadorResumenInventario } from "../api/types";
 import {
   cargarDivisaLocal,
@@ -345,11 +353,11 @@ const TIPOS_DADO = [4, 6, 8, 10, 12, 20, 100] as const;
 
 /** Dados rápidos en la esquina inferior izquierda (con su color distintivo). */
 const DADOS_RAPIDOS = [
-  { caras: 4, color: "#38d9a9", glow: "rgb(56 217 169 / 32%)" },
-  { caras: 6, color: "#4dabf7", glow: "rgb(77 171 247 / 32%)" },
-  { caras: 8, color: "#b197fc", glow: "rgb(177 151 252 / 34%)" },
-  { caras: 10, color: "#ffa94d", glow: "rgb(255 169 77 / 32%)" },
-  { caras: 20, color: "#e8c56a", glow: "rgb(232 197 106 / 34%)" }
+  { caras: 4, color: "#38d9a9", colorClaro: "#1E9E78", glow: "rgb(56 217 169 / 32%)" },
+  { caras: 6, color: "#4dabf7", colorClaro: "#2A7FD1", glow: "rgb(77 171 247 / 32%)" },
+  { caras: 8, color: "#b197fc", colorClaro: "#7A5CD6", glow: "rgb(177 151 252 / 34%)" },
+  { caras: 10, color: "#ffa94d", colorClaro: "#D9791B", glow: "rgb(255 169 77 / 32%)" },
+  { caras: 20, color: "#e8c56a", colorClaro: "#D9534F", glow: "rgb(232 197 106 / 34%)" }
 ] as const;
 
 interface GrupoDado {
@@ -913,6 +921,13 @@ export function Sala({
   const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
     cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
   );
+  const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
+
+  useEffect(() => {
+    const alCambiarTema = () => setModoClaro(obtenerModoClaro());
+    window.addEventListener("pocketrol:tema", alCambiarTema);
+    return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
+  }, []);
 
   function actualizarColorDado(nuevoColor: string): void {
     setColorDado(nuevoColor);
@@ -3100,7 +3115,7 @@ export function Sala({
         <div
           ref={plano}
           className={`sala-plano${ajuste ? " ajuste" : ""}`}
-          style={{ backgroundImage: `url(${FONDO_SALA})` }}
+          style={{ backgroundImage: `url(${modoClaro ? FONDO_SALA_DIA : FONDO_SALA})` }}
         >
           {ajuste ? (
             <div
@@ -3399,6 +3414,25 @@ export function Sala({
           onToggleCompartir={alternarCompartirDesdeChat}
         />
       )}
+
+          <button
+            type="button"
+            className={`sala-btn sala-tema-btn${modoClaro ? " claro" : ""}`}
+            onClick={() => setModoClaro(alternarModoClaro())}
+            title={
+              modoClaro
+                ? "Modo claro activo (pulsa para modo oscuro)"
+                : "Modo oscuro activo (pulsa para modo claro)"
+            }
+            aria-label={modoClaro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+            aria-pressed={modoClaro}
+          >
+            {modoClaro ? (
+              <Sun size={16} strokeWidth={2.2} aria-hidden="true" />
+            ) : (
+              <Moon size={16} strokeWidth={2.2} aria-hidden="true" />
+            )}
+          </button>
 
           <div className={`sala-barra${esMaster ? " sala-barra-master" : ""}`}>
             <div className="sala-barra-grupo">
@@ -4088,29 +4122,6 @@ export function Sala({
                 }}
                 aria-expanded={enviarPopoverAbierto}
                 title="Enviar objeto, nota o documento a otro jugador"
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  padding: "7px 12px",
-                  border: enviarPopoverAbierto
-                    ? "2px solid #e8c56a"
-                    : "2px solid rgb(232 197 106 / 45%)",
-                  borderRadius: 10,
-                  background: enviarPopoverAbierto
-                    ? "rgb(28 22 38 / 95%)"
-                    : "rgb(14 11 20 / 92%)",
-                  color: "#f3e6c8",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                  boxShadow: "2px 2px 0 #090612, 0 8px 22px rgb(0 0 0 / 55%)",
-                  cursor: "pointer"
-                }}
               >
                 <IconoPaloma size={20} />
                 <span>Enviar</span>
@@ -5111,11 +5122,15 @@ export function Sala({
                           height: "20px",
                           padding: 0,
                           borderRadius: "5px",
-                          border: tiradaSecreta
-                            ? "1.5px solid #c084fc"
-                            : "1.5px solid #e8c56a",
+                          border: modoClaro
+                            ? "1.5px solid #8E96A8"
+                            : tiradaSecreta
+                              ? "1.5px solid #c084fc"
+                              : "1.5px solid #e8c56a",
                           backgroundColor: colorDado,
-                          boxShadow: "1.5px 1.5px 0 #090612",
+                          boxShadow: modoClaro
+                            ? "0 2px 5px rgb(100 110 130 / 28%)"
+                            : "1.5px 1.5px 0 #090612",
                           cursor: "pointer",
                           overflow: "hidden"
                         }}
@@ -5147,8 +5162,10 @@ export function Sala({
                           padding: 0,
                           borderRadius: "5px",
                           border: `2.5px solid ${colorAristasDado}`,
-                          backgroundColor: "#14101f",
-                          boxShadow: "1.5px 1.5px 0 #090612",
+                          backgroundColor: modoClaro ? "#D8DCE6" : "#14101f",
+                          boxShadow: modoClaro
+                            ? "0 2px 5px rgb(100 110 130 / 28%)"
+                            : "1.5px 1.5px 0 #090612",
                           cursor: "pointer",
                           overflow: "hidden"
                         }}
@@ -6135,6 +6152,9 @@ export function Sala({
                   aria-label="Dados privados"
                 >
                   <IconoD20 />
+                  <span className="dock-secreto-badge" aria-hidden="true">
+                    <VenetianMask size={13} strokeWidth={2.4} />
+                  </span>
                 </button>
                 <span className="dock-etiqueta">Secreto</span>
               </div>
@@ -6227,8 +6247,8 @@ export function Sala({
                     className="dado-rapido-btn"
                     style={
                       {
-                        "--dado-color": dado.color,
-                        "--dado-glow": dado.glow
+                        "--dado-color": modoClaro ? dado.colorClaro : dado.color,
+                        "--dado-glow": modoClaro ? "rgb(60 40 90 / 24%)" : dado.glow
                       } as CSSProperties
                     }
                     onClick={() =>

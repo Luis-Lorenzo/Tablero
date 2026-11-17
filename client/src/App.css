@@ -2403,3 +2403,520 @@ tbody tr:hover {
   border-radius: 6px;
   box-shadow: 2px 2px 0 #120b20;
 }
+
+/* ===================================================================== */
+/* MODO CLARO PARA RECEPCIÓN, GESTIÓN, CUENTA Y MODALES (App.css)        */
+/* ===================================================================== */
+
+html.modo-claro .page {
+  background-color: #F7EFE2;
+  background-image:
+    linear-gradient(rgb(91 107 191 / 8%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(91 107 191 / 8%) 1px, transparent 1px),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(226 169 59 / 28%) 0%, transparent 65%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .card,
+html.modo-claro .panel-caja,
+html.modo-claro .mesa-card,
+html.modo-claro .modal-caja,
+html.modo-claro .cuenta-desplegable,
+html.modo-claro .archivos-panel,
+html.modo-claro .archivo-visor-caja {
+  background: rgb(255 248 236 / 90%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .topbar,
+html.modo-claro .topbar-nav {
+  background: rgb(255 248 236 / 90%);
+  backdrop-filter: blur(8px);
+  border-color: #B8862B;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .card h1,
+html.modo-claro .card h2 {
+  color: #2A1F3D;
+  text-shadow: 1px 1px 0 #FFF8EC;
+}
+
+html.modo-claro .muted,
+html.modo-claro .ayuda-campo,
+html.modo-claro .archivos-vacio,
+html.modo-claro .archivos-item-peso {
+  color: #534469;
+}
+
+html.modo-claro button.primary {
+  border-color: #A8741A;
+  background: #E2A93B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro button.primary:hover:not(:disabled) {
+  background: #D49724;
+  border-color: #7C5CBF;
+}
+
+html.modo-claro button.danger {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro button.danger:hover:not(:disabled) {
+  background: #F7D4DC;
+  border-color: #A83242;
+  color: #701320;
+}
+
+html.modo-claro button.ghost,
+html.modo-claro .tab,
+html.modo-claro .tab.moderar,
+html.modo-claro .cuenta-boton,
+html.modo-claro .panel-icono-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro button.ghost:hover:not(:disabled),
+html.modo-claro button.ghost:focus-visible:not(:disabled),
+html.modo-claro .tab:hover,
+html.modo-claro .tab:focus-visible,
+html.modo-claro .tab.moderar:hover,
+html.modo-claro .tab.moderar:focus-visible,
+html.modo-claro .cuenta-boton:hover,
+html.modo-claro .cuenta-boton:focus-visible,
+html.modo-claro .cuenta-boton.abierto {
+  border-color: #7C5CBF;
+  background: #E2D9F5;
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-chevron {
+  color: #5B4688;
+}
+
+html.modo-claro .archivo-pill.libro {
+  background: #F9EBC8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .archivo-pill.libro:hover:not(:disabled),
+html.modo-claro .archivo-pill.libro:focus-visible:not(:disabled) {
+  background: #F3DC9E;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+}
+
+html.modo-claro .archivo-pill.gafas {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .archivo-pill.gafas:hover,
+html.modo-claro .archivo-pill.gafas:focus-visible,
+html.modo-claro .archivo-pill.gafas.abierto {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+}
+
+html.modo-claro .tab.active,
+html.modo-claro .tab.moderar.activa,
+html.modo-claro .tab.moderar.activa:hover {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .escena-pixel-caja {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  box-shadow: none;
+}
+
+html.modo-claro .escena-pixel-barra {
+  border-top-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro input,
+html.modo-claro select,
+html.modo-claro textarea:not(.posit textarea):not(.mesa-visor-posit-editor) {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .archivos-item,
+html.modo-claro .archivo-rapido-link {
+  background: rgb(255 253 248 / 90%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .gestion-bloque {
+  background: transparent;
+  color: #2A1F3D;
+}
+
+.auth-page-rel {
+  position: relative;
+}
+
+.auth-tema-btn,
+.topbar-tema-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 10px;
+  border: 2px solid #594b6b;
+  background: rgb(23 20 32 / 90%);
+  color: #f6e3b0;
+  box-shadow: 3px 3px 0 #090612;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.auth-tema-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 30;
+}
+
+.auth-tema-btn:hover,
+.topbar-tema-btn:hover {
+  border-color: #e8c56a;
+  color: #ffe8a3;
+}
+
+html.modo-claro .auth-tema-btn,
+html.modo-claro .topbar-tema-btn {
+  background: rgb(255 248 236 / 92%);
+  border-color: #B8862B;
+  color: #8A5A10;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .auth-tema-btn:hover,
+html.modo-claro .topbar-tema-btn:hover {
+  border-color: #7C5CBF;
+  color: #2A1F3D;
+  background: #FFF8EC;
+}
+
+html.modo-claro .form label {
+  color: #2A1F3D;
+  font-weight: 600;
+}
+
+html.modo-claro .form input,
+html.modo-claro .input-con-icono input {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .form input::placeholder,
+html.modo-claro .input-con-icono input::placeholder {
+  color: #6B5B85;
+}
+
+html.modo-claro .form input:focus,
+html.modo-claro .input-con-icono input:focus {
+  border-color: #7C5CBF;
+  box-shadow: 0 0 0 3px rgb(124 92 191 / 20%);
+}
+
+html.modo-claro .input-icono,
+html.modo-claro .input-ojo,
+html.modo-claro .input-limpiar {
+  color: #6B5B85;
+}
+
+html.modo-claro .badge,
+html.modo-claro .panel-titulo-pixel,
+html.modo-claro .emblema-subtitulo,
+html.modo-claro .taberna-stat-num,
+html.modo-claro .cuenta-etiqueta,
+html.modo-claro .cuenta-nombre,
+html.modo-claro table,
+html.modo-claro th,
+html.modo-claro td {
+  color: #2A1F3D;
+}
+
+html.modo-claro .mesa-info,
+html.modo-claro .mesa-dato {
+  color: #2A1F3D;
+  font-weight: 500;
+}
+
+html.modo-claro .mesa-info strong {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .mesa-dato svg {
+  color: #5B4688;
+}
+
+html.modo-claro .mesa-card:not(.vacia):hover {
+  border-color: #7C5CBF;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .mesa-card.mia {
+  border-color: #A8741A;
+  box-shadow: 0 5px 16px rgb(168 116 26 / 26%);
+}
+
+html.modo-claro .mesa-card.mia:hover {
+  border-color: #7C5CBF;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 28%);
+}
+
+html.modo-claro .mesa-card.vacia {
+  background: rgb(255 248 236 / 62%);
+  border-color: rgb(184 134 43 / 45%);
+  box-shadow: none;
+}
+
+html.modo-claro .mesa-badge-estado.en-curso {
+  background: rgb(30 158 120 / 16%);
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
+html.modo-claro .mesa-botones {
+  border-top-color: rgb(184 134 43 / 24%);
+}
+
+html.modo-claro .badge {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+}
+
+html.modo-claro .mesa-pista,
+html.modo-claro .mesa-pista.dentro {
+  color: #4A3B63;
+}
+
+html.modo-claro .mesa-pista.unete {
+  color: #5B4688;
+}
+
+html.modo-claro .taberna-stat-label {
+  color: #534469;
+}
+
+html.modo-claro .mesa-etiqueta {
+  background: #FFF8EC;
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 3px 10px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .mesa-card.vacia .mesa-etiqueta {
+  background: #EFE4CE;
+  border-color: #A88D5B;
+  color: #4A3B63;
+}
+
+html.modo-claro .taberna-stat,
+html.modo-claro .clicker-visor,
+html.modo-claro .cesion-popup {
+  background: rgb(255 248 236 / 94%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 25%);
+}
+
+html.modo-claro .clicker-resultado {
+  color: #2A1F3D;
+  text-shadow: none;
+}
+
+html.modo-claro .clicker-resultado.critico {
+  color: #9E6800;
+  text-shadow: none;
+}
+
+html.modo-claro .clicker-resultado.pifia {
+  color: #B22D40;
+  text-shadow: none;
+}
+
+html.modo-claro .clicker-placeholder {
+  color: #534469;
+}
+
+html.modo-claro .clicker-contador {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #3B2A6B;
+}
+
+html.modo-claro .clicker-btn,
+html.modo-claro .clicker-dado-tag {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-desplegable button,
+html.modo-claro .archivos-item-abrir {
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-desplegable button:hover:not(:disabled),
+html.modo-claro .archivos-item-abrir:hover {
+  background: #EEE8FA;
+  color: #2A1F3D;
+}
+
+html.modo-claro .cuenta-desplegable button.salir {
+  color: #9E2A38;
+}
+
+html.modo-claro .cuenta-desplegable button.salir:hover {
+  background: #FCE8EC;
+  color: #8F1D2C;
+}
+
+html.modo-claro .archivos-panel-titulo {
+  color: #5B4688;
+}
+
+html.modo-claro .archivos-contador {
+  background: #EEE8FA;
+  color: #2A1F3D;
+}
+
+html.modo-claro .modal-descripcion {
+  color: #4A3B63;
+}
+
+html.modo-claro .clicker-btn:hover {
+  border-color: #7C5CBF;
+  background: #E2D9F5;
+}
+
+html.modo-claro .pill.on {
+  background: rgb(30 158 120 / 16%);
+  color: #156E52;
+}
+
+html.modo-claro .pill.off {
+  background: rgb(201 74 90 / 16%);
+  color: #9E2A38;
+}
+
+html.modo-claro .pill.pending {
+  background: rgb(226 169 59 / 22%);
+  color: #8A5A10;
+}
+
+html.modo-claro .pill.blocked {
+  background: rgb(217 121 27 / 18%);
+  color: #9A4E0B;
+}
+
+html.modo-claro .feedback.ok {
+  background: rgb(30 158 120 / 14%);
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
+html.modo-claro .feedback.ko {
+  background: rgb(201 74 90 / 14%);
+  border-color: #C94A5A;
+  color: #9E2A38;
+}
+
+html.modo-claro .feedback.aviso {
+  background: rgb(226 169 59 / 18%);
+  border-color: #B8862B;
+  color: #7A4F0C;
+}
+
+html.modo-claro .gestion-subtitulo {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .gestion-subtitulo svg {
+  color: #5B4688;
+}
+
+html.modo-claro .hexagono-grande text {
+  fill: #2A1F3D;
+}
+
+html.modo-claro .hexagono-grande.amarillo polygon {
+  stroke: #B8862B;
+  fill: rgb(226 169 59 / 14%);
+  filter: none;
+}
+
+html.modo-claro .hexagono-grande.rojo polygon {
+  stroke: #C94A5A;
+  fill: rgb(201 74 90 / 10%);
+  filter: none;
+}
+
+html.modo-claro .hexagono-grande.verde polygon {
+  stroke: #1E9E78;
+  fill: rgb(30 158 120 / 12%);
+  filter: none;
+}
+
+html.modo-claro .gestion-jugadores li {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .jugador-nombre {
+  color: #1E1430;
+  font-weight: 700;
+}
+
+html.modo-claro .jugador-yo {
+  color: #5B4688;
+}
+
+html.modo-claro .paleta-colores {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+}
+
+html.modo-claro .detail-item,
+html.modo-claro .cuenta-form {
+  background: #FFFDF8;
+  border-color: #B8862B;
+  color: #2A1F3D;
+}
+
+html.modo-claro .details dt {
+  color: #534469;
+}

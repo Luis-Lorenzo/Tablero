@@ -2,6 +2,57 @@ import type { Calibracion, JugadorPreview, PositPreview } from "./tipos";
 
 /** Fondo de la sala. Vive en `client/public/medios/tablero/fondos/`. */
 export const FONDO_SALA = "/medios/tablero/fondos/sala-default.png";
+export const FONDO_SALA_DIA = "/medios/tablero/fondos/sala-dia.png";
+
+export const CLAVE_TEMA_SALA = "pocketrol.tema";
+
+/** Lee si el modo claro está activo en `localStorage`. */
+export function obtenerModoClaro(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(CLAVE_TEMA_SALA) === "claro";
+  } catch {
+    return false;
+  }
+}
+
+/** Aplica o retira la clase `modo-claro` en `<html>` y `<body>`. */
+export function aplicarModoClaroDOM(claro: boolean): void {
+  if (typeof document === "undefined") return;
+  const raiz = document.documentElement;
+  const cuerpo = document.body;
+  raiz.classList.toggle("modo-claro", claro);
+  raiz.dataset.tema = claro ? "claro" : "oscuro";
+  if (cuerpo) {
+    cuerpo.classList.toggle("modo-claro", claro);
+    cuerpo.dataset.tema = claro ? "claro" : "oscuro";
+  }
+}
+
+/** Guarda el tema elegido y notifica a la aplicación. */
+export function guardarModoClaro(claro: boolean): void {
+  aplicarModoClaroDOM(claro);
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CLAVE_TEMA_SALA, claro ? "claro" : "oscuro");
+    window.dispatchEvent(
+      new CustomEvent("pocketrol:tema", { detail: { claro } })
+    );
+  } catch {
+    // Ignorar errores de almacenamiento en modo privado.
+  }
+}
+
+/** Alterna entre modo oscuro y modo claro y devuelve el nuevo estado. */
+export function alternarModoClaro(): boolean {
+  const siguiente = !obtenerModoClaro();
+  guardarModoClaro(siguiente);
+  return siguiente;
+}
+
+if (typeof window !== "undefined") {
+  aplicarModoClaroDOM(obtenerModoClaro());
+}
 
 /**
  * Paleta de posits acordada con el autor: blanco + cinco tonos.

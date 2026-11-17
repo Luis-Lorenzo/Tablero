@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
-import { Clock, Eye, EyeOff, Loader2, Lock, LogIn, Mail, UserPlus } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Clock, Eye, EyeOff, Loader2, Lock, LogIn, Mail, Moon, Sun, UserPlus } from "lucide-react";
+import { alternarModoClaro, obtenerModoClaro } from "../../preview/datos";
 import { authApi } from "../../api/auth.api";
 import type { PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -21,6 +22,13 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPendingNotice, setIsPendingNotice] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
+
+  useEffect(() => {
+    const alCambiarTema = () => setModoClaro(obtenerModoClaro());
+    window.addEventListener("pocketrol:tema", alCambiarTema);
+    return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,7 +70,17 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   }
 
   return (
-    <main className="page">
+    <main className="page auth-page-rel">
+      <button
+        type="button"
+        className={`auth-tema-btn${modoClaro ? " claro" : ""}`}
+        onClick={() => setModoClaro(alternarModoClaro())}
+        title={modoClaro ? "Modo claro activo (pulsa para modo oscuro)" : "Modo oscuro activo (pulsa para modo claro)"}
+        aria-label={modoClaro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+        aria-pressed={modoClaro}
+      >
+        {modoClaro ? <Sun size={16} strokeWidth={2.2} aria-hidden="true" /> : <Moon size={16} strokeWidth={2.2} aria-hidden="true" />}
+      </button>
       <div className="auth-contenedor">
         <div className="auth-logo-con-dados">
           <div className="auth-dados-lado" aria-hidden="true">

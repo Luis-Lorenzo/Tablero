@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListChecks, ShieldAlert } from "lucide-react";
+import { ListChecks, Moon, ShieldAlert, Sun } from "lucide-react";
 import "./App.css";
 import { authApi } from "./api/auth.api";
 import { ApiError } from "./api/client";
@@ -17,6 +17,7 @@ import { ArchivosMenu } from "./presentation/components/ArchivosMenu";
 import { PanelIzquierdo } from "./presentation/components/PanelIzquierdo";
 import { PanelDerecho } from "./presentation/components/PanelDerecho";
 import { useMesasLive } from "./presentation/hooks/useMesasLive";
+import { alternarModoClaro, aplicarModoClaroDOM, obtenerModoClaro } from "./preview/datos";
 
 type View = "recepcion" | "cuenta" | "moderar" | "gestion" | "sala";
 
@@ -66,6 +67,7 @@ function App() {
   const [salaMesa, setSalaMesa] = useState<PublicMesa | null>(null);
   /** Aviso mostrado en recepción tras un cierre de mesa o expulsión en caliente. */
   const [avisoSala, setAvisoSala] = useState<string | null>(null);
+  const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
   /** Mesa de la que el usuario salió manualmente para no forzarle a volver. */
   const salidaManualMesaIdRef = useRef<string | null>(null);
   const viewRef = useRef<View>(view);
@@ -78,6 +80,19 @@ function App() {
   useEffect(() => {
     salaMesaRef.current = salaMesa;
   }, [salaMesa]);
+
+  useEffect(() => {
+    const claro = obtenerModoClaro();
+    aplicarModoClaroDOM(claro);
+    setModoClaro(claro);
+    const alCambiarTema = () => {
+      const actual = obtenerModoClaro();
+      aplicarModoClaroDOM(actual);
+      setModoClaro(actual);
+    };
+    window.addEventListener("pocketrol:tema", alCambiarTema);
+    return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
+  }, []);
 
   useEffect(() => {
     authApi
@@ -246,6 +261,24 @@ function App() {
       <div className="workspace-contenedor">
         <header className="topbar-nav">
           <div className="topbar-izq">
+            <button
+              type="button"
+              className={`topbar-tema-btn${modoClaro ? " claro" : ""}`}
+              onClick={() => setModoClaro(alternarModoClaro())}
+              title={
+                modoClaro
+                  ? "Modo claro activo (pulsa para modo oscuro)"
+                  : "Modo oscuro activo (pulsa para modo claro)"
+              }
+              aria-label={modoClaro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+              aria-pressed={modoClaro}
+            >
+              {modoClaro ? (
+                <Sun size={16} strokeWidth={2.2} aria-hidden="true" />
+              ) : (
+                <Moon size={16} strokeWidth={2.2} aria-hidden="true" />
+              )}
+            </button>
             <ArchivosMenu />
           </div>
 
