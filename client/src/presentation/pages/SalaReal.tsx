@@ -287,6 +287,14 @@ function SalaRealContent({
   const audioSrcActualRef = useRef<string>("");
   const musicaAmbienteRef = useRef<MusicaAmbienteMesa>(musicaAmbiente);
   musicaAmbienteRef.current = musicaAmbiente;
+  /** Número de la última petición de música; descarta respuestas antiguas. */
+  const musicaPeticionRef = useRef(0);
+  /** Guardados de música en vuelo: evita pisar el estado optimista con un GET. */
+  const musicaPendientesRef = useRef(0);
+  const musicaActualizadaEnRef = useRef(0);
+  /** Evita avanzar dos veces por el mismo final de pista (ended duplicado). */
+  const transicionPistaRef = useRef(false);
+  const transicionPistaTimerRef = useRef<number | null>(null);
 
   const recepcionesRef = useRef(0);
   const positsPendientesEnvioRef = useRef<Map<string, string>>(new Map());
@@ -734,6 +742,11 @@ function SalaRealContent({
           | MusicaAmbienteMesa
           | undefined;
         if (siguiente) {
+          // El aviso en vivo es la fuente más reciente: invalida cualquier
+          // respuesta o recarga anterior que aún esté en vuelo.
+          musicaPeticionRef.current += 1;
+          musicaActualizadaEnRef.current = Date.now();
+          musicaAmbienteRef.current = siguiente;
           setMusicaAmbiente(siguiente);
         }
         return;
@@ -1170,9 +1183,17 @@ function SalaRealContent({
 
   useEffect(() => {
     const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
-    if (rem) {
-      setMusicaAmbiente(rem);
+    if (!rem) return;
+    // Una recarga de la mesa lanzada antes de nuestro último guardado puede
+    // llegar después con una pista antigua. Mientras hay guardados en vuelo (o
+    // justo después) no dejamos que ese GET pise el estado más reciente.
+    if (
+      musicaPendientesRef.current > 0 ||
+      Date.now() - musicaActualizadaEnRef.current < 1500
+    ) {
+      return;
     }
+    setMusicaAmbiente(rem);
   }, [mesa]);
 
   useEffect(() => {
@@ -1189,23 +1210,51 @@ function SalaRealContent({
   }, []);
 
   const actualizarMusica = useCallback(
-    async (siguiente: MusicaAmbienteMesa) => {
+    async (
+      siguiente: MusicaAmbienteMesa,
+      opciones?: { indiceEsperado?: number }
+    ) => {
       setMusicaAmbiente(siguiente);
+      // El ref se actualiza al momento para que un `ended` inmediato no lea el
+      // estado anterior y avance otra vez.
+      musicaAmbienteRef.current = siguiente;
+      const peticion = musicaPeticionRef.current + 1;
+      musicaPeticionRef.current = peticion;
+      musicaPendientesRef.current += 1;
       try {
         const api = mesasApi as unknown as {
-          actualizarMusica?: (id: string, musica: MusicaAmbienteMesa) => Promise<PublicMesa>;
+          actualizarMusica?: (
+            id: string,
+            musica: MusicaAmbienteMesa,
+            opciones?: { indiceEsperado?: number }
+          ) => Promise<PublicMesa>;
         };
         if (api.actualizarMusica) {
-          const actualizada = await api.actualizarMusica(mesa.id, siguiente);
+          const actualizada = await api.actualizarMusica(
+            mesa.id,
+            siguiente,
+            opciones
+          );
           const rem = (
             actualizada as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }
           ).musicaAmbiente;
-          if (rem) {
+          // Solo manda la respuesta de la última petición: una respuesta vieja
+          // podría devolver la pista a un índice anterior y saltarse canciones.
+          if (rem && peticion === musicaPeticionRef.current) {
             setMusicaAmbiente(rem);
+            musicaAmbienteRef.current = rem;
           }
         }
       } catch (musicaError) {
-        setError(describeError(musicaError));
+        if (peticion === musicaPeticionRef.current) {
+          setError(describeError(musicaError));
+        }
+      } finally {
+        musicaPendientesRef.current = Math.max(
+          0,
+          musicaPendientesRef.current - 1
+        );
+        musicaActualizadaEnRef.current = Date.now();
       }
     },
     [mesa.id]
@@ -1328,11 +1377,35 @@ function SalaRealContent({
 
   const alTerminarPista = useCallback(() => {
     const actual = musicaAmbienteRef.current;
+    const audio = audioRef.current;
     if (!esMaster || actual.pistas.length === 0) return;
+
+    // Si el aviso viene de una pista que ya no es la actual (por ejemplo, otra
+    // pestaña del Máster ya avanzó), lo ignoramos.
+    const pista = actual.pistas[actual.indiceActual];
+    if (!pista) return;
+    const srcEsperado = archivosApi.url(pista.archivoId);
+    const srcSonando = (audio?.currentSrc || audio?.src || "").trim();
+    if (srcSonando && !srcSonando.endsWith(srcEsperado)) return;
+
+    // `ended` puede llegar repetido (o desde dos pestañas abiertas). Bloqueamos
+    // el avance hasta que la nueva pista empiece a sonar para no saltarnos una.
+    if (transicionPistaRef.current) return;
+    transicionPistaRef.current = true;
+    if (transicionPistaTimerRef.current !== null) {
+      window.clearTimeout(transicionPistaTimerRef.current);
+    }
+    transicionPistaTimerRef.current = window.setTimeout(() => {
+      transicionPistaRef.current = false;
+      transicionPistaTimerRef.current = null;
+    }, 4000);
 
     if (actual.pistas.length === 1) {
       if (!actual.loop) {
-        void actualizarMusica({ ...actual, reproduciendo: false });
+        void actualizarMusica(
+          { ...actual, reproduciendo: false },
+          { indiceEsperado: actual.indiceActual }
+        );
       }
       return;
     }
@@ -1355,12 +1428,25 @@ function SalaRealContent({
       sigueReproduciendo = false;
     }
 
-    void actualizarMusica({
+    const siguiente: MusicaAmbienteMesa = {
       ...actual,
       indiceActual: siguienteIndice,
       reproduciendo: sigueReproduciendo
+    };
+    musicaAmbienteRef.current = siguiente;
+    void actualizarMusica(siguiente, {
+      indiceEsperado: actual.indiceActual
     });
   }, [esMaster, actualizarMusica]);
+
+  useEffect(() => {
+    return () => {
+      if (transicionPistaTimerRef.current !== null) {
+        window.clearTimeout(transicionPistaTimerRef.current);
+        transicionPistaTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useMesasLive(
     refrescar,
@@ -2172,6 +2258,14 @@ function SalaRealContent({
       <audio
         ref={audioRef}
         onEnded={alTerminarPista}
+        onPlaying={() => {
+          // La pista nueva ya suena: desbloqueamos el siguiente avance.
+          transicionPistaRef.current = false;
+          if (transicionPistaTimerRef.current !== null) {
+            window.clearTimeout(transicionPistaTimerRef.current);
+            transicionPistaTimerRef.current = null;
+          }
+        }}
         onTimeUpdate={e => {
           const t = e.currentTarget.currentTime;
           setTiempoMusica(Number.isFinite(t) ? t : 0);
