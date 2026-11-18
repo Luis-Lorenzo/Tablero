@@ -3,9 +3,14 @@
 Aplicación web tipo SaaS para gestionar usuarios de un tablero de rol. La
 interfaz se llama **POCKET ROL**: al entrar se llega a la **recepción**, desde
 la que se crean y se buscan mesas. Incluye registro e inicio de sesión local,
-aprobación de cuentas por un administrador, sesiones persistentes, roles de
-usuario y administrador, y persistencia real en PostgreSQL. El backend sirve al
-frontend desde el mismo origen.
+verificación del correo con Brevo y estados de aprobación de cuentas
+(pendiente, activa, rechazada), sesiones persistentes, roles de usuario y
+administrador, y persistencia real en PostgreSQL. El backend sirve al frontend
+desde el mismo origen.
+
+Cuando el máster empieza una partida, la mesa se abre en una **sala en vivo**
+con sus fases de sala, pizarra, mapa y archivador, sincronizada entre todos los
+participantes.
 
 ## Tecnologías y justificación
 
@@ -19,6 +24,12 @@ frontend desde el mismo origen.
   driver `pg` evita ORMs pesados y deja explícita la capa de acceso a datos.
 - **express-session + connect-pg-simple**: sesiones con cookie firmada
   almacenadas en PostgreSQL, de modo que sobreviven a reinicios.
+- **WebSocket (`ws`)**: canal en vivo para la recepción, el chat, la pizarra,
+  el mapa y la música de la sala, sin recargar la página.
+- **Cloudflare R2 con `aws4fetch`**: almacenamiento de archivos compatible con
+  S3; en local, si no se configura, se usa un almacén en memoria.
+- **Brevo**: correo transaccional para enviar el enlace de verificación de
+  cuentas.
 - **bcryptjs**: hash de contraseñas con sal, pensado específicamente para
   contraseñas (nunca texto plano ni cifrado reversible).
 - **Vitest + supertest**: pruebas automatizadas rápidas para la capa de lógica y
@@ -37,18 +48,27 @@ src/
   api/            Capa API (rutas HTTP, serialización)
   services/       Capa de lógica de negocio (reglas, roles, sesión)
   repositories/   Capa de acceso a datos (PostgreSQL e implementación en memoria)
+  realtime/       Canal WebSocket (recepción y sala en vivo)
   middleware/     Autenticación, registro de peticiones, manejo de errores
-  lib/            Configuración, base de datos, sesión y hash de contraseñas
+  lib/            Configuración, base de datos, sesión, correo y hash
 client/src/
   api/            Capa de comunicación con el servidor (fetch)
   presentation/   Capa de presentación (componentes y páginas React)
+  preview/        Sala de juego y sus fases (pizarra, mapa, archivador)
 tests/            Pruebas de la capa de lógica y de la API (HTTP)
+db/               Esquema SQL idempotente
+docs/             Documentación adicional del proyecto
 ```
 
-La capa de lógica depende de las interfaces `UserRepository` y `MesaRepository`,
-no de una implementación concreta. Por eso las pruebas usan
-`MemoryUserRepository` y `MemoryMesaRepository` y producción usa
+La capa de lógica depende de interfaces de repositorio (`UserRepository`,
+`MesaRepository`, etc.), no de una implementación concreta. Por eso las pruebas
+usan `MemoryUserRepository` y `MemoryMesaRepository` y producción usa
 `PgUserRepository` y `PgMesaRepository` **sin cambiar la lógica**.
+
+## Documentación
+
+La documentación ampliada del proyecto está en [`docs/`](docs/); el índice
+está en [`docs/index.md`](docs/index.md).
 
 ## Ejecutar en local
 
@@ -88,9 +108,14 @@ desarrollo). Con `DATABASE_URL` apuntando a un PostgreSQL, los datos son
 persistentes y sobreviven a reinicios. Para detener la base de datos:
 `docker compose down` (añade `-v` para borrar los datos).
 
-Las cuentas que se registren desde la interfaz quedan pendientes de aprobación:
-para poder entrar hay que aprobarlas como se explica en
-[Aprobación de cuentas](#aprobación-de-cuentas).
+Las cuentas que se registren desde la interfaz quedan en `PENDING` hasta que se
+verifique el correo electrónico; el enlace se envía con Brevo. El proceso
+completo se explica en
+[Verificación de cuentas por correo electrónico](#verificación-de-cuentas-por-correo-electrónico-brevo).
+
+Los archivos (imágenes y documentos) se guardan en Cloudflare R2 si se
+configuran las variables `R2_*`; sin ellas se usa un almacén en memoria que se
+pierde al reiniciar.
 
 ## Pruebas
 
@@ -100,11 +125,14 @@ Un único comando, sin intervención manual:
 npm test
 ```
 
-Hay 53 pruebas (`AuthService`, `UserService`, `ensureAdmin`, `BloqueoService`,
-`MesaService` y las rutas HTTP de `/api/mesas`), incluyendo casos de error: email
-inválido, contraseña débil, email duplicado, credenciales incorrectas, cuenta
-pendiente, rechazada o bloqueada, permisos de rol, borrado de usuarios, fechas no
-válidas en el cálculo de bloqueo y mesas llenas o inexistentes.
+Hay **119 pruebas en 17 archivos**: `AuthService`, la verificación de correo,
+`UserService`, `ensureAdmin`, `BloqueoService`, `MesaService`, `SeedService` y
+las rutas HTTP de mesas, usuarios, archivos, chat, compartición y mapa, además
+de las pruebas `tracer-*` de integración (R2, Neon y pizarra/mapa). Se incluyen
+casos de error: email inválido, contraseña débil,
+email duplicado, credenciales incorrectas, cuenta pendiente, rechazada o
+bloqueada, permisos de rol, borrado de usuarios, fechas no válidas en el
+cálculo de bloqueo, mesas llenas o inexistentes y vetos por expulsión.
 
 Las pruebas de las rutas montan la aplicación real con `supertest` y
 repositorios en memoria: comprueban el contrato HTTP completo (códigos de
@@ -127,6 +155,9 @@ se suben valores reales al repositorio.
 | `BREVO_TEMPLATE_ID` | ID numérico de la plantilla activa en Brevo (por defecto `5`). Recibe `params.verification_url`. |
 | `BREVO_SENDER_EMAIL` | Dirección de correo remitente configurada en Brevo (`infoluisloxc@gmail.com`). |
 | `BREVO_SENDER_NAME` | Nombre visible del remitente en los correos (`Pocket Rol`). |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Credenciales de Cloudflare R2 para el almacenamiento de archivos. |
+| `R2_BUCKET_NAME`, `R2_ENDPOINT` | Bucket y endpoint de R2. Sin estas variables los archivos se guardan en memoria (solo desarrollo). |
+| `ARCHIVO_MAX_BYTES` | Tamaño máximo por archivo, en bytes (por defecto 30 MiB). |
 
 ## Bloqueo por intentos fallidos
 
@@ -228,10 +259,16 @@ Al registrarse (`POST /api/auth/register`), la cuenta se crea con `status = 'PEN
 4. Al abrir `/verificar-correo?token=...`, el frontend llama a `POST /api/auth/verify-email`. Si el token es válido y no ha caducado, el servidor activa atómicamente la cuenta (`status = 'ACTIVE'`, `email_verified = TRUE`) y limpia el hash y la fecha de caducidad para impedir su reutilización.
 5. Si el enlace caduca, el usuario puede solicitar uno nuevo (`POST /api/auth/resend-verification`), lo que invalida el token anterior, genera uno nuevo por 30 minutos y aplica un límite de frecuencia (60 segundos por cuenta).
 
+La verificación del correo es el paso que activa la cuenta: mientras siga en
+`PENDING`, el inicio de sesión responde `ACCOUNT_PENDING` aunque la contraseña
+sea correcta. El panel **Moderar** muestra el estado de cada cuenta y permite
+filtrarlas y eliminarlas; el cambio de estado manual se hace desde SQL, como se
+indica más abajo.
+
 | `status` | Significado |
 | --- | --- |
 | `PENDING` | Registrada y pendiente de verificar su correo electrónico (estado inicial). |
-| `ACTIVE` | Correo verificado (o aprobada); puede iniciar sesión. |
+| `ACTIVE` | Correo verificado y cuenta activa; puede iniciar sesión. |
 | `REJECTED` | Rechazada; no puede iniciar sesión. |
 
 Las cuentas que ya tenían `status = 'ACTIVE'` antes de introducir la verificación por correo se migran automáticamente a `email_verified = TRUE` mediante `db/schema.sql`. También se puede activar o rechazar manualmente desde SQL:
@@ -256,8 +293,12 @@ que se crean y se buscan mesas. Es la sala que ve el usuario autenticado.
 - Siempre hay **4 huecos** en rejilla 2x2. Los huecos sin mesa muestran la
   etiqueta `Mesa Vacía`.
 - Cada mesa es un hexágono de **solo el perímetro** con una luna morada en el
-  centro y, encima, una etiqueta cuadrada en amarillo pastel:
-  `Mesa <nombre del anfitrión>`. El nombre es el correo sin `@` ni dominio.
+  centro; cuando entra el primer jugador, la luna pasa a un sol con un rayo por
+  jugador. Encima lleva una etiqueta cuadrada en amarillo pastel:
+  `Mesa <nombre del anfitrión>`. El nombre es el correo sin `@` ni dominio (o
+  el nickname, si lo tiene).
+- Cada tarjeta indica si la mesa está **En espera** o con la **Partida en
+  curso**.
 - Las mesas se colocan **pegadas al final**: la más reciente queda en la última
   posición, abajo a la derecha.
 - Con más de 4 mesas solo se muestran las 4 más recientes; las antiguas se
@@ -271,13 +312,23 @@ Lógica en `src/services/mesa.service.ts`:
 - **Crear sala** crea al instante una mesa a nombre de quien la pide. Si ya tenía
   una, se le lleva a la suya en lugar de crear otra (la etiqueta sale con su
   nombre).
-- Pulsar el hexágono de una mesa ajena **unirse** a ella como jugador. Caben
+- Pulsar el hexágono de una mesa ajena **se une** a ella como jugador. Caben
   **6 jugadores**; el anfitrión no ocupa plaza. Una mesa llena responde
   `409 MESA_FULL`.
 - Un usuario solo puede estar en una mesa como jugador: al unirse a otra se
   cambia y sale de la anterior.
-- Solo el anfitrión ve **Cerrar mesa**; cerrarla la borra y deja a los jugadores
-  sin sitio. Cerrar la mesa de otro responde `403 FORBIDDEN`.
+- El anfitrión puede **gestionar** su mesa: preparar la sala, empezar la
+  partida, ceder el mando, expulsar jugadores y cerrarla.
+- **Cerrar mesa** la borra y deja a los jugadores sin sitio. Solo la ve el
+  anfitrión en la tarjeta; un administrador también puede cerrarla desde
+  Moderar. Cerrar la mesa de otro sin ser administrador responde
+  `403 FORBIDDEN`.
+- **Expulsar** a un jugador lo saca de la mesa y lo añade a la lista de vetados:
+  no puede volver a entrar (`403 MESA_BANNED`). El veto se aplica a **todos,
+  incluidos los administradores**; la interfaz les bloquea la entrada y la
+  gestión de esa mesa. El anfitrión nunca puede quedar vetado en su propia mesa.
+- Un **administrador** puede gestionar mesas ajenas (expulsar, ceder el mando o
+  cerrar), pero **pierde el mando** en cuanto pasa a ser jugador de esa mesa.
 - **Buscar** filtra por el nombre del anfitrión.
 
 ### API
@@ -286,23 +337,91 @@ Lógica en `src/services/mesa.service.ts`:
 | --- | --- | --- |
 | `GET` | `/api/mesas/inicio` | Los 4 huecos de la cuadrícula (los vacíos, `null`). |
 | `GET` | `/api/mesas?q=texto` | Mesas, de más nueva a más antigua; con `q` filtra por el anfitrión. |
+| `GET` | `/api/mesas/mia` | La mesa en la que está el usuario, como anfitrión o jugador (`null` si no está en ninguna). |
+| `GET` | `/api/mesas/pendiente` | La mesa cuya cesión de mando está pendiente de aceptar. |
 | `POST` | `/api/mesas` | Crea la sala de quien hace la petición (201; 200 si ya tenía una). |
-| `POST` | `/api/mesas/:id/unirse` | Se une como jugador (404 si no existe, 409 si está llena). |
-| `DELETE` | `/api/mesas/:id` | Cierra la propia sala (403 si no eres el anfitrión). |
+| `POST` | `/api/mesas/:id/unirse` | Se une como jugador (404 si no existe, 409 si está llena, 403 `MESA_BANNED` si está vetado). |
+| `POST` | `/api/mesas/:id/abandonar` | Sale como jugador de la mesa. |
+| `POST` | `/api/mesas/:id/iniciar` | El anfitrión empieza la partida (`EN_CURSO`). |
+| `POST` | `/api/mesas/:id/terminar` | El anfitrión devuelve la mesa a espera. |
+| `POST` | `/api/mesas/:id/expulsar` | Expulsa a un jugador y le veta el reingreso. |
+| `POST` | `/api/mesas/:id/ceder` | Ofrece el mando a un jugador; se acepta o rechaza en `.../ceder/aceptar` y `.../ceder/rechazar`. |
+| `DELETE` | `/api/mesas/:id` | Cierra la mesa (el anfitrión o un administrador; 403 en otro caso). |
 
 Todas requieren sesión de usuario aprobado. La tabla `mesas` (con `host_id`,
-`players UUID[]` y `created_at`) la crea `db/schema.sql` de forma idempotente,
-igual que el resto.
+`players UUID[]`, `expulsados`, `pending_host_id`, `estado` y `created_at`) la
+crea `db/schema.sql` de forma idempotente, igual que el resto.
 
 ### Navegación
 
-- El logotipo **POCKET ROL**, centrado arriba, vuelve a la recepción desde
-  cualquier pantalla. Está dibujado con un arco de rótulo de casino (estilo Las
-  Vegas / póker) y tipografía de fantasía, en mayúsculas.
-- El **círculo de perfil** (todavía sin foto) abre **Mi cuenta**, donde están los
-  datos de la cuenta y el botón de cerrar sesión.
-- El botón **Moderar**, en amarillo de aviso, solo aparece para el administrador
-  y abre la pantalla de usuarios.
+- El logotipo **POCKET ROL**, centrado arriba, vuelve a la recepción desde las
+  pantallas que muestran la barra superior. Está dibujado con un arco de rótulo
+  de casino (estilo Las Vegas / póker) y tipografía de fantasía, en mayúsculas.
+- El **círculo de perfil** abre **Mi cuenta**, donde están los datos de la
+  cuenta, el cambio de nickname, el botón de cerrar sesión y el borrado de la
+  propia cuenta.
+- El botón **Moderar**, en amarillo de aviso, solo aparece para el
+  administrador; abre la pantalla de usuarios y salas, con filtros por estado y
+  acciones de eliminación.
+- La barra superior incluye el conmutador de **modo claro/oscuro**, el botón
+  para **silenciar la hoguera** y el menú **Archivos** con los archivos
+  personales.
+
+## Sala de juego (SalaReal)
+
+La sala se abre al pulsar **Empezar partida** (estado `EN_CURSO`): el máster y
+todos los jugadores entran a la vez. El máster también puede usar **Preparar
+sala** para entrar solo antes de empezar y montar la escena, la música o el
+mapa sin que los jugadores entren.
+
+La sala tiene cuatro fases:
+
+- **Sala**: escena del máster, jugadores, chat público y susurros, tiradas de
+  dados, inventario y divisas, pings y envío de objetos o archivos.
+- **Pizarra**: posits de colores y objetos, dibujo y borrador, documentos e
+  imágenes, escena y proyección, congelar y ping.
+- **Mapa**: fondo y rejilla, tokens con imagen o color, rastreador de
+  iniciativa, regla de medición y áreas, dibujo, zoom y desplazamiento,
+  congelar.
+- **Archivador**: archivos de la mesa, subida y descarga, fijar en la pizarra
+  y proyectar.
+
+La sala se sincroniza en vivo por WebSocket: los cambios de escena, pizarra,
+mapa, chat, música o expulsión llegan al resto de participantes sin recargar.
+
+### Música de ambiente
+
+El máster sube pistas de audio y controla la reproducción (pista actual,
+avance, pausa y volumen) desde la sala. El estado se guarda en la mesa y se
+envía en vivo a todos los participantes.
+
+La **música de hoguera** (`/BucleLobby.wav`) es independiente de la música de
+la mesa:
+
+- Suena en la **recepción**, en la **gestión/preparación de la mesa** y en
+  **Moderar**.
+- **No** suena en la **sala de juego** (allí manda la música del máster), ni en
+  **Mi cuenta**, ni en **login, registro o verificación de correo**.
+- Se puede silenciar con el botón de la barra superior; la preferencia se
+  conserva.
+
+### Veto por expulsión
+
+Expulsar a un jugador lo saca de la mesa y lo guarda en `expulsados`. A partir
+de ahí:
+
+- `POST /api/mesas/:id/unirse` responde `403 MESA_BANNED` si intenta volver.
+- La interfaz le muestra la tarjeta como vetada y bloquea tanto la entrada a la
+  sala como la gestión de esa mesa.
+- El veto se aplica **a todos, incluidos los administradores**. El anfitrión
+  nunca puede quedar vetado en su propia mesa.
+- El veto se mantiene mientras exista la mesa; al cerrarla desaparece con ella.
+
+### Modo preview
+
+`?preview=1` abre una **preview aislada** de la sala: no usa backend, ni login,
+ni sesión, y trabaja con datos falsos guardados en el navegador. Se carga de
+forma diferida y también está disponible en producción para enseñar la demo.
 
 ## Base de datos (Neon)
 
@@ -312,12 +431,16 @@ aplicación las crea al arrancar y la operación es idempotente.
 
 - La tabla `users` la crea `src/lib/db.ts` (`ensureSchema`) a partir de
   `db/schema.sql`.
+- `db/schema.sql` crea el resto de tablas: `mesas`, `mesa_jugadores`,
+  `mesa_jugador_estado`, `archivos`, `chat_mensajes`, `transferencias`,
+  `mesa_pizarra_estado`, `mesa_mapa_estado` y `user_macros`.
 - La tabla `session` la crea `connect-pg-simple` (opción `createTableIfMissing`).
 
-`db/schema.sql` incluye además una migración idempotente que añade la columna
-`status` a las bases de datos creadas antes de que existiera (los usuarios que
-ya estaban en uso se dejan aprobados) y las columnas `failed_login_at`,
-`blocked` y `locked_until`, del bloqueo por intentos fallidos.
+`db/schema.sql` incluye además migraciones idempotentes que añaden columnas a
+las bases de datos creadas antes de que existieran (por ejemplo, `status`,
+`nickname`, `email_verified`, `failed_login_at`, `blocked`, `locked_until`,
+`expulsados`, `estado`, `musica_ambiente` o las imágenes de escena y
+proyección). Los usuarios que ya estaban en uso se dejan aprobados.
 
 Si al entrar en Neon no ves ninguna tabla, significa que la aplicación que está
 en marcha no se conectó a esa base de datos: revisa `DATABASE_URL` en el
@@ -344,8 +467,8 @@ Puesta en marcha con Neon y Render:
    `DATABASE_URL` (la cadena de conexión de Neon), `ADMIN_EMAIL` y
    `ADMIN_PASSWORD`. `SESSION_SECRET` se genera automáticamente.
 5. Al arrancar, la aplicación crea el esquema en Neon y, si no existe, la cuenta
-   de administrador. Ábrelo en Neon → **Tables** para comprobar que aparecen
-   `users` y `session`.
+   de administrador. Ábrelo en Neon → **Tables** para comprobar que aparecen,
+   entre otras, `users`, `mesas` y `session`.
 
 > Nota: la instancia gratuita de Render se suspende tras un periodo de
 > inactividad y tarda unos segundos en volver a responder la primera petición.

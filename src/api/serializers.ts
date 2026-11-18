@@ -61,6 +61,8 @@ export interface PublicMesa {
   hostId: string;
   hostName: string;
   players: PublicMesaJugador[];
+  /** Usuarios vetados: el cliente los usa para no ofrecer la entrada. */
+  expulsados: string[];
   pendingHostId: string | null;
   /** Si el máster ya ha empezado la partida. */
   estado: MesaVista["estado"];
@@ -86,6 +88,7 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
       name: jugador.name,
       color: jugador.color ?? null
     })),
+    expulsados: mesa.expulsados ?? [],
     pendingHostId: mesa.pendingHostId,
     estado: mesa.estado,
     colores: mesa.colores ?? {},

@@ -106,11 +106,21 @@ function App() {
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
   }, []);
 
-  const enLobbyConHoguera =
-    !loading && Boolean(user) && view !== "sala" && view !== "gestion";
+  const enVerificacionCorreo =
+    rutaActual.pathname.replace(/\/+$/, "") === "/verificar-correo";
+
+  // La hoguera del lobby suena en la recepción, en la preview de la mesa (donde
+  // se eligen nickname y color) y en moderación. No suena en la sala de juego
+  // (que tiene la música del máster), ni en Mi cuenta, ni en login/registro.
+  const enZonaConHoguera =
+    !loading &&
+    Boolean(user) &&
+    !enVerificacionCorreo &&
+    view !== "sala" &&
+    view !== "cuenta";
 
   useEffect(() => {
-    if (!enLobbyConHoguera || hogueraSilenciada) {
+    if (!enZonaConHoguera || hogueraSilenciada) {
       detenerSonidoHoguera();
       return;
     }
@@ -118,7 +128,7 @@ function App() {
     return () => {
       detenerSonidoHoguera();
     };
-  }, [enLobbyConHoguera, hogueraSilenciada]);
+  }, [enZonaConHoguera, hogueraSilenciada]);
 
   useEffect(() => {
     const alPopState = () => {
@@ -216,12 +226,27 @@ function App() {
     setView("gestion");
   }, []);
 
-  const abrirSala = useCallback((mesa: PublicMesa) => {
-    salidaManualMesaIdRef.current = null;
-    setAvisoSala(null);
-    setSalaMesa(mesa);
-    setView("sala");
-  }, []);
+  const abrirSala = useCallback(
+    (mesa: PublicMesa) => {
+      // Última barrera: ni siquiera un administrador puede abrir la sala si el
+      // anfitrión le ha expulsado. Así el veto no depende solo de la interfaz.
+      const vetado =
+        mesa.hostId !== user?.id &&
+        (mesa.expulsados?.includes(user?.id ?? "") ?? false);
+      if (vetado) {
+        salidaManualMesaIdRef.current = null;
+        setSalaMesa(null);
+        setView("recepcion");
+        setAvisoSala("Has sido expulsado de esta mesa: no puedes volver a entrar.");
+        return;
+      }
+      salidaManualMesaIdRef.current = null;
+      setAvisoSala(null);
+      setSalaMesa(mesa);
+      setView("sala");
+    },
+    [user?.id]
+  );
 
   const volverRecpcion = useCallback(
     (motivo?: string) => {
@@ -250,7 +275,7 @@ function App() {
     }
   }, []);
 
-  if (rutaActual.pathname.replace(/\/+$/, "") === "/verificar-correo") {
+  if (enVerificacionCorreo) {
     const params = new URLSearchParams(rutaActual.search);
     const token = params.get("token") ?? "";
     return (
