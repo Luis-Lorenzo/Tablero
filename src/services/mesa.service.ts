@@ -42,6 +42,8 @@ export interface MesaVista {
   hostId: string;
   hostName: string;
   players: MesaJugador[];
+  /** Usuarios vetados: no pueden volver a entrar en la mesa. */
+  expulsados: string[];
   /** Jugador con una cesión de mando pendiente de aceptar, o null. */
   pendingHostId: string | null;
   /** Si el máster ya ha empezado la partida. */
@@ -385,6 +387,7 @@ export class MesaService {
         name: nombres.get(id) ?? "desconocido",
         color: mesa.colores?.[id] ?? null
       })),
+      expulsados: mesa.expulsados ?? [],
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
       colores: mesa.colores ?? {},

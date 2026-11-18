@@ -70,7 +70,12 @@ export function GestionMesaPage({
   // Un administrador manda en cualquier mesa salvo en la que ya juega: si se le
   // cedió el mando a otro, deja de poder gestionarla.
   const soyJugador = mesa?.players.some(jugador => jugador.id === user.id) ?? false;
-  const gestiona = esAnfitrion || (user.role === "ADMIN" && !soyJugador);
+  // El veto por expulsión también alcanza a los administradores: no pueden
+  // entrar en la mesa ni usar la gestión como atajo hacia la sala.
+  const expulsado =
+    Boolean(mesa) && !esAnfitrion && (mesa?.expulsados?.includes(user.id) ?? false);
+  const gestiona =
+    esAnfitrion || (user.role === "ADMIN" && !soyJugador && !expulsado);
   const puedeVer = gestiona || soyJugador;
 
   async function ceder(playerId: string) {
@@ -120,7 +125,7 @@ export function GestionMesaPage({
   }
 
   async function iniciarPartida() {
-    if (!mesa) return;
+    if (!mesa || expulsado) return;
     setBusy(true);
     setError(null);
     setAviso(null);
@@ -189,7 +194,12 @@ export function GestionMesaPage({
   }
 
   function entrarEnSala() {
-    if (mesa && onAbrirSala) onAbrirSala(mesa);
+    if (!mesa || !onAbrirSala) return;
+    if (expulsado) {
+      setAviso("Has sido expulsado de esta mesa: no puedes volver a entrar.");
+      return;
+    }
+    onAbrirSala(mesa);
   }
 
   if (loading) {
@@ -203,8 +213,12 @@ export function GestionMesaPage({
   if (!mesa || !puedeVer) {
     return (
       <section className="card aviso-rol">
-        <h2>Página no disponible para tu rol</h2>
-        <p className="muted">Solo los miembros de la mesa pueden verla.</p>
+        <h2>{expulsado ? "Has sido expulsado de esta mesa" : "Página no disponible para tu rol"}</h2>
+        <p className="muted">
+          {expulsado
+            ? "El anfitrión te ha vetado: no puedes volver a entrar en esta mesa."
+            : "Solo los miembros de la mesa pueden verla."}
+        </p>
         <button type="button" className="ghost" onClick={onVolver}>
           <ArrowLeft size={15} aria-hidden="true" />
           <span>Volver a la recepción</span>

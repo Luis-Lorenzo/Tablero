@@ -151,6 +151,24 @@ describe("mesa.service", () => {
     await expect(service.solicitarCesion(admin as any, mesa.id, admin.id)).rejects.toThrow("FORBIDDEN");
   });
 
+  test("un administrador expulsado tampoco puede volver a entrar en la mesa", async () => {
+    const users = new MemoryUserRepository();
+    const mesas = new MemoryMesaRepository();
+    const service = new MesaService(mesas, users, logger as any);
+
+    const host = addUser(users, "host@test.com");
+    const admin = addUser(users, "admin@test.com");
+    admin.role = "ADMIN";
+    const mesa = (await service.crear(host as any)).mesa;
+
+    await service.unirse(admin as any, mesa.id);
+    await service.expulsar(host as any, mesa.id, admin.id);
+
+    await expect(service.unirse(admin as any, mesa.id)).rejects.toThrow(
+      "MESA_BANNED"
+    );
+  });
+
   test("el administrador puede cerrar cualquier mesa aunque no sea suya", async () => {
     const users = new MemoryUserRepository();
     const mesas = new MemoryMesaRepository();

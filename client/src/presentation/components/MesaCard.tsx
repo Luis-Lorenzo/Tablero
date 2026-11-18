@@ -100,13 +100,19 @@ export function MesaCard({
 
   const esHost = mesa.hostId === currentUserId;
   const soyJugador = mesa.players.some(jugador => jugador.id === currentUserId);
+  // El veto por expulsión se aplica a todo el mundo, incluidos los
+  // administradores: si te han expulsado, no puedes volver a entrar como
+  // jugador. El anfitrión nunca puede quedar vetado en su propia mesa.
+  const expulsado =
+    !esHost && (mesa.expulsados?.includes(currentUserId) ?? false);
   const jugadores = mesa.players.map(jugador => jugador.name);
   const total = mesa.players.length;
   const llena = total >= MESA_MAX_JUGADORES;
-  const puedeUnirse = !esHost && !soyJugador && !llena;
+  const puedeUnirse = !esHost && !soyJugador && !llena && !expulsado;
   // Un administrador pierde el mando de una mesa en cuanto es jugador de ella
-  // (por ejemplo, tras cedérsela a otro): deja de poder gestionarla.
-  const puedeGestionar = esHost || (esAdmin && !soyJugador);
+  // (por ejemplo, tras cedérsela a otro): deja de poder gestionarla. Si le han
+  // expulsado, tampoco puede usar el atajo de gestión para colarse en la sala.
+  const puedeGestionar = esHost || (esAdmin && !soyJugador && !expulsado);
   // También un administrador puede abandonar si juega en la mesa; si no,
   // se quedaría atrapado en ella sin más salida que cerrarla (solo el host).
   const puedeAbandonar = soyJugador;
@@ -115,9 +121,11 @@ export function MesaCard({
     ? "Eres el anfitrión"
     : soyJugador
       ? "Ya estás en esta mesa"
-      : llena
-        ? "Mesa completa"
-        : "Pulsa para unirte";
+      : expulsado
+        ? "Has sido expulsado de esta mesa"
+        : llena
+          ? "Mesa completa"
+          : "Pulsa para unirte";
 
   const cuerpo = (
     <>
