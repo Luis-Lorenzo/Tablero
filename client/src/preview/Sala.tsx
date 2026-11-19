@@ -2745,7 +2745,7 @@ export function Sala({
       const rect = nodo.getBoundingClientRect();
       setAnclaFichaJugador({
         x: rect.left + rect.width / 2,
-        y: rect.bottom + 10
+        y: rect.top - 10
       });
     } else {
       setAnclaFichaJugador(null);
@@ -6633,7 +6633,7 @@ export function Sala({
               anclaFichaJugador
                 ? {
                     left: `clamp(190px, ${anclaFichaJugador.x}px, calc(100vw - 190px))`,
-                    top: `${Math.max(48, Math.min(anclaFichaJugador.y, window.innerHeight - 450))}px`
+                    top: `${Math.max(410, Math.min(anclaFichaJugador.y, window.innerHeight - 16))}px`
                   }
                 : undefined
             }

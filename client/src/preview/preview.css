@@ -12870,6 +12870,14 @@ html.modo-claro .mapa-zoom-grupo {
   flex-shrink: 0;
 }
 
+.posit-colores-separador {
+  color: rgb(255 255 255 / 35%);
+  font-size: 0.78rem;
+  line-height: 1;
+  user-select: none;
+  padding: 0 2px;
+}
+
 .posit-extra-colores {
   display: inline-flex;
   align-items: center;
@@ -14003,7 +14011,7 @@ html.modo-claro .pizarra-sidebar-borrar:hover {
 .ficha-rapida-jugador {
   position: fixed;
   z-index: 26;
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%);
   width: min(360px, calc(100vw - 24px));
   padding: 12px 14px;
   border: 2px solid #6b5888;

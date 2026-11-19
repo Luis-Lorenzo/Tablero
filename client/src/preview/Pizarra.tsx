@@ -485,6 +485,7 @@ export function Posit({
               }}
             />
           ))}
+          <span className="posit-colores-separador" aria-hidden="true">|</span>
           <div className="posit-extra-colores">
             {coloresExtra.map((colorExtra, idx) => {
               const activoSlot = Boolean(
