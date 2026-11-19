@@ -107,7 +107,7 @@ function App() {
   }, []);
 
   const enLobbyConHoguera =
-    !loading && Boolean(user) && view !== "sala" && view !== "gestion";
+    !loading && Boolean(user) && view !== "sala";
 
   useEffect(() => {
     if (!enLobbyConHoguera || hogueraSilenciada) {
@@ -300,6 +300,10 @@ function App() {
               onVolver={() => setView("recepcion")}
               onAbrirSala={abrirSala}
               onSessionExpired={handleLogout}
+              hogueraSilenciada={hogueraSilenciada}
+              onAlternarHoguera={() =>
+                setHogueraSilenciada(alternarHogueraSilenciada())
+              }
             />
           ) : null}
         </div>

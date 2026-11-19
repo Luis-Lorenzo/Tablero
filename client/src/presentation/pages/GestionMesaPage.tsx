@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, Palette, Pencil, Play, Trash2, UserX, Wrench } from "lucide-react";
+import { ArrowLeft, Check, Crown, DoorOpen, Palette, Pencil, Play, Trash2, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -14,6 +14,8 @@ interface GestionMesaPageProps {
   onVolver: () => void;
   onAbrirSala?: (mesa: PublicMesa) => void;
   onSessionExpired?: () => void;
+  hogueraSilenciada?: boolean;
+  onAlternarHoguera?: () => void;
 }
 
 /** Color del hexágono según los jugadores: rojo 0, amarillo 1, verde 2 o más. */
@@ -33,7 +35,9 @@ export function GestionMesaPage({
   user,
   onVolver,
   onAbrirSala,
-  onSessionExpired
+  onSessionExpired,
+  hogueraSilenciada = false,
+  onAlternarHoguera
 }: GestionMesaPageProps) {
   const [mesa, setMesa] = useState<PublicMesa | null>(null);
   const [loading, setLoading] = useState(true);
@@ -230,6 +234,30 @@ export function GestionMesaPage({
         <span className={mesa.estado === "EN_CURSO" ? "pill on" : "pill pending"}>
           {mesa.estado === "EN_CURSO" ? "En curso" : "En espera"}
         </span>
+        {onAlternarHoguera && (
+          <button
+            type="button"
+            className={`topbar-tema-btn${hogueraSilenciada ? " silenciada" : ""}`}
+            onClick={onAlternarHoguera}
+            title={
+              hogueraSilenciada
+                ? "Sonido de hoguera apagado (pulsa para activar)"
+                : "Sonido de hoguera activo (pulsa para apagar)"
+            }
+            aria-label={
+              hogueraSilenciada
+                ? "Activar sonido de hoguera"
+                : "Apagar sonido de hoguera"
+            }
+            aria-pressed={!hogueraSilenciada}
+          >
+            {hogueraSilenciada ? (
+              <VolumeX size={16} strokeWidth={2.2} aria-hidden="true" />
+            ) : (
+              <Volume2 size={16} strokeWidth={2.2} aria-hidden="true" />
+            )}
+          </button>
+        )}
       </div>
 
       {error && <p className="feedback ko">{error}</p>}

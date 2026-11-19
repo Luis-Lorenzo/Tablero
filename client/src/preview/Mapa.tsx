@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -54,6 +55,7 @@ import type {
   MapaRejillaConfig,
   PingVisual,
   PlantillaTokenMapa,
+  ReglaVisual,
   TiradaAsiento,
   TokenMapa,
   TrazoPizarra
@@ -72,6 +74,19 @@ export interface MapaProps {
   onVolver: () => void;
   pingsActivos?: PingVisual[];
   onEnviarPing?: (datos: { x: number; y: number; vista: "mapa" }) => void;
+  reglasRemotas?: ReglaVisual[];
+  onEnviarRegla?: (
+    datos:
+      | {
+          activa: true;
+          x1: number;
+          y1: number;
+          x2: number;
+          y2: number;
+          color: string;
+        }
+      | { activa: false }
+  ) => void;
   colorJugador?: string;
   nombreJugador?: string;
   esMaster?: boolean;
@@ -388,6 +403,8 @@ export function Mapa({
   onVolver,
   pingsActivos,
   onEnviarPing,
+  reglasRemotas = [],
+  onEnviarRegla,
   colorJugador,
   nombreJugador,
   esMaster = false,
@@ -431,14 +448,25 @@ export function Mapa({
     y1: number;
     x2: number;
     y2: number;
+    color: string;
   } | null>(null);
   const reglaLineaRef = useRef<{
     x1: number;
     y1: number;
     x2: number;
     y2: number;
+    color: string;
   } | null>(null);
   const pointerIdReglaRef = useRef<number | null>(null);
+  const ultimoEnvioReglaRef = useRef<number>(0);
+  const timerReglaRef = useRef<number | null>(null);
+  const pendienteReglaRef = useRef<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+  } | null>(null);
   const [areaSeleccionadaId, setAreaSeleccionadaId] = useState<string | null>(null);
   const [arrastreArea, setArrastreArea] = useState<{
     areaId: string;
@@ -791,6 +819,66 @@ export function Mapa({
     };
   }
 
+  function emitirRegla(
+    linea: {
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      color: string;
+    } | null
+  ): void {
+    if (!onEnviarRegla) return;
+    if (linea === null) {
+      if (timerReglaRef.current !== null) {
+        window.clearTimeout(timerReglaRef.current);
+        timerReglaRef.current = null;
+      }
+      pendienteReglaRef.current = null;
+      ultimoEnvioReglaRef.current = 0;
+      onEnviarRegla({ activa: false });
+      return;
+    }
+
+    const ahora = Date.now();
+    const transcurrido = ahora - ultimoEnvioReglaRef.current;
+    if (transcurrido >= 60) {
+      if (timerReglaRef.current !== null) {
+        window.clearTimeout(timerReglaRef.current);
+        timerReglaRef.current = null;
+      }
+      pendienteReglaRef.current = null;
+      ultimoEnvioReglaRef.current = ahora;
+      onEnviarRegla({ activa: true, ...linea });
+      return;
+    }
+
+    pendienteReglaRef.current = linea;
+    if (timerReglaRef.current === null) {
+      timerReglaRef.current = window.setTimeout(() => {
+        timerReglaRef.current = null;
+        const pendiente = pendienteReglaRef.current;
+        if (!pendiente) return;
+        pendienteReglaRef.current = null;
+        ultimoEnvioReglaRef.current = Date.now();
+        onEnviarRegla({ activa: true, ...pendiente });
+      }, Math.max(10, 60 - transcurrido));
+    }
+  }
+
+  useEffect(
+    () => () => {
+      if (timerReglaRef.current !== null) {
+        window.clearTimeout(timerReglaRef.current);
+        timerReglaRef.current = null;
+      }
+      if (reglaLineaRef.current && onEnviarRegla) {
+        onEnviarRegla({ activa: false });
+      }
+    },
+    [onEnviarRegla]
+  );
+
   function alBajarPunteroCanvas(
     evento: ReactPointerEvent<HTMLDivElement>
   ): void {
@@ -800,10 +888,17 @@ export function Mapa({
       evento.stopPropagation();
       evento.preventDefault();
       evento.currentTarget.setPointerCapture(evento.pointerId);
-      const linea = { x1: punto.x, y1: punto.y, x2: punto.x, y2: punto.y };
+      const linea = {
+        x1: punto.x,
+        y1: punto.y,
+        x2: punto.x,
+        y2: punto.y,
+        color: colorArea
+      };
       pointerIdReglaRef.current = evento.pointerId;
       reglaLineaRef.current = linea;
       setReglaLinea(linea);
+      emitirRegla(linea);
       return;
     }
 
@@ -837,6 +932,7 @@ export function Mapa({
       const siguiente = { ...reglaActiva, x2: punto.x, y2: punto.y };
       reglaLineaRef.current = siguiente;
       setReglaLinea(siguiente);
+      emitirRegla(siguiente);
       return;
     }
 
@@ -868,6 +964,7 @@ export function Mapa({
       reglaLineaRef.current = null;
       pointerIdReglaRef.current = null;
       setReglaLinea(null);
+      emitirRegla(null);
       if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
         evento.currentTarget.releasePointerCapture(evento.pointerId);
       }
@@ -2631,6 +2728,11 @@ export function Mapa({
                     <span className="mapa-jugador-tirada-total">
                       {tirada.total}
                     </span>
+                    {tirada.nombreMacro && (
+                      <span className="mapa-jugador-tirada-macro">
+                        {tirada.nombreMacro}
+                      </span>
+                    )}
                     {tirada.desglose && (
                       <span className="mapa-jugador-tirada-desglose">
                         {tirada.desglose}
@@ -3766,24 +3868,35 @@ export function Mapa({
               );
             })}
 
-            {/* Capa 2.8: Línea temporal de regla entre 2 puntos (desaparece al soltar) */}
-            {reglaLinea && (() => {
+            {/* Capa 2.8: Línea temporal de regla entre 2 puntos (propia y remotas) */}
+            {[
+              ...(reglaLinea
+                ? [{ key: "local-regla", linea: reglaLinea, autorNombre: undefined }]
+                : []),
+              ...reglasRemotas.map(r => ({
+                key: `remota-${r.autorId}`,
+                linea: r,
+                autorNombre: r.autorNombre
+              }))
+            ].map(({ key, linea, autorNombre }) => {
               const celdas = calcularCeldasLinea(
-                reglaLinea.x1,
-                reglaLinea.y1,
-                reglaLinea.x2,
-                reglaLinea.y2,
+                linea.x1,
+                linea.y1,
+                linea.x2,
+                linea.y2,
                 rejillaActiva
               );
               const total = celdas.length;
-              const midX = (reglaLinea.x1 + reglaLinea.x2) / 2;
-              const midY = (reglaLinea.y1 + reglaLinea.y2) / 2;
+              const midX = (linea.x1 + linea.x2) / 2;
+              const midY = (linea.y1 + linea.y2) / 2;
+              const estiloColor = { "--regla-color": linea.color } as CSSProperties;
               return (
-                <>
+                <Fragment key={key}>
                   <svg
                     className="mapa-regla-svg"
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
+                    style={estiloColor}
                     aria-hidden="true"
                   >
                     {celdas.map(celda => (
@@ -3797,35 +3910,36 @@ export function Mapa({
                       />
                     ))}
                     <line
-                      x1={reglaLinea.x1}
-                      y1={reglaLinea.y1}
-                      x2={reglaLinea.x2}
-                      y2={reglaLinea.y2}
+                      x1={linea.x1}
+                      y1={linea.y1}
+                      x2={linea.x2}
+                      y2={linea.y2}
                       className="mapa-regla-linea"
                       vectorEffect="non-scaling-stroke"
                     />
                     <circle
-                      cx={reglaLinea.x1}
-                      cy={reglaLinea.y1}
+                      cx={linea.x1}
+                      cy={linea.y1}
                       r={0.55}
                       className="mapa-regla-punto"
                     />
                     <circle
-                      cx={reglaLinea.x2}
-                      cy={reglaLinea.y2}
+                      cx={linea.x2}
+                      cy={linea.y2}
                       r={0.55}
                       className="mapa-regla-punto"
                     />
                   </svg>
                   <div
                     className="mapa-regla-etiqueta"
-                    style={{ left: `${midX}%`, top: `${midY}%` }}
+                    style={{ ...estiloColor, left: `${midX}%`, top: `${midY}%` }}
                   >
+                    {autorNombre ? `${autorNombre}: ` : ""}
                     {total} {total === 1 ? "casilla" : "casillas"}
                   </div>
-                </>
+                </Fragment>
               );
-            })()}
+            })}
 
             {/* Capa 3: Tokens */}
             {tokensEnMapa.map(token => {

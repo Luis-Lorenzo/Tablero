@@ -1121,6 +1121,7 @@ export function HudSalaCompartido({
             especial: resultadoFinal.especial,
             caras: resultadoFinal.caras,
             desglose: desgloseTexto,
+            ...(opciones?.nombreMacro ? { nombreMacro: opciones.nombreMacro } : {}),
             color: colorDado,
             colorDado,
             colorAristasDado

@@ -83,6 +83,8 @@ import {
   establecerSonidoSilenciado,
   estaMusicaSilenciada,
   estaSonidoSilenciado,
+  guardarVolumenMusica,
+  obtenerVolumenMusica,
   reproducirSonidoConsumir,
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion
@@ -966,16 +968,40 @@ export function Sala({
   const [musicaSilenciada, setMusicaSilenciada] = useState<boolean>(
     estaMusicaSilenciada
   );
+  const [volumenMusicaLocal, setVolumenMusicaLocal] = useState<number>(
+    obtenerVolumenMusica
+  );
   const [musicaPopoverAbierto, setMusicaPopoverAbierto] = useState(false);
   const [subiendoMusica, setSubiendoMusica] = useState(false);
   const musicaFileInputRef = useRef<HTMLInputElement | null>(null);
   const musicaContenedorRef = useRef<HTMLDivElement | null>(null);
   const musicaActual = musicaAmbiente ?? MUSICA_VACIA;
 
+  useEffect(() => {
+    const sincronizarLocal = () => {
+      setMusicaSilenciada(estaMusicaSilenciada());
+      setVolumenMusicaLocal(obtenerVolumenMusica());
+    };
+    window.addEventListener("pocketrol:musica-local", sincronizarLocal);
+    window.addEventListener("storage", sincronizarLocal);
+    return () => {
+      window.removeEventListener("pocketrol:musica-local", sincronizarLocal);
+      window.removeEventListener("storage", sincronizarLocal);
+    };
+  }, []);
+
   function alternarSilencioMusica(): void {
     const siguiente = !musicaSilenciada;
     setMusicaSilenciada(siguiente);
     establecerMusicaSilenciada(siguiente);
+  }
+
+  function cambiarVolumenMusicaLocal(nuevoVolumen: number): void {
+    const limpio = Number.isFinite(nuevoVolumen)
+      ? Math.max(0, Math.min(1, nuevoVolumen))
+      : 1;
+    setVolumenMusicaLocal(limpio);
+    guardarVolumenMusica(limpio);
   }
 
   useEffect(() => {
@@ -3541,7 +3567,7 @@ export function Sala({
                 <button
                   type="button"
                   className={`sala-btn sala-btn-disco${
-                    esMaster && musicaPopoverAbierto ? " activo" : ""
+                    musicaPopoverAbierto ? " activo" : ""
                   }${musicaSilenciada ? " silenciada" : ""}${
                     musicaActual.reproduciendo &&
                     musicaActual.pistas.length > 0 &&
@@ -3549,28 +3575,20 @@ export function Sala({
                       ? " reproduciendo"
                       : ""
                   }`}
-                  onClick={() => {
-                    if (esMaster) {
-                      setMusicaPopoverAbierto(v => !v);
-                    } else {
-                      alternarSilencioMusica();
-                    }
-                  }}
+                  onClick={() => setMusicaPopoverAbierto(v => !v)}
                   title={
                     esMaster
                       ? "Música ambiente de la sala"
                       : musicaSilenciada
-                        ? "Música silenciada (pulsa para activar)"
-                        : "Silenciar música ambiente"
+                        ? "Música silenciada (pulsa para ajustar)"
+                        : "Ajustar volumen de música ambiente"
                   }
                   aria-label={
                     esMaster
                       ? "Configurar música ambiente"
-                      : musicaSilenciada
-                        ? "Activar música ambiente"
-                        : "Silenciar música ambiente"
+                      : "Ajustar volumen de música ambiente"
                   }
-                  aria-pressed={esMaster ? musicaPopoverAbierto : musicaSilenciada}
+                  aria-pressed={musicaPopoverAbierto}
                 >
                   <Disc3 size={14} strokeWidth={2.2} aria-hidden="true" />
                 </button>
@@ -3590,7 +3608,7 @@ export function Sala({
                   </span>
                 )}
 
-                {esMaster && musicaPopoverAbierto && (
+                {musicaPopoverAbierto && (
                   <div
                     className="sala-musica-popover"
                     role="dialog"
@@ -3636,141 +3654,149 @@ export function Sala({
                       </div>
                     </div>
 
-                    <input
-                      ref={musicaFileInputRef}
-                      type="file"
-                      accept="audio/*,.mp3,.ogg,.wav,.m4a"
-                      multiple
-                      hidden
-                      onChange={e => {
-                        void manejarSubidaMusica(e.target.files);
-                        e.target.value = "";
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="sala-musica-subir-btn"
-                      disabled={subiendoMusica || !onSubirMusica}
-                      onClick={() => musicaFileInputRef.current?.click()}
-                    >
-                      <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
-                      <span>
-                        {subiendoMusica ? "Subiendo canción…" : "Subir canción"}
-                      </span>
-                    </button>
+                    {esMaster && (
+                      <>
+                        <input
+                          ref={musicaFileInputRef}
+                          type="file"
+                          accept="audio/*,.mp3,.ogg,.wav,.m4a"
+                          multiple
+                          hidden
+                          onChange={e => {
+                            void manejarSubidaMusica(e.target.files);
+                            e.target.value = "";
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="sala-musica-subir-btn"
+                          disabled={subiendoMusica || !onSubirMusica}
+                          onClick={() => musicaFileInputRef.current?.click()}
+                        >
+                          <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+                          <span>
+                            {subiendoMusica ? "Subiendo canción…" : "Subir canción"}
+                          </span>
+                        </button>
 
-                    <div className="sala-musica-lista">
-                      {musicaActual.pistas.length === 0 ? (
-                        <div className="sala-musica-vacia">
-                          No hay canciones en la lista.
-                        </div>
-                      ) : (
-                        musicaActual.pistas.map((pista, idx) => {
-                          const activa = idx === musicaActual.indiceActual;
-                          return (
-                            <div
-                              key={`${pista.archivoId}-${idx}`}
-                              className={`sala-musica-pista${
-                                activa ? " activa" : ""
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                className="sala-musica-pista-nombre"
-                                onClick={() =>
-                                  emitirMusica(
-                                    activa && musicaActual.reproduciendo
-                                      ? { reproduciendo: false }
-                                      : { indiceActual: idx, reproduciendo: true }
-                                  )
-                                }
-                                title={
-                                  activa && musicaActual.reproduciendo
-                                    ? `Pausar ${pista.nombre}`
-                                    : `Reproducir ${pista.nombre}`
-                                }
-                              >
-                                <span className="sala-musica-pista-indice">
-                                  {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
-                                </span>
-                                <span>{pista.nombre}</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="sala-musica-pista-quitar"
-                                onClick={() => quitarPistaMusica(idx)}
-                                title="Quitar canción de la lista"
-                                aria-label={`Quitar ${pista.nombre}`}
-                              >
-                                <Trash2 size={13} strokeWidth={2.1} aria-hidden="true" />
-                              </button>
+                        <div className="sala-musica-lista">
+                          {musicaActual.pistas.length === 0 ? (
+                            <div className="sala-musica-vacia">
+                              No hay canciones en la lista.
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
+                          ) : (
+                            musicaActual.pistas.map((pista, idx) => {
+                              const activa = idx === musicaActual.indiceActual;
+                              return (
+                                <div
+                                  key={`${pista.archivoId}-${idx}`}
+                                  className={`sala-musica-pista${
+                                    activa ? " activa" : ""
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="sala-musica-pista-nombre"
+                                    onClick={() =>
+                                      emitirMusica(
+                                        activa && musicaActual.reproduciendo
+                                          ? { reproduciendo: false }
+                                          : { indiceActual: idx, reproduciendo: true }
+                                      )
+                                    }
+                                    title={
+                                      activa && musicaActual.reproduciendo
+                                        ? `Pausar ${pista.nombre}`
+                                        : `Reproducir ${pista.nombre}`
+                                    }
+                                  >
+                                    <span className="sala-musica-pista-indice">
+                                      {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
+                                    </span>
+                                    <span>{pista.nombre}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="sala-musica-pista-quitar"
+                                    onClick={() => quitarPistaMusica(idx)}
+                                    title="Quitar canción de la lista"
+                                    aria-label={`Quitar ${pista.nombre}`}
+                                  >
+                                    <Trash2 size={13} strokeWidth={2.1} aria-hidden="true" />
+                                  </button>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </>
+                    )}
 
                     <div className="sala-musica-controles">
-                      <button
-                        type="button"
-                        className={`sala-musica-ctrl-btn${
-                          musicaActual.reproduciendo ? " activo" : ""
-                        }`}
-                        disabled={musicaActual.pistas.length === 0}
-                        onClick={() =>
-                          emitirMusica({
-                            reproduciendo: !musicaActual.reproduciendo
-                          })
-                        }
-                        title={musicaActual.reproduciendo ? "Pausar" : "Reproducir"}
-                        aria-label={
-                          musicaActual.reproduciendo ? "Pausar música" : "Reproducir música"
-                        }
-                      >
-                        {musicaActual.reproduciendo ? (
-                          <Pause size={14} strokeWidth={2.2} aria-hidden="true" />
-                        ) : (
-                          <Play size={14} strokeWidth={2.2} aria-hidden="true" />
-                        )}
-                      </button>
+                      {esMaster && (
+                        <>
+                          <button
+                            type="button"
+                            className={`sala-musica-ctrl-btn${
+                              musicaActual.reproduciendo ? " activo" : ""
+                            }`}
+                            disabled={musicaActual.pistas.length === 0}
+                            onClick={() =>
+                              emitirMusica({
+                                reproduciendo: !musicaActual.reproduciendo
+                              })
+                            }
+                            title={musicaActual.reproduciendo ? "Pausar" : "Reproducir"}
+                            aria-label={
+                              musicaActual.reproduciendo ? "Pausar música" : "Reproducir música"
+                            }
+                          >
+                            {musicaActual.reproduciendo ? (
+                              <Pause size={14} strokeWidth={2.2} aria-hidden="true" />
+                            ) : (
+                              <Play size={14} strokeWidth={2.2} aria-hidden="true" />
+                            )}
+                          </button>
 
-                      <button
-                        type="button"
-                        className={`sala-musica-ctrl-btn${
-                          musicaActual.loop ? " activo" : ""
-                        }`}
-                        onClick={() =>
-                          emitirMusica({ loop: !musicaActual.loop })
-                        }
-                        title={
-                          musicaActual.loop
-                            ? "Bucle activado"
-                            : "Activar bucle"
-                        }
-                        aria-label="Alternar bucle"
-                        aria-pressed={musicaActual.loop}
-                      >
-                        <Repeat size={14} strokeWidth={2.2} aria-hidden="true" />
-                      </button>
+                          <button
+                            type="button"
+                            className={`sala-musica-ctrl-btn${
+                              musicaActual.loop ? " activo" : ""
+                            }`}
+                            onClick={() =>
+                              emitirMusica({ loop: !musicaActual.loop })
+                            }
+                            title={
+                              musicaActual.loop
+                                ? "Bucle activado"
+                                : "Activar bucle"
+                            }
+                            aria-label="Alternar bucle"
+                            aria-pressed={musicaActual.loop}
+                          >
+                            <Repeat size={14} strokeWidth={2.2} aria-hidden="true" />
+                          </button>
 
-                      <button
-                        type="button"
-                        className={`sala-musica-ctrl-btn${
-                          musicaActual.aleatorio ? " activo" : ""
-                        }`}
-                        onClick={() =>
-                          emitirMusica({ aleatorio: !musicaActual.aleatorio })
-                        }
-                        title={
-                          musicaActual.aleatorio
-                            ? "Reproducción aleatoria"
-                            : "Reproducción ordenada"
-                        }
-                        aria-label="Alternar reproducción aleatoria"
-                        aria-pressed={musicaActual.aleatorio}
-                      >
-                        <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
-                      </button>
+                          <button
+                            type="button"
+                            className={`sala-musica-ctrl-btn${
+                              musicaActual.aleatorio ? " activo" : ""
+                            }`}
+                            onClick={() =>
+                              emitirMusica({ aleatorio: !musicaActual.aleatorio })
+                            }
+                            title={
+                              musicaActual.aleatorio
+                                ? "Reproducción aleatoria"
+                                : "Reproducción ordenada"
+                            }
+                            aria-label="Alternar reproducción aleatoria"
+                            aria-pressed={musicaActual.aleatorio}
+                          >
+                            <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
+                          </button>
+                        </>
+                      )}
 
                       <div className="sala-musica-volumen">
                         <Volume2 size={13} strokeWidth={2.1} aria-hidden="true" />
@@ -3778,18 +3804,14 @@ export function Sala({
                           type="range"
                           min={0}
                           max={100}
-                          value={Math.round(
-                            (musicaActual.volumenMaster ?? 0.7) * 100
-                          )}
+                          value={Math.round(volumenMusicaLocal * 100)}
                           onChange={e =>
-                            emitirMusica({
-                              volumenMaster: Number(e.target.value) / 100
-                            })
+                            cambiarVolumenMusicaLocal(Number(e.target.value) / 100)
                           }
-                          aria-label="Volumen de la música ambiente"
+                          aria-label="Volumen local de la música ambiente"
                         />
                         <span className="sala-musica-volumen-valor">
-                          {Math.round((musicaActual.volumenMaster ?? 0.7) * 100)}%
+                          {Math.round(volumenMusicaLocal * 100)}%
                         </span>
                       </div>
                     </div>

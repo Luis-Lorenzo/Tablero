@@ -40,6 +40,7 @@ import {
 import {
   calcularPosicionRecepcion,
   crearElementoDesdeArchivo,
+  mensajeSolicitudTransferencia,
   nuevoIdElemento
 } from "../../preview/compartir";
 import {
@@ -66,6 +67,7 @@ import type {
   PingVisual,
   PlantillaTokenMapa,
   PositPreview,
+  ReglaVisual,
   SolicitudTransferencia,
   TipoEspecialTirada,
   TiradaAsiento,
@@ -267,6 +269,8 @@ function SalaRealContent({
   const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
+  const [reglasRemotas, setReglasRemotas] = useState<ReglaVisual[]>([]);
+  const reglaTimersRef = useRef<Map<string, number>>(new Map());
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
   const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
   const [musicaAmbiente, setMusicaAmbiente] = useState<MusicaAmbienteMesa>(() => {
@@ -344,11 +348,70 @@ function SalaRealContent({
     }, 2400);
   }, []);
 
+  const actualizarReglaRemota = useCallback(
+    (datos: {
+      autorId: string;
+      autorNombre?: string;
+      activa?: boolean;
+      x1?: number;
+      y1?: number;
+      x2?: number;
+      y2?: number;
+      color?: string;
+    }) => {
+      const prevTimer = reglaTimersRef.current.get(datos.autorId);
+      if (prevTimer !== undefined) {
+        window.clearTimeout(prevTimer);
+        reglaTimersRef.current.delete(datos.autorId);
+      }
+
+      if (datos.activa === false) {
+        setReglasRemotas(prev => prev.filter(r => r.autorId !== datos.autorId));
+        return;
+      }
+
+      if (
+        typeof datos.x1 !== "number" ||
+        typeof datos.y1 !== "number" ||
+        typeof datos.x2 !== "number" ||
+        typeof datos.y2 !== "number"
+      ) {
+        return;
+      }
+
+      const regla: ReglaVisual = {
+        autorId: datos.autorId,
+        autorNombre: datos.autorNombre,
+        x1: datos.x1,
+        y1: datos.y1,
+        x2: datos.x2,
+        y2: datos.y2,
+        color: datos.color || "#e8c56a"
+      };
+
+      setReglasRemotas(prev => {
+        const existe = prev.some(r => r.autorId === datos.autorId);
+        return existe
+          ? prev.map(r => (r.autorId === datos.autorId ? regla : r))
+          : [...prev, regla];
+      });
+
+      const timer = window.setTimeout(() => {
+        reglaTimersRef.current.delete(datos.autorId);
+        setReglasRemotas(prev => prev.filter(r => r.autorId !== datos.autorId));
+      }, 12000);
+      reglaTimersRef.current.set(datos.autorId, timer);
+    },
+    []
+  );
+
   useEffect(
     () => () => {
       if (avisoTimerRef.current !== null) {
         window.clearTimeout(avisoTimerRef.current);
       }
+      reglaTimersRef.current.forEach(timer => window.clearTimeout(timer));
+      reglaTimersRef.current.clear();
     },
     []
   );
@@ -715,6 +778,32 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:regla" && evento.mesaId === mesa.id && evento.regla) {
+        const bruto = evento.regla as {
+          autorId?: string;
+          autorNombre?: string;
+          activa?: boolean;
+          x1?: number;
+          y1?: number;
+          x2?: number;
+          y2?: number;
+          color?: string;
+        };
+        if (bruto.autorId && bruto.autorId !== user.id) {
+          actualizarReglaRemota({
+            autorId: bruto.autorId,
+            autorNombre: bruto.autorNombre,
+            activa: bruto.activa,
+            x1: bruto.x1,
+            y1: bruto.y1,
+            x2: bruto.x2,
+            y2: bruto.y2,
+            color: bruto.color
+          });
+        }
+        return;
+      }
+
       if (evento.type === "pizarra:actualizada" && evento.mesaId === mesa.id) {
         if (evento.autorId !== user.id && evento.estado && typeof evento.estado === "object") {
           aplicarEstadoPizarraRemoto(
@@ -944,6 +1033,7 @@ function SalaRealContent({
       cargarArchivos,
       aplicarEstadoPizarraRemoto,
       agregarPingVisual,
+      actualizarReglaRemota,
       mostrarAvisoBreve
     ]
   );
@@ -1118,6 +1208,8 @@ function SalaRealContent({
 
         const colorDado = sanitizarColorDado(roll.colorDado);
         const colorAristasDado = sanitizarColorDado(roll.colorAristasDado);
+        const idxMacro = typeof roll.formula === "string" ? roll.formula.indexOf(" · ") : -1;
+        const nombreMacro = idxMacro > 0 ? roll.formula.slice(0, idxMacro) : undefined;
 
         setTiradasAsiento(prev => ({
           ...prev,
@@ -1127,6 +1219,7 @@ function SalaRealContent({
             especial: roll.especial ?? null,
             caras: roll.caras ?? 20,
             desglose,
+            ...(nombreMacro ? { nombreMacro } : {}),
             ...(colorDado ? { colorDado } : {}),
             ...(colorAristasDado ? { colorAristasDado } : {})
           }
@@ -1245,10 +1338,7 @@ function SalaRealContent({
 
     audio.loop = musicaAmbiente.pistas.length === 1 && musicaAmbiente.loop;
     audio.muted = musicaSilenciadaLocal;
-    audio.volume = Math.max(
-      0,
-      Math.min(1, (musicaAmbiente.volumenMaster ?? 0.7) * volumenMusicaLocal)
-    );
+    audio.volume = Math.max(0, Math.min(1, volumenMusicaLocal));
 
     if (!pistaActual) {
       audio.pause();
@@ -1292,7 +1382,6 @@ function SalaRealContent({
     musicaAmbiente.pistas.length,
     musicaAmbiente.loop,
     musicaAmbiente.reproduciendo,
-    musicaAmbiente.volumenMaster,
     musicaSilenciadaLocal,
     volumenMusicaLocal
   ]);
@@ -1731,6 +1820,21 @@ function SalaRealContent({
       .catch(() => undefined);
   }
 
+  function enviarRegla(
+    datos:
+      | {
+          activa: true;
+          x1: number;
+          y1: number;
+          x2: number;
+          y2: number;
+          color: string;
+        }
+      | { activa: false }
+  ): void {
+    void mesasApi.enviarRegla(mesa.id, datos).catch(() => undefined);
+  }
+
   async function cambiarFondoYRejilla(
     fondo: MapaFondoConfig | null,
     rejilla: MapaRejillaConfig
@@ -2011,6 +2115,8 @@ function SalaRealContent({
           onVolver={() => setFase("sala")}
           pingsActivos={pingsActivos}
           onEnviarPing={enviarPing}
+          reglasRemotas={reglasRemotas}
+          onEnviarRegla={enviarRegla}
           colorJugador={colorJugadorActual}
           nombreJugador={nombreJugadorActual}
           esMaster={esMaster}
@@ -2215,6 +2321,49 @@ function SalaRealContent({
         >
           Ver imagen del Máster
         </button>
+      )}
+
+      {fase !== "sala" && colaSolicitudes[0] && (
+        <div
+          className="transferencia-dialogo"
+          role="alertdialog"
+          aria-modal="false"
+          aria-label="Solicitud de transferencia"
+        >
+          <p className="transferencia-texto">
+            {mensajeSolicitudTransferencia(colaSolicitudes[0])}
+          </p>
+          {colaSolicitudes[0].tipo === "posit" && colaSolicitudes[0].textoPosit && (
+            <p className="transferencia-preview-posit">
+              «{colaSolicitudes[0].textoPosit}»
+            </p>
+          )}
+          {colaSolicitudes[0].tipo === "objeto" && colaSolicitudes[0].objeto && (
+            <p className="transferencia-preview-posit">
+              {colaSolicitudes[0].objeto.emoji ? `${colaSolicitudes[0].objeto.emoji} ` : ""}
+              {colaSolicitudes[0].objeto.nombre}
+              {colaSolicitudes[0].objeto.cantidad > 1
+                ? ` (x${colaSolicitudes[0].objeto.cantidad})`
+                : ""}
+            </p>
+          )}
+          <div className="transferencia-acciones">
+            <button
+              type="button"
+              className="transferencia-btn-rechazar"
+              onClick={() => void rechazarSolicitud(colaSolicitudes[0]!)}
+            >
+              Rechazar
+            </button>
+            <button
+              type="button"
+              className="transferencia-btn-aceptar"
+              onClick={() => void aceptarSolicitud(colaSolicitudes[0]!)}
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
       )}
 
       {estadoAviso && !error && (

@@ -304,6 +304,21 @@ export const mesasApi = {
     }
   ) => http.post<void>(`/api/mesas/${id}/ping`, datos),
 
+  /** Sincroniza en tiempo real la medición de regla en el mapa. */
+  enviarRegla: (
+    id: string,
+    datos:
+      | {
+          activa: true;
+          x1: number;
+          y1: number;
+          x2: number;
+          y2: number;
+          color: string;
+        }
+      | { activa: false }
+  ) => http.post<void>(`/api/mesas/${id}/regla`, datos),
+
   /** Resumen de divisa, mochila y objetos en mesa de jugadores conectados (solo Máster). */
   resumenInventarioMaster: (id: string) =>
     http.get<{

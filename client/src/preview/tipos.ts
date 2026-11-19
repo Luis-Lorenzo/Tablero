@@ -73,6 +73,7 @@ export interface TiradaAsiento {
   especial?: TipoEspecialTirada;
   caras?: number;
   desglose?: string;
+  nombreMacro?: string;
   colorDado?: string;
   colorAristasDado?: string;
 }
@@ -247,6 +248,16 @@ export interface PingVisual {
   color: string;
   vista: "pizarra" | "escena" | "mapa";
   autorNombre?: string;
+}
+
+export interface ReglaVisual {
+  autorId: string;
+  autorNombre?: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
 }
 
 export interface GrupoDadoMacro {

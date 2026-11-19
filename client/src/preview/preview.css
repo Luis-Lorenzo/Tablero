@@ -10793,7 +10793,9 @@ html.modo-claro .asiento.seleccionado .asiento-nombre {
   box-shadow: 0 2px 8px rgb(60 40 90 / 22%);
 }
 
-html.modo-claro .asiento-apodo {
+html.modo-claro .asiento-apodo,
+html.modo-claro .asiento.master .asiento-apodo,
+html.modo-claro .asiento.seleccionado .asiento-apodo {
   background: #FFF8EC;
   border-color: color-mix(in srgb, var(--color-jugador) 72%, #B8862B);
   color: #2A1F3D;
@@ -11863,20 +11865,20 @@ html.modo-claro .sala-partida-estado.en-curso {
 }
 
 .mapa-regla-celda {
-  fill: rgb(232 197 106 / 26%);
-  stroke: rgb(232 197 106 / 78%);
+  fill: color-mix(in srgb, var(--regla-color, #e8c56a) 26%, transparent);
+  stroke: color-mix(in srgb, var(--regla-color, #e8c56a) 78%, transparent);
   stroke-width: 0.18;
 }
 
 .mapa-regla-linea {
-  stroke: #ffe58f;
+  stroke: var(--regla-color, #ffe58f);
   stroke-width: 3px;
   stroke-dasharray: 6 4;
   stroke-linecap: round;
 }
 
 .mapa-regla-punto {
-  fill: #ffe58f;
+  fill: var(--regla-color, #ffe58f);
   stroke: #120d1d;
   stroke-width: 0.25;
 }
@@ -11887,9 +11889,9 @@ html.modo-claro .sala-partida-estado.en-curso {
   z-index: 10;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1.5px solid #e8c56a;
+  border: 1.5px solid var(--regla-color, #e8c56a);
   background: rgb(14 10 22 / 94%);
-  color: #ffe8a3;
+  color: #ffffff;
   font-size: 0.78rem;
   font-weight: 800;
   white-space: nowrap;
@@ -11966,6 +11968,16 @@ html.modo-claro .sala-partida-estado.en-curso {
   font-weight: 800;
   pointer-events: none;
   white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  z-index: 2;
+}
+
+.mapa-area-circulo .mapa-area-etiqueta {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .mapa-area-etiqueta.cono {
@@ -11973,6 +11985,11 @@ html.modo-claro .sala-partida-estado.en-curso {
   left: 0;
   top: 12px;
   transform: translateX(-50%);
+}
+
+.mapa-area:hover .mapa-area-etiqueta,
+.mapa-area.seleccionada .mapa-area-etiqueta {
+  opacity: 1;
 }
 
 .mapa-area-cerrar {
@@ -12110,22 +12127,22 @@ html.modo-claro .mapa-area-tam-btn.activo {
 }
 
 html.modo-claro .mapa-regla-celda {
-  fill: rgb(226 169 59 / 32%);
-  stroke: #A8741A;
+  fill: color-mix(in srgb, var(--regla-color, #e2a93b) 32%, transparent);
+  stroke: var(--regla-color, #a8741a);
 }
 
 html.modo-claro .mapa-regla-linea {
-  stroke: #8A5A10;
+  stroke: var(--regla-color, #8a5a10);
 }
 
 html.modo-claro .mapa-regla-punto {
-  fill: #E2A93B;
+  fill: var(--regla-color, #e2a93b);
   stroke: #2A1F3D;
 }
 
 html.modo-claro .mapa-regla-etiqueta {
   background: rgb(255 248 236 / 96%);
-  border-color: #B8862B;
+  border-color: var(--regla-color, #b8862b);
   color: #1E1430;
   box-shadow: 0 4px 12px rgb(60 40 90 / 25%);
 }
@@ -12144,4 +12161,226 @@ html.modo-claro .mapa-area-cerrar {
 html.modo-claro .mapa-area-cerrar:hover {
   background: #C94A5A;
   color: #ffffff;
+}
+
+/* Nombre del macro junto a la tirada del jugador en mapa */
+
+.mapa-jugador-tirada-macro {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #f6e3b0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(232 197 106 / 16%);
+  border: 1px solid rgb(232 197 106 / 35%);
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.modo-claro .mapa-jugador-tirada-macro {
+  color: #5D3B08;
+  background: #F6E6C6;
+  border-color: #B8862B;
+}
+
+/* Legibilidad en modo claro: Crear Token, Almacén en mapa y Divisas del Máster */
+
+html.modo-claro .mapa-input {
+  background: #FFFDF8;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-input::placeholder {
+  color: #7A6B8E;
+}
+
+html.modo-claro .mapa-input:focus {
+  border-color: #8A5A10;
+}
+
+html.modo-claro .mapa-token-colores {
+  background: #F8EEDF;
+  border-color: #C9B28A;
+}
+
+html.modo-claro .mapa-token-color-input {
+  border-color: #B8862B;
+}
+
+html.modo-claro .mapa-preset-btn {
+  background: #F6ECDC;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-preset-btn:hover {
+  border-color: #8A5A10;
+  background: #EFE0C6;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-preset-btn.activo {
+  background: #E2A93B;
+  border-color: #8A5A10;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-token-tipo-btn.aliado.activo {
+  border-color: #0284C7;
+  background: #E0F2FE;
+  color: #0C4A6E;
+}
+
+html.modo-claro .mapa-token-tipo-btn.enemigo.activo {
+  border-color: #C94A5A;
+  background: #FCE8EC;
+  color: #8F1D2C;
+}
+
+html.modo-claro .mapa-toggle-fila {
+  background: #F8EEDF;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-toggle-fila:hover {
+  border-color: #8A5A10;
+}
+
+html.modo-claro .mapa-toggle-fila.activo {
+  background: #F6E6C6;
+  border-color: #B8862B;
+  color: #5D3B08;
+}
+
+html.modo-claro .mapa-toggle-switch {
+  background: #C9B28A;
+}
+
+html.modo-claro .mapa-toggle-fila.activo .mapa-toggle-switch {
+  background: #B8862B;
+}
+
+html.modo-claro .mapa-toggle-thumb {
+  background: #FFFDF8;
+}
+
+html.modo-claro .mapa-toggle-fila.activo .mapa-toggle-thumb {
+  background: #FFFDF8;
+}
+
+html.modo-claro .mapa-plantilla-invocar {
+  background: #FFFDF8;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-plantilla-invocar:hover {
+  background: #F6ECDC;
+  border-color: #8A5A10;
+}
+
+html.modo-claro .mapa-plantilla-tam {
+  color: #5D4E75;
+}
+
+html.modo-claro .mapa-plantilla-borrar {
+  background: #FCE8EC;
+  border: 1px solid #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .mapa-plantilla-borrar:hover {
+  background: #C94A5A;
+  color: #ffffff;
+}
+
+html.modo-claro .mapa-bandeja-badge {
+  background: #E2A93B;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-bandeja-filtro-btn {
+  background: #F6ECDC;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-bandeja-filtro-btn:hover {
+  border-color: #8A5A10;
+  background: #EFE0C6;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-bandeja-filtro-btn.activo {
+  background: #E2A93B;
+  border-color: #8A5A10;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-bandeja-cat-badge {
+  border-color: #B8862B;
+  background: #F6E6C6;
+  color: #5D3B08;
+}
+
+html.modo-claro .mapa-bandeja-cat-badge:hover {
+  background: #EED5A3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-bandeja-cat-badge.vacia {
+  border-color: #B9A37E;
+  background: transparent;
+  color: #5D4E75;
+}
+
+html.modo-claro .mapa-bandeja-cat-badge.vacia:hover {
+  border-color: #8A5A10;
+  color: #2A1F3D;
+}
+
+html.modo-claro .divisa-master-nombre {
+  border-top-color: rgb(184 134 43 / 32%);
+}
+
+html.modo-claro .divisa-master-gestion {
+  border-top-color: rgb(184 134 43 / 32%) !important;
+}
+
+html.modo-claro .divisa-master-nombre-fila input {
+  background: #FFFDF8;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+html.modo-claro .divisa-master-nombre-fila input::placeholder {
+  color: #7A6B8E;
+}
+
+html.modo-claro .divisa-master-nombre-fila button {
+  background: #F6E6C6;
+  border-color: #B8862B;
+  color: #5D3B08;
+}
+
+html.modo-claro .divisa-master-nombre-fila button:hover {
+  background: #E2A93B;
+  color: #1E1430;
+}
+
+html.modo-claro .master-divisa-item {
+  background: #FFFDF8;
+  border-color: #C9B28A;
+}
+
+html.modo-claro .master-divisa-jugador {
+  color: #2A1F3D;
+}
+
+html.modo-claro .master-divisa-monto {
+  color: #7A4B0A;
 }

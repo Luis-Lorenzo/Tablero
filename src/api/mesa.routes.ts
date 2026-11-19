@@ -1177,6 +1177,80 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     }
   });
 
+  router.post("/:id/regla", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as {
+        activa?: unknown;
+        x1?: unknown;
+        y1?: unknown;
+        x2?: unknown;
+        y2?: unknown;
+        color?: unknown;
+      };
+
+      const miembros = [mesa.hostId, ...mesa.players];
+      if (body.activa === false) {
+        context.mesasNotifier.enviarAUsuarios(miembros, {
+          type: "mesa:regla",
+          mesaId,
+          regla: {
+            autorId: actor.id,
+            autorNombre: nombreDeUsuario(actor),
+            activa: false
+          }
+        });
+        res.status(204).end();
+        return;
+      }
+
+      if (
+        typeof body.x1 !== "number" ||
+        !Number.isFinite(body.x1) ||
+        typeof body.y1 !== "number" ||
+        !Number.isFinite(body.y1) ||
+        typeof body.x2 !== "number" ||
+        !Number.isFinite(body.x2) ||
+        typeof body.y2 !== "number" ||
+        !Number.isFinite(body.y2)
+      ) {
+        throw errors.invalidRequest();
+      }
+
+      const clamp = (n: number) => Math.max(0, Math.min(100, n));
+      const color =
+        typeof body.color === "string" && body.color.trim()
+          ? body.color.trim().slice(0, 32)
+          : "#e8c56a";
+
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:regla",
+        mesaId,
+        regla: {
+          autorId: actor.id,
+          autorNombre: nombreDeUsuario(actor),
+          activa: true,
+          x1: clamp(body.x1),
+          y1: clamp(body.y1),
+          x2: clamp(body.x2),
+          y2: clamp(body.y2),
+          color
+        }
+      });
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/:id/mapa", requireAuth, async (req, res, next) => {
     try {
       const mapa = await mapaEstadoService.obtenerMapa(
