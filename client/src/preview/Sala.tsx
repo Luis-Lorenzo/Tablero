@@ -3653,21 +3653,7 @@ export function Sala({
                   {!jugador.esMaster && jugador.apodo?.trim() && (
                     <span className="asiento-apodo">{jugador.apodo.trim()}</span>
                   )}
-                  <span className="esfera">
-                    {(() => {
-                      const retratoId =
-                        jugador.retratoArchivoId ??
-                        retratosPorJugador?.[jugador.userId ?? jugador.usuarioId ?? jugador.id] ??
-                        null;
-                      return retratoId ? (
-                        <img
-                          className="asiento-pelota-retrato"
-                          src={archivosApi.url(retratoId)}
-                          alt={jugador.nombre}
-                        />
-                      ) : null;
-                    })()}
-                  </span>
+                  <span className="esfera" />
                   <span className="asiento-nombre">
                     {jugador.nombre}
                     {esMio ? " (tú)" : ""}
@@ -6562,6 +6548,21 @@ export function Sala({
               <span className="dock-etiqueta">Posits</span>
             </div>
 
+            {onAbrirPersonaje && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className="dock-btn"
+                  onClick={onAbrirPersonaje}
+                  title="Abrir ficha y retrato de personaje (PJ)"
+                  aria-label="PJ"
+                >
+                  <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
+                </button>
+                <span className="dock-etiqueta">PJ</span>
+              </div>
+            )}
+
             {onAbrirArchivador && (
               <div className="dock-item">
                 <button
@@ -6577,21 +6578,6 @@ export function Sala({
                   )}
                 </button>
                 <span className="dock-etiqueta">Archivador</span>
-              </div>
-            )}
-
-            {onAbrirPersonaje && (
-              <div className="dock-item">
-                <button
-                  type="button"
-                  className="dock-btn"
-                  onClick={onAbrirPersonaje}
-                  title="Abrir ficha y retrato de personaje (PJ)"
-                  aria-label="Personaje"
-                >
-                  <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
-                </button>
-                <span className="dock-etiqueta">Personaje</span>
               </div>
             )}
 

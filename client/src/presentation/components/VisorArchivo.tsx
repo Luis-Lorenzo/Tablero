@@ -31,6 +31,7 @@ export interface ArchivoParaVisor {
 interface VisorArchivoProps {
   archivo: ArchivoParaVisor;
   puedeGuardar?: boolean;
+  embebido?: boolean;
   accionesExtra?: ReactNode;
   onCerrar: () => void;
   onGuardado?: (actualizado: PublicArchivo) => void;
@@ -63,6 +64,7 @@ export function VisorArchivo(props: VisorArchivoProps) {
 function VisorArchivoContenido({
   archivo,
   puedeGuardar = true,
+  embebido = false,
   accionesExtra,
   onCerrar,
   onGuardado
@@ -81,6 +83,7 @@ function VisorArchivoContenido({
   const accionGuardarRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
+    if (embebido) return;
     const alPulsarTecla = (evento: KeyboardEvent) => {
       if (evento.key === "Escape") {
         onCerrar();
@@ -88,7 +91,7 @@ function VisorArchivoContenido({
     };
     document.addEventListener("keydown", alPulsarTecla);
     return () => document.removeEventListener("keydown", alPulsarTecla);
-  }, [onCerrar]);
+  }, [embebido, onCerrar]);
 
   useEffect(() => {
     const alActualizar = (evento: Event) => {
@@ -163,54 +166,48 @@ function VisorArchivoContenido({
   const soportaGuardado =
     edicionHabilitada && (archivo.vista === "texto" || archivo.vista === "pdf");
 
-  return (
+  const contenidoCaja = (
     <div
-      className="visor-unificado-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={archivo.nombre}
-      onClick={onCerrar}
+      className="visor-unificado-caja"
+      onClick={embebido ? undefined : evento => evento.stopPropagation()}
     >
-      <div
-        className="visor-unificado-caja"
-        onClick={evento => evento.stopPropagation()}
-      >
-        <header className="visor-unificado-cabecera">
-          <span className="visor-unificado-nombre" title={archivo.nombre}>
-            {archivo.nombre}
-          </span>
+      <header className="visor-unificado-cabecera">
+        <span className="visor-unificado-nombre" title={archivo.nombre}>
+          {archivo.nombre}
+        </span>
 
-          <div className="visor-unificado-acciones">
-            {accionesExtra}
+        <div className="visor-unificado-acciones">
+          {accionesExtra}
 
-            {soportaGuardado && tieneAccionGuardar && (
-              <button
-                type="button"
-                className="visor-unificado-btn guardar"
-                disabled={guardando || !hayCambiosSinGuardar}
-                onClick={() => void ejecutarGuardado()}
-                title="Guardar cambios en la nube"
-              >
-                {guardando ? (
-                  <Loader2 size={14} className="icono-girando" aria-hidden="true" />
-                ) : (
-                  <Save size={14} aria-hidden="true" />
-                )}
-                <span>{guardando ? "Guardando…" : "Guardar cambios"}</span>
-              </button>
-            )}
+          {soportaGuardado && tieneAccionGuardar && (
+            <button
+              type="button"
+              className="visor-unificado-btn guardar"
+              disabled={guardando || !hayCambiosSinGuardar}
+              onClick={() => void ejecutarGuardado()}
+              title="Guardar cambios en la nube"
+            >
+              {guardando ? (
+                <Loader2 size={14} className="icono-girando" aria-hidden="true" />
+              ) : (
+                <Save size={14} aria-hidden="true" />
+              )}
+              <span>{guardando ? "Guardando…" : "Guardar cambios"}</span>
+            </button>
+          )}
 
-            {!archivo.contenidoLocal && (
-              <a
-                className="visor-unificado-descargar"
-                href={descargaUrl}
-                download={archivo.nombre}
-              >
-                <Download size={14} aria-hidden="true" />
-                <span>Descargar</span>
-              </a>
-            )}
+          {!archivo.contenidoLocal && (
+            <a
+              className="visor-unificado-descargar"
+              href={descargaUrl}
+              download={archivo.nombre}
+            >
+              <Download size={14} aria-hidden="true" />
+              <span>Descargar</span>
+            </a>
+          )}
 
+          {!embebido && (
             <button
               type="button"
               className="visor-unificado-cerrar"
@@ -220,78 +217,98 @@ function VisorArchivoContenido({
               <X size={15} aria-hidden="true" />
               <span>Cerrar</span>
             </button>
-          </div>
-        </header>
-
-        {hayActualizacionRemota && (
-          <div className="visor-aviso-actualizado" role="status">
-            <span>Este archivo se ha actualizado en la nube.</span>
-            <button
-              type="button"
-              className="visor-tool-btn"
-              onClick={recargarRemoto}
-            >
-              <RefreshCw size={13} aria-hidden="true" />
-              <span>Recargar</span>
-            </button>
-          </div>
-        )}
-
-        {feedback && (
-          <div className={`visor-feedback-bar ${feedback.tipo}`} role="status">
-            {feedback.texto}
-          </div>
-        )}
-
-        <div className="visor-unificado-marco">
-          {archivo.vista === "imagen" ? (
-            <VisorImagen key={recursoUrl} url={recursoUrl} nombre={archivo.nombre} />
-          ) : archivo.vista === "pdf" ? (
-            <VisorPdf
-              key={recursoUrl}
-              archivoId={archivo.id}
-              url={recursoUrl}
-              edicionHabilitada={edicionHabilitada}
-              onRegistrarGuardado={registrarGuardado}
-              onGuardadoOk={confirmarGuardado}
-              onError={mostrarErrorVisor}
-            />
-          ) : archivo.vista === "docx" ? (
-            <VisorDocx key={recursoUrl} url={recursoUrl} />
-          ) : archivo.vista === "texto" ? (
-            <VisorTexto
-              key={recursoUrl}
-              archivoId={archivo.id}
-              nombre={archivo.nombre}
-              tipoMime={archivo.tipo}
-              url={recursoUrl}
-              contenidoLocal={archivo.contenidoLocal}
-              edicionHabilitada={edicionHabilitada}
-              onRegistrarGuardado={registrarGuardado}
-              onGuardadoOk={confirmarGuardado}
-              onGuardarAtajo={() => void ejecutarGuardado()}
-            />
-          ) : archivo.vista === "audio" ? (
-            <div className="visor-centro-estado">
-              <audio className="visor-audio-player" controls src={recursoUrl} />
-            </div>
-          ) : (
-            <div className="visor-centro-estado">
-              <p>Este formato no admite previsualización directa.</p>
-              {!archivo.contenidoLocal && (
-                <a
-                  className="visor-unificado-descargar"
-                  href={descargaUrl}
-                  download={archivo.nombre}
-                >
-                  <Download size={14} aria-hidden="true" />
-                  <span>Descargar archivo</span>
-                </a>
-              )}
-            </div>
           )}
         </div>
+      </header>
+
+      {hayActualizacionRemota && (
+        <div className="visor-aviso-actualizado" role="status">
+          <span>Este archivo se ha actualizado en la nube.</span>
+          <button
+            type="button"
+            className="visor-tool-btn"
+            onClick={recargarRemoto}
+          >
+            <RefreshCw size={13} aria-hidden="true" />
+            <span>Recargar</span>
+          </button>
+        </div>
+      )}
+
+      {feedback && (
+        <div className={`visor-feedback-bar ${feedback.tipo}`} role="status">
+          {feedback.texto}
+        </div>
+      )}
+
+      <div className="visor-unificado-marco">
+        {archivo.vista === "imagen" ? (
+          <VisorImagen key={recursoUrl} url={recursoUrl} nombre={archivo.nombre} />
+        ) : archivo.vista === "pdf" ? (
+          <VisorPdf
+            key={recursoUrl}
+            archivoId={archivo.id}
+            url={recursoUrl}
+            edicionHabilitada={edicionHabilitada}
+            onRegistrarGuardado={registrarGuardado}
+            onGuardadoOk={confirmarGuardado}
+            onError={mostrarErrorVisor}
+          />
+        ) : archivo.vista === "docx" ? (
+          <VisorDocx key={recursoUrl} url={recursoUrl} />
+        ) : archivo.vista === "texto" ? (
+          <VisorTexto
+            key={recursoUrl}
+            archivoId={archivo.id}
+            nombre={archivo.nombre}
+            tipoMime={archivo.tipo}
+            url={recursoUrl}
+            contenidoLocal={archivo.contenidoLocal}
+            edicionHabilitada={edicionHabilitada}
+            onRegistrarGuardado={registrarGuardado}
+            onGuardadoOk={confirmarGuardado}
+            onGuardarAtajo={() => void ejecutarGuardado()}
+          />
+        ) : archivo.vista === "audio" ? (
+          <div className="visor-centro-estado">
+            <audio className="visor-audio-player" controls src={recursoUrl} />
+          </div>
+        ) : (
+          <div className="visor-centro-estado">
+            <p>Este formato no admite previsualización directa.</p>
+            {!archivo.contenidoLocal && (
+              <a
+                className="visor-unificado-descargar"
+                href={descargaUrl}
+                download={archivo.nombre}
+              >
+                <Download size={14} aria-hidden="true" />
+                <span>Descargar archivo</span>
+              </a>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+
+  if (embebido) {
+    return (
+      <div className="visor-archivo-embebido" aria-label={archivo.nombre}>
+        {contenidoCaja}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="visor-unificado-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={archivo.nombre}
+      onClick={onCerrar}
+    >
+      {contenidoCaja}
     </div>
   );
 }

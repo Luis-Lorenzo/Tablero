@@ -13361,6 +13361,68 @@ html.modo-claro .pizarra-sidebar-archivador-btn:hover:not(:disabled) {
   color: #1E1430;
 }
 
+html.modo-claro .pizarra-sidebar-titulo-wrap h2 {
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-sidebar-count {
+  border-color: #8E7CC3;
+  background: rgb(124 92 191 / 14%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-sidebar-subir {
+  border-color: #8E7CC3;
+  background: rgb(255 253 248 / 92%);
+  color: #2A1F3D;
+  box-shadow: 0 2px 6px rgb(60 40 90 / 14%);
+}
+
+html.modo-claro .pizarra-sidebar-subir:hover:not(:disabled) {
+  border-color: #7C5CBF;
+  background: #7C5CBF;
+  color: #FFFDF8;
+}
+
+html.modo-claro .pizarra-sidebar-error {
+  background: rgb(201 74 90 / 16%);
+  color: #8B1E2D;
+}
+
+html.modo-claro .pizarra-sidebar-nombre {
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-sidebar-tipo {
+  color: #5D4E75;
+}
+
+html.modo-claro .pizarra-sidebar-sacar {
+  border-color: #8E7CC3;
+  background: rgb(124 92 191 / 12%);
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-sidebar-sacar:hover {
+  border-color: #7C5CBF;
+  background: #7C5CBF;
+  color: #FFFDF8;
+}
+
+html.modo-claro .pizarra-sidebar-sacar.en-tablero {
+  border-color: #2F9E6F;
+  background: rgb(47 158 111 / 18%);
+  color: #145338;
+}
+
+html.modo-claro .pizarra-sidebar-borrar {
+  color: #5D4E75;
+}
+
+html.modo-claro .pizarra-sidebar-borrar:hover {
+  color: #9E2A38;
+}
+
 /* =========================================================================
    FASE E — Archivador PJ, Recorte Retrato, Ficha Rápida, Intercambio,
    Susurros Grupales, Macro en Asiento y Tirada de Macro en Mochila
@@ -14786,4 +14848,101 @@ html.modo-claro .mochila-btn-tirar-macro {
 
 html.modo-claro .mochila-btn-tirar-macro:hover {
   background: #9A6E1F;
+}
+
+/* ==================== PersonajePanel 50/50 Split Layout ==================== */
+
+.archivador-contenido.pj-contenido {
+  max-width: none;
+  padding: 16px 20px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.pj-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  height: calc(100vh - 96px);
+  min-height: 0;
+  align-items: stretch;
+}
+
+.pj-col-izq {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.pj-col-der {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pj-visor-contenedor {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgb(44 102 150 / 32%);
+  background: rgb(20 16 28 / 92%);
+  box-shadow: 4px 4px 0 rgb(24 68 108 / 16%);
+}
+
+.pj-visor-vacio {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
+  color: #b9afc7;
+}
+
+.pj-visor-vacio p {
+  margin: 0;
+  max-width: 340px;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+html.modo-claro .pj-visor-contenedor {
+  border-color: #C9B28A;
+  background: #FFF8EC;
+  box-shadow: 4px 4px 0 rgb(42 31 61 / 12%);
+}
+
+html.modo-claro .pj-visor-vacio {
+  color: #5D4A78;
+}
+
+@media (max-width: 960px) {
+  .archivador-contenido.pj-contenido {
+    overflow-y: auto;
+  }
+
+  .pj-split-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .pj-col-izq {
+    overflow-y: visible;
+  }
+
+  .pj-visor-contenedor {
+    min-height: 520px;
+    height: 70vh;
+  }
 }

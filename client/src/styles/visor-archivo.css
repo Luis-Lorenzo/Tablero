@@ -27,6 +27,27 @@
     0 24px 60px rgb(0 0 0 / 65%);
 }
 
+.visor-archivo-embebido {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.visor-archivo-embebido .visor-unificado-caja {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.visor-archivo-embebido .visor-unificado-nombre {
+  max-width: 100%;
+}
+
 .visor-unificado-cabecera {
   display: flex;
   align-items: center;
@@ -357,6 +378,10 @@ html.modo-claro .visor-unificado-caja {
   border-color: #B8862B;
   color: #2A1F3D;
   box-shadow: 0 22px 54px rgb(42 31 61 / 32%);
+}
+
+html.modo-claro .visor-archivo-embebido .visor-unificado-caja {
+  box-shadow: none;
 }
 
 html.modo-claro .visor-unificado-nombre {

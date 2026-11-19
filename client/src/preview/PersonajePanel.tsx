@@ -4,6 +4,8 @@ import { ArrowLeft, FileText, Plus, Upload, User, X } from "lucide-react";
 import { archivosApi } from "../api/archivos.api";
 import type { PersonajeJugadorMesa, PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
+import { VisorArchivo } from "../presentation/components/VisorArchivo";
+import type { ArchivoParaVisor } from "../presentation/components/VisorArchivo";
 import { DocumentoVisorModal } from "./Archivador";
 import { RecorteRetratoModal } from "./RecorteRetratoModal";
 import { infoFormatoArchivo } from "./calibracion";
@@ -334,6 +336,13 @@ export function PersonajePanel({
   const vistaFicha =
     archivoFicha?.vista ?? inferirVistaPorNombre(pjLocal.fichaNombre ?? "");
   const formatoFicha = infoFormatoArchivo(vistaFicha);
+  const fichaParaVisor: ArchivoParaVisor | null = pjLocal.fichaArchivoId
+    ? archivoFicha ?? {
+        id: pjLocal.fichaArchivoId,
+        nombre: pjLocal.fichaNombre ?? "Ficha de personaje",
+        vista: vistaFicha
+      }
+    : null;
   const pdfsDisponibles = archivos.filter(
     a =>
       a.vista !== "imagen" &&
@@ -381,13 +390,14 @@ export function PersonajePanel({
         </div>
       </header>
 
-      <div className="archivador-contenido">
+      <div className="archivador-contenido pj-contenido">
         {error && <p className="archivador-error">{error}</p>}
 
-        <section
-          className="archivador-seccion archivador-pj-seccion"
-          aria-label="Personaje (PJ)"
-        >
+        <div className="pj-split-layout">
+          <section
+            className="archivador-seccion archivador-pj-seccion pj-col-izq"
+            aria-label="Personaje (PJ)"
+          >
           <div className="archivador-seccion-cabecera">
             <h2>{nombreJugador ? `Personaje de ${nombreJugador}` : "Ficha privada de personaje"}</h2>
           </div>
@@ -522,7 +532,7 @@ export function PersonajePanel({
                           "Ficha de personaje"}
                       </span>
                       <span className="archivador-pj-ficha-sub">
-                        Clic para abrir en el visor
+                        Vista previa activa a la derecha (clic para modal)
                       </span>
                     </span>
                   </button>
@@ -649,7 +659,29 @@ export function PersonajePanel({
               </button>
             )}
           </div>
-        </section>
+          </section>
+
+          <div className="pj-col-der">
+            <div className="pj-visor-contenedor">
+              {fichaParaVisor ? (
+                <VisorArchivo
+                  embebido
+                  archivo={fichaParaVisor}
+                  onCerrar={() => {}}
+                  onGuardado={() => void refrescarArchivos()}
+                />
+              ) : (
+                <div className="pj-visor-vacio">
+                  <FileText size={42} aria-hidden="true" />
+                  <p>
+                    Selecciona o sube tu ficha principal (PDF o Word) para verla
+                    aquí en grande
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {visor && (

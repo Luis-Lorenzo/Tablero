@@ -4050,6 +4050,21 @@ export function HudSalaCompartido({
           <span className="dock-etiqueta">Posits</span>
         </div>
 
+        {onAbrirPersonaje && (
+          <div className="dock-item">
+            <button
+              type="button"
+              className="dock-btn"
+              onClick={onAbrirPersonaje}
+              title="Abrir ficha y retrato de personaje (PJ)"
+              aria-label="PJ"
+            >
+              <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
+            </button>
+            <span className="dock-etiqueta">PJ</span>
+          </div>
+        )}
+
         {(onAbrirArchivador || archivosDisponibles !== undefined || onElementosMesa) && (
           <div className="dock-item">
             <button
@@ -4079,21 +4094,6 @@ export function HudSalaCompartido({
               )}
             </button>
             <span className="dock-etiqueta">Archivador</span>
-          </div>
-        )}
-
-        {onAbrirPersonaje && (
-          <div className="dock-item">
-            <button
-              type="button"
-              className="dock-btn"
-              onClick={onAbrirPersonaje}
-              title="Abrir ficha y retrato de personaje (PJ)"
-              aria-label="Personaje"
-            >
-              <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
-            </button>
-            <span className="dock-etiqueta">Personaje</span>
           </div>
         )}
       </div>
