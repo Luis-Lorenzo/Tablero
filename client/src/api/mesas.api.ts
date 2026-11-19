@@ -66,7 +66,14 @@ export const mesasApi = {
 
   crear: () => http.post<PublicMesa>("/api/mesas"),
 
-  unirse: (id: string) => http.post<PublicMesa>(`/api/mesas/${id}/unirse`),
+  unirse: (id: string, contrasena?: string) =>
+    http.post<PublicMesa>(
+      `/api/mesas/${id}/unirse`,
+      contrasena !== undefined ? { contrasena } : undefined
+    ),
+
+  cambiarContrasena: (id: string, contrasena: string | null) =>
+    http.patch<PublicMesa>(`/api/mesas/${id}/contrasena`, { contrasena }),
 
   abandonar: (id: string) => http.post<void>(`/api/mesas/${id}/abandonar`),
 
@@ -103,28 +110,28 @@ export const mesasApi = {
     id: string,
     payload:
       | {
-          receptorId: string;
-          tipo: "posit";
-          posit: { texto: string; color: string; giro?: number };
-        }
+        receptorId: string;
+        tipo: "posit";
+        posit: { texto: string; color: string; giro?: number };
+      }
       | {
-          receptorId: string;
-          tipo: "archivo";
-          archivoId: string;
-        }
+        receptorId: string;
+        tipo: "archivo";
+        archivoId: string;
+      }
       | {
-          receptorId: string;
-          tipo: "objeto";
-          objeto: {
-            idOrigen?: string;
-            nombre: string;
-            descripcion: string;
-            cantidad: number;
-            emoji?: string;
-            archivoId?: string;
-            archivoNombre?: string;
-          };
-        }
+        receptorId: string;
+        tipo: "objeto";
+        objeto: {
+          idOrigen?: string;
+          nombre: string;
+          descripcion: string;
+          cantidad: number;
+          emoji?: string;
+          archivoId?: string;
+          archivoNombre?: string;
+        };
+      }
   ) => http.post<PublicTransferencia>(`/api/mesas/${id}/compartir`, payload),
 
   aceptarCompartir: (id: string, transferenciaId: string) =>
@@ -142,25 +149,25 @@ export const mesasApi = {
     id: string,
     payload:
       | {
-          tipo: "posit";
-          posit: { texto: string; color: string; giro?: number };
-        }
+        tipo: "posit";
+        posit: { texto: string; color: string; giro?: number };
+      }
       | {
-          tipo: "archivo";
-          archivoId: string;
-        }
+        tipo: "archivo";
+        archivoId: string;
+      }
       | {
-          tipo: "objeto";
-          objeto: {
-            idOrigen?: string;
-            nombre: string;
-            descripcion: string;
-            cantidad: number;
-            emoji?: string;
-            archivoId?: string;
-            archivoNombre?: string;
-          };
-        }
+        tipo: "objeto";
+        objeto: {
+          idOrigen?: string;
+          nombre: string;
+          descripcion: string;
+          cantidad: number;
+          emoji?: string;
+          archivoId?: string;
+          archivoNombre?: string;
+        };
+      }
   ) =>
     http.post<{ ok: boolean; destinatarios: number; elemento: unknown }>(
       `/api/mesas/${id}/compartir-todos`,
@@ -309,14 +316,15 @@ export const mesasApi = {
     id: string,
     datos:
       | {
-          activa: true;
-          x1: number;
-          y1: number;
-          x2: number;
-          y2: number;
-          color: string;
-        }
-      | { activa: false }
+        activa: true;
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+        color: string;
+        seq?: number;
+      }
+      | { activa: false; seq?: number }
   ) => http.post<void>(`/api/mesas/${id}/regla`, datos),
 
   /** Resumen de divisa, mochila y objetos en mesa de jugadores conectados (solo Máster). */
@@ -365,8 +373,19 @@ export const mesasApi = {
     }),
 
   /** Avanza al siguiente turno en la iniciativa del mapa. */
-  avanzarTurnoMapa: (mesaId: string) =>
-    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`),
+  avanzarTurnoMapa: (
+    mesaId: string,
+    opciones?: {
+      porTiempo?: boolean;
+      rondaEsperada?: number;
+      turnoIndiceEsperado?: number;
+      entradaIdEsperada?: string;
+    }
+  ) =>
+    http.post<EstadoMapaCompartido>(
+      `/api/mesas/${mesaId}/mapa/iniciativa/siguiente`,
+      opciones ?? {}
+    ),
 
   /** Crea un token en el mapa táctico (y opcionalmente su plantilla). */
   crearTokenMapa: (mesaId: string, datos: CrearTokenMapaPayload) =>
@@ -409,6 +428,12 @@ export const mesasApi = {
   /** Añade un trazo de dibujo al mapa táctico. */
   agregarTrazoMapa: (mesaId: string, trazo: Omit<TrazoMapa, "autorId">) =>
     http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/trazos`, trazo),
+
+  /** Elimina varios trazos de dibujo del mapa táctico en un lote (goma). */
+  eliminarTrazosMapaLote: (mesaId: string, ids: string[]) =>
+    http.post<EstadoMapaCompartido>(`/api/mesas/${mesaId}/mapa/trazos/eliminar-lote`, {
+      ids
+    }),
 
   /** Elimina (deshace) un trazo de dibujo del mapa táctico. */
   eliminarTrazoMapa: (mesaId: string, trazoId: string) =>

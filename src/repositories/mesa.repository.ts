@@ -144,6 +144,8 @@ export interface Mesa {
   divisasConfig?: DivisaConfig[];
   /** Estado de la música ambiente de la mesa. */
   musicaAmbiente?: MusicaAmbienteMesa | null;
+  /** Contraseña opcional de acceso a la sala (texto plano visible para el máster). */
+  contrasena?: string | null;
   createdAt: Date;
 }
 
@@ -172,6 +174,7 @@ export function createMesa(hostId: string): Mesa {
     imagenEscena: null,
     imagenProyectada: null,
     musicaAmbiente: null,
+    contrasena: null,
     createdAt: new Date()
   };
 }
@@ -204,6 +207,7 @@ export class MemoryMesaRepository implements MesaRepository {
       apodos: { ...(mesa.apodos ?? {}) },
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
+      contrasena: mesa.contrasena ?? null,
       musicaAmbiente: mesa.musicaAmbiente
         ? {
             ...mesa.musicaAmbiente,

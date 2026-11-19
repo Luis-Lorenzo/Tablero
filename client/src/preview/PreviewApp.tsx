@@ -489,7 +489,42 @@ export default function PreviewApp() {
 
   const cambiarIniciativaPreview = useCallback(
     (iniciativa: MapaIniciativaEstado) => {
-      setEstadoMapa(prev => ({ ...prev, iniciativa }));
+      setEstadoMapa(prev => {
+        const prevIni = prev.iniciativa;
+        const prevEntradaId = prevIni?.entradas[prevIni.turnoIndice]?.id;
+        const nextEntradaId = iniciativa.entradas[iniciativa.turnoIndice]?.id;
+        const mismoTurno = Boolean(
+          prevIni &&
+            prevIni.activa &&
+            iniciativa.activa &&
+            iniciativa.entradas.length > 0 &&
+            prevIni.ronda === iniciativa.ronda &&
+            prevIni.turnoIndice === iniciativa.turnoIndice &&
+            prevEntradaId === nextEntradaId &&
+            (prevIni.turnoMaxSegundos ?? null) === (iniciativa.turnoMaxSegundos ?? null) &&
+            typeof prevIni.turnoIniciadoEn === "number"
+        );
+        return {
+          ...prev,
+          iniciativa:
+            iniciativa.activa && iniciativa.entradas.length > 0
+              ? {
+                  ...iniciativa,
+                  turnoIniciadoEn: mismoTurno
+                    ? prevIni!.turnoIniciadoEn
+                    : Date.now()
+                }
+              : {
+                  activa: iniciativa.activa,
+                  ronda: iniciativa.ronda,
+                  turnoIndice: iniciativa.turnoIndice,
+                  entradas: iniciativa.entradas,
+                  ...(iniciativa.turnoMaxSegundos !== undefined
+                    ? { turnoMaxSegundos: iniciativa.turnoMaxSegundos }
+                    : {})
+                }
+        };
+      });
     },
     []
   );
@@ -507,7 +542,8 @@ export default function PreviewApp() {
         iniciativa: {
           ...iniciativa,
           turnoIndice: haySiguiente ? iniciativa.turnoIndice + 1 : 0,
-          ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1
+          ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1,
+          turnoIniciadoEn: Date.now()
         }
       };
     });
@@ -527,6 +563,15 @@ export default function PreviewApp() {
     setEstadoMapa(prev => ({
       ...prev,
       trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+  }, []);
+
+  const eliminarTrazosLotePreview = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    const set = new Set(ids);
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => !set.has(t.id))
     }));
   }, []);
 
@@ -730,6 +775,7 @@ export default function PreviewApp() {
           onTerminarTurnoIniciativa={terminarTurnoIniciativaPreview}
           onAgregarTrazo={agregarTrazoPreview}
           onEliminarTrazo={eliminarTrazoPreview}
+          onEliminarTrazosLote={eliminarTrazosLotePreview}
           onBorrarTrazos={borrarTrazosPreview}
           onCambiarDibujoCongelado={cambiarDibujoCongeladoPreview}
           archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}

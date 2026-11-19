@@ -21,6 +21,7 @@ interface MesaRow {
   divisa_nombre: string | null;
   divisas_config: unknown;
   musica_ambiente: unknown;
+  contrasena: string | null;
   created_at: Date;
 }
 
@@ -36,7 +37,7 @@ interface JugadoresMesaDatos {
 }
 
 const SELECT_COLUMNS =
-  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, created_at";
+  "id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, contrasena, created_at";
 
 function toMesa(
   row: MesaRow,
@@ -62,6 +63,7 @@ function toMesa(
     divisaNombre: row.divisa_nombre?.trim() || "Divisa",
     ...(divisasLimpias.length > 0 ? { divisasConfig: divisasLimpias } : {}),
     musicaAmbiente,
+    contrasena: row.contrasena ?? null,
     createdAt: new Date(row.created_at)
   };
 }
@@ -139,8 +141,8 @@ export class PgMesaRepository implements MesaRepository {
     try {
       await client.query("BEGIN");
       await client.query(
-        `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, created_at)
-         VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14)
+        `INSERT INTO mesas(id, host_id, players, expulsados, pending_host_id, estado, imagen_escena_id, imagen_escena_titulo, imagen_proyectada_id, imagen_proyectada_titulo, divisa_nombre, divisas_config, musica_ambiente, contrasena, created_at)
+         VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15)
          ON CONFLICT(id) DO UPDATE SET
            host_id = EXCLUDED.host_id,
            players = EXCLUDED.players,
@@ -153,7 +155,8 @@ export class PgMesaRepository implements MesaRepository {
            imagen_proyectada_titulo = EXCLUDED.imagen_proyectada_titulo,
            divisa_nombre = EXCLUDED.divisa_nombre,
            divisas_config = EXCLUDED.divisas_config,
-           musica_ambiente = EXCLUDED.musica_ambiente`,
+           musica_ambiente = EXCLUDED.musica_ambiente,
+           contrasena = EXCLUDED.contrasena`,
         [
           mesa.id,
           mesa.hostId,
@@ -168,6 +171,7 @@ export class PgMesaRepository implements MesaRepository {
           mesa.divisaNombre?.trim() || "Divisa",
           mesa.divisasConfig ? JSON.stringify(mesa.divisasConfig) : null,
           mesa.musicaAmbiente ? JSON.stringify(mesa.musicaAmbiente) : null,
+          mesa.contrasena ?? null,
           mesa.createdAt
         ]
       );

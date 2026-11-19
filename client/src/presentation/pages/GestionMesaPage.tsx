@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, LogOut, Palette, Pencil, Play, Trash2, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
+import { ArrowLeft, Check, Crown, DoorOpen, Lock, LogOut, Palette, Pencil, Play, Trash2, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -46,6 +46,7 @@ export function GestionMesaPage({
   const [busy, setBusy] = useState(false);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
   const [apodoInput, setApodoInput] = useState("");
+  const [contrasenaEditada, setContrasenaEditada] = useState<string | null>(null);
   const [expulsarObjetivo, setExpulsarObjetivo] = useState<{ id: string; nombre: string } | null>(null);
   const [confirmCerrar, setConfirmCerrar] = useState(false);
 
@@ -207,6 +208,42 @@ export function GestionMesaPage({
 
   function entrarEnSala() {
     if (mesa && onAbrirSala) onAbrirSala(mesa);
+  }
+
+  async function guardarContrasena(evento: FormEvent) {
+    evento.preventDefault();
+    if (!mesa) return;
+    const limpia = (contrasenaEditada ?? mesa.contrasena ?? "").trim().slice(0, 64);
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarContrasena(mesa.id, limpia || null);
+      setMesa(actualizada);
+      setContrasenaEditada(null);
+      setAviso(limpia ? "Contraseña de la sala guardada." : "Contraseña eliminada (sala abierta).");
+    } catch (passError) {
+      setError(describeError(passError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quitarContrasena() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarContrasena(mesa.id, null);
+      setMesa(actualizada);
+      setContrasenaEditada(null);
+      setAviso("Contraseña eliminada (sala abierta).");
+    } catch (passError) {
+      setError(describeError(passError));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (loading) {
@@ -382,6 +419,54 @@ export function GestionMesaPage({
               </button>
             )}
           </form>
+        </div>
+      )}
+
+      {gestiona && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <Lock size={15} aria-hidden="true" />
+            <span>Contraseña de la sala (opcional)</span>
+          </h3>
+          <form className="apodo-propio-form" onSubmit={evento => void guardarContrasena(evento)}>
+            <input
+              type="text"
+              className="apodo-propio-input"
+              maxLength={64}
+              value={contrasenaEditada ?? mesa.contrasena ?? ""}
+              onChange={e => setContrasenaEditada(e.target.value)}
+              placeholder="Sin contraseña (sala abierta)…"
+              aria-label="Contraseña de la sala"
+              autoComplete="off"
+              disabled={busy}
+            />
+            <button
+              type="submit"
+              className="ghost small"
+              disabled={
+                busy ||
+                (contrasenaEditada ?? mesa.contrasena ?? "").trim().slice(0, 64) ===
+                  (mesa.contrasena ?? "")
+              }
+            >
+              Guardar
+            </button>
+            {mesa.tieneContrasena && (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void quitarContrasena()}
+                disabled={busy}
+              >
+                Quitar
+              </button>
+            )}
+          </form>
+          <p className="muted gestion-contrasena-nota">
+            {mesa.tieneContrasena
+              ? "Sala protegida: los jugadores deberán escribir esta contraseña al unirse."
+              : "Sala abierta: cualquiera puede unirse sin contraseña."}
+          </p>
         </div>
       )}
 

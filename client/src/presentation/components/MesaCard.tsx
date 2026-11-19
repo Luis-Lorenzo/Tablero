@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Crown, Eye, LogOut, Play, Settings2, Trash2, Users } from "lucide-react";
+import { Crown, Eye, Lock, LogOut, Play, Settings2, Trash2, Users } from "lucide-react";
 import { MESA_MAX_JUGADORES } from "../../api/mesas.api";
 import type { PublicMesa } from "../../api/types";
 
@@ -123,6 +123,15 @@ export function MesaCard({
     <>
       <div className="mesa-cabecera-card">
         <span className="mesa-etiqueta">Mesa {mesa.hostName}</span>
+        {mesa.tieneContrasena && (
+          <span
+            className="mesa-candado"
+            title="Sala protegida con contraseña"
+            aria-label="Sala protegida con contraseña"
+          >
+            <Lock size={12} aria-hidden="true" />
+          </span>
+        )}
         {llena && <span className="mesa-lleno">LLENO</span>}
       </div>
 

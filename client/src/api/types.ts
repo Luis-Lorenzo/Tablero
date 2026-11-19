@@ -63,6 +63,8 @@ export interface PublicMesa {
   divisaNombre?: string;
   divisasConfig?: DivisaConfig[];
   musicaAmbiente?: MusicaAmbienteMesa | null;
+  tieneContrasena?: boolean;
+  contrasena?: string | null;
   createdAt: string;
 }
 
@@ -260,6 +262,8 @@ export interface MapaIniciativaEstado {
   ronda: number;
   turnoIndice: number;
   entradas: IniciativaEntrada[];
+  turnoMaxSegundos?: number | null;
+  turnoIniciadoEn?: number;
 }
 
 export interface TrazoMapa {
@@ -309,6 +313,7 @@ export interface EstadoMapaCompartido {
   trazos?: TrazoMapa[];
   areas?: AreaMapa[];
   dibujoCongelado?: boolean;
+  servidorAhora?: number;
 }
 
 export interface GuardarMapaFondoPayload {

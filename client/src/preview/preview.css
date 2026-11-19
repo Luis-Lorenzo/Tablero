@@ -2127,6 +2127,78 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #ffe8a3;
 }
 
+.mapa-dibujo-herramientas {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mapa-herramienta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid #495060;
+  border-radius: 5px;
+  background: #171a21;
+  color: #d4d8e0;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapa-herramienta-btn:hover {
+  border-color: #e8c56a;
+  color: #fff;
+}
+
+.mapa-herramienta-btn.activo {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 24%);
+  color: #ffe8a3;
+}
+
+.mapa-contrareloj-paleta {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  margin-top: 2px;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+}
+
+.mapa-contrareloj-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mapa-contrareloj-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.mapa-contrareloj-input {
+  width: 58px;
+  padding: 3px 6px;
+  border: 1px solid #495060;
+  border-radius: 5px;
+  background: #111319;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.mapa-contrareloj-nota {
+  font-size: 0.68rem;
+  color: #9ca3af;
+}
+
 .mapa-barra-sep {
   width: 1px;
   height: 20px;
@@ -2239,6 +2311,10 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 .mapa-viewport.modo-ping,
 .mapa-viewport.modo-dibujo {
   cursor: crosshair;
+}
+
+.mapa-viewport.modo-goma {
+  cursor: cell;
 }
 
 .mapa-transform {
@@ -3509,8 +3585,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   transform: translateX(-50%);
   z-index: 26;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: 5px;
   padding: 6px 10px;
   border-radius: 10px;
   background: rgb(18 21 28 / 92%);
@@ -3518,6 +3595,22 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   box-shadow: 3px 3px 0 #090b0f;
   backdrop-filter: blur(6px);
   pointer-events: auto;
+}
+
+.mapa-turno-fila {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.mapa-contrareloj-titulo {
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 85%);
 }
 
 .mapa-pasar-turno-btn {
@@ -3578,6 +3671,46 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   color: #4ade80;
   border-color: rgb(74 222 128 / 60%);
   text-shadow: 0 0 8px rgb(74 222 128 / 45%);
+}
+
+.mapa-turno-timer.sin-limite {
+  color: #ffe8a3;
+  border-color: rgb(232 197 106 / 58%);
+  text-shadow: 0 0 8px rgb(232 197 106 / 35%);
+}
+
+.mapa-turno-timer.estado-verde {
+  color: #4ade80;
+  border-color: rgb(74 222 128 / 65%);
+  text-shadow: 0 0 8px rgb(74 222 128 / 45%);
+}
+
+.mapa-turno-timer.estado-amarillo {
+  color: #facc15;
+  border-color: rgb(250 204 21 / 68%);
+  text-shadow: 0 0 8px rgb(250 204 21 / 42%);
+}
+
+.mapa-turno-timer.estado-rojo {
+  color: #f87171;
+  border-color: rgb(248 113 113 / 75%);
+  text-shadow: 0 0 8px rgb(248 113 113 / 50%);
+}
+
+.mapa-turno-timer.urgente {
+  animation: mapa-timer-pulso 0.85s ease-in-out infinite;
+}
+
+@keyframes mapa-timer-pulso {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgb(248 113 113 / 0%);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 12px rgb(248 113 113 / 45%);
+  }
 }
 
 @media (max-width: 1080px) {
@@ -12383,4 +12516,110 @@ html.modo-claro .master-divisa-jugador {
 
 html.modo-claro .master-divisa-monto {
   color: #7A4B0A;
+}
+
+html.modo-claro .mapa-contrareloj-titulo {
+  background: #2A1F3D;
+  color: #ffffff;
+  padding: 2px 10px;
+  border-radius: 999px;
+  text-shadow: none;
+}
+
+html.modo-claro .mapa-contrareloj-paleta {
+  border-top-color: rgb(184 134 43 / 28%);
+}
+
+html.modo-claro .mapa-herramienta-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-herramienta-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .mapa-herramienta-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-contrareloj-label,
+html.modo-claro .mapa-contrareloj-nota {
+  color: #4A3A63;
+}
+
+html.modo-claro .mapa-contrareloj-input {
+  background: #FFFDF8;
+  border-color: #C9B28A;
+  color: #2A1F3D;
+}
+
+/* Arreglos de modo claro en panel Tokens/Almacén y barra de dibujo/zoom en Mapa */
+
+html.modo-claro .mapa-panel-cabecera {
+  background: #F4E6CA;
+  border-bottom-color: rgb(184 134 43 / 35%);
+}
+
+html.modo-claro .mapa-panel-titulo {
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-panel-tabs {
+  background: #EFE0C2;
+  border-bottom-color: rgb(184 134 43 / 32%);
+}
+
+html.modo-claro .mapa-panel-pie {
+  background: #F4E6CA;
+  border-top-color: rgb(184 134 43 / 35%);
+}
+
+html.modo-claro .mapa-dibujo-paleta {
+  border-top-color: rgb(184 134 43 / 30%);
+}
+
+html.modo-claro .mapa-barra-sep {
+  background: rgb(184 134 43 / 35%);
+}
+
+html.modo-claro .mapa-grosor-btn {
+  background: #EEE8FA;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .mapa-grosor-btn:hover {
+  background: #E2D9F5;
+  border-color: #7C5CBF;
+  color: #111111;
+}
+
+html.modo-claro .mapa-grosor-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .mapa-color-swatch {
+  border-color: rgb(42 31 61 / 40%);
+}
+
+html.modo-claro .mapa-color-swatch:hover {
+  border-color: #2A1F3D;
+}
+
+html.modo-claro .mapa-color-swatch.activo {
+  border-color: #2A1F3D;
+  box-shadow: 0 0 0 2px #FFF8EC, 0 0 0 4px #B8862B;
+}
+
+html.modo-claro .mapa-zoom-grupo {
+  background: #F4E6CA;
+  border-color: #B8862B;
 }

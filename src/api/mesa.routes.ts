@@ -24,7 +24,10 @@ import {
   MemoryPizarraEstadoRepository,
   sanitizarPizarraEstado
 } from "../repositories/pizarra-estado.repository.js";
-import { MemoryMapaEstadoRepository } from "../repositories/mapa-estado.repository.js";
+import {
+  COLOR_TRAZO_REGEX,
+  MemoryMapaEstadoRepository
+} from "../repositories/mapa-estado.repository.js";
 import { MapaEstadoService } from "../services/mapa-estado.service.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
 
@@ -77,7 +80,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/inicio", requireAuth, async (req, res, next) => {
     try {
       const huecos = await context.mesaService.inicio();
-      res.json(huecos.map(mesa => (mesa ? toPublicMesa(mesa) : null)));
+      res.json(huecos.map(mesa => (mesa ? toPublicMesa(mesa, req.currentUser) : null)));
     } catch (error) {
       next(error);
     }
@@ -87,7 +90,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     try {
       const busqueda = typeof req.query.q === "string" ? req.query.q : undefined;
       const mesas = await context.mesaService.listar(busqueda);
-      res.json(mesas.map(toPublicMesa));
+      res.json(mesas.map(mesa => toPublicMesa(mesa, req.currentUser)));
     } catch (error) {
       next(error);
     }
@@ -99,7 +102,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (creada) {
         context.mesasNotifier.notificarCambio();
       }
-      res.status(creada ? 201 : 200).json(toPublicMesa(mesa));
+      res.status(creada ? 201 : 200).json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -108,7 +111,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/mia", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.mia(req.currentUser!);
-      res.json(mesa ? toPublicMesa(mesa) : null);
+      res.json(mesa ? toPublicMesa(mesa, req.currentUser) : null);
     } catch (error) {
       next(error);
     }
@@ -117,7 +120,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/pendiente", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.pendienteDe(req.currentUser!);
-      res.json(mesa ? toPublicMesa(mesa) : null);
+      res.json(mesa ? toPublicMesa(mesa, req.currentUser) : null);
     } catch (error) {
       next(error);
     }
@@ -126,7 +129,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/:id", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.obtener(String(req.params.id));
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -134,9 +137,29 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
   router.post("/:id/unirse", requireAuth, async (req, res, next) => {
     try {
-      const mesa = await context.mesaService.unirse(req.currentUser!, String(req.params.id));
+      const body = (req.body ?? {}) as { contrasena?: unknown };
+      const mesa = await context.mesaService.unirse(
+        req.currentUser!,
+        String(req.params.id),
+        body.contrasena
+      );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/contrasena", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { contrasena?: unknown };
+      const mesa = await context.mesaService.cambiarContrasena(
+        req.currentUser!,
+        String(req.params.id),
+        body.contrasena
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -159,7 +182,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         String(req.params.id)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -172,7 +195,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         String(req.params.id)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -183,7 +206,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const color = typeof (req.body ?? {}).color === "string" ? (req.body ?? {}).color : null;
       const mesa = await context.mesaService.ponerColor(req.currentUser!, String(req.params.id), color);
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -207,7 +230,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         apodo
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(vista));
+      res.json(toPublicMesa(vista, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -221,7 +244,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         leerImagenBody(req.body)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -235,7 +258,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         leerImagenBody(req.body)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -1008,7 +1031,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         body.nombre
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(vista));
+      res.json(toPublicMesa(vista, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -1026,7 +1049,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         divisas
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(vista));
+      res.json(toPublicMesa(vista, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -1211,7 +1234,12 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         x2?: unknown;
         y2?: unknown;
         color?: unknown;
+        seq?: unknown;
       };
+      const seq =
+        typeof body.seq === "number" && Number.isFinite(body.seq)
+          ? Math.trunc(body.seq)
+          : undefined;
 
       const miembros = [mesa.hostId, ...mesa.players];
       if (body.activa === false) {
@@ -1221,7 +1249,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           regla: {
             autorId: actor.id,
             autorNombre: nombreDeUsuario(actor),
-            activa: false
+            activa: false,
+            ...(seq !== undefined ? { seq } : {})
           }
         });
         res.status(204).end();
@@ -1242,10 +1271,9 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       }
 
       const clamp = (n: number) => Math.max(0, Math.min(100, n));
+      const colorBruto = typeof body.color === "string" ? body.color.trim().slice(0, 32) : "";
       const color =
-        typeof body.color === "string" && body.color.trim()
-          ? body.color.trim().slice(0, 32)
-          : "#e8c56a";
+        colorBruto && COLOR_TRAZO_REGEX.test(colorBruto) ? colorBruto : "#e8c56a";
 
       context.mesasNotifier.enviarAUsuarios(miembros, {
         type: "mesa:regla",
@@ -1258,7 +1286,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           y1: clamp(body.y1),
           x2: clamp(body.x2),
           y2: clamp(body.y2),
-          color
+          color,
+          ...(seq !== undefined ? { seq } : {})
         }
       });
       res.status(204).end();
@@ -1314,9 +1343,30 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
   router.post("/:id/mapa/iniciativa/siguiente", requireAuth, async (req, res, next) => {
     try {
+      const body = (req.body ?? {}) as {
+        porTiempo?: unknown;
+        rondaEsperada?: unknown;
+        turnoIndiceEsperado?: unknown;
+        entradaIdEsperada?: unknown;
+      };
       const mapa = await mapaEstadoService.avanzarTurnoIniciativa(
         req.currentUser!,
-        String(req.params.id)
+        String(req.params.id),
+        {
+          ...(body.porTiempo === true ? { porTiempo: true } : {}),
+          ...(typeof body.rondaEsperada === "number" &&
+          Number.isFinite(body.rondaEsperada)
+            ? { rondaEsperada: Math.trunc(body.rondaEsperada) }
+            : {}),
+          ...(typeof body.turnoIndiceEsperado === "number" &&
+          Number.isFinite(body.turnoIndiceEsperado)
+            ? { turnoIndiceEsperado: Math.trunc(body.turnoIndiceEsperado) }
+            : {}),
+          ...(typeof body.entradaIdEsperada === "string" &&
+          body.entradaIdEsperada.trim()
+            ? { entradaIdEsperada: body.entradaIdEsperada.trim() }
+            : {})
+        }
       );
       res.json(mapa);
     } catch (error) {
@@ -1414,6 +1464,20 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         req.body
       );
       res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/mapa/trazos/eliminar-lote", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { ids?: unknown };
+      const mapa = await mapaEstadoService.eliminarTrazos(
+        req.currentUser!,
+        String(req.params.id),
+        body.ids
+      );
+      res.json(mapa);
     } catch (error) {
       next(error);
     }

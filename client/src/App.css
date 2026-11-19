@@ -3067,6 +3067,70 @@ html.modo-claro .apodo-propio-input:focus {
   border-color: #7C5CBF;
 }
 
+.mesa-candado {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgb(232 197 106 / 48%);
+  background: rgb(232 197 106 / 14%);
+  color: #f4d98c;
+}
+
+html.modo-claro .mesa-candado {
+  border-color: #B8862B;
+  background: #F6E6C6;
+  color: #5D3B08;
+}
+
+.gestion-contrasena-nota {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+}
+
+.modal-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-password-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid rgb(135 114 166 / 52%);
+  background: rgb(18 14 27 / 90%);
+  color: #f4eefc;
+  font-size: 0.95rem;
+}
+
+.modal-password-input:focus {
+  outline: 2px solid rgb(232 197 106 / 55%);
+  border-color: #e8c56a;
+}
+
+.modal-password-error {
+  margin: 0;
+}
+
+html.modo-claro .modal-password-input {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .modal-password-input::placeholder {
+  color: #534469;
+  opacity: 1;
+}
+
+html.modo-claro .modal-password-input:focus {
+  outline: 2px solid rgb(124 92 191 / 35%);
+  border-color: #7C5CBF;
+}
+
 /* ===================================================================== */
 /* VERIFICACIÓN DE CORREO ELECTRÓNICO (/verificar-correo)                */
 /* ===================================================================== */

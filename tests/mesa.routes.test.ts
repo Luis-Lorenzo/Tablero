@@ -1003,4 +1003,99 @@ describe("rutas de /api/mesas", () => {
       .expect(200);
     expect(mesaFinal.body.players).toHaveLength(0);
   });
+
+  it("permite contraseña opcional visible al máster, exige validación al unirse y nunca la filtra a jugadores", async () => {
+    await aprobar("jugadora-pass@pocket.test");
+    await aprobar("otra-pass@pocket.test");
+    const cookieHost = await sesionDe("anfitrion@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-pass@pocket.test");
+    const cookieOtra = await sesionDe("otra-pass@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieHost)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+    expect(crear.body.tieneContrasena).toBe(false);
+    expect(crear.body.contrasena).toBeNull();
+
+    // Un tercero no puede fijar contraseña en mesa ajena
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "hack" })
+      .expect(403);
+
+    // El máster configura una contraseña opcional y la ve sin ocultar
+    const conPass = await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieHost)
+      .send({ contrasena: "  dragones20  " })
+      .expect(200);
+    expect(conPass.body.tieneContrasena).toBe(true);
+    expect(conPass.body.contrasena).toBe("dragones20");
+
+    // En GET /:id y /inicio, el host ve la contraseña y otro usuario solo sabe que tiene contraseña
+    const hostGet = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+    expect(hostGet.body.tieneContrasena).toBe(true);
+    expect(hostGet.body.contrasena).toBe("dragones20");
+
+    const otroGet = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieJugadora)
+      .expect(200);
+    expect(otroGet.body.tieneContrasena).toBe(true);
+    expect(otroGet.body.contrasena).toBeUndefined();
+
+    // Unirse sin contraseña o con contraseña incorrecta falla con 403 específico
+    const sinPass = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send()
+      .expect(403);
+    expect(sinPass.body.error).toBe("MESA_PASSWORD_REQUIRED");
+
+    const passMal = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "incorrecta" })
+      .expect(403);
+    expect(passMal.body.error).toBe("MESA_PASSWORD_INVALID");
+
+    // Con la contraseña correcta entra a la mesa, y tampoco se le filtra después
+    const passOk = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "dragones20" })
+      .expect(200);
+    expect(passOk.body.players).toHaveLength(1);
+    expect(passOk.body.contrasena).toBeUndefined();
+
+    // Un jugador dentro no puede cambiar ni ver la contraseña
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "otra" })
+      .expect(403);
+
+    // El máster quita la contraseña -> otro jugador puede entrar directo sin ella
+    const sinCandado = await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieHost)
+      .send({ contrasena: null })
+      .expect(200);
+    expect(sinCandado.body.tieneContrasena).toBe(false);
+    expect(sinCandado.body.contrasena).toBeNull();
+
+    const abiertaRes = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieOtra)
+      .send()
+      .expect(200);
+    expect(abiertaRes.body.players).toHaveLength(2);
+  });
 });

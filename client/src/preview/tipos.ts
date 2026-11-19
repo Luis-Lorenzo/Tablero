@@ -362,6 +362,8 @@ export interface MapaIniciativaEstado {
   ronda: number;
   turnoIndice: number;
   entradas: IniciativaEntrada[];
+  turnoMaxSegundos?: number | null;
+  turnoIniciadoEn?: number;
 }
 
 export interface AreaMapa {
@@ -385,4 +387,5 @@ export interface EstadoMapaCompartido {
   trazos?: TrazoPizarra[];
   areas?: AreaMapa[];
   dibujoCongelado?: boolean;
+  servidorAhora?: number;
 }

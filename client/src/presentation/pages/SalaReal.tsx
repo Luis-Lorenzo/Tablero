@@ -272,8 +272,16 @@ function SalaRealContent({
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [reglasRemotas, setReglasRemotas] = useState<ReglaVisual[]>([]);
   const reglaTimersRef = useRef<Map<string, number>>(new Map());
+  const reglaSeqRef = useRef<Map<string, number>>(new Map());
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
   const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
+  const [desfaseRelojMs, setDesfaseRelojMs] = useState(0);
+  const aplicarEstadoMapa = useCallback((mapa: EstadoMapaCompartido) => {
+    setEstadoMapa(mapa);
+    if (typeof mapa.servidorAhora === "number" && Number.isFinite(mapa.servidorAhora)) {
+      setDesfaseRelojMs(mapa.servidorAhora - Date.now());
+    }
+  }, []);
   const [musicaAmbiente, setMusicaAmbiente] = useState<MusicaAmbienteMesa>(() => {
     const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
     return rem ?? MUSICA_DEFECTO;
@@ -362,7 +370,16 @@ function SalaRealContent({
       x2?: number;
       y2?: number;
       color?: string;
+      seq?: number;
     }) => {
+      if (typeof datos.seq === "number" && Number.isFinite(datos.seq)) {
+        const prevSeq = reglaSeqRef.current.get(datos.autorId);
+        if (prevSeq !== undefined && datos.seq <= prevSeq) {
+          return;
+        }
+        reglaSeqRef.current.set(datos.autorId, datos.seq);
+      }
+
       const prevTimer = reglaTimersRef.current.get(datos.autorId);
       if (prevTimer !== undefined) {
         window.clearTimeout(prevTimer);
@@ -416,6 +433,7 @@ function SalaRealContent({
       }
       reglaTimersRef.current.forEach(timer => window.clearTimeout(timer));
       reglaTimersRef.current.clear();
+      reglaSeqRef.current.clear();
     },
     []
   );
@@ -643,13 +661,13 @@ function SalaRealContent({
     void mesasApi
       .obtenerMapa(mesa.id)
       .then(mapa => {
-        if (activo && mapa) setEstadoMapa(mapa);
+        if (activo && mapa) aplicarEstadoMapa(mapa);
       })
       .catch(() => undefined);
     return () => {
       activo = false;
     };
-  }, [mesa.id, fase === "mapa"]);
+  }, [mesa.id, fase === "mapa", aplicarEstadoMapa]);
 
   useEffect(() => {
     if (!estadoCargadoRef.current) return;
@@ -793,6 +811,7 @@ function SalaRealContent({
           x2?: number;
           y2?: number;
           color?: string;
+          seq?: number;
         };
         if (bruto.autorId && bruto.autorId !== user.id) {
           actualizarReglaRemota({
@@ -803,7 +822,8 @@ function SalaRealContent({
             y1: bruto.y1,
             x2: bruto.x2,
             y2: bruto.y2,
-            color: bruto.color
+            color: bruto.color,
+            seq: bruto.seq
           });
         }
         return;
@@ -838,7 +858,7 @@ function SalaRealContent({
       }
 
       if (evento.type === "mesa:mapa-actualizado" && evento.mesaId === mesa.id && evento.mapa) {
-        setEstadoMapa(evento.mapa as EstadoMapaCompartido);
+        aplicarEstadoMapa(evento.mapa as EstadoMapaCompartido);
         return;
       }
 
@@ -1055,6 +1075,7 @@ function SalaRealContent({
       jugadores,
       divisasConfig,
       cargarArchivos,
+      aplicarEstadoMapa,
       aplicarEstadoPizarraRemoto,
       agregarPingVisual,
       actualizarReglaRemota,
@@ -1865,10 +1886,20 @@ function SalaRealContent({
           x2: number;
           y2: number;
           color: string;
+          seq?: number;
         }
-      | { activa: false }
+      | { activa: false; seq?: number }
   ): void {
     void mesasApi.enviarRegla(mesa.id, datos).catch(() => undefined);
+  }
+
+  function recargarMapaSilencioso(): void {
+    void mesasApi
+      .obtenerMapa(mesa.id)
+      .then(mapa => {
+        if (mapa) aplicarEstadoMapa(mapa);
+      })
+      .catch(() => undefined);
   }
 
   async function cambiarFondoYRejilla(
@@ -1878,9 +1909,10 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, fondo, rejilla }));
     try {
       const actualizado = await mesasApi.guardarMapaFondo(mesa.id, { fondo, rejilla });
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1895,7 +1927,7 @@ function SalaRealContent({
         guardarPlantilla,
         ...(categoria !== undefined ? { categoria } : {})
       });
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
     }
@@ -1913,9 +1945,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.actualizarTokenMapa(mesa.id, tokenId, patch);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1926,9 +1959,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarTokenMapa(mesa.id, tokenId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1961,9 +1995,10 @@ function SalaRealContent({
         plantillaId,
         patch
       );
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1974,9 +2009,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarPlantillaMapa(mesa.id, plantillaId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1984,18 +2020,26 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, iniciativa }));
     try {
       const actualizado = await mesasApi.guardarMapaIniciativa(mesa.id, iniciativa);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
-  async function terminarTurnoIniciativaMapa(): Promise<void> {
+  async function terminarTurnoIniciativaMapa(opciones?: {
+    porTiempo?: boolean;
+    rondaEsperada?: number;
+    turnoIndiceEsperado?: number;
+    entradaIdEsperada?: string;
+  }): Promise<void> {
     try {
-      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id);
-      if (actualizado) setEstadoMapa(actualizado);
+      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id, opciones);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
-      setError(describeError(err));
+      if (!opciones?.porTiempo) {
+        setError(describeError(err));
+      }
     }
   }
 
@@ -2010,9 +2054,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.agregarTrazoMapa(mesa.id, trazo);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2023,9 +2068,26 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarTrazoMapa(mesa.id, trazoId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
+    }
+  }
+
+  async function eliminarTrazosLoteMapa(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const idsSet = new Set(ids);
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => !idsSet.has(t.id))
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTrazosMapaLote(mesa.id, ids);
+      if (actualizado) aplicarEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2033,9 +2095,10 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, trazos: [] }));
     try {
       const actualizado = await mesasApi.borrarTrazosMapa(mesa.id);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2043,9 +2106,10 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
     try {
       const actualizado = await mesasApi.congelarDibujoMapa(mesa.id, congelado);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2059,9 +2123,10 @@ function SalaRealContent({
   }): Promise<void> {
     try {
       const actualizado = await mesasApi.crearAreaMapa(mesa.id, area);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2075,9 +2140,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.actualizarAreaMapa(mesa.id, areaId, patch);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2088,9 +2154,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarAreaMapa(mesa.id, areaId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2160,6 +2227,7 @@ function SalaRealContent({
           jugadores={jugadores}
           tiradasAsiento={tiradasAsiento}
           estadoMapa={estadoMapa}
+          desfaseRelojMs={desfaseRelojMs}
           onCambiarFondoYRejilla={cambiarFondoYRejilla}
           onCrearToken={crearTokenMapa}
           onActualizarToken={actualizarTokenMapa}
@@ -2170,6 +2238,7 @@ function SalaRealContent({
           onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}
           onAgregarTrazo={agregarTrazoMapa}
           onEliminarTrazo={eliminarTrazoMapa}
+          onEliminarTrazosLote={eliminarTrazosLoteMapa}
           onBorrarTrazos={borrarTrazosMapa}
           onCambiarDibujoCongelado={cambiarDibujoCongeladoMapa}
           onCrearArea={crearAreaMapa}

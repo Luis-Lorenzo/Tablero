@@ -63,6 +63,10 @@ export interface MapaIniciativaEstado {
   ronda: number;
   turnoIndice: number;
   entradas: IniciativaEntrada[];
+  /** Límite de segundos por turno para jugadores en modo Contrareloj (`null`/omitido = infinito). */
+  turnoMaxSegundos?: number | null;
+  /** Epoch ms del servidor cuando comenzó el turno actual. */
+  turnoIniciadoEn?: number;
 }
 
 export interface TrazoMapa {
@@ -94,6 +98,8 @@ export interface EstadoMapaCompartido {
   trazos?: TrazoMapa[];
   areas?: AreaMapa[];
   dibujoCongelado?: boolean;
+  /** Reloj del servidor (epoch ms) adjuntado de forma efímera en respuestas y broadcasts. */
+  servidorAhora?: number;
 }
 
 export const REJILLA_MAPA_DEFECTO: MapaRejillaConfig = {
@@ -372,15 +378,30 @@ export function sanitizarIniciativa(raw: unknown): MapaIniciativaEstado | undefi
       ? Math.round(clampNumero(obj.turnoIndice, 0, entradas.length - 1, 0))
       : 0;
 
+  const turnoMaxSegundos =
+    typeof obj.turnoMaxSegundos === "number" &&
+    Number.isFinite(obj.turnoMaxSegundos) &&
+    obj.turnoMaxSegundos > 0
+      ? Math.round(clampNumero(obj.turnoMaxSegundos, 5, 3600, 60))
+      : undefined;
+  const turnoIniciadoEn =
+    typeof obj.turnoIniciadoEn === "number" &&
+    Number.isFinite(obj.turnoIniciadoEn) &&
+    obj.turnoIniciadoEn > 0
+      ? Math.round(obj.turnoIniciadoEn)
+      : undefined;
+
   return {
     activa,
     ronda,
     turnoIndice,
-    entradas
+    entradas,
+    ...(turnoMaxSegundos !== undefined ? { turnoMaxSegundos } : {}),
+    ...(turnoIniciadoEn !== undefined ? { turnoIniciadoEn } : {})
   };
 }
 
-const COLOR_TRAZO_REGEX =
+export const COLOR_TRAZO_REGEX =
   /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{2,24}|rgba?\([^)]{1,40}\)|hsla?\([^)]{1,40}\))$/;
 const MAX_TRAZOS_MAPA = 500;
 

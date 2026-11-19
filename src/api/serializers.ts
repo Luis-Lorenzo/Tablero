@@ -71,12 +71,18 @@ export interface PublicMesa {
   divisaNombre?: string;
   divisasConfig?: DivisaConfig[];
   musicaAmbiente?: MusicaAmbienteMesa | null;
+  tieneContrasena: boolean;
+  contrasena?: string | null;
   createdAt: string;
 }
 
 export type { MusicaAmbienteMesa, PistaMusicaMesa };
 
-export function toPublicMesa(mesa: MesaVista): PublicMesa {
+export function toPublicMesa(mesa: MesaVista, actor?: User): PublicMesa {
+  const esAdminLibre = Boolean(
+    actor && actor.role === "ADMIN" && !mesa.players.some(jugador => jugador.id === actor.id)
+  );
+  const puedeVerContrasena = Boolean(actor && (mesa.hostId === actor.id || esAdminLibre));
   return {
     id: mesa.id,
     hostId: mesa.hostId,
@@ -95,6 +101,8 @@ export function toPublicMesa(mesa: MesaVista): PublicMesa {
     divisaNombre: mesa.divisaNombre ?? "Divisa",
     divisasConfig: resolverDivisasConfig(mesa),
     musicaAmbiente: mesa.musicaAmbiente ?? null,
+    tieneContrasena: Boolean(mesa.contrasena),
+    ...(puedeVerContrasena ? { contrasena: mesa.contrasena ?? null } : {}),
     createdAt: mesa.createdAt.toISOString()
   };
 }
