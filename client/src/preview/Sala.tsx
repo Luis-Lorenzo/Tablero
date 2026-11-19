@@ -2756,32 +2756,6 @@ export function Sala({
     setFichaJugadorId(jugadorId);
   }
 
-  function abrirCompartirDesdePelota(jugadorId: string): void {
-    if (compartirAbierto && jugadorSeleccionadoId === jugadorId) {
-      setCompartirAbierto(false);
-      setJugadorSeleccionadoId(null);
-      setAnclaCompartir(null);
-      return;
-    }
-
-    const nodo = asientoRefs.current.get(jugadorId);
-    if (nodo) {
-      const rect = nodo.getBoundingClientRect();
-      setAnclaCompartir({
-        x: rect.left + rect.width / 2,
-        y: rect.bottom + 10,
-        origen: "pelota"
-      });
-    } else {
-      setAnclaCompartir(null);
-    }
-
-    setJugadorSeleccionadoId(jugadorId);
-    setSelectorAbierto(false);
-    setCompartirAbierto(true);
-    onSolicitarArchivos?.();
-  }
-
   function alternarCompartirDesdeChat(ancla?: { left: number; bottom: number }): void {
     setCompartirAbierto(abierto => {
       const siguiente = !abierto;
@@ -6658,8 +6632,8 @@ export function Sala({
             style={
               anclaFichaJugador
                 ? {
-                    left: `clamp(160px, ${anclaFichaJugador.x}px, calc(100vw - 160px))`,
-                    top: `${Math.max(56, Math.min(anclaFichaJugador.y, window.innerHeight - 280))}px`
+                    left: `clamp(190px, ${anclaFichaJugador.x}px, calc(100vw - 190px))`,
+                    top: `${Math.max(48, Math.min(anclaFichaJugador.y, window.innerHeight - 450))}px`
                   }
                 : undefined
             }
@@ -6667,27 +6641,11 @@ export function Sala({
             aria-label={`Ficha rápida de ${fichaJugador.nombre}`}
           >
             <div className="ficha-rapida-cabecera">
-              <div className="ficha-rapida-identidad">
-                {retratoId ? (
-                  <img
-                    className="ficha-rapida-retrato"
-                    src={archivosApi.url(retratoId)}
-                    alt={fichaJugador.nombre}
-                    style={{ "--color": fichaJugador.color } as CSSProperties}
-                  />
-                ) : (
-                  <span
-                    className="ficha-rapida-esfera-fallback"
-                    style={{ "--color": fichaJugador.color } as CSSProperties}
-                    aria-hidden="true"
-                  />
+              <div className="ficha-rapida-nombres">
+                <strong className="ficha-rapida-nombre">{fichaJugador.nombre}</strong>
+                {!fichaJugador.esMaster && fichaJugador.apodo?.trim() && (
+                  <span className="ficha-rapida-apodo">{fichaJugador.apodo.trim()}</span>
                 )}
-                <div className="ficha-rapida-nombres">
-                  <strong className="ficha-rapida-nombre">{fichaJugador.nombre}</strong>
-                  {!fichaJugador.esMaster && fichaJugador.apodo?.trim() && (
-                    <span className="ficha-rapida-apodo">{fichaJugador.apodo.trim()}</span>
-                  )}
-                </div>
               </div>
               <button
                 type="button"
@@ -6701,6 +6659,22 @@ export function Sala({
                 <X size={13} strokeWidth={2.4} aria-hidden="true" />
               </button>
             </div>
+            {retratoId ? (
+              <img
+                className="ficha-rapida-retrato-grande"
+                src={archivosApi.url(retratoId)}
+                alt={fichaJugador.nombre}
+                style={{ "--color": fichaJugador.color } as CSSProperties}
+              />
+            ) : (
+              <div className="ficha-rapida-retrato-vacio">
+                <span
+                  className="ficha-rapida-esfera-fallback grande"
+                  style={{ "--color": fichaJugador.color } as CSSProperties}
+                  aria-hidden="true"
+                />
+              </div>
+            )}
             <div className="ficha-rapida-acciones">
               {onIniciarIntercambio && (
                 <button
@@ -6712,21 +6686,9 @@ export function Sala({
                     void onIniciarIntercambio(targetUserId);
                   }}
                 >
-                  Comerciar / Intercambiar
+                  Intercambio
                 </button>
               )}
-              <button
-                type="button"
-                className="ficha-rapida-btn-compartir"
-                onClick={() => {
-                  const id = fichaJugador.id;
-                  setFichaJugadorId(null);
-                  setAnclaFichaJugador(null);
-                  abrirCompartirDesdePelota(id);
-                }}
-              >
-                Compartir (regalo)
-              </button>
             </div>
           </div>
         );
