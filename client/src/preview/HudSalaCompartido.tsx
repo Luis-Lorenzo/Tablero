@@ -93,7 +93,7 @@ export interface HudSalaCompartidoProps {
   hostName?: string;
   yoAsientoId?: string;
   mensajesChat?: MensajeSala[];
-  onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  onEnviarChat?: (texto: string, destinatarioIds: string[] | string | null) => void | Promise<void>;
   onTiradaPublica?: (tirada: {
     total: number;
     formula: string;
@@ -706,6 +706,7 @@ export function HudSalaCompartido({
   const [creandoObjeto, setCreandoObjeto] = useState(false);
   const [nuevoObjNombre, setNuevoObjNombre] = useState("");
   const [nuevoObjDesc, setNuevoObjDesc] = useState("");
+  const [nuevoObjMacroId, setNuevoObjMacroId] = useState("");
   const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
   const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
   const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
@@ -802,11 +803,20 @@ export function HudSalaCompartido({
     avisoTimerRef.current = window.setTimeout(() => setAvisoLocal(null), 3200);
   }
 
-  function enviarChatLocal(texto: string, destinatarioId: string | null): void {
+  function enviarChatLocal(
+    texto: string,
+    destinatarioIds: string[] | string | null
+  ): void {
+    const ids = Array.isArray(destinatarioIds)
+      ? destinatarioIds
+      : destinatarioIds
+        ? [destinatarioIds]
+        : null;
+    const primerId = ids && ids.length > 0 ? ids[0] : null;
     const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
-    const destino = destinatarioId
-      ? jugadores.find(j => (j.userId ?? j.id) === destinatarioId)
-      : null;
+    const destinos = ids
+      ? jugadores.filter(j => ids.includes(j.userId ?? j.id))
+      : [];
     setMensajesLocales(prev => [
       ...prev,
       {
@@ -814,8 +824,12 @@ export function HudSalaCompartido({
         autorId: miUsuarioId,
         autorNombre: autor?.nombre ?? (esMaster ? "Máster" : "Jugador"),
         texto,
-        destinatarioId,
-        destinatarioNombre: destino?.nombre ?? null,
+        destinatarioId: primerId,
+        destinatarioNombre: destinos[0]?.nombre ?? null,
+        ...(ids && ids.length > 0 ? { destinatarioIds: ids } : {}),
+        ...(destinos.length > 0
+          ? { destinatarioNombres: destinos.map(d => d.nombre) }
+          : {}),
         createdAt: new Date().toISOString()
       }
     ]);
@@ -1292,11 +1306,22 @@ export function HudSalaCompartido({
     const nombre = nuevoObjNombre.trim().slice(0, 60);
     if (!nombre) return;
     const cantidad = Math.max(1, Math.min(9999, Math.trunc(nuevoObjCantidad || 1)));
+    const macroAsociada = nuevoObjMacroId
+      ? macrosLista.find(m => m.id === nuevoObjMacroId)
+      : undefined;
     const nuevo: ObjetoMochila = {
       id: nuevoIdElemento(),
       nombre,
       descripcion: nuevoObjDesc.trim().slice(0, 1000),
       cantidad,
+      ...(macroAsociada
+        ? {
+            macro: {
+              ...macroAsociada,
+              grupos: macroAsociada.grupos.map(g => ({ ...g }))
+            }
+          }
+        : {}),
       ...(nuevoObjArchivo?.archivoId
         ? {
           archivoId: nuevoObjArchivo.archivoId,
@@ -1314,8 +1339,31 @@ export function HudSalaCompartido({
     setNuevoObjDesc("");
     setNuevoObjCantidad(1);
     setNuevoObjArchivo(null);
+    setNuevoObjMacroId("");
     setCreandoObjeto(false);
     setObjetoMochilaId(nuevo.id);
+  }
+
+  function tirarMacroDeObjeto(
+    nombreObjeto: string,
+    macro: MacroTirada,
+    cerrarDetalleMesa = false
+  ): void {
+    setMochilaAbierta(false);
+    setObjetoMochilaId(null);
+    if (cerrarDetalleMesa) {
+      setObjetoMesaActivo(null);
+    }
+    const gruposMacro: GrupoDado[] = macro.grupos.map((g, idx) => ({
+      id: `obj-macro-${idx}`,
+      cantidad: g.cantidad,
+      caras: g.caras
+    }));
+    tirarDado(gruposMacro, macro.bonificador, {
+      forzarPublica: !macroSecreta,
+      forzarSecreta: macroSecreta,
+      nombreMacro: `${nombreObjeto} · ${macro.nombre}`
+    });
   }
 
   function consumirObjetoMochila(id: string): void {
@@ -2897,6 +2945,21 @@ export function HudSalaCompartido({
                   />
                 </label>
 
+                <label className="macro-campo-nombre">
+                  <span className="dados-campo-etiqueta">Macro asociada (opcional)</span>
+                  <select
+                    value={nuevoObjMacroId}
+                    onChange={e => setNuevoObjMacroId(e.target.value)}
+                  >
+                    <option value="">Sin macro</option>
+                    {macrosLista.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <button type="submit" className="dados-lanzar">
                   Guardar en mochila
                 </button>
@@ -3026,6 +3089,21 @@ export function HudSalaCompartido({
                         </button>
                       ))}
                   </div>
+                )}
+
+                {objetoSeleccionado.macro && (
+                  <button
+                    type="button"
+                    className="mochila-btn-tirar-macro"
+                    onClick={() =>
+                      tirarMacroDeObjeto(
+                        objetoSeleccionado.nombre,
+                        objetoSeleccionado.macro!
+                      )
+                    }
+                  >
+                    Tirar · {objetoSeleccionado.macro.nombre}
+                  </button>
                 )}
 
                 <button
@@ -4143,6 +4221,21 @@ export function HudSalaCompartido({
                   </p>
                 )}
                 <div className="mochila-mesa-acciones">
+                  {objetoMesaActivo.macro && (
+                    <button
+                      type="button"
+                      className="mochila-btn-tirar-macro"
+                      onClick={() =>
+                        tirarMacroDeObjeto(
+                          objetoMesaActivo.nombre,
+                          objetoMesaActivo.macro!,
+                          true
+                        )
+                      }
+                    >
+                      Tirar · {objetoMesaActivo.macro.nombre}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="archivo-visor-descargar"

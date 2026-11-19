@@ -64,6 +64,7 @@ import { MapaEstadoService } from "./services/mapa-estado.service.js";
 import { ChatService } from "./services/chat.service.js";
 import { ensureAdmin } from "./services/seed.service.js";
 import { TransferenciaService } from "./services/transferencia.service.js";
+import { IntercambioService } from "./services/intercambio.service.js";
 import { UserService } from "./services/user.service.js";
 
 export interface Container {
@@ -176,6 +177,13 @@ export async function createContainer(): Promise<Container> {
     logger,
     transferenciaRepository
   );
+  const intercambioService = new IntercambioService(
+    mesaRepository,
+    userRepository,
+    mesaEstadoRepository,
+    archivoService,
+    logger
+  );
 
   // Un único almacén de sesiones para Express y para el canal en vivo.
   const sessionStore = createSessionStore(pool);
@@ -210,6 +218,7 @@ export async function createContainer(): Promise<Container> {
     chatService,
     archivoService,
     transferenciaService,
+    intercambioService,
     mesasNotifier
   };
 

@@ -3,6 +3,7 @@ import { vistaDe } from "../lib/archivos.js";
 import { errors } from "../lib/errors.js";
 import type { Logger } from "../lib/logger.js";
 import type { Archivo } from "../repositories/archivo.repository.js";
+import { sanitizarMacroOpcional } from "../repositories/mesa-estado.repository.js";
 import type { Mesa, MesaRepository } from "../repositories/mesa.repository.js";
 import {
   MemoryTransferenciaRepository,
@@ -159,6 +160,7 @@ export class TransferenciaService {
         archivoId = archivo.id;
         archivoNombre = archivo.nombre;
       }
+      const macro = sanitizarMacroOpcional(entrada.objeto?.macro);
       transferencia = {
         id,
         mesaId,
@@ -173,7 +175,8 @@ export class TransferenciaService {
           cantidad,
           ...(emoji ? { emoji } : {}),
           ...(archivoId ? { archivoId } : {}),
-          ...(archivoNombre ? { archivoNombre } : {})
+          ...(archivoNombre ? { archivoNombre } : {}),
+          ...(macro ? { macro } : {})
         },
         createdAt
       };

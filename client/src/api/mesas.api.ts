@@ -6,15 +6,18 @@ import type {
   CrearAreaMapaPayload,
   CrearTokenMapaPayload,
   DivisaConfig,
+  EntradaOfertaIntercambio,
   EstadoMapaCompartido,
   EventoTirada,
   GuardarMapaFondoPayload,
   MapaIniciativaEstado,
   MensajeChat,
   MusicaAmbienteMesa,
+  PersonajeJugadorMesa,
   PublicMesa,
   PublicTransferencia,
   ResultadoAceptarTransferencia,
+  SesionIntercambio,
   TextoEscena,
   TrazoMapa
 } from "./types";
@@ -178,11 +181,17 @@ export const mesasApi = {
   /** Historial reciente del chat de la mesa. */
   listarChat: (id: string) => http.get<MensajeChat[]>(`/api/mesas/${id}/chat`),
 
-  /** Envía un mensaje público o privado (@mención) al chat de la mesa. */
-  enviarChat: (id: string, texto: string, destinatarioId?: string | null) =>
+  /** Envía un mensaje público o privado (@mención simple o múltiple) al chat de la mesa. */
+  enviarChat: (
+    id: string,
+    texto: string,
+    destinatarioId?: string | null,
+    destinatarioIds?: string[]
+  ) =>
     http.post<MensajeChat>(`/api/mesas/${id}/chat`, {
       texto,
-      destinatarioId: destinatarioId ?? null
+      destinatarioId: destinatarioId ?? null,
+      ...(destinatarioIds ? { destinatarioIds } : {})
     }),
 
   /** Difunde una tirada de dados pública (o valida una secreta del Máster). */
@@ -220,14 +229,49 @@ export const mesasApi = {
       titulo: titulo ?? null
     }),
 
-  /** Carga los elementos en mesa, divisa y mochila del jugador actual. */
+  /** Carga los elementos en mesa, divisa, mochila y personaje privado del jugador actual. */
   obtenerEstado: (id: string) =>
     http.get<{
       elementos: unknown[];
       divisa?: number;
       divisasSaldos?: Record<string, number>;
       mochila?: unknown[];
+      personaje?: PersonajeJugadorMesa;
     }>(`/api/mesas/${id}/estado`),
+
+  /** Actualiza los datos de Personaje (PJ) del jugador actual en la mesa. */
+  actualizarPersonaje: (id: string, payload: Partial<PersonajeJugadorMesa>) =>
+    http.patch<PersonajeJugadorMesa>(`/api/mesas/${id}/personaje`, payload),
+
+  /** Inicia o recupera una sesión de intercambio bilateral con otro miembro. */
+  iniciarIntercambio: (id: string, conUsuarioId: string) =>
+    http.post<SesionIntercambio>(`/api/mesas/${id}/intercambio/iniciar`, {
+      conUsuarioId
+    }),
+
+  /** Actualiza la oferta propia en una sesión de intercambio (reinicia listos). */
+  actualizarOfertaIntercambio: (
+    id: string,
+    intercambioId: string,
+    payload: EntradaOfertaIntercambio
+  ) =>
+    http.patch<SesionIntercambio>(
+      `/api/mesas/${id}/intercambio/${encodeURIComponent(intercambioId)}/oferta`,
+      payload
+    ),
+
+  /** Marca o desmarca el estado de listo del participante en un intercambio. */
+  marcarListoIntercambio: (id: string, intercambioId: string, listo: boolean) =>
+    http.post<SesionIntercambio>(
+      `/api/mesas/${id}/intercambio/${encodeURIComponent(intercambioId)}/listo`,
+      { listo }
+    ),
+
+  /** Cancela una sesión de intercambio abierta. */
+  cancelarIntercambio: (id: string, intercambioId: string) =>
+    http.post<SesionIntercambio>(
+      `/api/mesas/${id}/intercambio/${encodeURIComponent(intercambioId)}/cancelar`
+    ),
 
   /** Guarda los elementos en mesa y/o mochila del jugador actual. */
   guardarEstado: (id: string, elementos: unknown[], mochila?: unknown[]) =>

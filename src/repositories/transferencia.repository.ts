@@ -1,4 +1,5 @@
 import type { VistaArchivo } from "../lib/archivos.js";
+import type { MacroTiradaPersistida } from "./user-macros.repository.js";
 
 export interface PositTransferido {
   texto: string;
@@ -22,6 +23,7 @@ export interface ObjetoTransferido {
   emoji?: string;
   archivoId?: string;
   archivoNombre?: string;
+  macro?: MacroTiradaPersistida;
 }
 
 export type Transferencia =

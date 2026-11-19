@@ -19,6 +19,20 @@ export interface MesaJugador {
   id: string;
   name: string;
   color?: string | null;
+  retratoArchivoId?: string | null;
+}
+
+export interface PersonajePdfMeta {
+  archivoId: string;
+  nombre: string;
+}
+
+export interface PersonajeJugadorMesa {
+  retratoArchivoId: string | null;
+  fichaArchivoId: string | null;
+  fichaNombre: string | null;
+  pdfs: PersonajePdfMeta[];
+  notas: string;
 }
 
 export interface ImagenMaster {
@@ -58,6 +72,7 @@ export interface PublicMesa {
   estado: "ESPERA" | "EN_CURSO";
   colores?: Record<string, string>;
   playerApodos?: Record<string, string>;
+  retratosPorJugador?: Record<string, string | null>;
   imagenEscena?: ImagenMaster | null;
   imagenProyectada?: ImagenMaster | null;
   divisaNombre?: string;
@@ -158,6 +173,8 @@ export interface MensajeChat {
   texto: string;
   destinatarioId: string | null;
   destinatarioNombre: string | null;
+  destinatarioIds?: string[];
+  destinatarioNombres?: string[];
   createdAt: string;
 }
 
@@ -363,4 +380,56 @@ export interface TextoEscena {
   ancho?: number;
   autorId?: string;
   autorNombre?: string;
+}
+
+export type EstadoIntercambio = "abierto" | "completado" | "cancelado";
+
+export interface OfertaObjetoIntercambio {
+  objetoId: string;
+  cantidad: number;
+  nombre?: string;
+  descripcion?: string;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+  macro?: unknown;
+}
+
+export interface OfertaArchivoIntercambio {
+  archivoId: string;
+  nombre: string;
+  tipoMime?: string;
+}
+
+export interface OfertaPositIntercambio {
+  positId: string;
+  titulo?: string;
+  contenido?: string;
+  color?: string;
+}
+
+export interface OfertaIntercambio {
+  monedas: Record<string, number>;
+  objetos: OfertaObjetoIntercambio[];
+  archivos: OfertaArchivoIntercambio[];
+  posits: OfertaPositIntercambio[];
+}
+
+export interface SesionIntercambio {
+  id: string;
+  mesaId: string;
+  participantes: [string, string];
+  nombres: Record<string, string>;
+  ofertas: Record<string, OfertaIntercambio>;
+  listos: Record<string, boolean>;
+  estado: EstadoIntercambio;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EntradaOfertaIntercambio {
+  monedas?: Record<string, number>;
+  objetos?: Array<{ objetoId: string; cantidad: number }>;
+  archivos?: OfertaArchivoIntercambio[];
+  posits?: OfertaPositIntercambio[];
 }

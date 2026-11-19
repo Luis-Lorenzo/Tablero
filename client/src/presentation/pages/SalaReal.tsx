@@ -11,12 +11,15 @@ import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
 import { usersApi } from "../../api/users.api";
 import type {
+  EntradaOfertaIntercambio,
   EventoTirada,
   MensajeChat,
+  PersonajeJugadorMesa,
   PublicArchivo,
   PublicMesa,
   PublicTransferencia,
-  PublicUser
+  PublicUser,
+  SesionIntercambio
 } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
@@ -25,6 +28,7 @@ import {
   type MusicaAmbienteMesa
 } from "../../preview/Sala";
 import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
+import { IntercambioModal } from "../../preview/IntercambioModal";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
@@ -134,6 +138,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
       usuarioId: mesa.hostId,
       userId: mesa.hostId,
       nombre: mesa.hostName,
+      retratoArchivoId: mesa.retratosPorJugador?.[mesa.hostId] ?? null,
       color: mesa.colores?.[mesa.hostId] ?? "#e8c56a",
       esMaster: true,
       activo: true
@@ -147,6 +152,8 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
       userId: jugador.id,
       nombre: jugador.name,
       apodo: mesa.playerApodos?.[jugador.id],
+      retratoArchivoId:
+        mesa.retratosPorJugador?.[jugador.id] ?? jugador.retratoArchivoId ?? null,
       color:
         mesa.colores?.[jugador.id] ??
         jugador.color ??
@@ -273,6 +280,8 @@ function SalaRealContent({
   const [divisa, setDivisa] = useState<number>(0);
   const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
+  const [miPersonaje, setMiPersonaje] = useState<PersonajeJugadorMesa | null>(null);
+  const [intercambioActivo, setIntercambioActivo] = useState<SesionIntercambio | null>(null);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [reglasRemotas, setReglasRemotas] = useState<ReglaVisual[]>([]);
   const reglaTimersRef = useRef<Map<string, number>>(new Map());
@@ -626,6 +635,43 @@ function SalaRealContent({
     pizarraCongelada
   ]);
 
+  const recargarEstado = useCallback(async () => {
+    try {
+      const res = await mesasApi.obtenerEstado(mesa.id);
+      const rawRes = res as {
+        elementos: unknown[];
+        divisa?: number;
+        divisasSaldos?: Record<string, number>;
+        mochila?: unknown[];
+        personaje?: PersonajeJugadorMesa;
+      };
+      const cargados = Array.isArray(rawRes.elementos)
+        ? (rawRes.elementos as ElementoMesa[])
+        : [];
+      setElementosMesa(cargados);
+      const saldos =
+        rawRes.divisasSaldos && typeof rawRes.divisasSaldos === "object"
+          ? rawRes.divisasSaldos
+          : typeof rawRes.divisa === "number"
+            ? { [divisasConfig[0]?.id ?? "principal"]: rawRes.divisa }
+            : {};
+      setDivisasSaldos(saldos);
+      setDivisa(
+        typeof rawRes.divisa === "number"
+          ? rawRes.divisa
+          : (saldos[divisasConfig[0]?.id ?? "principal"] ?? 0)
+      );
+      setMochila(
+        Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
+      );
+      if (rawRes.personaje) {
+        setMiPersonaje(rawRes.personaje);
+      }
+    } catch {
+      // Silencioso si falla la recarga puntual
+    }
+  }, [mesa.id, divisasConfig]);
+
   useEffect(() => {
     let activo = true;
     estadoCargadoRef.current = false;
@@ -638,6 +684,7 @@ function SalaRealContent({
           divisa?: number;
           divisasSaldos?: Record<string, number>;
           mochila?: unknown[];
+          personaje?: PersonajeJugadorMesa;
         };
         const cargados = Array.isArray(rawRes.elementos)
           ? (rawRes.elementos as ElementoMesa[])
@@ -658,6 +705,7 @@ function SalaRealContent({
         setMochila(
           Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
         );
+        setMiPersonaje(rawRes.personaje ?? null);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -1079,14 +1127,59 @@ function SalaRealContent({
           }
           mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
         }
+        return;
+      }
+
+      if (evento.type === "mesa:personaje" && evento.mesaId === mesa.id) {
+        const targetUserId = typeof evento.userId === "string" ? evento.userId : "";
+        if (!targetUserId) return;
+        const retratoArchivoId =
+          typeof evento.retratoArchivoId === "string" ? evento.retratoArchivoId : null;
+        onActualizarMesa({
+          ...mesa,
+          retratosPorJugador: {
+            ...(mesa.retratosPorJugador ?? {}),
+            [targetUserId]: retratoArchivoId
+          },
+          players: mesa.players.map(p =>
+            p.id === targetUserId ? { ...p, retratoArchivoId } : p
+          )
+        });
+        if (targetUserId === user.id) {
+          setMiPersonaje(prev =>
+            prev ? { ...prev, retratoArchivoId } : prev
+          );
+        }
+        return;
+      }
+
+      if (evento.type === "intercambio:estado" && evento.mesaId === mesa.id && evento.intercambio) {
+        const sesion = evento.intercambio as SesionIntercambio;
+        if (!sesion.participantes.includes(user.id)) return;
+        if (sesion.estado === "cancelado") {
+          setIntercambioActivo(prev => (prev?.id === sesion.id ? null : prev));
+          mostrarAvisoBreve("El intercambio fue cancelado.");
+        } else if (sesion.estado === "abierto") {
+          setIntercambioActivo(sesion);
+        }
+        return;
+      }
+
+      if (evento.type === "intercambio:completado" && evento.mesaId === mesa.id) {
+        void recargarEstado();
+        cargarArchivos();
+        setIntercambioActivo(null);
+        mostrarAvisoBreve("¡Intercambio completado!");
       }
     },
     [
-      mesa.id,
+      mesa,
       user.id,
       jugadores,
       divisasConfig,
       cargarArchivos,
+      recargarEstado,
+      onActualizarMesa,
       aplicarEstadoMapa,
       aplicarEstadoPizarraRemoto,
       agregarPingVisual,
@@ -1518,15 +1611,112 @@ function SalaRealContent({
     alMensajeEnVivo
   );
 
-  async function enviarChat(texto: string, destinatarioId: string | null): Promise<void> {
+  async function enviarChat(
+    texto: string,
+    destinatarioIds: string[] | string | null
+  ): Promise<void> {
     setError(null);
     try {
-      const creado = await mesasApi.enviarChat(mesa.id, texto, destinatarioId);
+      const ids = Array.isArray(destinatarioIds)
+        ? destinatarioIds
+        : destinatarioIds
+          ? [destinatarioIds]
+          : null;
+      const creado = await mesasApi.enviarChat(
+        mesa.id,
+        texto,
+        ids && ids.length === 1 ? ids[0] : null,
+        ids && ids.length > 0 ? ids : undefined
+      );
       setMensajesChat(prev =>
         prev.some(item => item.id === creado.id) ? prev : [...prev, creado]
       );
     } catch (chatError) {
       setError(describeError(chatError));
+    }
+  }
+
+  async function actualizarPersonaje(
+    datos: Partial<PersonajeJugadorMesa>
+  ): Promise<void> {
+    setError(null);
+    try {
+      const actualizado = await mesasApi.actualizarPersonaje(mesa.id, datos);
+      setMiPersonaje(actualizado);
+      if (datos.retratoArchivoId !== undefined) {
+        onActualizarMesa({
+          ...mesa,
+          retratosPorJugador: {
+            ...(mesa.retratosPorJugador ?? {}),
+            [user.id]: actualizado.retratoArchivoId
+          },
+          players: mesa.players.map(p =>
+            p.id === user.id
+              ? { ...p, retratoArchivoId: actualizado.retratoArchivoId }
+              : p
+          )
+        });
+      }
+    } catch (pjError) {
+      setError(describeError(pjError));
+    }
+  }
+
+  async function iniciarIntercambio(conUsuarioId: string): Promise<void> {
+    setError(null);
+    try {
+      const sesion = await mesasApi.iniciarIntercambio(mesa.id, conUsuarioId);
+      setIntercambioActivo(sesion);
+    } catch (tradeError) {
+      setError(describeError(tradeError));
+    }
+  }
+
+  async function actualizarOfertaIntercambio(
+    oferta: EntradaOfertaIntercambio
+  ): Promise<void> {
+    if (!intercambioActivo) return;
+    try {
+      const sesion = await mesasApi.actualizarOfertaIntercambio(
+        mesa.id,
+        intercambioActivo.id,
+        oferta
+      );
+      setIntercambioActivo(sesion);
+    } catch (tradeError) {
+      setError(describeError(tradeError));
+    }
+  }
+
+  async function marcarListoIntercambio(listo: boolean): Promise<void> {
+    if (!intercambioActivo) return;
+    try {
+      const sesion = await mesasApi.marcarListoIntercambio(
+        mesa.id,
+        intercambioActivo.id,
+        listo
+      );
+      if (sesion.estado === "completado") {
+        void recargarEstado();
+        cargarArchivos();
+        setIntercambioActivo(null);
+        mostrarAvisoBreve("¡Intercambio completado!");
+      } else {
+        setIntercambioActivo(sesion);
+      }
+    } catch (tradeError) {
+      setError(describeError(tradeError));
+    }
+  }
+
+  async function cancelarIntercambio(): Promise<void> {
+    if (!intercambioActivo) return;
+    const idActual = intercambioActivo.id;
+    setIntercambioActivo(null);
+    try {
+      await mesasApi.cancelarIntercambio(mesa.id, idActual);
+    } catch (tradeError) {
+      setError(describeError(tradeError));
     }
   }
 
@@ -2328,6 +2518,8 @@ function SalaRealContent({
         onArchivosCambio={setArchivosDisponibles}
         proyeccionOculta={proyeccionOculta}
         onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
+        personaje={miPersonaje}
+        onActualizarPersonaje={actualizarPersonaje}
       />
     );
   } else {
@@ -2352,6 +2544,8 @@ function SalaRealContent({
         miUsuarioId={user.id}
         mensajesChat={mensajesChat}
         onEnviarChat={enviarChat}
+        retratosPorJugador={mesa.retratosPorJugador}
+        onIniciarIntercambio={iniciarIntercambio}
         tiradasAsiento={tiradasAsiento}
         onTiradaPublica={enviarTiradaPublica}
         colorJugador={colorJugadorActual}
@@ -2426,6 +2620,26 @@ function SalaRealContent({
         hidden
       />
       {contenido}
+
+      {intercambioActivo && (
+        <IntercambioModal
+          sesion={intercambioActivo}
+          miUsuarioId={user.id}
+          jugadores={jugadores}
+          divisasConfig={divisasConfig}
+          divisasSaldos={divisasSaldos}
+          mochila={mochila}
+          archivosDisponibles={archivosDisponibles}
+          positsDisponibles={elementosMesa.filter(
+            (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+              el.tipo === "posit" && !el.archivado
+          )}
+          retratosPorJugador={mesa.retratosPorJugador}
+          onActualizarOferta={actualizarOfertaIntercambio}
+          onMarcarListo={marcarListoIntercambio}
+          onCancelar={cancelarIntercambio}
+        />
+      )}
 
       {audioBloqueado && musicaAmbiente.reproduciendo && pistaActual && (
         <button

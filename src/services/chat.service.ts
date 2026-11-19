@@ -100,19 +100,25 @@ export class ChatService {
     const mesa = await this.obtenerMesaComoMiembro(actor, mesaId);
     const mensajes = await this.chatRepo.listByMesa(mesa.id, MAX_HISTORIAL_POR_MESA);
 
-    return mensajes.filter(
-      msg =>
-        msg.destinatarioId === null ||
+    return mensajes.filter(msg => {
+      const esPublico =
+        msg.destinatarioId === null &&
+        (!msg.destinatarioIds || msg.destinatarioIds.length === 0);
+      if (esPublico) return true;
+      return (
         msg.autorId === actor.id ||
-        msg.destinatarioId === actor.id
-    );
+        msg.destinatarioId === actor.id ||
+        Boolean(msg.destinatarioIds?.includes(actor.id))
+      );
+    });
   }
 
   async enviar(
     actor: User,
     mesaId: string,
     textoBruto: unknown,
-    destinatarioIdBruto?: unknown
+    destinatarioIdBruto?: unknown,
+    destinatarioIdsBruto?: unknown
   ): Promise<{ mensaje: MensajeChat; destinatarios: string[] }> {
     const mesa = await this.obtenerMesaComoMiembro(actor, mesaId);
 
@@ -125,19 +131,57 @@ export class ChatService {
       throw errors.invalidRequest();
     }
 
-    let destinatarioId: string | null = null;
-    let destinatarioNombre: string | null = null;
-
-    if (destinatarioIdBruto !== undefined && destinatarioIdBruto !== null && destinatarioIdBruto !== "") {
-      if (typeof destinatarioIdBruto !== "string" || !esMiembro(mesa, destinatarioIdBruto)) {
+    const idsSolicitados: string[] = [];
+    if (destinatarioIdsBruto !== undefined && destinatarioIdsBruto !== null) {
+      if (!Array.isArray(destinatarioIdsBruto)) {
         throw errors.invalidRequest();
       }
-      const receptor = await this.users.findById(destinatarioIdBruto);
-      if (!receptor) {
-        throw errors.userNotFound();
+      for (const item of destinatarioIdsBruto) {
+        if (typeof item !== "string" || !item.trim()) {
+          throw errors.invalidRequest();
+        }
+        const id = item.trim();
+        if (!idsSolicitados.includes(id)) {
+          idsSolicitados.push(id);
+        }
       }
-      destinatarioId = receptor.id;
-      destinatarioNombre = nombreDeUsuario(receptor);
+    }
+
+    if (
+      destinatarioIdBruto !== undefined &&
+      destinatarioIdBruto !== null &&
+      destinatarioIdBruto !== ""
+    ) {
+      if (typeof destinatarioIdBruto !== "string") {
+        throw errors.invalidRequest();
+      }
+      const id = destinatarioIdBruto.trim();
+      if (id && !idsSolicitados.includes(id)) {
+        idsSolicitados.push(id);
+      }
+    }
+
+    let destinatarioId: string | null = null;
+    let destinatarioNombre: string | null = null;
+    let destinatarioIds: string[] | undefined;
+    let destinatarioNombres: string[] | undefined;
+
+    if (idsSolicitados.length > 0) {
+      const nombres: string[] = [];
+      for (const id of idsSolicitados) {
+        if (!esMiembro(mesa, id)) {
+          throw errors.invalidRequest();
+        }
+        const receptor = await this.users.findById(id);
+        if (!receptor) {
+          throw errors.userNotFound();
+        }
+        nombres.push(nombreDeUsuario(receptor));
+      }
+      destinatarioId = idsSolicitados[0];
+      destinatarioNombre = nombres.join(", ");
+      destinatarioIds = idsSolicitados;
+      destinatarioNombres = nombres;
     }
 
     const mensaje: MensajeChat = {
@@ -148,15 +192,17 @@ export class ChatService {
       texto,
       destinatarioId,
       destinatarioNombre,
+      ...(destinatarioIds ? { destinatarioIds } : {}),
+      ...(destinatarioNombres ? { destinatarioNombres } : {}),
       createdAt: new Date().toISOString()
     };
 
     await this.chatRepo.save(mensaje, MAX_HISTORIAL_POR_MESA);
 
     const destinatarios =
-      destinatarioId === null
-        ? miembrosDe(mesa)
-        : Array.from(new Set([actor.id, destinatarioId]));
+      destinatarioIds && destinatarioIds.length > 0
+        ? Array.from(new Set([actor.id, ...destinatarioIds]))
+        : miembrosDe(mesa);
 
     return { mensaje, destinatarios };
   }

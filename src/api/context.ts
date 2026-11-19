@@ -15,6 +15,7 @@ import type { PizarraEstadoRepository } from "../repositories/pizarra-estado.rep
 import type { MapaEstadoRepository } from "../repositories/mapa-estado.repository.js";
 import type { MapaEstadoService } from "../services/mapa-estado.service.js";
 import type { TransferenciaService } from "../services/transferencia.service.js";
+import type { IntercambioService } from "../services/intercambio.service.js";
 import type { UserMacrosRepository } from "../repositories/user-macros.repository.js";
 
 export interface AppContext {
@@ -34,6 +35,7 @@ export interface AppContext {
   chatService: ChatService;
   archivoService: ArchivoService;
   transferenciaService?: TransferenciaService;
+  intercambioService?: IntercambioService;
   /** Canal en vivo: avisa a las pestañas abiertas de que las mesas cambiaron. */
   mesasNotifier: MesasNotifier;
 }

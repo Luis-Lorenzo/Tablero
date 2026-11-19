@@ -49,6 +49,7 @@ export interface PublicMesaJugador {
   id: string;
   name: string;
   color?: string | null;
+  retratoArchivoId?: string | null;
 }
 
 export interface PublicImagenMesa {
@@ -66,6 +67,7 @@ export interface PublicMesa {
   estado: MesaVista["estado"];
   colores: Record<string, string>;
   playerApodos?: Record<string, string>;
+  retratosPorJugador?: Record<string, string | null>;
   imagenEscena: PublicImagenMesa | null;
   imagenProyectada: PublicImagenMesa | null;
   divisaNombre?: string;
@@ -90,12 +92,14 @@ export function toPublicMesa(mesa: MesaVista, actor?: User): PublicMesa {
     players: mesa.players.map(jugador => ({
       id: jugador.id,
       name: jugador.name,
-      color: jugador.color ?? null
+      color: jugador.color ?? null,
+      retratoArchivoId: jugador.retratoArchivoId ?? null
     })),
     pendingHostId: mesa.pendingHostId,
     estado: mesa.estado,
     colores: mesa.colores ?? {},
     playerApodos: mesa.playerApodos ?? {},
+    retratosPorJugador: mesa.retratosPorJugador ?? {},
     imagenEscena: mesa.imagenEscena ?? null,
     imagenProyectada: mesa.imagenProyectada ?? null,
     divisaNombre: mesa.divisaNombre ?? "Divisa",

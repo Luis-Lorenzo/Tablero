@@ -12,6 +12,7 @@ export interface JugadorPreview {
   nombre: string;
   /** Nombre del personaje en esta mesa (editable por cada jugador). */
   apodo?: string;
+  retratoArchivoId?: string | null;
   color: string;
   esMaster: boolean;
   /** Asiento habilitado. El trasero derecho empieza desactivado. */
@@ -58,6 +59,8 @@ export interface MensajeSala {
   texto: string;
   destinatarioId: string | null;
   destinatarioNombre: string | null;
+  destinatarioIds?: string[];
+  destinatarioNombres?: string[];
   createdAt: string;
   /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
   esSistema?: boolean;
@@ -141,6 +144,7 @@ export type ElementoMesa =
       archivoId?: string;
       archivoNombre?: string;
       imagenLocal?: string;
+      macro?: MacroTirada;
       x: number;
       y: number;
       archivado?: boolean;
@@ -187,6 +191,7 @@ export interface ObjetoMochila {
   archivoId?: string;
   archivoNombre?: string;
   imagenLocal?: string;
+  macro?: MacroTirada;
 }
 
 export interface DivisaAsientoDelta {

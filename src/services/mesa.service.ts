@@ -43,6 +43,7 @@ export interface MesaJugador {
   id: string;
   name: string;
   color?: string | null;
+  retratoArchivoId?: string | null;
 }
 
 export interface MesaVista {
@@ -56,6 +57,7 @@ export interface MesaVista {
   estado: EstadoMesa;
   colores?: Record<string, string>;
   playerApodos?: Record<string, string>;
+  retratosPorJugador?: Record<string, string | null>;
   imagenEscena: ImagenMesa | null;
   imagenProyectada: ImagenMesa | null;
   divisaNombre?: string;
@@ -406,12 +408,14 @@ export class MesaService {
       players: mesa.players.map(id => ({
         id,
         name: nombres.get(id) ?? "desconocido",
-        color: mesa.colores?.[id] ?? null
+        color: mesa.colores?.[id] ?? null,
+        retratoArchivoId: mesa.retratosPorJugador?.[id] ?? null
       })),
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
       colores: mesa.colores ?? {},
       playerApodos: mesa.apodos ?? {},
+      retratosPorJugador: mesa.retratosPorJugador ?? {},
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
       divisaNombre: mesa.divisaNombre?.trim() || "Divisa",

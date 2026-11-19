@@ -175,7 +175,9 @@ interface SalaProps {
   onEmpezarPartida?: () => void | Promise<void>;
   miUsuarioId?: string;
   mensajesChat?: MensajeSala[];
-  onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  onEnviarChat?: (texto: string, destinatarioIds: string[] | string | null) => void | Promise<void>;
+  retratosPorJugador?: Record<string, string | null>;
+  onIniciarIntercambio?: (conUsuarioId: string) => void | Promise<void>;
   tiradasAsiento?: Record<string, TiradaAsientoConColor>;
   onTiradaPublica?: (tirada: {
     total: number;
@@ -881,6 +883,8 @@ export function Sala({
   miUsuarioId = "master",
   mensajesChat,
   onEnviarChat,
+  retratosPorJugador,
+  onIniciarIntercambio,
   tiradasAsiento,
   onTiradaPublica,
   colorJugador,
@@ -922,6 +926,11 @@ export function Sala({
     x: number;
     y: number;
     origen: "pelota" | "chat";
+  } | null>(null);
+  const [fichaJugadorId, setFichaJugadorId] = useState<string | null>(null);
+  const [anclaFichaJugador, setAnclaFichaJugador] = useState<{
+    x: number;
+    y: number;
   } | null>(null);
   const [dragSobreDropzone, setDragSobreDropzone] = useState(false);
   const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
@@ -1168,6 +1177,7 @@ export function Sala({
   const [creandoObjeto, setCreandoObjeto] = useState(false);
   const [nuevoObjNombre, setNuevoObjNombre] = useState("");
   const [nuevoObjDesc, setNuevoObjDesc] = useState("");
+  const [nuevoObjMacroId, setNuevoObjMacroId] = useState("");
   const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
   const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
   const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
@@ -2194,7 +2204,8 @@ export function Sala({
     caras = 20,
     desglose?: string,
     color?: string,
-    colorAristasDado?: string
+    colorAristasDado?: string,
+    nombreMacro?: string
   ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
@@ -2203,7 +2214,16 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total, especial, caras, desglose, color, colorAristasDado }
+      [asientoId]: {
+        id: tiradaId,
+        total,
+        especial,
+        caras,
+        desglose,
+        color,
+        colorAristasDado,
+        ...(nombreMacro ? { nombreMacro } : {})
+      }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -2216,11 +2236,20 @@ export function Sala({
     }, DURACION_D20_ASIENTO);
   }
 
-  function enviarChatLocal(texto: string, destinatarioId: string | null): void {
+  function enviarChatLocal(
+    texto: string,
+    destinatarioIds: string[] | string | null
+  ): void {
+    const ids = Array.isArray(destinatarioIds)
+      ? destinatarioIds
+      : destinatarioIds
+        ? [destinatarioIds]
+        : null;
+    const primerId = ids && ids.length > 0 ? ids[0] : null;
     const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
-    const receptor = destinatarioId
-      ? jugadores.find(j => (j.userId ?? j.id) === destinatarioId)
-      : undefined;
+    const receptores = ids
+      ? jugadores.filter(j => ids.includes(j.userId ?? j.id))
+      : [];
 
     setMensajesLocales(prev => [
       ...prev,
@@ -2229,8 +2258,12 @@ export function Sala({
         autorId: miUsuarioId,
         autorNombre: autor?.nombre ?? "Tú",
         texto,
-        destinatarioId,
-        destinatarioNombre: receptor?.nombre ?? null,
+        destinatarioId: primerId,
+        destinatarioNombre: receptores[0]?.nombre ?? null,
+        ...(ids && ids.length > 0 ? { destinatarioIds: ids } : {}),
+        ...(receptores.length > 0
+          ? { destinatarioNombres: receptores.map(r => r.nombre) }
+          : {}),
         createdAt: new Date().toISOString()
       }
     ]);
@@ -2493,7 +2526,8 @@ export function Sala({
               resultadoFinal.caras,
               desglose,
               colorDado,
-              colorAristasDado
+              colorAristasDado,
+              opciones?.nombreMacro
             );
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
@@ -2648,6 +2682,33 @@ export function Sala({
     jugadores.find(j => j.activo && j.id === jugadorSeleccionadoId && j.id !== yoAsientoId) ??
     null;
   jugadorSeleccionadoRef.current = jugadorSeleccionado;
+
+  const fichaJugador =
+    jugadores.find(j => j.activo && j.id === fichaJugadorId && j.id !== yoAsientoId) ??
+    null;
+
+  function abrirFichaDesdePelota(jugadorId: string): void {
+    if (fichaJugadorId === jugadorId) {
+      setFichaJugadorId(null);
+      setAnclaFichaJugador(null);
+      return;
+    }
+
+    const nodo = asientoRefs.current.get(jugadorId);
+    if (nodo) {
+      const rect = nodo.getBoundingClientRect();
+      setAnclaFichaJugador({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 10
+      });
+    } else {
+      setAnclaFichaJugador(null);
+    }
+
+    setCompartirAbierto(false);
+    setSelectorAbierto(false);
+    setFichaJugadorId(jugadorId);
+  }
 
   function abrirCompartirDesdePelota(jugadorId: string): void {
     if (compartirAbierto && jugadorSeleccionadoId === jugadorId) {
@@ -3034,11 +3095,22 @@ export function Sala({
     const nombre = nuevoObjNombre.trim().slice(0, 60);
     if (!nombre) return;
     const cantidad = Math.max(1, Math.min(9999, Math.trunc(nuevoObjCantidad || 1)));
+    const macroAsociada = nuevoObjMacroId
+      ? macrosLista.find(m => m.id === nuevoObjMacroId)
+      : undefined;
     const nuevo: ObjetoMochila = {
       id: nuevoIdElemento(),
       nombre,
       descripcion: nuevoObjDesc.trim().slice(0, 1000),
       cantidad,
+      ...(macroAsociada
+        ? {
+            macro: {
+              ...macroAsociada,
+              grupos: macroAsociada.grupos.map(g => ({ ...g }))
+            }
+          }
+        : {}),
       ...(nuevoObjArchivo?.archivoId
         ? {
             archivoId: nuevoObjArchivo.archivoId,
@@ -3056,8 +3128,31 @@ export function Sala({
     setNuevoObjDesc("");
     setNuevoObjCantidad(1);
     setNuevoObjArchivo(null);
+    setNuevoObjMacroId("");
     setCreandoObjeto(false);
     setObjetoMochilaId(nuevo.id);
+  }
+
+  function tirarMacroDeObjeto(
+    nombreObjeto: string,
+    macro: MacroTirada,
+    cerrarDetalleMesa = false
+  ): void {
+    setMochilaAbierta(false);
+    setObjetoMochilaId(null);
+    if (cerrarDetalleMesa) {
+      setObjetoMesaActivo(null);
+    }
+    const gruposMacro: GrupoDado[] = macro.grupos.map((g, idx) => ({
+      id: `obj-macro-${idx}`,
+      cantidad: g.cantidad,
+      caras: g.caras
+    }));
+    tirarDado(gruposMacro, macro.bonificador, {
+      forzarPublica: !macroSecreta,
+      forzarSecreta: macroSecreta,
+      nombreMacro: `${nombreObjeto} · ${macro.nombre}`
+    });
   }
 
   function consumirObjetoMochila(id: string): void {
@@ -3092,6 +3187,7 @@ export function Sala({
       ...(objeto.archivoId ? { archivoId: objeto.archivoId } : {}),
       ...(objeto.archivoNombre ? { archivoNombre: objeto.archivoNombre } : {}),
       ...(objeto.imagenLocal ? { imagenLocal: objeto.imagenLocal } : {}),
+      ...(objeto.macro ? { macro: objeto.macro } : {}),
       x: 78,
       y: 78
     });
@@ -3112,7 +3208,8 @@ export function Sala({
         ...(obj.emoji ? { emoji: obj.emoji } : {}),
         ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
         ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
-        ...(obj.imagenLocal ? { imagenLocal: obj.imagenLocal } : {})
+        ...(obj.imagenLocal ? { imagenLocal: obj.imagenLocal } : {}),
+        ...(obj.macro ? { macro: obj.macro } : {})
       }
     ]);
     onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
@@ -3439,7 +3536,7 @@ export function Sala({
                   onClick={
                     ajuste || esMio
                       ? undefined
-                      : () => abrirCompartirDesdePelota(jugador.id)
+                      : () => abrirFichaDesdePelota(jugador.id)
                   }
                   onKeyDown={
                     ajuste || esMio
@@ -3447,7 +3544,7 @@ export function Sala({
                       : evento => {
                           if (evento.key === "Enter" || evento.key === " ") {
                             evento.preventDefault();
-                            abrirCompartirDesdePelota(jugador.id);
+                            abrirFichaDesdePelota(jugador.id);
                           }
                         }
                   }
@@ -3480,6 +3577,11 @@ export function Sala({
                         }
                         aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
                       >
+                        {tiradaSobreAsiento.nombreMacro && (
+                          <span className="asiento-d20-macro">
+                            {tiradaSobreAsiento.nombreMacro}
+                          </span>
+                        )}
                         {tiradaSobreAsiento.desglose && (
                           <span className="asiento-d20-suma">
                             {tiradaSobreAsiento.desglose}
@@ -3508,7 +3610,21 @@ export function Sala({
                   {!jugador.esMaster && jugador.apodo?.trim() && (
                     <span className="asiento-apodo">{jugador.apodo.trim()}</span>
                   )}
-                  <span className="esfera" />
+                  <span className="esfera">
+                    {(() => {
+                      const retratoId =
+                        jugador.retratoArchivoId ??
+                        retratosPorJugador?.[jugador.userId ?? jugador.usuarioId ?? jugador.id] ??
+                        null;
+                      return retratoId ? (
+                        <img
+                          className="asiento-pelota-retrato"
+                          src={archivosApi.url(retratoId)}
+                          alt={jugador.nombre}
+                        />
+                      ) : null;
+                    })()}
+                  </span>
                   <span className="asiento-nombre">
                     {jugador.nombre}
                     {esMio ? " (tú)" : ""}
@@ -5027,6 +5143,21 @@ export function Sala({
                       />
                     </label>
 
+                    <label className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Macro asociada (opcional)</span>
+                      <select
+                        value={nuevoObjMacroId}
+                        onChange={e => setNuevoObjMacroId(e.target.value)}
+                      >
+                        <option value="">Sin macro</option>
+                        {macrosLista.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
                     <button type="submit" className="dados-lanzar">
                       Guardar en mochila
                     </button>
@@ -5163,6 +5294,21 @@ export function Sala({
                             </button>
                           ))}
                       </div>
+                    )}
+
+                    {objetoSeleccionado.macro && (
+                      <button
+                        type="button"
+                        className="mochila-btn-tirar-macro"
+                        onClick={() =>
+                          tirarMacroDeObjeto(
+                            objetoSeleccionado.nombre,
+                            objetoSeleccionado.macro!
+                          )
+                        }
+                      >
+                        Tirar · {objetoSeleccionado.macro.nombre}
+                      </button>
                     )}
 
                     <button
@@ -6427,6 +6573,95 @@ export function Sala({
             </div>
           )}
 
+      {fichaJugador && !ajuste && (() => {
+        const retratoId =
+          fichaJugador.retratoArchivoId ??
+          retratosPorJugador?.[
+            fichaJugador.userId ?? fichaJugador.usuarioId ?? fichaJugador.id
+          ] ??
+          null;
+        const targetUserId =
+          fichaJugador.userId ?? fichaJugador.usuarioId ?? fichaJugador.id;
+        return (
+          <div
+            className="ficha-rapida-jugador"
+            style={
+              anclaFichaJugador
+                ? {
+                    left: `clamp(160px, ${anclaFichaJugador.x}px, calc(100vw - 160px))`,
+                    top: `${Math.max(56, Math.min(anclaFichaJugador.y, window.innerHeight - 280))}px`
+                  }
+                : undefined
+            }
+            role="dialog"
+            aria-label={`Ficha rápida de ${fichaJugador.nombre}`}
+          >
+            <div className="ficha-rapida-cabecera">
+              <div className="ficha-rapida-identidad">
+                {retratoId ? (
+                  <img
+                    className="ficha-rapida-retrato"
+                    src={archivosApi.url(retratoId)}
+                    alt={fichaJugador.nombre}
+                    style={{ "--color": fichaJugador.color } as CSSProperties}
+                  />
+                ) : (
+                  <span
+                    className="ficha-rapida-esfera-fallback"
+                    style={{ "--color": fichaJugador.color } as CSSProperties}
+                    aria-hidden="true"
+                  />
+                )}
+                <div className="ficha-rapida-nombres">
+                  <strong className="ficha-rapida-nombre">{fichaJugador.nombre}</strong>
+                  {!fichaJugador.esMaster && fichaJugador.apodo?.trim() && (
+                    <span className="ficha-rapida-apodo">{fichaJugador.apodo.trim()}</span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="dados-cerrar"
+                onClick={() => {
+                  setFichaJugadorId(null);
+                  setAnclaFichaJugador(null);
+                }}
+                aria-label="Cerrar ficha rápida"
+              >
+                <X size={13} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="ficha-rapida-acciones">
+              {onIniciarIntercambio && (
+                <button
+                  type="button"
+                  className="ficha-rapida-btn-comerciar"
+                  onClick={() => {
+                    setFichaJugadorId(null);
+                    setAnclaFichaJugador(null);
+                    void onIniciarIntercambio(targetUserId);
+                  }}
+                >
+                  Comerciar / Intercambiar
+                </button>
+              )}
+              <button
+                type="button"
+                className="ficha-rapida-btn-compartir"
+                onClick={() => {
+                  const id = fichaJugador.id;
+                  setFichaJugadorId(null);
+                  setAnclaFichaJugador(null);
+                  abrirCompartirDesdePelota(id);
+                }}
+              >
+                Compartir (regalo)
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {compartirAbierto && !ajuste && (
         <div
           className={`compartir-panel${
@@ -6778,6 +7013,21 @@ export function Sala({
                 )}
               </div>
               <div className="mochila-detalle-acciones">
+                {objetoMesaActivo.macro && (
+                  <button
+                    type="button"
+                    className="mochila-btn-tirar-macro"
+                    onClick={() =>
+                      tirarMacroDeObjeto(
+                        objetoMesaActivo.nombre,
+                        objetoMesaActivo.macro!,
+                        true
+                      )
+                    }
+                  >
+                    Tirar · {objetoMesaActivo.macro.nombre}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="mochila-consumir-btn"

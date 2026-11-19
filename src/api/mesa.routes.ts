@@ -6,11 +6,14 @@ import {
   toPublicTransferencia
 } from "./serializers.js";
 import { errors } from "../lib/errors.js";
-import { vistaDe } from "../lib/archivos.js";
+import { esUuid, vistaDe } from "../lib/archivos.js";
 import {
+  personajeVacio,
   resolverDivisasConfig,
   sanitizarMusicaAmbiente,
-  type Mesa
+  sanitizarPersonajePdfs,
+  type Mesa,
+  type PersonajeJugadorMesa
 } from "../repositories/mesa.repository.js";
 import { nombreDeUsuario, type User } from "../repositories/user.repository.js";
 import {
@@ -18,6 +21,7 @@ import {
   sanitizarDivisa,
   sanitizarDivisaId,
   sanitizarElementosMesa,
+  sanitizarMacroOpcional,
   sanitizarMochila
 } from "../repositories/mesa-estado.repository.js";
 import {
@@ -30,6 +34,7 @@ import {
 } from "../repositories/mapa-estado.repository.js";
 import { MapaEstadoService } from "../services/mapa-estado.service.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
+import { IntercambioService } from "../services/intercambio.service.js";
 
 function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
   const { archivoId, titulo } = (body ?? {}) as {
@@ -73,6 +78,15 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     context.transferenciaService ??
     new TransferenciaService(
       context.mesaRepository,
+      context.archivoService,
+      context.logger
+    );
+  const intercambios =
+    context.intercambioService ??
+    new IntercambioService(
+      context.mesaRepository,
+      context.userRepository,
+      mesaEstado,
       context.archivoService,
       context.logger
     );
@@ -553,6 +567,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           archivoId = archivo.id;
           archivoNombre = archivo.nombre;
         }
+        const macro = sanitizarMacroOpcional(rawObj.macro);
         elemento = {
           tipo: "objeto",
           objeto: {
@@ -562,7 +577,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
             cantidad,
             ...(emoji ? { emoji } : {}),
             ...(archivoId ? { archivoId } : {}),
-            ...(archivoNombre ? { archivoNombre } : {})
+            ...(archivoNombre ? { archivoNombre } : {}),
+            ...(macro ? { macro } : {})
           }
         };
       }
@@ -609,12 +625,17 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.post("/:id/chat", requireAuth, async (req, res, next) => {
     try {
       const mesaId = String(req.params.id);
-      const body = (req.body ?? {}) as { texto?: unknown; destinatarioId?: unknown };
+      const body = (req.body ?? {}) as {
+        texto?: unknown;
+        destinatarioId?: unknown;
+        destinatarioIds?: unknown;
+      };
       const { mensaje, destinatarios } = await context.chatService.enviar(
         req.currentUser!,
         mesaId,
         body.texto,
-        body.destinatarioId
+        body.destinatarioId,
+        body.destinatarioIds
       );
       context.mesasNotifier.enviarAUsuarios(destinatarios, {
         type: "chat:message",
@@ -720,22 +741,26 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
           const objetosMesa = estado.elementos
             .filter(el => el.tipo === "objeto" && typeof el.nombre === "string")
-            .map(el => ({
-              id: typeof el.id === "string" ? el.id : "",
-              nombre: String(el.nombre ?? ""),
-              descripcion: typeof el.descripcion === "string" ? el.descripcion : "",
-              cantidad:
-                typeof el.cantidad === "number" && Number.isFinite(el.cantidad)
-                  ? Math.max(1, Math.trunc(el.cantidad))
-                  : 1,
-              ...(typeof el.emoji === "string" && el.emoji ? { emoji: el.emoji } : {}),
-              ...(typeof el.archivoId === "string" && el.archivoId
-                ? { archivoId: el.archivoId }
-                : {}),
-              ...(typeof el.archivoNombre === "string" && el.archivoNombre
-                ? { archivoNombre: el.archivoNombre }
-                : {})
-            }));
+            .map(el => {
+              const macro = sanitizarMacroOpcional(el.macro);
+              return {
+                id: typeof el.id === "string" ? el.id : "",
+                nombre: String(el.nombre ?? ""),
+                descripcion: typeof el.descripcion === "string" ? el.descripcion : "",
+                cantidad:
+                  typeof el.cantidad === "number" && Number.isFinite(el.cantidad)
+                    ? Math.max(1, Math.trunc(el.cantidad))
+                    : 1,
+                ...(typeof el.emoji === "string" && el.emoji ? { emoji: el.emoji } : {}),
+                ...(typeof el.archivoId === "string" && el.archivoId
+                  ? { archivoId: el.archivoId }
+                  : {}),
+                ...(typeof el.archivoNombre === "string" && el.archivoNombre
+                  ? { archivoNombre: el.archivoNombre }
+                  : {}),
+                ...(macro ? { macro } : {})
+              };
+            });
 
           return {
             userId: playerId,
@@ -770,23 +795,259 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         throw errors.forbidden();
       }
 
+      const personaje = context.mesaRepository.getPersonaje
+        ? await context.mesaRepository.getPersonaje(mesaId, actorId)
+        : personajeVacio();
+
       if (mesaEstado.getEstadoCompleto) {
         const estado = await mesaEstado.getEstadoCompleto(mesaId, actorId);
         res.json({
           elementos: estado.elementos,
           divisa: estado.divisa,
           divisasSaldos: estado.divisasSaldos ?? {},
-          mochila: estado.mochila
+          mochila: estado.mochila,
+          personaje
         });
         return;
       }
 
       const elementos = await mesaEstado.getElementos(mesaId, actorId);
-      res.json({ elementos, divisa: 0, divisasSaldos: {}, mochila: [] });
+      res.json({ elementos, divisa: 0, divisasSaldos: {}, mochila: [], personaje });
     } catch (error) {
       next(error);
     }
   });
+
+  router.patch("/:id/personaje", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const patch: Partial<PersonajeJugadorMesa> = {};
+      let retratoActualizado = false;
+
+      if ("retratoArchivoId" in body) {
+        retratoActualizado = true;
+        if (body.retratoArchivoId === null || body.retratoArchivoId === "") {
+          patch.retratoArchivoId = null;
+        } else if (
+          typeof body.retratoArchivoId === "string" &&
+          esUuid(body.retratoArchivoId.trim())
+        ) {
+          patch.retratoArchivoId = body.retratoArchivoId.trim();
+        } else {
+          throw errors.invalidRequest();
+        }
+      }
+
+      if ("fichaArchivoId" in body) {
+        if (body.fichaArchivoId === null || body.fichaArchivoId === "") {
+          patch.fichaArchivoId = null;
+        } else if (
+          typeof body.fichaArchivoId === "string" &&
+          esUuid(body.fichaArchivoId.trim())
+        ) {
+          patch.fichaArchivoId = body.fichaArchivoId.trim();
+        } else {
+          throw errors.invalidRequest();
+        }
+      }
+
+      if ("fichaNombre" in body) {
+        if (body.fichaNombre === null || body.fichaNombre === "") {
+          patch.fichaNombre = null;
+        } else if (typeof body.fichaNombre === "string") {
+          patch.fichaNombre = body.fichaNombre.trim().slice(0, 180) || null;
+        } else {
+          throw errors.invalidRequest();
+        }
+      }
+
+      if ("pdfs" in body) {
+        if (!Array.isArray(body.pdfs)) {
+          throw errors.invalidRequest();
+        }
+        patch.pdfs = sanitizarPersonajePdfs(body.pdfs);
+      }
+
+      if ("notas" in body) {
+        if (typeof body.notas !== "string") {
+          throw errors.invalidRequest();
+        }
+        patch.notas = body.notas.slice(0, 20_000);
+      }
+
+      const actualizado = context.mesaRepository.savePersonaje
+        ? await context.mesaRepository.savePersonaje(mesaId, actor.id, patch)
+        : { ...personajeVacio(), ...patch };
+
+      if (retratoActualizado) {
+        const miembros = [mesa.hostId, ...mesa.players];
+        context.mesasNotifier.enviarAUsuarios(miembros, {
+          type: "mesa:personaje",
+          mesaId,
+          userId: actor.id,
+          retratoArchivoId: actualizado.retratoArchivoId
+        });
+      }
+
+      res.json(actualizado);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/intercambio/iniciar", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const body = (req.body ?? {}) as { conUsuarioId?: unknown };
+      const { sesion, creada } = await intercambios.iniciar(
+        req.currentUser!,
+        mesaId,
+        body.conUsuarioId
+      );
+      if (creada) {
+        context.mesasNotifier.enviarAUsuarios(sesion.participantes, {
+          type: "intercambio:estado",
+          mesaId,
+          intercambio: sesion
+        });
+      }
+      res.status(creada ? 201 : 200).json(sesion);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch(
+    "/:id/intercambio/:intercambioId/oferta",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mesaId = String(req.params.id);
+        const intercambioId = String(req.params.intercambioId);
+        const body = (req.body ?? {}) as {
+          monedas?: Record<string, number>;
+          objetos?: Array<{ objetoId: string; cantidad: number }>;
+          archivos?: Array<{ archivoId: string; nombre: string; tipoMime?: string }>;
+          posits?: Array<{
+            positId: string;
+            titulo?: string;
+            contenido?: string;
+            color?: string;
+          }>;
+        };
+        const sesion = await intercambios.actualizarOferta(
+          req.currentUser!,
+          mesaId,
+          intercambioId,
+          body
+        );
+        context.mesasNotifier.enviarAUsuarios(sesion.participantes, {
+          type: "intercambio:estado",
+          mesaId,
+          intercambio: sesion
+        });
+        res.json(sesion);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/intercambio/:intercambioId/listo",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mesaId = String(req.params.id);
+        const intercambioId = String(req.params.intercambioId);
+        const body = (req.body ?? {}) as { listo?: unknown };
+        const resultado = await intercambios.marcarListo(
+          req.currentUser!,
+          mesaId,
+          intercambioId,
+          Boolean(body.listo)
+        );
+
+        if (resultado.completado) {
+          if (resultado.divisaEventos.length > 0) {
+            const mesa = await context.mesaRepository.findById(mesaId);
+            if (mesa) {
+              const miembros = [mesa.hostId, ...mesa.players];
+              const ahora = new Date().toISOString();
+              for (const ev of resultado.divisaEventos) {
+                context.mesasNotifier.enviarAUsuarios(miembros, {
+                  type: "mesa:divisa",
+                  mesaId,
+                  userId: ev.userId,
+                  nombre: ev.nombre,
+                  color: ev.color,
+                  divisaId: ev.divisaId,
+                  divisa: ev.divisa,
+                  divisaNombre: ev.divisaNombre,
+                  delta: ev.delta,
+                  jugadorId: ev.userId,
+                  jugadorNombre: ev.nombre,
+                  createdAt: ahora
+                });
+              }
+            }
+          }
+
+          context.mesasNotifier.enviarAUsuarios(resultado.sesion.participantes, {
+            type: "intercambio:completado",
+            mesaId,
+            intercambio: resultado.sesion,
+            ...(resultado.estadosActualizados
+              ? { estadosActualizados: resultado.estadosActualizados }
+              : {})
+          });
+        } else {
+          context.mesasNotifier.enviarAUsuarios(resultado.sesion.participantes, {
+            type: "intercambio:estado",
+            mesaId,
+            intercambio: resultado.sesion
+          });
+        }
+
+        res.json(resultado.sesion);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/intercambio/:intercambioId/cancelar",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mesaId = String(req.params.id);
+        const intercambioId = String(req.params.intercambioId);
+        const sesion = await intercambios.cancelar(
+          req.currentUser!,
+          mesaId,
+          intercambioId
+        );
+        context.mesasNotifier.enviarAUsuarios(sesion.participantes, {
+          type: "intercambio:estado",
+          mesaId,
+          intercambio: sesion
+        });
+        res.json(sesion);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.patch("/:id/estado", requireAuth, async (req, res, next) => {
     try {

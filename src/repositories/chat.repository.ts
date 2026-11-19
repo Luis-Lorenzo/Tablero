@@ -6,6 +6,8 @@ export interface MensajeChat {
   texto: string;
   destinatarioId: string | null;
   destinatarioNombre: string | null;
+  destinatarioIds?: string[];
+  destinatarioNombres?: string[];
   createdAt: string;
 }
 

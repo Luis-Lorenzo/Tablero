@@ -3110,7 +3110,11 @@ export function Mapa({
                   <div
                     className={`mapa-jugador-tirada${tirada.especial === "critico" ? " critico" : ""
                       }${tirada.especial === "pifia" ? " pifia" : ""}`}
-                    aria-label={`${etiqueta} sacó ${tirada.total}`}
+                    aria-label={
+                      tirada.nombreMacro
+                        ? `${etiqueta} tiró ${tirada.nombreMacro} y sacó ${tirada.total}`
+                        : `${etiqueta} sacó ${tirada.total}`
+                    }
                   >
                     <span
                       className="mapa-jugador-tirada-icono"
@@ -3128,7 +3132,10 @@ export function Mapa({
                       {tirada.total}
                     </span>
                     {tirada.nombreMacro && (
-                      <span className="mapa-jugador-tirada-macro">
+                      <span
+                        className="mapa-jugador-tirada-macro"
+                        title={tirada.nombreMacro}
+                      >
                         {tirada.nombreMacro}
                       </span>
                     )}

@@ -1,10 +1,13 @@
 import type { Pool } from "pg";
 import {
+  personajeVacio,
   sanitizarDivisasConfig,
   sanitizarMusicaAmbiente,
+  sanitizarPersonajePdfs,
   type EstadoMesa,
   type Mesa,
-  type MesaRepository
+  type MesaRepository,
+  type PersonajeJugadorMesa
 } from "./mesa.repository.js";
 
 interface MesaRow {
@@ -29,11 +32,13 @@ interface MesaJugadorRow {
   user_id: string;
   color: string | null;
   apodo: string | null;
+  pj_retrato_archivo_id: string | null;
 }
 
 interface JugadoresMesaDatos {
   colores: Record<string, string>;
   apodos: Record<string, string>;
+  retratosPorJugador: Record<string, string | null>;
 }
 
 const SELECT_COLUMNS =
@@ -41,7 +46,7 @@ const SELECT_COLUMNS =
 
 function toMesa(
   row: MesaRow,
-  datos: JugadoresMesaDatos = { colores: {}, apodos: {} }
+  datos: JugadoresMesaDatos = { colores: {}, apodos: {}, retratosPorJugador: {} }
 ): Mesa {
   const divisasLimpias = sanitizarDivisasConfig(row.divisas_config);
   const musicaAmbiente = sanitizarMusicaAmbiente(row.musica_ambiente);
@@ -54,6 +59,7 @@ function toMesa(
     estado: (row.estado === "EN_CURSO" ? "EN_CURSO" : "ESPERA") as EstadoMesa,
     colores: datos.colores,
     apodos: datos.apodos,
+    retratosPorJugador: datos.retratosPorJugador,
     imagenEscena: row.imagen_escena_id
       ? { id: row.imagen_escena_id, titulo: row.imagen_escena_titulo }
       : null,
@@ -76,21 +82,29 @@ export class PgMesaRepository implements MesaRepository {
     if (mesaIds.length === 0) return mapa;
 
     const { rows } = await this.pool.query<MesaJugadorRow & { mesa_id: string }>(
-      `SELECT mesa_id, user_id, color, apodo FROM mesa_jugadores WHERE mesa_id = ANY($1)`,
+      `SELECT mesa_id, user_id, color, apodo, pj_retrato_archivo_id
+       FROM mesa_jugadores WHERE mesa_id = ANY($1)`,
       [mesaIds]
     );
 
     for (const id of mesaIds) {
-      mapa.set(id, { colores: {}, apodos: {} });
+      mapa.set(id, { colores: {}, apodos: {}, retratosPorJugador: {} });
     }
 
     for (const row of rows) {
-      const datos = mapa.get(row.mesa_id) ?? { colores: {}, apodos: {} };
+      const datos = mapa.get(row.mesa_id) ?? {
+        colores: {},
+        apodos: {},
+        retratosPorJugador: {}
+      };
       if (row.color) {
         datos.colores[row.user_id] = row.color;
       }
       if (row.apodo) {
         datos.apodos[row.user_id] = row.apodo;
+      }
+      if (row.pj_retrato_archivo_id) {
+        datos.retratosPorJugador[row.user_id] = row.pj_retrato_archivo_id;
       }
       mapa.set(row.mesa_id, datos);
     }
@@ -184,7 +198,10 @@ export class PgMesaRepository implements MesaRepository {
         for (const [userId, apodo] of Object.entries(mesa.apodos ?? {})) {
           if (apodo) userIds.add(userId);
         }
-        await client.query(`DELETE FROM mesa_jugadores WHERE mesa_id = $1`, [mesa.id]);
+        await client.query(
+          `UPDATE mesa_jugadores SET color = NULL, apodo = NULL WHERE mesa_id = $1`,
+          [mesa.id]
+        );
         if (userIds.size > 0) {
           const ids: string[] = [];
           const colores: (string | null)[] = [];
@@ -196,7 +213,10 @@ export class PgMesaRepository implements MesaRepository {
           }
           await client.query(
             `INSERT INTO mesa_jugadores (mesa_id, user_id, color, apodo)
-             SELECT $1, * FROM UNNEST($2::uuid[], $3::text[], $4::text[])`,
+             SELECT $1, * FROM UNNEST($2::uuid[], $3::text[], $4::text[])
+             ON CONFLICT (mesa_id, user_id) DO UPDATE SET
+               color = EXCLUDED.color,
+               apodo = EXCLUDED.apodo`,
             [mesa.id, ids, colores, apodos]
           );
         }
@@ -213,5 +233,77 @@ export class PgMesaRepository implements MesaRepository {
 
   async delete(id: string) {
     await this.pool.query(`DELETE FROM mesas WHERE id = $1`, [id]);
+  }
+
+  async getPersonaje(mesaId: string, userId: string): Promise<PersonajeJugadorMesa> {
+    const { rows } = await this.pool.query<{
+      pj_retrato_archivo_id: string | null;
+      pj_ficha_archivo_id: string | null;
+      pj_ficha_nombre: string | null;
+      pj_pdfs: unknown;
+      pj_notas: string | null;
+    }>(
+      `SELECT pj_retrato_archivo_id, pj_ficha_archivo_id, pj_ficha_nombre, pj_pdfs, pj_notas
+       FROM mesa_jugadores
+       WHERE mesa_id = $1 AND user_id = $2`,
+      [mesaId, userId]
+    );
+
+    const row = rows[0];
+    if (!row) return personajeVacio();
+    return {
+      retratoArchivoId: row.pj_retrato_archivo_id ?? null,
+      fichaArchivoId: row.pj_ficha_archivo_id ?? null,
+      fichaNombre: row.pj_ficha_nombre ?? null,
+      pdfs: sanitizarPersonajePdfs(row.pj_pdfs),
+      notas: typeof row.pj_notas === "string" ? row.pj_notas : ""
+    };
+  }
+
+  async savePersonaje(
+    mesaId: string,
+    userId: string,
+    patch: Partial<PersonajeJugadorMesa>
+  ): Promise<PersonajeJugadorMesa> {
+    const actual = await this.getPersonaje(mesaId, userId);
+    const siguiente: PersonajeJugadorMesa = {
+      retratoArchivoId:
+        patch.retratoArchivoId !== undefined
+          ? patch.retratoArchivoId
+          : actual.retratoArchivoId,
+      fichaArchivoId:
+        patch.fichaArchivoId !== undefined
+          ? patch.fichaArchivoId
+          : actual.fichaArchivoId,
+      fichaNombre:
+        patch.fichaNombre !== undefined ? patch.fichaNombre : actual.fichaNombre,
+      pdfs:
+        patch.pdfs !== undefined ? sanitizarPersonajePdfs(patch.pdfs) : actual.pdfs,
+      notas: patch.notas !== undefined ? patch.notas : actual.notas
+    };
+
+    await this.pool.query(
+      `INSERT INTO mesa_jugadores (
+         mesa_id, user_id, pj_retrato_archivo_id, pj_ficha_archivo_id, pj_ficha_nombre, pj_pdfs, pj_notas
+       )
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+       ON CONFLICT (mesa_id, user_id) DO UPDATE SET
+         pj_retrato_archivo_id = EXCLUDED.pj_retrato_archivo_id,
+         pj_ficha_archivo_id = EXCLUDED.pj_ficha_archivo_id,
+         pj_ficha_nombre = EXCLUDED.pj_ficha_nombre,
+         pj_pdfs = EXCLUDED.pj_pdfs,
+         pj_notas = EXCLUDED.pj_notas`,
+      [
+        mesaId,
+        userId,
+        siguiente.retratoArchivoId,
+        siguiente.fichaArchivoId,
+        siguiente.fichaNombre,
+        JSON.stringify(siguiente.pdfs),
+        siguiente.notas
+      ]
+    );
+
+    return siguiente;
   }
 }
