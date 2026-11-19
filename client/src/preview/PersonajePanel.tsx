@@ -366,18 +366,15 @@ export function PersonajePanel({
           <span>Volver</span>
         </button>
 
-        <h1 className="archivador-titulo">
+        <h1
+          className="archivador-titulo pj-titulo"
+          style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}
+        >
           {colorJugador && (
             <span
+              className="pj-titulo-dot"
+              style={{ background: colorJugador }}
               aria-hidden="true"
-              style={{
-                display: "inline-block",
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: colorJugador,
-                boxShadow: "0 0 0 1px rgba(255,255,255,0.28)"
-              }}
             />
           )}
           <span>Personaje (PJ)</span>

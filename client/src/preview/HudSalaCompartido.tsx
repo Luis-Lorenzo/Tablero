@@ -4118,18 +4118,16 @@ export function HudSalaCompartido({
             top: "auto",
             right: "auto",
             transform: "translateX(-50%)",
-            width: "min(360px, 92vw)",
-            maxHeight: "55vh",
             overflowY: "auto"
           }}
         >
           <div className="dados-selector-cabecera">
             <span>Archivador</span>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <div className="mapa-archivador-cabecera-acciones">
               {onAbrirArchivador && (
                 <button
                   type="button"
-                  className="macro-accion-btn"
+                  className="macro-accion-btn mapa-archivador-ver-todo"
                   onClick={() => {
                     setArchivadorMapaAbierto(false);
                     onAbrirArchivador();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import iro from "@jaames/iro";
@@ -78,9 +78,9 @@ export function ColorPickerPopover({
     }
   }, [hexValido]);
 
-  const recalcularPosicion = () => {
+  const calcularPosicion = (): { left: number; top: number } => {
     const btn = triggerRef.current;
-    if (!btn) return;
+    if (!btn) return { left: 16, top: 16 };
     const rect = btn.getBoundingClientRect();
     const anchoPop = Math.max(width + 32, 212);
     const altoPop = width + 112;
@@ -96,10 +96,14 @@ export function ColorPickerPopover({
       top = Math.max(margen, Math.min(top, window.innerHeight - altoPop - margen));
     }
 
-    setPosicion({ left, top });
+    return { left, top };
   };
 
-  useEffect(() => {
+  const recalcularPosicion = () => {
+    setPosicion(calcularPosicion());
+  };
+
+  useLayoutEffect(() => {
     if (!abierto) return;
     recalcularPosicion();
 
@@ -205,7 +209,13 @@ export function ColorPickerPopover({
         onClick={ev => {
           ev.stopPropagation();
           if (disabled) return;
-          setAbierto(prev => !prev);
+          setAbierto(prev => {
+            const siguiente = !prev;
+            if (siguiente) {
+              setPosicion(calcularPosicion());
+            }
+            return siguiente;
+          });
         }}
       >
         {children}

@@ -9,7 +9,7 @@ import type {
   ObjetoMochila
 } from "./tipos";
 
-type TabPaloma = "carta" | "mochila" | "mesa";
+type TabPaloma = "carta" | "dinero" | "mochila" | "mesa";
 
 export interface PopoverPalomaEnviarProps {
   esMaster: boolean;
@@ -266,13 +266,14 @@ export function PopoverPalomaEnviar({
             aria-label="Tipo de envío"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
               gap: 4
             }}
           >
             {(
               [
                 { id: "carta", label: "✉️ Carta" },
+                { id: "dinero", label: "🪙 Dinero" },
                 { id: "mochila", label: "🎒 Mochila" },
                 { id: "mesa", label: "📄 Mesa" }
               ] as const
@@ -332,7 +333,7 @@ export function PopoverPalomaEnviar({
             </div>
           )}
 
-          {tab === "mochila" && (
+          {tab === "dinero" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div className="paloma-monedas-caja">
                 <div
@@ -409,6 +410,11 @@ export function PopoverPalomaEnviar({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {tab === "mochila" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 <span style={{ fontSize: 11, opacity: 0.78, fontWeight: 700 }}>

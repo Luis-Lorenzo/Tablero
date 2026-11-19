@@ -2000,18 +2000,33 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   user-select: none;
 }
 
-.mapa-barra-flotante {
-  position: absolute;
+.mapa-top-stack {
+  position: fixed;
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 26;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  max-width: calc(100vw - 24px);
+}
+
+.mapa-barra-flotante {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  z-index: 26;
+  pointer-events: auto;
   display: inline-flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 6px;
-  max-width: calc(100vw - 440px);
+  max-width: calc(100vw - 260px);
   padding: 6px 8px;
   border: 2px solid #3c424f;
   border-radius: 10px;
@@ -3400,10 +3415,10 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 /* Tracker de Iniciativa (centrado debajo de la barra superior) */
 
 .mapa-iniciativa-barra {
-  position: fixed;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
   z-index: 25;
   max-width: min(1260px, calc(100vw - 240px));
   display: flex;
@@ -3752,15 +3767,15 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-iniciativa-popover {
-  width: min(360px, 92vw);
-  padding: 10px;
+  width: min(450px, 92vw);
+  padding: 13px;
   border: 1px solid rgb(232 197 106 / 45%);
   border-radius: 10px;
   background: rgb(20 23 30 / 96%);
   box-shadow: 4px 4px 0 #090b0f, 0 12px 28px rgb(0 0 0 / 55%);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   color: #ece8df;
 }
 
@@ -3786,7 +3801,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -3865,7 +3880,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  max-height: 92px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -5074,6 +5089,20 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-shadow: 2px 2px 0 #090612;
+}
+
+.archivador-titulo.pj-titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pj-titulo-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1.5px solid rgb(255 255 255 / 45%);
 }
 
 .archivador-btn {
@@ -8187,11 +8216,11 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   top: 158px;
   right: 16px;
   z-index: 60;
-  width: min(310px, 92vw);
+  width: min(348px, 92vw);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
+  padding: 14px;
   border: 2px solid #fb7185;
   border-radius: 12px;
   background: rgb(14 11 20 / 96%);
@@ -8285,6 +8314,39 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
     top: 64px;
     right: 10px;
   }
+}
+
+.mapa-archivador-popover {
+  width: min(440px, calc(100vw - 24px));
+  max-height: min(62vh, 480px);
+  overflow-y: auto;
+}
+
+.mapa-archivador-popover .dados-selector-cabecera {
+  gap: 10px;
+}
+
+.mapa-archivador-cabecera-acciones {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mapa-archivador-cabecera-acciones .macro-accion-btn,
+.mapa-archivador-ver-todo {
+  width: auto;
+  height: auto;
+  min-height: 24px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  border: 1px solid rgb(232 197 106 / 35%);
 }
 
 .divisa-exacto {
@@ -9243,9 +9305,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 @media (max-width: 760px) {
   .mapa-barra-flotante {
     max-width: calc(100vw - 24px);
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: auto;
+    left: auto;
+    transform: none;
     gap: 4px;
     padding: 5px 6px;
   }
@@ -9297,8 +9359,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 
 .mapa-limbo {
   position: fixed;
-  bottom: 64px;
-  left: calc(50% + 206px);
+  bottom: 12px;
+  left: calc(50% + 248px);
   right: 16px;
   z-index: 25;
   box-sizing: border-box;
@@ -9307,8 +9369,8 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   align-items: center;
   gap: 8px;
   width: auto;
-  height: 58px;
-  padding: 6px 10px;
+  height: 110px;
+  padding: 8px 10px;
   border: 2px solid #3c424f;
   border-radius: 12px;
   background: rgb(18 21 28 / 88%);
@@ -9317,7 +9379,7 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-limbo.con-master {
-  left: calc(50% + 254px);
+  left: calc(50% + 298px);
   right: 16px;
 }
 
@@ -9345,13 +9407,16 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-limbo-lista {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  align-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   overflow-x: auto;
-  overflow-y: visible;
-  padding: 6px 8px 4px 2px;
+  overflow-y: hidden;
+  max-height: 100%;
+  padding: 2px 6px 2px 2px;
 }
 
 .mapa-limbo-item {
@@ -10578,6 +10643,16 @@ html.modo-claro .archivador-btn:hover:not(:disabled) {
   border-color: #7C5CBF;
   background: rgb(124 92 191 / 14%);
   color: #2A1F3D;
+}
+
+html.modo-claro .mapa-archivador-cabecera-acciones .macro-accion-btn,
+html.modo-claro .mapa-archivador-ver-todo {
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .pj-titulo-dot {
+  border-color: rgb(42 31 61 / 35%);
 }
 
 /* 4. Acento de marca / estados activos (#E2A93B con texto #2A1F3D) */
@@ -14231,7 +14306,7 @@ html.modo-claro .pizarra-sidebar-borrar:hover {
   position: fixed;
   z-index: 26;
   transform: translate(-50%, -100%);
-  width: min(360px, calc(100vw - 24px));
+  width: min(306px, calc(100vw - 24px));
   padding: 12px 14px;
   border: 2px solid #6b5888;
   border-radius: 12px;
@@ -14285,14 +14360,14 @@ html.modo-claro .pizarra-sidebar-borrar:hover {
 }
 
 .ficha-rapida-esfera-fallback.grande {
-  width: 96px;
-  height: 96px;
+  width: 82px;
+  height: 82px;
   border-width: 3px;
 }
 
 .ficha-rapida-retrato-grande {
   width: 100%;
-  height: clamp(220px, 38vh, 360px);
+  height: clamp(187px, 32vh, 306px);
   object-fit: cover;
   border-radius: 10px;
   border: 2px solid var(--color, #e8c56a);
@@ -14301,7 +14376,7 @@ html.modo-claro .pizarra-sidebar-borrar:hover {
 
 .ficha-rapida-retrato-vacio {
   width: 100%;
-  height: clamp(160px, 26vh, 240px);
+  height: clamp(136px, 22vh, 204px);
   border-radius: 10px;
   border: 1.5px dashed rgb(200 168 229 / 35%);
   background: rgb(255 255 255 / 4%);

@@ -2207,6 +2207,7 @@ export function Mapa({
         </div>
       )}
 
+      <div className="mapa-top-stack">
       {/* Barra flotante superior izquierda (deja libre arriba-derecha y abajo) */}
       <div className="mapa-barra-flotante">
         <button type="button" className="pizarra-btn mapa-btn-volver" onClick={onVolver}>
@@ -2337,37 +2338,6 @@ export function Mapa({
             >
               <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
               <span>Congelar</span>
-            </button>
-
-            <button
-              type="button"
-              className={`pizarra-tool-btn${contrarelojAbierto || modoContrareloj ? " activo" : ""}`}
-              onClick={() => {
-                setModoPing(false);
-                setModoDibujo(false);
-                setModoReglaLinea(false);
-                setReglaAbierta(false);
-                if (
-                  !contrarelojAbierto &&
-                  typeof iniciativa.turnoMaxSegundos === "number" &&
-                  iniciativa.turnoMaxSegundos > 0
-                ) {
-                  setContrarelojInput(String(iniciativa.turnoMaxSegundos));
-                }
-                setContrarelojAbierto(prev => !prev);
-              }}
-              title={
-                modoContrareloj
-                  ? `Modo Contrareloj activo (${iniciativa.turnoMaxSegundos}s por turno)`
-                  : "Configurar tiempo máximo por turno (Contrareloj)"
-              }
-            >
-              <Timer size={14} strokeWidth={2.1} aria-hidden="true" />
-              <span>
-                {modoContrareloj
-                  ? `Contrareloj (${iniciativa.turnoMaxSegundos}s)`
-                  : "Contrareloj"}
-              </span>
             </button>
 
             <button
@@ -2581,71 +2551,6 @@ export function Mapa({
             </div>
           </div>
         )}
-
-        {esMaster && contrarelojAbierto && (
-          <div
-            className="mapa-contrareloj-paleta"
-            role="group"
-            aria-label="Configurar modo contrareloj"
-          >
-            <button
-              type="button"
-              className={`mapa-grosor-btn${!modoContrareloj ? " activo" : ""}`}
-              onClick={() => {
-                emitirIniciativa({ ...iniciativa, turnoMaxSegundos: null });
-              }}
-            >
-              Infinito (∞)
-            </button>
-            {PRESETS_CONTRARELOJ.map(seg => (
-              <button
-                key={seg}
-                type="button"
-                className={`mapa-grosor-btn${iniciativa.turnoMaxSegundos === seg ? " activo" : ""}`}
-                onClick={() => {
-                  setContrarelojInput(String(seg));
-                  emitirIniciativa({ ...iniciativa, turnoMaxSegundos: seg });
-                }}
-              >
-                {seg}s
-              </button>
-            ))}
-            <span className="mapa-barra-sep" aria-hidden="true" />
-            <form
-              className="mapa-contrareloj-form"
-              onSubmit={e => {
-                e.preventDefault();
-                const parsed = Math.round(Number(contrarelojInput));
-                if (!Number.isFinite(parsed) || parsed <= 0) {
-                  emitirIniciativa({ ...iniciativa, turnoMaxSegundos: null });
-                  return;
-                }
-                const clamped = Math.max(5, Math.min(3600, parsed));
-                setContrarelojInput(String(clamped));
-                emitirIniciativa({ ...iniciativa, turnoMaxSegundos: clamped });
-              }}
-            >
-              <label className="mapa-contrareloj-label" htmlFor="mapa-contrareloj-seg">
-                Segs:
-              </label>
-              <input
-                id="mapa-contrareloj-seg"
-                type="number"
-                min={5}
-                max={3600}
-                value={contrarelojInput}
-                onChange={e => setContrarelojInput(e.target.value)}
-                className="mapa-contrareloj-input"
-              />
-              <button type="submit" className="mapa-grosor-btn activo">
-                Aplicar
-              </button>
-            </form>
-            <span className="mapa-contrareloj-nota">
-              El Máster no tiene límite
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Barra de Iniciativa centrada debajo de la barra superior */}
@@ -2773,9 +2678,104 @@ export function Mapa({
                   <Sliders size={12} aria-hidden="true" />
                   {iniciativa.entradas.length === 0 && <span>Configurar</span>}
                 </button>
+                <button
+                  type="button"
+                  className={`pizarra-tool-btn${contrarelojAbierto || modoContrareloj ? " activo" : ""}`}
+                  onClick={() => {
+                    setModoPing(false);
+                    setModoDibujo(false);
+                    setModoReglaLinea(false);
+                    setReglaAbierta(false);
+                    if (
+                      !contrarelojAbierto &&
+                      typeof iniciativa.turnoMaxSegundos === "number" &&
+                      iniciativa.turnoMaxSegundos > 0
+                    ) {
+                      setContrarelojInput(String(iniciativa.turnoMaxSegundos));
+                    }
+                    setContrarelojAbierto(prev => !prev);
+                  }}
+                  title={
+                    modoContrareloj
+                      ? `Modo Contrareloj activo (${iniciativa.turnoMaxSegundos}s por turno)`
+                      : "Configurar tiempo máximo por turno (Contrareloj)"
+                  }
+                >
+                  <Timer size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>
+                    {modoContrareloj
+                      ? `Contrareloj (${iniciativa.turnoMaxSegundos}s)`
+                      : "Contrareloj"}
+                  </span>
+                </button>
               </div>
             )}
           </div>
+
+          {esMaster && contrarelojAbierto && (
+            <div
+              className="mapa-contrareloj-paleta"
+              role="group"
+              aria-label="Configurar modo contrareloj"
+            >
+              <button
+                type="button"
+                className={`mapa-grosor-btn${!modoContrareloj ? " activo" : ""}`}
+                onClick={() => {
+                  emitirIniciativa({ ...iniciativa, turnoMaxSegundos: null });
+                }}
+              >
+                Infinito (∞)
+              </button>
+              {PRESETS_CONTRARELOJ.map(seg => (
+                <button
+                  key={seg}
+                  type="button"
+                  className={`mapa-grosor-btn${iniciativa.turnoMaxSegundos === seg ? " activo" : ""}`}
+                  onClick={() => {
+                    setContrarelojInput(String(seg));
+                    emitirIniciativa({ ...iniciativa, turnoMaxSegundos: seg });
+                  }}
+                >
+                  {seg}s
+                </button>
+              ))}
+              <span className="mapa-barra-sep" aria-hidden="true" />
+              <form
+                className="mapa-contrareloj-form"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const parsed = Math.round(Number(contrarelojInput));
+                  if (!Number.isFinite(parsed) || parsed <= 0) {
+                    emitirIniciativa({ ...iniciativa, turnoMaxSegundos: null });
+                    return;
+                  }
+                  const clamped = Math.max(5, Math.min(3600, parsed));
+                  setContrarelojInput(String(clamped));
+                  emitirIniciativa({ ...iniciativa, turnoMaxSegundos: clamped });
+                }}
+              >
+                <label className="mapa-contrareloj-label" htmlFor="mapa-contrareloj-seg">
+                  Segs:
+                </label>
+                <input
+                  id="mapa-contrareloj-seg"
+                  type="number"
+                  min={5}
+                  max={3600}
+                  value={contrarelojInput}
+                  onChange={e => setContrarelojInput(e.target.value)}
+                  className="mapa-contrareloj-input"
+                />
+                <button type="submit" className="mapa-grosor-btn activo">
+                  Aplicar
+                </button>
+              </form>
+              <span className="mapa-contrareloj-nota">
+                El Máster no tiene límite
+              </span>
+            </div>
+          )}
 
           {esMaster && iniciativaAbierta && (
             <div
@@ -3032,6 +3032,7 @@ export function Mapa({
           )}
         </div>
       )}
+      </div>
 
       {/* Columna vertical de jugadores activos y tiradas recientes */}
       {jugadoresActivos.length > 0 && (
