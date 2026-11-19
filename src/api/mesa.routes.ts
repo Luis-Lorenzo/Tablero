@@ -9,9 +9,10 @@ import { errors } from "../lib/errors.js";
 import { vistaDe } from "../lib/archivos.js";
 import {
   resolverDivisasConfig,
-  sanitizarMusicaAmbiente
+  sanitizarMusicaAmbiente,
+  type Mesa
 } from "../repositories/mesa.repository.js";
-import { nombreDeUsuario } from "../repositories/user.repository.js";
+import { nombreDeUsuario, type User } from "../repositories/user.repository.js";
 import {
   MemoryMesaEstadoRepository,
   sanitizarDivisa,
@@ -38,6 +39,18 @@ function leerImagenBody(body: unknown): { id: string; titulo: string | null } | 
   const tituloLimpio =
     typeof titulo === "string" && titulo.trim() ? titulo.trim() : null;
   return { id: archivoId.trim(), titulo: tituloLimpio };
+}
+
+function esAdminLibre(actor: User, mesa: Mesa): boolean {
+  return actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+}
+
+function esParticipanteOAdminLibre(actor: User, mesa: Mesa): boolean {
+  return (
+    mesa.hostId === actor.id ||
+    mesa.players.includes(actor.id) ||
+    esAdminLibre(actor, mesa)
+  );
 }
 
 export function createMesaRouter(context: AppContext, requireAuth: RequestHandler): Router {
@@ -645,8 +658,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId) {
+      const actor = req.currentUser!;
+      if (mesa.hostId !== actor.id && !esAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -728,8 +741,9 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      const actorId = actor.id;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -757,8 +771,9 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      const actorId = actor.id;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -790,7 +805,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (!mesa) throw errors.mesaNotFound();
 
       const actor = req.currentUser!;
-      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -860,7 +875,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
       const actor = req.currentUser!;
       const miembros = [mesa.hostId, ...mesa.players];
-      if (!miembros.includes(actor.id)) {
+      if (!miembros.includes(actor.id) && !esAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -1078,8 +1093,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -1096,13 +1111,14 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      const actorId = actor.id;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
       const actual = await pizarraEstado.getEstado(mesaId);
-      const esMaster = mesa.hostId === actorId;
+      const esMaster = mesa.hostId === actorId || esAdminLibre(actor, mesa);
       const limpio = sanitizarPizarraEstado(req.body);
 
       if (!esMaster && (actual.congelada || limpio.congelada !== actual.congelada)) {
@@ -1130,7 +1146,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (!mesa) throw errors.mesaNotFound();
 
       const actor = req.currentUser!;
-      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -1184,7 +1200,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (!mesa) throw errors.mesaNotFound();
 
       const actor = req.currentUser!;
-      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 

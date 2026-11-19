@@ -43,6 +43,7 @@ import {
   X
 } from "lucide-react";
 import { nuevoId } from "./calibracion";
+import { obtenerColorDadoGuardado } from "./datos";
 import { IconoDadoPoligono } from "./HudSalaCompartido";
 import { reproducirSonidoPing } from "./sonido";
 import type {
@@ -2671,13 +2672,9 @@ export function Mapa({
               const deTirada = (tirada as TiradaAsiento & { colorDado?: string })
                 .colorDado;
               if (deTirada) return deTirada;
-              if (esMioJugador && typeof window !== "undefined") {
-                try {
-                  const guardado = window.localStorage.getItem("pocketrol.colorDado");
-                  if (guardado) return guardado;
-                } catch {
-                  // ignorar errores de acceso a localStorage
-                }
+              if (esMioJugador) {
+                const guardado = obtenerColorDadoGuardado(miUsuarioId);
+                if (guardado) return guardado;
               }
               return j.color || "#ffe9a8";
             })();

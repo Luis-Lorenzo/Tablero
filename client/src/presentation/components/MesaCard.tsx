@@ -103,19 +103,21 @@ export function MesaCard({
   const jugadores = mesa.players.map(jugador => jugador.name);
   const total = mesa.players.length;
   const llena = total >= MESA_MAX_JUGADORES;
-  const puedeUnirse = !esHost && !soyJugador && !llena;
+  const puedeUnirse = !esHost && !soyJugador && !llena && !esAdmin;
   // Un administrador pierde el mando de una mesa en cuanto es jugador de ella
   // (por ejemplo, tras cedérsela a otro): deja de poder gestionarla.
   const puedeGestionar = esHost || (esAdmin && !soyJugador);
-  const puedeAbandonar = soyJugador && !esAdmin;
+  const puedeAbandonar = soyJugador && !esHost;
 
   const pista = esHost
     ? "Eres el anfitrión"
     : soyJugador
       ? "Ya estás en esta mesa"
-      : llena
-        ? "Mesa completa"
-        : "Pulsa para unirte";
+      : esAdmin
+        ? "Pulsa para administrar"
+        : llena
+          ? "Mesa completa"
+          : "Pulsa para unirte";
 
   const cuerpo = (
     <>
@@ -151,13 +153,19 @@ export function MesaCard({
     </>
   );
 
+  const cuerpoAccion = puedeUnirse
+    ? () => onJoin(mesa)
+    : esAdmin && !esHost && !soyJugador
+      ? () => onGestionar(mesa)
+      : null;
+
   return (
     <article className={esHost ? "mesa-card mia" : "mesa-card"}>
-      {puedeUnirse ? (
+      {cuerpoAccion ? (
         <button
           type="button"
           className="mesa-cuerpo"
-          onClick={() => onJoin(mesa)}
+          onClick={cuerpoAccion}
           disabled={busy}
         >
           {cuerpo}

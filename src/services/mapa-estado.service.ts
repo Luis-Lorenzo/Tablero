@@ -686,14 +686,16 @@ export class MapaEstadoService {
 
   private async obtenerMesaParticipante(actor: User, mesaId: string): Promise<Mesa> {
     const mesa = await this.obtenerMesa(mesaId);
-    if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+    const adminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+    if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id) && !adminLibre) {
       throw errors.forbidden();
     }
     return mesa;
   }
 
   private esMaster(actor: User, mesa: Mesa): boolean {
-    return mesa.hostId === actor.id || actor.role === "ADMIN";
+    const adminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+    return mesa.hostId === actor.id || adminLibre;
   }
 
   private difundir(mesa: Mesa, mapa: EstadoMapaCompartido): void {

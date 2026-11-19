@@ -29,6 +29,7 @@ import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
 import {
+  obtenerColorAristasDadoGuardado,
   obtenerColorDadoGuardado,
   sanitizarColorDado
 } from "../../preview/datos";
@@ -300,7 +301,10 @@ function SalaRealContent({
   const estadoCargadoRef = useRef(false);
   const pizarraCargadaRef = useRef(false);
   const ignorarGuardadoPizarraRef = useRef(false);
-  const esMaster = mesa.hostId === user.id;
+  const esAnfitrion = mesa.hostId === user.id;
+  const soyJugador = mesa.players.some(p => p.id === user.id);
+  const esAdminLibre = user.role === "ADMIN" && !esAnfitrion && !soyJugador;
+  const esMaster = esAnfitrion || esAdminLibre;
   const divisasConfig = useMemo<DivisaConfig[]>(() => {
     const rem = (mesa as PublicMesa & { divisasConfig?: DivisaConfig[] }).divisasConfig;
     if (Array.isArray(rem) && rem.length > 0) return rem;
@@ -692,12 +696,13 @@ function SalaRealContent({
       const actualizada = await mesasApi.obtener(mesa.id);
       const sigueEnMesa =
         actualizada.hostId === user.id ||
-        actualizada.players.some(p => p.id === user.id);
+        actualizada.players.some(p => p.id === user.id) ||
+        user.role === "ADMIN";
       if (!sigueEnMesa) {
         onVolver("Has sido expulsado de la mesa.");
         return;
       }
-      if (actualizada.estado !== "EN_CURSO" && !esMaster) {
+      if (actualizada.estado !== "EN_CURSO" && !esAnfitrion && !esAdminLibre) {
         onActualizarMesa(actualizada);
         onVolver("La partida ha terminado y la mesa ha vuelto a espera.");
         return;
@@ -713,7 +718,7 @@ function SalaRealContent({
       }
       setError(describeError(refrescoError));
     }
-  }, [mesa.id, user.id, onActualizarMesa, onVolver]);
+  }, [mesa.id, user.id, user.role, esAnfitrion, esAdminLibre, onActualizarMesa, onVolver]);
 
   const cargarArchivos = useCallback(() => {
     void archivosApi
@@ -1506,7 +1511,9 @@ function SalaRealContent({
     try {
       const colorDado =
         sanitizarColorDado(tirada.colorDado) ?? obtenerColorDadoGuardado(user.id);
-      const colorAristasDado = sanitizarColorDado(tirada.colorAristasDado);
+      const colorAristasDado =
+        sanitizarColorDado(tirada.colorAristasDado) ??
+        obtenerColorAristasDadoGuardado(user.id);
       await mesasApi.enviarTirada(mesa.id, {
         ...tirada,
         secreta: false,
@@ -1754,7 +1761,17 @@ function SalaRealContent({
   }
 
   async function volverAEspera() {
-    if (!esMaster || mesa.estado !== "EN_CURSO") {
+    if (user.role === "ADMIN" && soyJugador) {
+      try {
+        await mesasApi.abandonar(mesa.id);
+      } catch {
+        // Si fallara por estado ya cerrado, igualmente salimos a recepción.
+      }
+      onVolver();
+      return;
+    }
+
+    if (!esAnfitrion || mesa.estado !== "EN_CURSO") {
       onVolver();
       return;
     }
@@ -1782,7 +1799,7 @@ function SalaRealContent({
   }
 
   const yoAsientoId =
-    jugadores.find(j => j.usuarioId === user.id)?.id ?? "master";
+    jugadores.find(j => j.usuarioId === user.id)?.id ?? "";
 
   async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
     if (!esMaster) return;
@@ -2231,6 +2248,7 @@ function SalaRealContent({
         onAbrirMapa={() => setFase("mapa")}
         onAbrirArchivador={() => setFase("archivador")}
         onVolver={volverAEspera}
+        etiquetaVolver={esAdminLibre ? "Salir de administración" : undefined}
         hostName={mesa.hostName}
         esMaster={esMaster}
         estadoPartida={mesa.estado}
@@ -2282,7 +2300,7 @@ function SalaRealContent({
             }
             : undefined
         }
-        onCambiarApodo={!esMaster ? cambiarApodo : undefined}
+        onCambiarApodo={soyJugador ? cambiarApodo : undefined}
         musicaAmbiente={musicaAmbiente}
         musicaTiempo={tiempoMusica}
         musicaDuracion={duracionMusica}

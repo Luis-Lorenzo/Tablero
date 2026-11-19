@@ -34,7 +34,14 @@ import { DocumentoVisorModal } from "./Archivador";
 import { infoFormatoArchivo, nuevoId } from "./calibracion";
 import { ChatSala } from "./ChatSala";
 import { crearElementoDesdeArchivo, nuevoIdElemento } from "./compartir";
-import { COLORES_POSIT, obtenerModoClaro } from "./datos";
+import {
+  COLORES_POSIT,
+  guardarColorAristasDado,
+  guardarColorDado,
+  obtenerColorAristasDadoGuardado,
+  obtenerColorDadoGuardado,
+  obtenerModoClaro
+} from "./datos";
 import type { ArchivoItem } from "./Mapa";
 import { Posit } from "./Pizarra";
 import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
@@ -77,21 +84,6 @@ import type {
   TipoEspecialTirada,
   TiradaAsiento
 } from "./tipos";
-
-const CLAVE_COLOR_DADO = "pocketrol.colorDado";
-const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
-
-function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
-  try {
-    const guardado = window.localStorage.getItem(clave);
-    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
-      return guardado;
-    }
-  } catch {
-    // Ignoramos errores de almacenamiento
-  }
-  return fallback;
-}
 
 export interface HudSalaCompartidoProps {
   jugadores: JugadorPreview[];
@@ -530,10 +522,10 @@ export function HudSalaCompartido({
   const colorJugadorActual =
     jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.color || "#e8c56a";
   const [colorDado, setColorDado] = useState<string>(() =>
-    cargarColorDadoLocal(colorJugadorActual)
+    obtenerColorDadoGuardado(miUsuarioId) ?? colorJugadorActual
   );
   const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
-    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+    obtenerColorAristasDadoGuardado(miUsuarioId) ?? "#b794f4"
   );
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
 
@@ -543,22 +535,29 @@ export function HudSalaCompartido({
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
   }, []);
 
+  useEffect(() => {
+    const sincronizarColores = () => {
+      const cDado = obtenerColorDadoGuardado(miUsuarioId);
+      if (cDado) setColorDado(cDado);
+      const cAristas = obtenerColorAristasDadoGuardado(miUsuarioId);
+      if (cAristas) setColorAristasDado(cAristas);
+    };
+    window.addEventListener("pocketrol:color-dado", sincronizarColores);
+    window.addEventListener("storage", sincronizarColores);
+    return () => {
+      window.removeEventListener("pocketrol:color-dado", sincronizarColores);
+      window.removeEventListener("storage", sincronizarColores);
+    };
+  }, [miUsuarioId]);
+
   function actualizarColorDado(nuevoColor: string): void {
-    setColorDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorDado(guardado);
   }
 
   function actualizarColorAristasDado(nuevoColor: string): void {
-    setColorAristasDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorAristasDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorAristasDado(guardado);
   }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
@@ -1515,6 +1514,41 @@ export function HudSalaCompartido({
             x: baseX,
             y: baseY
           });
+          window.setTimeout(() => {
+            arrastreElementoMovido.current = false;
+          }, 0);
+          return;
+        }
+      }
+
+      if (arrastreElementoMovido.current) {
+        const vw = Math.max(1, window.innerWidth);
+        const vh = Math.max(1, window.innerHeight);
+        const hudRect = document
+          .querySelector(".hud-mapa-capa .sala-hud-derecha")
+          ?.getBoundingClientRect();
+        if (hudRect && hudRect.width > 0 && hudRect.height > 0) {
+          const pad = 14;
+          const curX = limitar(baseX + ((ev.clientX - inicioX) / vw) * 100, 3, 97);
+          const curY = limitar(baseY + ((ev.clientY - inicioY) / vh) * 100, 3, 97);
+          const px = (curX / 100) * vw;
+          const py = (curY / 100) * vh;
+          if (
+            px >= hudRect.left - pad &&
+            px <= hudRect.right + pad &&
+            py >= hudRect.top - pad &&
+            py <= hudRect.bottom + pad
+          ) {
+            const libreX = limitar(((hudRect.left - pad - 24) / vw) * 100, 6, 94);
+            const libreY = limitar(((hudRect.bottom + pad + 24) / vh) * 100, 10, 88);
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === elemento.id
+                  ? { ...el, x: curX > 72 ? curX : libreX, y: curX > 72 ? libreY : curY }
+                  : el
+              )
+            );
+          }
         }
       }
 

@@ -2926,6 +2926,41 @@ html.modo-claro .feedback.aviso {
   color: #7A4F0C;
 }
 
+html.modo-claro .archivos-panel {
+  background: #FFF8EC;
+  backdrop-filter: none;
+}
+
+html.modo-claro .archivos-item {
+  border: 1px solid rgb(142 124 195 / 35%);
+  border-radius: 10px;
+}
+
+html.modo-claro .archivos-item-icono {
+  color: #5B4688;
+}
+
+html.modo-claro .archivos-item-borrar {
+  color: #9E2A38;
+}
+
+html.modo-claro .archivos-item-borrar:hover {
+  background: #FCE8EC;
+  color: #8F1D2C;
+}
+
+html.modo-claro .archivos-mensaje.error {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .archivos-mensaje.ok {
+  background: #E8FAF2;
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
 html.modo-claro .gestion-subtitulo {
   color: #1E1430;
   font-weight: 700;

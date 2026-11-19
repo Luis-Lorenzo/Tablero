@@ -24,37 +24,37 @@ export type {
 
 export type EntradaTransferencia =
   | {
-      receptorId: string;
-      tipo: "posit";
-      posit: { texto: string; color: string; giro?: number };
-    }
+    receptorId: string;
+    tipo: "posit";
+    posit: { texto: string; color: string; giro?: number };
+  }
   | {
-      receptorId: string;
-      tipo: "archivo";
-      archivoId: string;
-    }
+    receptorId: string;
+    tipo: "archivo";
+    archivoId: string;
+  }
   | {
-      receptorId: string;
-      tipo: "objeto";
-      objeto: ObjetoTransferido;
-    };
+    receptorId: string;
+    tipo: "objeto";
+    objeto: ObjetoTransferido;
+  };
 
 export type ResultadoAceptacion =
   | {
-      transferencia: Transferencia;
-      tipo: "posit";
-      posit: PositTransferido;
-    }
+    transferencia: Transferencia;
+    tipo: "posit";
+    posit: PositTransferido;
+  }
   | {
-      transferencia: Transferencia;
-      tipo: "archivo";
-      archivo: Archivo;
-    }
+    transferencia: Transferencia;
+    tipo: "archivo";
+    archivo: Archivo;
+  }
   | {
-      transferencia: Transferencia;
-      tipo: "objeto";
-      objeto: ObjetoTransferido;
-    };
+    transferencia: Transferencia;
+    tipo: "objeto";
+    objeto: ObjetoTransferido;
+  };
 
 function esMiembroDeMesa(mesa: Mesa, userId: string): boolean {
   return mesa.hostId === userId || mesa.players.includes(userId);
@@ -70,7 +70,7 @@ export class TransferenciaService {
     private readonly archivos: ArchivoService,
     private readonly logger: Logger,
     private readonly transferencias: TransferenciaRepository = new MemoryTransferenciaRepository()
-  ) {}
+  ) { }
 
   async crear(
     emisor: User,
@@ -198,6 +198,9 @@ export class TransferenciaService {
     if (!mesa) throw errors.mesaNotFound();
 
     if (!esMiembroDeMesa(mesa, actor.id)) {
+      if (actor.role === "ADMIN") {
+        return [];
+      }
       throw errors.mesaForbidden();
     }
 

@@ -77,6 +77,14 @@ function esMiembro(mesa: Mesa, userId: string): boolean {
   return mesa.hostId === userId || mesa.players.includes(userId);
 }
 
+function esAdminLibre(mesa: Mesa, actor: User): boolean {
+  return actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+}
+
+function esParticipanteOAdmin(mesa: Mesa, actor: User): boolean {
+  return esMiembro(mesa, actor.id) || esAdminLibre(mesa, actor);
+}
+
 function miembrosDe(mesa: Mesa): string[] {
   return [mesa.hostId, ...mesa.players];
 }
@@ -161,7 +169,7 @@ export class ChatService {
     const mesa = await this.obtenerMesaComoMiembro(actor, mesaId);
 
     if (datos.secreta) {
-      if (actor.id !== mesa.hostId) {
+      if (actor.id !== mesa.hostId && !esAdminLibre(mesa, actor)) {
         throw errors.mesaForbidden();
       }
       // Secreto total: las tiradas con dados negros del Máster no se difunden ni se registran.
@@ -215,7 +223,7 @@ export class ChatService {
     if (!mesa) {
       throw errors.mesaNotFound();
     }
-    if (!esMiembro(mesa, actor.id)) {
+    if (!esParticipanteOAdmin(mesa, actor)) {
       throw errors.mesaForbidden();
     }
     return mesa;

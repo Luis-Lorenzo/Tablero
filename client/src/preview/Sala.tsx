@@ -55,6 +55,10 @@ import {
   COLORES_POSIT,
   FONDO_SALA,
   FONDO_SALA_DIA,
+  guardarColorAristasDado,
+  guardarColorDado,
+  obtenerColorAristasDadoGuardado,
+  obtenerColorDadoGuardado,
   obtenerModoClaro
 } from "./datos";
 import type { PublicJugadorResumenInventario } from "../api/types";
@@ -142,21 +146,6 @@ const MUSICA_VACIA: MusicaAmbienteMesa = {
 
 type TiradaAsientoConColor = TiradaAsiento & { color?: string; colorAristasDado?: string };
 
-const CLAVE_COLOR_DADO = "pocketrol.colorDado";
-const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
-
-function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
-  try {
-    const guardado = window.localStorage.getItem(clave);
-    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
-      return guardado;
-    }
-  } catch {
-    // Ignoramos errores de almacenamiento
-  }
-  return fallback;
-}
-
 interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
@@ -165,6 +154,7 @@ interface SalaProps {
   onAbrirMapa: () => void;
   onAbrirArchivador?: () => void;
   onVolver: () => void;
+  etiquetaVolver?: string;
   hostName?: string;
   yoAsientoId?: string;
   posits?: PositPreview[];
@@ -777,6 +767,91 @@ function textoLegible(color: string): string {
   return luz > 0.62 ? "#2a2433" : "#fbf8f2";
 }
 
+interface CajaPorc {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+const SELECTORES_HUD_EXCLUIDOS =
+  ".sala-hud-derecha, .sala-barra, .sala-tema-btn, .sala-master-partida-ctrl, .sala-apodo-flotante";
+
+function obtenerCajasHudExcluidas(
+  root: HTMLElement | null,
+  mesaEl: HTMLElement | null
+): CajaPorc[] {
+  if (!root || !mesaEl) return [];
+  const mesaRect = mesaEl.getBoundingClientRect();
+  if (mesaRect.width <= 0 || mesaRect.height <= 0) return [];
+
+  const padXPct = (16 / mesaRect.width) * 100 + 2.5;
+  const padYPct = (16 / mesaRect.height) * 100 + 3.2;
+  const cajas: CajaPorc[] = [];
+
+  for (const nodo of root.querySelectorAll(SELECTORES_HUD_EXCLUIDOS)) {
+    const r = nodo.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    cajas.push({
+      left: ((r.left - mesaRect.left) / mesaRect.width) * 100 - padXPct,
+      top: ((r.top - mesaRect.top) / mesaRect.height) * 100 - padYPct,
+      right: ((r.right - mesaRect.left) / mesaRect.width) * 100 + padXPct,
+      bottom: ((r.bottom - mesaRect.top) / mesaRect.height) * 100 + padYPct
+    });
+  }
+  return cajas;
+}
+
+function puntoEnCajas(x: number, y: number, cajas: CajaPorc[]): CajaPorc | null {
+  for (const caja of cajas) {
+    if (x >= caja.left && x <= caja.right && y >= caja.top && y <= caja.bottom) {
+      return caja;
+    }
+  }
+  return null;
+}
+
+function resolverPosicionLibre(
+  x: number,
+  y: number,
+  cajas: CajaPorc[],
+  indiceRescate = 0
+): { x: number; y: number; reubicado: boolean } {
+  const cx = limitar(x, 6, 94);
+  const cy = limitar(y, 12, 88);
+  const colision = puntoEnCajas(cx, cy, cajas);
+  if (!colision) {
+    return { x: cx, y: cy, reubicado: cx !== x || cy !== y };
+  }
+
+  const candidatos: Array<{ x: number; y: number }> = [
+    { x: cx, y: colision.bottom + 3 },
+    { x: colision.left - 4, y: cy },
+    { x: colision.left - 4, y: colision.bottom + 3 }
+  ];
+  for (let i = 0; i < 8; i++) {
+    const k = (indiceRescate + i) % 8;
+    candidatos.push({
+      x: 24 + (k % 4) * 13,
+      y: 58 - Math.floor(k / 4) * 12
+    });
+  }
+
+  for (const cand of candidatos) {
+    const tx = Number(limitar(cand.x, 8, 92).toFixed(2));
+    const ty = Number(limitar(cand.y, 14, 86).toFixed(2));
+    if (!puntoEnCajas(tx, ty, cajas)) {
+      return { x: tx, y: ty, reubicado: true };
+    }
+  }
+
+  return {
+    x: Number(limitar(28 + (indiceRescate % 4) * 10, 12, 88).toFixed(2)),
+    y: Number(limitar(62 + Math.floor(indiceRescate / 4) * 6, 28, 82).toFixed(2)),
+    reubicado: true
+  };
+}
+
 export function Sala({
   jugadores,
   calibracion,
@@ -785,6 +860,7 @@ export function Sala({
   onAbrirMapa,
   onAbrirArchivador,
   onVolver,
+  etiquetaVolver,
   hostName,
   yoAsientoId = "master",
   elementosMesa = [],
@@ -888,10 +964,10 @@ export function Sala({
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
   const [colorDado, setColorDado] = useState<string>(() =>
-    cargarColorDadoLocal(colorJugador || "#e8c56a")
+    obtenerColorDadoGuardado(miUsuarioId) ?? (colorJugador || "#e8c56a")
   );
   const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
-    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+    obtenerColorAristasDadoGuardado(miUsuarioId) ?? "#b794f4"
   );
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
 
@@ -901,22 +977,29 @@ export function Sala({
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
   }, []);
 
+  useEffect(() => {
+    const sincronizarColores = () => {
+      const cDado = obtenerColorDadoGuardado(miUsuarioId);
+      if (cDado) setColorDado(cDado);
+      const cAristas = obtenerColorAristasDadoGuardado(miUsuarioId);
+      if (cAristas) setColorAristasDado(cAristas);
+    };
+    window.addEventListener("pocketrol:color-dado", sincronizarColores);
+    window.addEventListener("storage", sincronizarColores);
+    return () => {
+      window.removeEventListener("pocketrol:color-dado", sincronizarColores);
+      window.removeEventListener("storage", sincronizarColores);
+    };
+  }, [miUsuarioId]);
+
   function actualizarColorDado(nuevoColor: string): void {
-    setColorDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorDado(guardado);
   }
 
   function actualizarColorAristasDado(nuevoColor: string): void {
-    setColorAristasDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorAristasDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorAristasDado(guardado);
   }
   const [sonidoSilenciado, setSonidoSilenciado] = useState<boolean>(
     estaSonidoSilenciado
@@ -1192,6 +1275,7 @@ export function Sala({
   const [visorEscena, setVisorEscena] = useState(false);
   const [panelMasterAbierto, setPanelMasterAbierto] = useState(false);
 
+  const salaRef = useRef<HTMLDivElement>(null);
   const plano = useRef<HTMLDivElement>(null);
   const asientoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dropzoneRef = useRef<HTMLDivElement>(null);
@@ -1322,6 +1406,13 @@ export function Sala({
   }, [ajuste]);
 
   useEffect(() => {
+    function programarLimpiezaArrastreDoc() {
+      if (!arrastreDocMovido.current) return;
+      window.setTimeout(() => {
+        arrastreDocMovido.current = false;
+      }, 0);
+    }
+
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
       for (const jugador of jugadoresRef.current) {
         if (!jugador.activo || jugador.id === yoAsientoIdRef.current) continue;
@@ -1639,7 +1730,21 @@ export function Sala({
 
         if (!actual.movido) {
           setItemAbierto(actual.elemento);
+        } else {
+          const cajas = obtenerCajasHudExcluidas(salaRef.current, capaPosits.current);
+          const elemActual = elementosMesaRef.current.find(el => el.id === actual.id);
+          if (elemActual) {
+            const libre = resolverPosicionLibre(elemActual.x, elemActual.y, cajas);
+            if (libre.reubicado) {
+              onElementosMesaRef.current?.(prev =>
+                prev.map(item =>
+                  item.id === actual.id ? { ...item, x: libre.x, y: libre.y } : item
+                )
+              );
+            }
+          }
         }
+        programarLimpiezaArrastreDoc();
         return;
       }
 
@@ -1676,12 +1781,17 @@ export function Sala({
         }
 
         const rectMesa = capaPosits.current?.getBoundingClientRect();
-        const x = rectMesa
+        const rawX = rectMesa
           ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
           : 50;
-        const y = rectMesa
+        const rawY = rectMesa
           ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
           : 55;
+        const { x, y } = resolverPosicionLibre(
+          rawX,
+          rawY,
+          obtenerCajasHudExcluidas(salaRef.current, capaPosits.current)
+        );
         onElementosMesaRef.current?.(prev => [
           ...prev,
           {
@@ -1719,12 +1829,17 @@ export function Sala({
       if (actual.tipo === "macro-menu") {
         if (actual.movido) {
           const rectMesa = capaPosits.current?.getBoundingClientRect();
-          const x = rectMesa
+          const rawX = rectMesa
             ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
             : 50;
-          const y = rectMesa
+          const rawY = rectMesa
             ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
             : 55;
+          const { x, y } = resolverPosicionLibre(
+          rawX,
+          rawY,
+          obtenerCajasHudExcluidas(salaRef.current, capaPosits.current)
+        );
           onElementosMesaRef.current?.(prev => [
             ...prev,
             {
@@ -1741,11 +1856,21 @@ export function Sala({
             }
           ]);
           mostrarAviso(`Macro «${actual.macro.nombre}» colocada en la mesa.`);
-          window.setTimeout(() => {
-            arrastreDocMovido.current = false;
-          }, 0);
+          programarLimpiezaArrastreDoc();
         }
         return;
+      }
+
+      function asegurarFueraDeHud(elemId: string) {
+        const cajas = obtenerCajasHudExcluidas(salaRef.current, capaPosits.current);
+        const item = elementosMesaRef.current.find(el => el.id === elemId);
+        if (!item) return;
+        const libre = resolverPosicionLibre(item.x, item.y, cajas);
+        if (libre.reubicado) {
+          onElementosMesaRef.current?.(prev =>
+            prev.map(el => (el.id === elemId ? { ...el, x: libre.x, y: libre.y } : el))
+          );
+        }
       }
 
       if (actual.tipo === "objeto-mesa") {
@@ -1767,7 +1892,10 @@ export function Sala({
             void onEnviarElementoRef.current?.(destino, item);
           } else if (enDropzone && !destino) {
             mostrarAviso("Elige primero un jugador para enviarle el objeto.");
+          } else {
+            asegurarFueraDeHud(actual.id);
           }
+          programarLimpiezaArrastreDoc();
           return;
         }
         if (
@@ -1783,8 +1911,11 @@ export function Sala({
               y: actual.base.y
             });
           }
-          arrastreDocMovido.current = false;
+          programarLimpiezaArrastreDoc();
+          return;
         }
+        asegurarFueraDeHud(actual.id);
+        programarLimpiezaArrastreDoc();
         return;
       }
 
@@ -1837,7 +1968,9 @@ export function Sala({
               y: actual.base.y
             });
           }
+          return;
         }
+        asegurarFueraDeHud(actual.id);
         return;
       }
 
@@ -1866,7 +1999,7 @@ export function Sala({
           } else if (enDropzone && !destino) {
             mostrarAviso("Elige primero un jugador para enviarle el documento.");
           }
-          arrastreDocMovido.current = false;
+          programarLimpiezaArrastreDoc();
           return;
         }
         if (
@@ -1886,16 +2019,19 @@ export function Sala({
               y: actual.base.y
             });
           }
-          arrastreDocMovido.current = false;
+          programarLimpiezaArrastreDoc();
           return;
+        }
+        if (actual.movido) {
+          asegurarFueraDeHud(actual.id);
         }
       }
 
-      if (arrastreDocMovido.current) {
-        window.setTimeout(() => {
-          arrastreDocMovido.current = false;
-        }, 0);
+      if (actual.tipo === "macro-mesa" && actual.movido) {
+        asegurarFueraDeHud(actual.id);
       }
+
+      programarLimpiezaArrastreDoc();
     }
 
     window.addEventListener("pointermove", mover);
@@ -1908,6 +2044,32 @@ export function Sala({
       window.removeEventListener("pointercancel", soltar);
     };
   }, [onCalibracion]);
+
+  // Rescate automático: expulsa elementos guardados o cargados debajo del HUD superior/derecho.
+  useEffect(() => {
+    if (ajuste || !onElementosMesa || elementosMesa.length === 0) return undefined;
+    const raf = window.requestAnimationFrame(() => {
+      if (arrastre.current) return;
+      const cajas = obtenerCajasHudExcluidas(salaRef.current, capaPosits.current);
+      if (cajas.length === 0) return;
+
+      let indiceRescate = 0;
+      let hayCambios = false;
+      const siguientes = elementosMesa.map(el => {
+        if (el.archivado) return el;
+        if (!puntoEnCajas(el.x, el.y, cajas)) return el;
+        const libre = resolverPosicionLibre(el.x, el.y, cajas, indiceRescate);
+        indiceRescate += 1;
+        if (libre.x === el.x && libre.y === el.y) return el;
+        hayCambios = true;
+        return { ...el, x: libre.x, y: libre.y };
+      });
+      if (hayCambios) {
+        onElementosMesa(siguientes);
+      }
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [ajuste, elementosMesa, onElementosMesa]);
 
   useEffect(() => {
     const timersMap = timersAsiento.current;
@@ -3070,6 +3232,7 @@ export function Sala({
 
   return (
     <div
+      ref={salaRef}
       className="sala"
       onPointerDown={evento => {
         if (!(evento.target as HTMLElement).closest(".posit, .mesa-posit-dar-todos")) {
@@ -3434,7 +3597,7 @@ export function Sala({
             <div className="sala-barra-grupo">
               <button type="button" className="sala-btn" onClick={onVolver}>
                 <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
-                <span>Sala de espera</span>
+                <span>{etiquetaVolver ?? "Sala de espera"}</span>
               </button>
               <span className="sala-titulo-visible">
                 SALA DE {hostName ? hostName.toUpperCase() : "MESA"}

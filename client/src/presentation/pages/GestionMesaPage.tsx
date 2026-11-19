@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, Palette, Pencil, Play, Trash2, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
+import { ArrowLeft, Check, Crown, DoorOpen, LogOut, Palette, Pencil, Play, Trash2, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -105,6 +105,19 @@ export function GestionMesaPage({
     } catch (expulsarError) {
       setError(describeError(expulsarError));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function abandonarMesa() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await mesasApi.abandonar(mesa.id);
+      onVolver();
+    } catch (abandonarError) {
+      setError(describeError(abandonarError));
       setBusy(false);
     }
   }
@@ -288,11 +301,12 @@ export function GestionMesaPage({
         </p>
       )}
 
-      <div className="gestion-bloque">
-        <h3 className="gestion-subtitulo">
-          <Palette size={15} aria-hidden="true" />
-          <span>Tu color de esfera</span>
-        </h3>
+      {(esAnfitrion || soyJugador) && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <Palette size={15} aria-hidden="true" />
+            <span>Tu color de esfera</span>
+          </h3>
         <div className="color-propio">
           <button
             type="button"
@@ -330,7 +344,8 @@ export function GestionMesaPage({
             })}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {soyJugadorEnMesa && (
         <div className="gestion-bloque">
@@ -478,17 +493,30 @@ export function GestionMesaPage({
           )}
         </div>
 
-        {esAnfitrion && (
-          <button
-            type="button"
-            className="danger"
-            onClick={() => setConfirmCerrar(true)}
-            disabled={busy}
-          >
-            <Trash2 size={15} aria-hidden="true" />
-            <span>Cerrar mesa</span>
-          </button>
-        )}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          {soyJugador && !esAnfitrion && (
+            <button
+              type="button"
+              className="danger"
+              onClick={() => void abandonarMesa()}
+              disabled={busy}
+            >
+              <LogOut size={15} aria-hidden="true" />
+              <span>Abandonar mesa</span>
+            </button>
+          )}
+          {(esAnfitrion || gestiona) && (
+            <button
+              type="button"
+              className="danger"
+              onClick={() => setConfirmCerrar(true)}
+              disabled={busy}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              <span>Cerrar mesa</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog

@@ -39,13 +39,15 @@ function nombreDeUsuario(user: PublicUser): string {
 /** Determina el motivo por el que el usuario ha salido de una sala activa. */
 async function resolverMotivoSalidaMesa(
   mesaId: string,
-  userId: string
+  userId: string,
+  esAdmin = false
 ): Promise<string> {
   try {
     const actualizada = await mesasApi.obtener(mesaId);
     const expulsado =
       actualizada.expulsados?.includes(userId) ||
-      (actualizada.hostId !== userId &&
+      (!esAdmin &&
+        actualizada.hostId !== userId &&
         !actualizada.players.some(p => p.id === userId));
     if (expulsado) {
       return "Has sido expulsado de la mesa.";
@@ -170,11 +172,18 @@ function App() {
       }
 
       const salaActual = salaMesaRef.current;
-      if (viewRef.current === "sala" && salaActual) {
+      const esAdmin = user.role === "ADMIN";
+      const preparandoPropia =
+        salaActual !== null &&
+        salaActual.hostId === user.id &&
+        salaActual.estado === "ESPERA";
+      if (viewRef.current === "sala" && salaActual && !esAdmin && !preparandoPropia) {
         salidaManualMesaIdRef.current = null;
+        salaMesaRef.current = null;
+        viewRef.current = "recepcion";
         setSalaMesa(null);
         setView("recepcion");
-        const motivo = await resolverMotivoSalidaMesa(salaActual.id, user.id);
+        const motivo = await resolverMotivoSalidaMesa(salaActual.id, user.id, esAdmin);
         setAvisoSala(motivo);
         return;
       }
@@ -219,6 +228,8 @@ function App() {
   const abrirSala = useCallback((mesa: PublicMesa) => {
     salidaManualMesaIdRef.current = null;
     setAvisoSala(null);
+    salaMesaRef.current = mesa;
+    viewRef.current = "sala";
     setSalaMesa(mesa);
     setView("sala");
   }, []);
@@ -232,6 +243,8 @@ function App() {
         salidaManualMesaIdRef.current = salaMesa?.id ?? null;
         setAvisoSala(null);
       }
+      salaMesaRef.current = null;
+      viewRef.current = "recepcion";
       setSalaMesa(null);
       setView("recepcion");
       void refrescarMiSala();

@@ -149,7 +149,7 @@ export class MesaService {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
-    if (mesa.hostId !== actor.id) throw errors.mesaForbidden();
+    this.exigirAnfitrionOAdmin(actor, mesa);
 
     if (mesa.estado !== "EN_CURSO") {
       mesa.estado = "EN_CURSO";
@@ -165,7 +165,7 @@ export class MesaService {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
-    if (mesa.hostId !== actor.id) throw errors.mesaForbidden();
+    this.exigirAnfitrionOAdmin(actor, mesa);
 
     if (mesa.estado !== "ESPERA") {
       mesa.estado = "ESPERA";
@@ -331,11 +331,15 @@ export class MesaService {
     return mesa ? this.vista(mesa) : null;
   }
 
-  private exigirAnfitrionOAdmin(actor: User, mesa: Mesa): void {
+  private esAnfitrionOAdmin(actor: User, mesa: Mesa): boolean {
     // Un administrador es omnipotente, pero pierde el mando de una mesa en
     // cuanto pasa a ser jugador de ella (por ejemplo, tras cederla a otro).
     const esAdminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
-    if (mesa.hostId !== actor.id && !esAdminLibre) {
+    return mesa.hostId === actor.id || esAdminLibre;
+  }
+
+  private exigirAnfitrionOAdmin(actor: User, mesa: Mesa): void {
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
       throw errors.mesaForbidden();
     }
   }
@@ -422,7 +426,9 @@ export class MesaService {
   ): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
-    if (mesa.hostId !== actor.id) throw errors.forbidden();
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     let valor: ImagenMesa | null = null;
     if (imagen !== null) {
@@ -495,7 +501,9 @@ export class MesaService {
   ): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
-    if (mesa.hostId !== actor.id) throw errors.forbidden();
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     const limpio = nombreBruto.trim().slice(0, 24) || "Divisa";
     mesa.divisaNombre = limpio;
@@ -517,7 +525,9 @@ export class MesaService {
   ): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
-    this.exigirAnfitrionOAdmin(actor, mesa);
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     if (!Array.isArray(divisas)) {
       throw errors.invalidRequest();

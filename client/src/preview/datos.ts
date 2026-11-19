@@ -155,10 +155,18 @@ export const POSITS_INICIALES: PositPreview[] = [
 ];
 
 const CLAVE_COLOR_DADO_PREFIJO = "pocketrol.colorDado";
+const CLAVE_COLOR_ARISTAS_PREFIJO = "pocketrol.colorAristasDado";
 
 function claveColorDado(userId?: string): string {
   const limpio = userId?.trim();
   return limpio ? `${CLAVE_COLOR_DADO_PREFIJO}.${limpio}` : CLAVE_COLOR_DADO_PREFIJO;
+}
+
+function claveColorAristasDado(userId?: string): string {
+  const limpio = userId?.trim();
+  return limpio
+    ? `${CLAVE_COLOR_ARISTAS_PREFIJO}.${limpio}`
+    : CLAVE_COLOR_ARISTAS_PREFIJO;
 }
 
 /**
@@ -214,6 +222,50 @@ export function guardarColorDado(
     window.dispatchEvent(
       new CustomEvent("pocketrol:color-dado", {
         detail: { userId: userId?.trim() || null, colorDado: limpio ?? null }
+      })
+    );
+  } catch {
+    // Ignorar errores de almacenamiento en modo privado.
+  }
+  return limpio;
+}
+
+/**
+ * Lee de `localStorage` el color secundario de aristas del dado para el usuario actual.
+ */
+export function obtenerColorAristasDadoGuardado(userId?: string): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const especifico = userId?.trim()
+      ? window.localStorage.getItem(claveColorAristasDado(userId))
+      : null;
+    const raw = especifico ?? window.localStorage.getItem(CLAVE_COLOR_ARISTAS_PREFIJO);
+    return sanitizarColorDado(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Guarda en `localStorage` el color secundario de aristas del dado por usuario
+ * y notifica en la misma pestaña para sincronizar Sala y Mapa al instante.
+ */
+export function guardarColorAristasDado(
+  color: string | null | undefined,
+  userId?: string
+): string | undefined {
+  const limpio = sanitizarColorDado(color);
+  if (typeof window === "undefined") return limpio;
+  const clave = claveColorAristasDado(userId);
+  try {
+    if (limpio) {
+      window.localStorage.setItem(clave, limpio);
+    } else {
+      window.localStorage.removeItem(clave);
+    }
+    window.dispatchEvent(
+      new CustomEvent("pocketrol:color-dado", {
+        detail: { userId: userId?.trim() || null, colorAristasDado: limpio ?? null }
       })
     );
   } catch {

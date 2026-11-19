@@ -68,11 +68,12 @@ function montar() {
 
   const app = createApp(context);
 
-  async function aprobar(email: string) {
+  async function aprobar(email: string, role: "USER" | "ADMIN" = "USER") {
     const user = createUser({
       email,
       passwordHash: await hasher.hash(PASSWORD),
-      status: "ACTIVE"
+      status: "ACTIVE",
+      role
     });
     await users.save(user);
     return user;
@@ -946,5 +947,60 @@ describe("rutas de /api/mesas", () => {
     expect(estado.body.elementos).toEqual([
       { id: "macro-1", tipo: "macro", variante: "dado", formula: "1d20+5" }
     ]);
+  });
+
+  it("permite a un ADMIN entrar y supervisar una sala ajena sin quedar en players y salir si estaba dentro", async () => {
+    await aprobar("anfitrion-adm@pocket.test");
+    await aprobar("super-admin@pocket.test", "ADMIN");
+    const cookieHost = await sesionDe("anfitrion-adm@pocket.test");
+    const cookieAdmin = await sesionDe("super-admin@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieHost)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/iniciar`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+
+    // Admin libre consulta todas las vistas de sala sin unirse como jugador -> 200
+    await request(app).get(`/api/mesas/${mesaId}/chat`).set("Cookie", cookieAdmin).expect(200);
+    await request(app).get(`/api/mesas/${mesaId}/pizarra`).set("Cookie", cookieAdmin).expect(200);
+    await request(app).get(`/api/mesas/${mesaId}/estado`).set("Cookie", cookieAdmin).expect(200);
+    await request(app).get(`/api/mesas/${mesaId}/mapa`).set("Cookie", cookieAdmin).expect(200);
+    await request(app)
+      .get(`/api/mesas/${mesaId}/compartir/pendientes`)
+      .set("Cookie", cookieAdmin)
+      .expect(200);
+    await request(app)
+      .get(`/api/mesas/${mesaId}/master-resumen`)
+      .set("Cookie", cookieAdmin)
+      .expect(200);
+
+    const mesaSinAdmin = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+    expect(mesaSinAdmin.body.players).toHaveLength(0);
+
+    // Si un ADMIN se une (o queda en players tras ceder mando), puede abandonar limpiamente
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieAdmin)
+      .expect(200);
+    await request(app)
+      .post(`/api/mesas/${mesaId}/abandonar`)
+      .set("Cookie", cookieAdmin)
+      .expect(204);
+
+    const mesaFinal = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+    expect(mesaFinal.body.players).toHaveLength(0);
   });
 });
