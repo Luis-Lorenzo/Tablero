@@ -13,6 +13,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Upload,
   X
 } from "lucide-react";
 import { archivosApi } from "../api/archivos.api";
@@ -568,6 +569,8 @@ export function Archivador({
   const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
+  const [arrastrandoSobreDropzone, setArrastrandoSobreDropzone] =
+    useState(false);
   const [visor, setVisor] = useState<
     | PublicArchivo
     | { id: string; nombre: string; tipo?: string; vista: string; url?: string }
@@ -636,9 +639,8 @@ export function Archivador({
     };
   }, [sincronizarLista]);
 
-  async function alElegirArchivos(evento: ChangeEvent<HTMLInputElement>) {
-    const elegidos = Array.from(evento.target.files ?? []);
-    evento.target.value = "";
+  async function subirArchivos(lista: FileList | File[]) {
+    const elegidos = Array.from(lista);
     if (elegidos.length === 0) return;
 
     setSubiendo(true);
@@ -653,6 +655,12 @@ export function Archivador({
     } finally {
       setSubiendo(false);
     }
+  }
+
+  async function alElegirArchivos(evento: ChangeEvent<HTMLInputElement>) {
+    const elegidos = Array.from(evento.target.files ?? []);
+    evento.target.value = "";
+    await subirArchivos(elegidos);
   }
 
   function desarchivarPosit(id: string): void {
@@ -849,6 +857,62 @@ export function Archivador({
               <h2>Mis archivos</h2>
               <span className="archivador-contador">
                 {archivosArchivados.length}
+              </span>
+            </div>
+
+            <div
+              role="button"
+              tabIndex={subiendo ? -1 : 0}
+              aria-disabled={subiendo}
+              aria-label="Subir archivos arrastrando o haciendo clic"
+              className={`archivador-dropzone${arrastrandoSobreDropzone ? " arrastrando" : ""}${subiendo ? " subiendo" : ""}`}
+              onClick={() => {
+                if (!subiendo) selector.current?.click();
+              }}
+              onKeyDown={e => {
+                if (!subiendo && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  selector.current?.click();
+                }
+              }}
+              onDragOver={e => {
+                e.preventDefault();
+                setArrastrandoSobreDropzone(true);
+              }}
+              onDragEnter={e => {
+                e.preventDefault();
+                setArrastrandoSobreDropzone(true);
+              }}
+              onDragLeave={e => {
+                if (
+                  !(e.relatedTarget instanceof Node) ||
+                  !e.currentTarget.contains(e.relatedTarget)
+                ) {
+                  setArrastrandoSobreDropzone(false);
+                }
+              }}
+              onDrop={e => {
+                e.preventDefault();
+                setArrastrandoSobreDropzone(false);
+                if (!subiendo && e.dataTransfer.files?.length) {
+                  void subirArchivos(e.dataTransfer.files);
+                }
+              }}
+            >
+              <Upload
+                size={20}
+                className="archivador-dropzone-icono"
+                aria-hidden="true"
+              />
+              <span className="archivador-dropzone-texto">
+                {subiendo
+                  ? "Subiendo archivos…"
+                  : arrastrandoSobreDropzone
+                    ? "Suelta los archivos para subirlos"
+                    : "Arrastra y suelta documentos aquí, o haz clic para subir"}
+              </span>
+              <span className="archivador-dropzone-hint">
+                PDF, Word (.docx), imágenes, texto
               </span>
             </div>
 
