@@ -1098,4 +1098,123 @@ describe("rutas de /api/mesas", () => {
       .expect(200);
     expect(abiertaRes.body.players).toHaveLength(2);
   });
+
+  it("persiste textosEscena y trazos flecha en pizarra, y acepta ping en [-100, 200] en pizarra/escena pero [0, 100] en mapa", async () => {
+    await aprobar("master-fase-d@pocket.test");
+    const cookieMaster = await sesionDe("master-fase-d@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .send({
+        posits: [],
+        trazos: [],
+        documentos: [],
+        trazosEscena: [
+          {
+            id: "trazo-flecha-1",
+            color: "#e8c56a",
+            grosor: 2.5,
+            forma: "flecha",
+            puntos: [
+              { x: -20, y: 10 },
+              { x: 140, y: 180 }
+            ]
+          }
+        ],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: {},
+        congelada: false,
+        textosEscena: [
+          {
+            id: "txt-1",
+            texto: "Zona norte",
+            x: -150,
+            y: 250,
+            color: "#ffaa00",
+            tamano: "lg",
+            ancho: 1200,
+            autorId: "u1",
+            autorNombre: "Máster"
+          },
+          {
+            id: "",
+            texto: "Inválido sin id",
+            x: 10,
+            y: 10,
+            color: "#ffffff",
+            tamano: "md"
+          }
+        ]
+      })
+      .expect(204);
+
+    const pizarra = await request(app)
+      .get(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(pizarra.body.trazosEscena).toEqual([
+      {
+        id: "trazo-flecha-1",
+        color: "#e8c56a",
+        grosor: 2.5,
+        forma: "flecha",
+        puntos: [
+          { x: -20, y: 10 },
+          { x: 140, y: 180 }
+        ]
+      }
+    ]);
+    expect(pizarra.body.textosEscena).toEqual([
+      {
+        id: "txt-1",
+        texto: "Zona norte",
+        x: -100,
+        y: 200,
+        color: "#ffaa00",
+        tamano: "lg",
+        ancho: 800,
+        autorId: "u1",
+        autorNombre: "Máster"
+      }
+    ]);
+
+    const inicioEnvios = notifier.envios.length;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/ping`)
+      .set("Cookie", cookieMaster)
+      .send({ x: -80, y: 165, vista: "pizarra", color: "#e8c56a" })
+      .expect(204);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/ping`)
+      .set("Cookie", cookieMaster)
+      .send({ x: -150, y: 240, vista: "escena", color: "#96fbc7" })
+      .expect(204);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/ping`)
+      .set("Cookie", cookieMaster)
+      .send({ x: -40, y: 140, vista: "mapa", color: "#ffb3cb" })
+      .expect(204);
+
+    const pings = notifier.envios
+      .slice(inicioEnvios)
+      .map(e => e.payload as { type: string; ping: { vista: string; x: number; y: number } })
+      .filter(p => p.type === "mesa:ping");
+
+    expect(pings).toHaveLength(3);
+    expect(pings[0].ping).toMatchObject({ vista: "pizarra", x: -80, y: 165 });
+    expect(pings[1].ping).toMatchObject({ vista: "escena", x: -100, y: 200 });
+    expect(pings[2].ping).toMatchObject({ vista: "mapa", x: 0, y: 100 });
+  });
 });

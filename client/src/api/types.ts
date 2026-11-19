@@ -350,3 +350,17 @@ export interface ActualizarPlantillaMapaPayload {
   categoria?: string;
   nombre?: string;
 }
+
+export type TamanoTextoEscena = "sm" | "md" | "lg";
+
+export interface TextoEscena {
+  id: string;
+  texto: string;
+  x: number;
+  y: number;
+  color: string;
+  tamano: TamanoTextoEscena;
+  ancho?: number;
+  autorId?: string;
+  autorNombre?: string;
+}

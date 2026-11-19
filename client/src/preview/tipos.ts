@@ -226,6 +226,8 @@ export interface DocumentoMesa {
   url?: string;
 }
 
+export type FormaTrazo = "libre" | "linea" | "flecha";
+
 export interface TrazoPizarra {
   id: string;
   color: string;
@@ -233,6 +235,21 @@ export interface TrazoPizarra {
   /** Puntos normalizados (0-100) dentro del lienzo de la pizarra. */
   puntos: Punto[];
   autorId?: string;
+  forma?: FormaTrazo;
+}
+
+export type TamanoTextoEscena = "sm" | "md" | "lg";
+
+export interface TextoEscena {
+  id: string;
+  texto: string;
+  x: number;
+  y: number;
+  color: string;
+  tamano: TamanoTextoEscena;
+  ancho?: number;
+  autorId?: string;
+  autorNombre?: string;
 }
 
 export interface ImagenEscenaPreview {

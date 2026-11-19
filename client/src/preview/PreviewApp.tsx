@@ -45,6 +45,7 @@ import type {
   PlantillaTokenMapa,
   PositPreview,
   SolicitudTransferencia,
+  TextoEscena,
   TokenMapa,
   TrazoPizarra
 } from "./tipos";
@@ -259,6 +260,12 @@ export default function PreviewApp() {
   const [objetosPizarra, setObjetosPizarra] = useState<ObjetoPizarra[]>(
     cargarObjetosPizarraPreview
   );
+  const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
+  const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
+  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [textosEscena, setTextosEscena] = useState<TextoEscena[]>([]);
+  const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
+  const archivadorOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const [divisasConfig, setDivisasConfig] = useState<DivisaConfig[]>([
     { id: "principal", nombre: "Divisa", color: "#e8c56a" }
   ]);
@@ -742,10 +749,25 @@ export default function PreviewApp() {
         objetosPizarra={objetosPizarra}
         onObjetosPizarra={setObjetosPizarra}
         onSacarDePizarraAMesa={sacarDePizarraAMesaPreview}
+        trazosEscena={trazosEscena}
+        onTrazosEscena={setTrazosEscena}
+        positsEscena={positsEscena}
+        onPositsEscena={setPositsEscena}
+        docsEscena={docsEscena}
+        onDocsEscena={setDocsEscena}
+        textosEscena={textosEscena}
+        onTextosEscena={setTextosEscena}
+        vistaPizarra={vistaPizarra}
+        onVistaPizarra={setVistaPizarra}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={volverASala}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "pizarra";
+          setFase("archivador");
+        }}
         esMaster
+        miUsuarioId="master"
         colorJugador="#e8c56a"
         nombreJugador="Máster"
         imagenEscena={imagenEscena}
@@ -801,7 +823,10 @@ export default function PreviewApp() {
               elemento.tipo === "posit" ? "nota" : elemento.nombre;
             mostrarAvisoPreview(`Enviado (${etiqueta}) a ${destino.nombre} (modo preview).`);
           }}
-          onAbrirArchivador={() => setFase("archivador")}
+          onAbrirArchivador={() => {
+            archivadorOrigenRef.current = "mapa";
+            setFase("archivador");
+          }}
           onCompartirATodos={compartirATodosPreview}
         />
       </>
@@ -811,7 +836,7 @@ export default function PreviewApp() {
       <Archivador
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
-        onVolver={volverASala}
+        onVolver={() => setFase(archivadorOrigenRef.current)}
         esMaster
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
@@ -827,7 +852,10 @@ export default function PreviewApp() {
         onCalibracion={setCalibracion}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
-        onAbrirArchivador={() => setFase("archivador")}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "sala";
+          setFase("archivador");
+        }}
         onVolver={() => setFase("lobby")}
         esMaster
         miUsuarioId="master"

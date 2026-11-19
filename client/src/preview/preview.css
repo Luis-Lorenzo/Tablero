@@ -12623,3 +12623,696 @@ html.modo-claro .mapa-zoom-grupo {
   background: #F4E6CA;
   border-color: #B8862B;
 }
+
+/* ============================================================================
+   FASE D — Lienzo 3x3, Pan/Zoom, Colores extra, Formas, Texto en Escena y Archivador
+   ============================================================================ */
+
+/* 1. Lienzo 3x3, Pan y Zoom */
+
+.pizarra-mundo-transform {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.pizarra-mundo {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.pizarra-mundo-fondo-3x3 {
+  position: absolute;
+  left: -100%;
+  top: -100%;
+  width: 300%;
+  height: 300%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 22%, rgb(255 252 242 / 70%), transparent 58%),
+    radial-gradient(ellipse at 80% 78%, rgb(214 184 136 / 18%), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, transparent 64%, rgb(138 104 58 / 14%) 100%),
+    linear-gradient(135deg, #fbf5e8 0%, #f4e9d2 46%, #f8efe0 74%, #ecdec0 100%);
+}
+
+.pizarra-lienzo.vista-escena .pizarra-mundo-fondo-3x3 {
+  background:
+    radial-gradient(ellipse at 50% 35%, #0d1633 0%, #060916 65%, #04060f 100%);
+}
+
+.pizarra-mundo-fondo-3x3 .pizarra-escena-cielo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pizarra-centro-marco {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 1px dashed rgb(232 197 106 / 18%);
+  pointer-events: none;
+}
+
+.pizarra-dibujo-svg-3x3 {
+  position: absolute;
+  left: -100%;
+  top: -100%;
+  width: 300%;
+  height: 300%;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+
+.pizarra-lienzo.vista-escena.modo-dibujar .pizarra-dibujo-svg-3x3,
+.pizarra-lienzo.vista-escena.modo-borrar .pizarra-dibujo-svg-3x3,
+.pizarra-lienzo.vista-escena.modo-linea .pizarra-dibujo-svg-3x3,
+.pizarra-lienzo.vista-escena.modo-flecha .pizarra-dibujo-svg-3x3 {
+  z-index: 9;
+}
+
+/* Cursores y bloqueo de interacción sobre elementos durante modos de herramienta/pan */
+
+.pizarra-lienzo.modo-pan {
+  cursor: grab;
+}
+
+.pizarra-lienzo.paneando {
+  cursor: grabbing;
+}
+
+.pizarra-lienzo.modo-linea,
+.pizarra-lienzo.modo-flecha {
+  cursor: crosshair;
+}
+
+.pizarra-lienzo.modo-texto {
+  cursor: text;
+}
+
+.pizarra-lienzo.modo-ping {
+  cursor: crosshair;
+}
+
+.pizarra-lienzo.modo-dibujar .posit,
+.pizarra-lienzo.modo-dibujar .pizarra-ficha-doc,
+.pizarra-lienzo.modo-dibujar .mesa-objeto,
+.pizarra-lienzo.modo-dibujar .pizarra-texto-escena,
+.pizarra-lienzo.modo-borrar .posit,
+.pizarra-lienzo.modo-borrar .pizarra-ficha-doc,
+.pizarra-lienzo.modo-borrar .mesa-objeto,
+.pizarra-lienzo.modo-borrar .pizarra-texto-escena,
+.pizarra-lienzo.modo-linea .posit,
+.pizarra-lienzo.modo-linea .pizarra-ficha-doc,
+.pizarra-lienzo.modo-linea .mesa-objeto,
+.pizarra-lienzo.modo-linea .pizarra-texto-escena,
+.pizarra-lienzo.modo-flecha .posit,
+.pizarra-lienzo.modo-flecha .pizarra-ficha-doc,
+.pizarra-lienzo.modo-flecha .mesa-objeto,
+.pizarra-lienzo.modo-flecha .pizarra-texto-escena,
+.pizarra-lienzo.modo-texto .posit,
+.pizarra-lienzo.modo-texto .pizarra-ficha-doc,
+.pizarra-lienzo.modo-texto .mesa-objeto,
+.pizarra-lienzo.modo-texto .pizarra-texto-escena,
+.pizarra-lienzo.modo-ping .posit,
+.pizarra-lienzo.modo-ping .pizarra-ficha-doc,
+.pizarra-lienzo.modo-ping .mesa-objeto,
+.pizarra-lienzo.modo-ping .pizarra-texto-escena,
+.pizarra-lienzo.modo-pan .posit,
+.pizarra-lienzo.modo-pan .pizarra-ficha-doc,
+.pizarra-lienzo.modo-pan .mesa-objeto,
+.pizarra-lienzo.modo-pan .pizarra-texto-escena,
+.pizarra-lienzo.paneando .posit,
+.pizarra-lienzo.paneando .pizarra-ficha-doc,
+.pizarra-lienzo.paneando .mesa-objeto,
+.pizarra-lienzo.paneando .pizarra-texto-escena {
+  pointer-events: none;
+}
+
+/* Controles flotantes de zoom abajo-derecha dentro de .pizarra-lienzo */
+
+.pizarra-zoom-controles {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 2px solid #594b6b;
+  border-radius: 10px;
+  background: rgb(20 15 30 / 90%);
+  color: #f3ecfc;
+  box-shadow: 2px 2px 0 #090612;
+  backdrop-filter: blur(6px);
+}
+
+.pizarra-zoom-controles button,
+.pizarra-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 7px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6dbf7;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.pizarra-zoom-controles button:hover:not(:disabled),
+.pizarra-zoom-btn:hover:not(:disabled) {
+  background: rgb(200 168 229 / 22%);
+  color: #fff;
+}
+
+.pizarra-zoom-controles button:disabled,
+.pizarra-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pizarra-zoom-valor {
+  min-width: 44px;
+  text-align: center;
+  color: #f6e3b0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  user-select: none;
+}
+
+/* 2. 3 colores extra guardables en .posit-barra */
+
+.posit-extra-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: rgb(255 255 255 / 22%);
+  flex-shrink: 0;
+}
+
+.posit-extra-colores {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.posit-slot-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cuadro.extra-vacio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed rgb(255 255 255 / 45%);
+  background: rgb(255 255 255 / 6%);
+  color: rgb(255 255 255 / 58%);
+  box-shadow: none;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cuadro.extra-vacio:hover {
+  border-color: #e8c56a;
+  background: rgb(232 197 106 / 14%);
+  color: #f6e3b0;
+}
+
+.posit-slot-editar {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid #6b5888;
+  border-radius: 50%;
+  background: rgb(24 20 32 / 96%);
+  color: #f3ecfc;
+  font-size: 0.54rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+
+.posit-slot-wrap:hover .posit-slot-editar,
+.posit-slot-wrap:focus-within .posit-slot-editar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.posit-slot-editar:hover {
+  border-color: #e8c56a;
+  color: #f6e3b0;
+  transform: scale(1.1);
+}
+
+/* 3. Menú de Líneas/Flechas y opciones de Cuadros de texto en barra superior */
+
+.pizarra-formas-grupo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.pizarra-formas-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 148px;
+  padding: 6px;
+  border: 2px solid #6b5888;
+  border-radius: 9px;
+  background: rgb(22 16 34 / 96%);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(8px);
+}
+
+.pizarra-formas-menu button,
+.pizarra-formas-opcion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #f3ecfc;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.pizarra-formas-menu button:hover,
+.pizarra-formas-opcion:hover {
+  background: rgb(200 168 229 / 18%);
+  border-color: rgb(200 168 229 / 40%);
+  color: #fff;
+}
+
+.pizarra-formas-menu button.activo,
+.pizarra-formas-opcion.activo {
+  background: rgb(232 197 106 / 20%);
+  border-color: #e8c56a;
+  color: #f6e3b0;
+}
+
+.pizarra-texto-opciones {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid rgb(200 168 229 / 28%);
+  border-radius: 8px;
+  background: rgb(14 10 22 / 85%);
+}
+
+.pizarra-texto-opciones-tams,
+.pizarra-texto-tams {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-left: 6px;
+  border-left: 1px solid rgb(255 255 255 / 16%);
+}
+
+.pizarra-texto-tam-btn {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #e2d7f0;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.pizarra-texto-tam-btn:hover {
+  background: rgb(200 168 229 / 16%);
+  color: #fff;
+}
+
+.pizarra-texto-tam-btn.activo {
+  border-color: #c8a8e5;
+  background: rgb(200 168 229 / 24%);
+  color: #f6efff;
+}
+
+/* 4. Cuadros de texto en Escena (Estilo A — texto flotante transparente) */
+
+.pizarra-texto-escena {
+  position: absolute;
+  z-index: 6;
+  min-width: 110px;
+  max-width: 480px;
+  width: max-content;
+  padding: 6px 10px;
+  border: 1.5px dashed transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #f8f4ff;
+  font-weight: 600;
+  line-height: 1.35;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 85%), 0 0 10px rgb(0 0 0 / 55%);
+  transform: translate(-50%, -50%);
+  cursor: move;
+  user-select: none;
+  transition: border-color 0.14s ease;
+}
+
+.pizarra-texto-escena:hover {
+  border-color: rgb(232 197 106 / 45%);
+}
+
+.pizarra-texto-escena.activo,
+.pizarra-texto-escena:focus-within {
+  border-color: rgb(232 197 106 / 82%);
+  z-index: 8;
+}
+
+.pizarra-texto-escena.tam-sm {
+  font-size: 0.85rem;
+}
+
+.pizarra-texto-escena.tam-md {
+  font-size: 1.1rem;
+}
+
+.pizarra-texto-escena.tam-lg {
+  font-size: 1.5rem;
+}
+
+.pizarra-texto-escena textarea,
+.pizarra-texto-escena-input {
+  display: block;
+  width: 100%;
+  min-width: 90px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-shadow: inherit;
+  resize: none;
+  overflow: hidden;
+  user-select: text;
+}
+
+.pizarra-texto-barra {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid rgb(200 168 229 / 32%);
+  border-radius: 9px;
+  background: rgb(24 20 32 / 94%);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 32%);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.pizarra-texto-barra::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+}
+
+.pizarra-texto-escena.activo .pizarra-texto-barra,
+.pizarra-texto-escena:focus-within .pizarra-texto-barra {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pizarra-texto-barra-sep {
+  width: 1px;
+  height: 16px;
+  background: rgb(255 255 255 / 20%);
+  flex-shrink: 0;
+}
+
+.pizarra-texto-borrar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgb(255 92 119 / 45%);
+  border-radius: 5px;
+  background: rgb(166 42 68 / 28%);
+  color: #ffb3c0;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.pizarra-texto-borrar:hover {
+  border-color: #ff5c77;
+  background: rgb(166 42 68 / 70%);
+  color: #fff;
+}
+
+/* 5. Botón Archivador en columna izquierda */
+
+.pizarra-sidebar-archivador-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 2px solid #6b5888;
+  border-radius: 6px;
+  background: rgb(42 32 58 / 85%);
+  color: #f3ecfc;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 2px 2px 0 #090612;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+
+.pizarra-sidebar-archivador-btn:hover:not(:disabled) {
+  border-color: #c8a8e5;
+  background: rgb(58 44 80 / 95%);
+  color: #fff;
+  transform: translate(-1px, -1px);
+}
+
+.pizarra-sidebar-archivador-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ============================================================================
+   FASE D — Soporte completo en html.modo-claro
+   ============================================================================ */
+
+html.modo-claro .pizarra-lienzo.vista-escena .pizarra-mundo-fondo-3x3 {
+  background: radial-gradient(ellipse at 50% 35%, #E8EFFC 0%, #FFF8EC 72%, #EFE2CD 100%);
+}
+
+html.modo-claro .pizarra-centro-marco {
+  border-color: rgb(168 116 26 / 14%);
+}
+
+html.modo-claro .pizarra-zoom-controles {
+  background: rgb(255 248 236 / 94%);
+  border-color: #B8862B;
+  color: #2A1F3D;
+  box-shadow: 0 4px 14px rgb(60 40 90 / 20%);
+}
+
+html.modo-claro .pizarra-zoom-controles button,
+html.modo-claro .pizarra-zoom-btn {
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-zoom-controles button:hover:not(:disabled),
+html.modo-claro .pizarra-zoom-btn:hover:not(:disabled) {
+  background: rgb(124 92 191 / 14%);
+  color: #1E1430;
+}
+
+html.modo-claro .pizarra-zoom-valor {
+  color: #8A5A10;
+}
+
+html.modo-claro .posit-extra-sep {
+  background: rgb(42 31 61 / 20%);
+}
+
+html.modo-claro .cuadro.extra-vacio {
+  border-color: rgb(42 31 61 / 35%);
+  background: rgb(42 31 61 / 6%);
+  color: rgb(42 31 61 / 55%);
+}
+
+html.modo-claro .cuadro.extra-vacio:hover {
+  border-color: #A8741A;
+  background: rgb(226 169 59 / 20%);
+  color: #7A4F0C;
+}
+
+html.modo-claro .posit-slot-editar {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .posit-slot-editar:hover {
+  border-color: #A8741A;
+  background: #FFF8EC;
+  color: #7A4F0C;
+}
+
+html.modo-claro .pizarra-formas-menu {
+  background: rgb(255 248 236 / 98%);
+  border-color: #B8862B;
+  box-shadow: 0 10px 26px rgb(60 40 90 / 24%);
+}
+
+html.modo-claro .pizarra-formas-menu button,
+html.modo-claro .pizarra-formas-opcion {
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-formas-menu button:hover,
+html.modo-claro .pizarra-formas-opcion:hover {
+  background: rgb(124 92 191 / 14%);
+  border-color: #8E7CC3;
+  color: #1E1430;
+}
+
+html.modo-claro .pizarra-formas-menu button.activo,
+html.modo-claro .pizarra-formas-opcion.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .pizarra-texto-opciones {
+  background: rgb(255 253 248 / 92%);
+  border-color: #8E7CC3;
+}
+
+html.modo-claro .pizarra-texto-opciones-tams,
+html.modo-claro .pizarra-texto-tams {
+  border-left-color: rgb(42 31 61 / 18%);
+}
+
+html.modo-claro .pizarra-texto-tam-btn {
+  color: #2A1F3D;
+}
+
+html.modo-claro .pizarra-texto-tam-btn:hover {
+  background: rgb(124 92 191 / 14%);
+  color: #1E1430;
+}
+
+html.modo-claro .pizarra-texto-tam-btn.activo {
+  background: #E2A93B;
+  border-color: #A8741A;
+  color: #1E1430;
+}
+
+html.modo-claro .pizarra-texto-escena {
+  text-shadow: 0 1px 3px rgb(255 248 236 / 85%), 0 0 8px rgb(255 248 236 / 55%);
+}
+
+html.modo-claro .pizarra-texto-escena:hover {
+  border-color: rgb(168 116 26 / 45%);
+}
+
+html.modo-claro .pizarra-texto-escena.activo,
+html.modo-claro .pizarra-texto-escena:focus-within {
+  border-color: rgb(168 116 26 / 82%);
+}
+
+html.modo-claro .pizarra-texto-barra {
+  background: rgb(255 248 236 / 96%);
+  border-color: #B8862B;
+  box-shadow: 0 8px 20px rgb(60 40 90 / 22%);
+}
+
+html.modo-claro .pizarra-texto-barra-sep {
+  background: rgb(42 31 61 / 18%);
+}
+
+html.modo-claro .pizarra-texto-borrar {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #9E2A38;
+}
+
+html.modo-claro .pizarra-texto-borrar:hover {
+  background: #C94A5A;
+  border-color: #9E2A38;
+  color: #fff;
+}
+
+html.modo-claro .pizarra-sidebar-archivador-btn {
+  background: rgb(255 253 248 / 92%);
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+  box-shadow: 0 2px 6px rgb(60 40 90 / 12%);
+}
+
+html.modo-claro .pizarra-sidebar-archivador-btn:hover:not(:disabled) {
+  border-color: #7C5CBF;
+  background: rgb(124 92 191 / 14%);
+  color: #1E1430;
+}

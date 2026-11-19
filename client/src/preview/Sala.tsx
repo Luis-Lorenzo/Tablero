@@ -5987,6 +5987,7 @@ export function Sala({
                 <Posit
                   key={posit.id}
                   posit={posit}
+                  miUsuarioId={miUsuarioId}
                   enMesa
                   activo={positActivo === posit.id}
                   onActivar={setPositActivo}

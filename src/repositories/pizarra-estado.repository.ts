@@ -3,6 +3,20 @@ export interface TamanoImagenEscena {
   h: number;
 }
 
+export type TamanoTextoEscenaPersistido = "sm" | "md" | "lg";
+
+export interface TextoEscenaPersistido {
+  id: string;
+  texto: string;
+  x: number;
+  y: number;
+  color: string;
+  tamano: TamanoTextoEscenaPersistido;
+  ancho?: number;
+  autorId?: string;
+  autorNombre?: string;
+}
+
 export interface PizarraEstadoPersistido {
   posits: unknown[];
   trazos: unknown[];
@@ -13,6 +27,7 @@ export interface PizarraEstadoPersistido {
   tamanoImagenesEscena: Record<string, TamanoImagenEscena>;
   congelada: boolean;
   objetos?: Array<Record<string, unknown>>;
+  textosEscena?: TextoEscenaPersistido[];
 }
 
 export function crearPizarraEstadoVacio(): PizarraEstadoPersistido {
@@ -25,7 +40,8 @@ export function crearPizarraEstadoVacio(): PizarraEstadoPersistido {
     docsEscena: [],
     tamanoImagenesEscena: {},
     congelada: false,
-    objetos: []
+    objetos: [],
+    textosEscena: []
   };
 }
 
@@ -87,6 +103,52 @@ function sanitizarObjetosPizarra(raw: unknown): Array<Record<string, unknown>> {
   return limpios;
 }
 
+export function sanitizarTextosEscena(raw: unknown): TextoEscenaPersistido[] {
+  if (!Array.isArray(raw)) return [];
+  const limpios: TextoEscenaPersistido[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    const id = typeof obj.id === "string" ? obj.id.trim() : "";
+    if (!id) continue;
+    if (typeof obj.texto !== "string") continue;
+    if (
+      typeof obj.x !== "number" ||
+      !Number.isFinite(obj.x) ||
+      typeof obj.y !== "number" ||
+      !Number.isFinite(obj.y)
+    ) {
+      continue;
+    }
+    const texto = obj.texto.slice(0, 1000);
+    const x = Math.max(-100, Math.min(200, obj.x));
+    const y = Math.max(-100, Math.min(200, obj.y));
+    const color =
+      typeof obj.color === "string" && obj.color.trim()
+        ? obj.color.trim().slice(0, 32)
+        : "#f4f7ff";
+    const tamano: TamanoTextoEscenaPersistido =
+      obj.tamano === "sm" || obj.tamano === "md" || obj.tamano === "lg"
+        ? obj.tamano
+        : "md";
+
+    const limpio: TextoEscenaPersistido = { id, texto, x, y, color, tamano };
+    if (typeof obj.ancho === "number" && Number.isFinite(obj.ancho)) {
+      limpio.ancho = Math.max(80, Math.min(800, obj.ancho));
+    }
+    if (typeof obj.autorId === "string" && obj.autorId.trim()) {
+      limpio.autorId = obj.autorId.trim();
+    }
+    if (typeof obj.autorNombre === "string" && obj.autorNombre.trim()) {
+      limpio.autorNombre = obj.autorNombre.trim();
+    }
+
+    limpios.push(limpio);
+    if (limpios.length >= 200) break;
+  }
+  return limpios;
+}
+
 export function sanitizarPizarraEstado(raw: unknown): PizarraEstadoPersistido {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return crearPizarraEstadoVacio();
@@ -101,7 +163,8 @@ export function sanitizarPizarraEstado(raw: unknown): PizarraEstadoPersistido {
     docsEscena: sanitizarDocumentosLista(obj.docsEscena),
     tamanoImagenesEscena: sanitizarTamanos(obj.tamanoImagenesEscena),
     congelada: Boolean(obj.congelada),
-    objetos: sanitizarObjetosPizarra(obj.objetos)
+    objetos: sanitizarObjetosPizarra(obj.objetos),
+    textosEscena: sanitizarTextosEscena(obj.textosEscena)
   };
 }
 

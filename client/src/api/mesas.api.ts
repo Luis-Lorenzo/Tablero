@@ -15,6 +15,7 @@ import type {
   PublicMesa,
   PublicTransferencia,
   ResultadoAceptarTransferencia,
+  TextoEscena,
   TrazoMapa
 } from "./types";
 
@@ -282,6 +283,7 @@ export const mesasApi = {
       tamanoImagenesEscena: Record<string, { w: number; h: number }>;
       congelada: boolean;
       objetos?: Array<Record<string, unknown>>;
+      textosEscena?: TextoEscena[];
     }>(`/api/mesas/${id}/pizarra`),
 
   /** Guarda y difunde el estado compartido de la pizarra y vista escena. */
@@ -297,6 +299,7 @@ export const mesasApi = {
       tamanoImagenesEscena: Record<string, { w: number; h: number }>;
       congelada: boolean;
       objetos?: Array<Record<string, unknown>>;
+      textosEscena?: TextoEscena[];
     }
   ) => http.patch<void>(`/api/mesas/${id}/pizarra`, datos),
 

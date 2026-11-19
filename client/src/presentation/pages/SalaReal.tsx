@@ -70,6 +70,7 @@ import type {
   PositPreview,
   ReglaVisual,
   SolicitudTransferencia,
+  TextoEscena,
   TipoEspecialTirada,
   TiradaAsiento,
   TokenMapa,
@@ -237,6 +238,9 @@ function SalaRealContent({
   const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [textosEscena, setTextosEscena] = useState<TextoEscena[]>([]);
+  const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
+  const archivadorOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
     Record<string, { w: number; h: number }>
   >({});
@@ -462,6 +466,7 @@ function SalaRealContent({
       trazosEscena?: unknown[];
       positsEscena?: unknown[];
       docsEscena?: unknown[];
+      textosEscena?: unknown[];
       tamanoImagenesEscena?: Record<string, { w: number; h: number }>;
       congelada?: boolean;
     }) => {
@@ -494,6 +499,11 @@ function SalaRealContent({
       setDocsEscena(
         Array.isArray(datos.docsEscena)
           ? (datos.docsEscena as DocumentoMesa[])
+          : []
+      );
+      setTextosEscena(
+        Array.isArray(datos.textosEscena)
+          ? (datos.textosEscena as TextoEscena[])
           : []
       );
       setTamanoImagenesEscena(datos.tamanoImagenesEscena ?? {});
@@ -591,6 +601,7 @@ function SalaRealContent({
         trazosEscena,
         positsEscena,
         docsEscena: limpiarDocs(docsEscena),
+        textosEscena,
         tamanoImagenesEscena,
         congelada: pizarraCongelada
       };
@@ -610,6 +621,7 @@ function SalaRealContent({
     trazosEscena,
     positsEscena,
     docsEscena,
+    textosEscena,
     tamanoImagenesEscena,
     pizarraCongelada
   ]);
@@ -2193,13 +2205,22 @@ function SalaRealContent({
         onPositsEscena={setPositsEscena}
         docsEscena={docsEscena}
         onDocsEscena={setDocsEscena}
+        textosEscena={textosEscena}
+        onTextosEscena={setTextosEscena}
+        vistaPizarra={vistaPizarra}
+        onVistaPizarra={setVistaPizarra}
         tamanoImagenesEscena={tamanoImagenesEscena}
         onTamanoImagenesEscena={setTamanoImagenesEscena}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={() => setFase("sala")}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "pizarra";
+          setFase("archivador");
+        }}
         mesaId={mesa.id}
         esMaster={esMaster}
+        miUsuarioId={user.id}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
         imagenEscena={imagenEscena}
@@ -2284,7 +2305,10 @@ function SalaRealContent({
           onElementosMesa={setElementosMesa}
           archivosDisponibles={archivosDisponibles}
           onEnviarElemento={enviarElemento}
-          onAbrirArchivador={() => setFase("archivador")}
+          onAbrirArchivador={() => {
+            archivadorOrigenRef.current = "mapa";
+            setFase("archivador");
+          }}
           onCompartirATodos={compartirATodos}
         />
       </>
@@ -2294,7 +2318,7 @@ function SalaRealContent({
       <Archivador
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
-        onVolver={() => setFase("sala")}
+        onVolver={() => setFase(archivadorOrigenRef.current)}
         mesaId={mesa.id}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
@@ -2315,7 +2339,10 @@ function SalaRealContent({
         onCalibracion={setCalibracion}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
-        onAbrirArchivador={() => setFase("archivador")}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "sala";
+          setFase("archivador");
+        }}
         onVolver={volverAEspera}
         etiquetaVolver={esAdminLibre ? "Salir de administración" : undefined}
         hostName={mesa.hostName}

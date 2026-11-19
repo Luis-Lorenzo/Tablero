@@ -1189,8 +1189,10 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         throw errors.invalidRequest();
       }
 
-      const x = Math.max(0, Math.min(100, body.x));
-      const y = Math.max(0, Math.min(100, body.y));
+      const minCoord = body.vista === "mapa" ? 0 : -100;
+      const maxCoord = body.vista === "mapa" ? 100 : 200;
+      const x = Math.max(minCoord, Math.min(maxCoord, body.x));
+      const y = Math.max(minCoord, Math.min(maxCoord, body.y));
       const color =
         typeof body.color === "string" && body.color.trim()
           ? body.color.trim().slice(0, 32)
