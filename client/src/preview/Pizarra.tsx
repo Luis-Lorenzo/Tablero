@@ -317,11 +317,6 @@ export function Posit({
   const area = useRef<HTMLTextAreaElement>(null);
   const inicioPointerRef = useRef<{ x: number; y: number } | null>(null);
   const limpiezaRedimensionRef = useRef<(() => void) | null>(null);
-  const inputsColorExtraRef = useRef<Array<HTMLInputElement | null>>([
-    null,
-    null,
-    null
-  ]);
   const [editando, setEditando] = useState(false);
   const [coloresExtra, setColoresExtra] = useState<Array<string | null>>(() =>
     obtenerColoresExtraPosit(miUsuarioId)
@@ -496,66 +491,34 @@ export function Posit({
                 colorExtra && posit.color === colorExtra
               );
               return (
-                <div key={idx} className="posit-extra-slot">
-                  <button
-                    type="button"
-                    className={`cuadro posit-slot-color${
-                      colorExtra ? "" : " vacio"
-                    }${activoSlot ? " activo" : ""}`}
-                    style={
-                      colorExtra ? { background: colorExtra } : undefined
-                    }
-                    title={
-                      colorExtra
-                        ? `Aplicar color guardado (${colorExtra}) · Clic derecho para cambiar`
-                        : "Elegir y guardar color personalizado"
-                    }
-                    aria-label={
-                      colorExtra
-                        ? `Color personalizado ${idx + 1}: ${colorExtra}`
-                        : `Guardar color personalizado ${idx + 1}`
-                    }
-                    onClick={evento => {
-                      evento.stopPropagation();
-                      if (colorExtra) {
-                        onColor(posit.id, colorExtra);
-                      } else {
-                        inputsColorExtraRef.current[idx]?.click();
-                      }
-                    }}
-                    onContextMenu={evento => {
-                      evento.preventDefault();
-                      evento.stopPropagation();
-                      inputsColorExtraRef.current[idx]?.click();
-                    }}
-                  >
-                    {!colorExtra && (
-                      <Plus size={9} strokeWidth={2.5} aria-hidden="true" />
-                    )}
-                  </button>
-                  {colorExtra && (
-                    <button
-                      type="button"
-                      className="posit-slot-editar"
-                      title="Cambiar color guardado"
-                      aria-label={`Cambiar color personalizado ${idx + 1}`}
-                      onClick={evento => {
-                        evento.stopPropagation();
-                        inputsColorExtraRef.current[idx]?.click();
-                      }}
-                    >
-                      <Pencil size={8} strokeWidth={2.4} aria-hidden="true" />
-                    </button>
+                <label
+                  key={idx}
+                  className={`posit-slot-wrap cuadro${
+                    colorExtra ? "" : " extra-vacio"
+                  }${activoSlot ? " activo" : ""}`}
+                  style={
+                    colorExtra ? { background: colorExtra } : undefined
+                  }
+                  title={
+                    colorExtra
+                      ? `Cambiar color personalizado ${idx + 1} (${colorExtra})`
+                      : `Elegir color personalizado ${idx + 1}`
+                  }
+                  onClick={evento => evento.stopPropagation()}
+                >
+                  {!colorExtra && (
+                    <Plus size={9} strokeWidth={2.5} aria-hidden="true" />
                   )}
                   <input
-                    ref={el => {
-                      inputsColorExtraRef.current[idx] = el;
-                    }}
                     type="color"
                     className="posit-slot-input"
                     value={colorExtra ?? posit.color}
-                    aria-hidden="true"
-                    tabIndex={-1}
+                    aria-label={
+                      colorExtra
+                        ? `Color personalizado ${idx + 1}: ${colorExtra}`
+                        : `Elegir color personalizado ${idx + 1}`
+                    }
+                    onClick={evento => evento.stopPropagation()}
                     onChange={evento => {
                       const elegido = evento.target.value;
                       const nuevos = guardarColorExtraPosit(
@@ -567,7 +530,7 @@ export function Posit({
                       onColor(posit.id, elegido);
                     }}
                   />
-                </div>
+                </label>
               );
             })}
           </div>

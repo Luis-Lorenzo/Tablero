@@ -11588,7 +11588,7 @@ html.modo-claro .master-pill-mini-btn.quitar:hover {
 /* Rombos de macros en mesa y mapa en modo claro */
 
 html.modo-claro .mesa-macro-rombo-cuadro {
-  background: linear-gradient(135deg, #FFF6DC 0%, #F5DFA6 100%) !important;
+  background: linear-gradient(135deg, #FFF6DC 0%, #F5DFA6 100%);
   border: 2px solid #B8862B;
   box-shadow: 0 6px 16px rgb(60 40 90 / 26%);
 }
@@ -12881,6 +12881,19 @@ html.modo-claro .mapa-zoom-grupo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+}
+
+.posit-slot-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  cursor: pointer;
 }
 
 .cuadro.extra-vacio {
