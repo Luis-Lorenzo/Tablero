@@ -38,6 +38,7 @@ import {
   sanitizarColorDado
 } from "../../preview/datos";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
+import { PersonajePanel } from "../../preview/PersonajePanel";
 import {
   cargarCalibracion,
   guardarCalibracion
@@ -90,7 +91,7 @@ interface SalaRealProps {
   onSessionExpired?: () => void;
 }
 
-type Fase = "sala" | "pizarra" | "mapa" | "archivador";
+type Fase = "sala" | "pizarra" | "mapa" | "archivador" | "personaje";
 type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
 
 function elegirPosicionLibrePizarra(
@@ -248,6 +249,7 @@ function SalaRealContent({
   const [textosEscena, setTextosEscena] = useState<TextoEscena[]>([]);
   const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
   const archivadorOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
+  const personajeOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
     Record<string, { w: number; h: number }>
   >({});
@@ -453,7 +455,12 @@ function SalaRealContent({
 
   useEffect(() => {
     const root = document.getElementById("root");
-    if (fase === "pizarra" || fase === "mapa" || fase === "archivador") {
+    if (
+      fase === "pizarra" ||
+      fase === "mapa" ||
+      fase === "archivador" ||
+      fase === "personaje"
+    ) {
       root?.classList.add("ocultar-menus");
     } else {
       root?.classList.remove("ocultar-menus");
@@ -2499,6 +2506,10 @@ function SalaRealContent({
             archivadorOrigenRef.current = "mapa";
             setFase("archivador");
           }}
+          onAbrirPersonaje={() => {
+            personajeOrigenRef.current = "mapa";
+            setFase("personaje");
+          }}
           onCompartirATodos={compartirATodos}
         />
       </>
@@ -2518,8 +2529,21 @@ function SalaRealContent({
         onArchivosCambio={setArchivosDisponibles}
         proyeccionOculta={proyeccionOculta}
         onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
+      />
+    );
+  } else if (fase === "personaje") {
+    contenido = (
+      <PersonajePanel
+        mesaId={mesa.id}
+        onVolver={() => setFase(personajeOrigenRef.current)}
         personaje={miPersonaje}
         onActualizarPersonaje={actualizarPersonaje}
+        apodoActual={mesa.playerApodos?.[user.id] ?? ""}
+        onActualizarApodo={cambiarApodo}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+        archivosDisponibles={archivosDisponibles}
+        onArchivosCambio={setArchivosDisponibles}
       />
     );
   } else {
@@ -2534,6 +2558,10 @@ function SalaRealContent({
         onAbrirArchivador={() => {
           archivadorOrigenRef.current = "sala";
           setFase("archivador");
+        }}
+        onAbrirPersonaje={() => {
+          personajeOrigenRef.current = "sala";
+          setFase("personaje");
         }}
         onVolver={volverAEspera}
         etiquetaVolver={esAdminLibre ? "Salir de administración" : undefined}

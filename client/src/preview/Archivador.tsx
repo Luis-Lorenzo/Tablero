@@ -9,20 +9,16 @@ import {
   ArrowLeft,
   Crown,
   Eye,
-  FileText,
   Image as ImageIcon,
   Plus,
   Sparkles,
   Trash2,
-  Upload,
-  User,
   X
 } from "lucide-react";
 import { archivosApi } from "../api/archivos.api";
-import type { PersonajeJugadorMesa, PublicArchivo } from "../api/types";
+import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
 import { VisorArchivo } from "../presentation/components/VisorArchivo";
-import { RecorteRetratoModal } from "./RecorteRetratoModal";
 import {
   infoFormatoArchivo,
   nuevoId,
@@ -34,14 +30,6 @@ import type {
   ElementoMesa,
   ImagenEscenaPreview
 } from "./tipos";
-
-export type ActualizacionPersonaje = {
-  retratoArchivoId?: string | null;
-  fichaArchivoId?: string | null;
-  fichaNombre?: string | null;
-  pdfs?: { archivoId: string; nombre: string }[];
-  notas?: string;
-};
 
 interface ArchivadorProps {
   elementosMesa: ElementoMesa[];
@@ -56,10 +44,6 @@ interface ArchivadorProps {
   proyeccionOculta?: boolean;
   onReabrirProyeccion?: () => void;
   onArchivosCambio?: (archivos: PublicArchivo[]) => void;
-  personaje?: PersonajeJugadorMesa | null;
-  onActualizarPersonaje?: (
-    datos: ActualizacionPersonaje
-  ) => Promise<void> | void;
 }
 
 /** Formatos aceptados por el servidor (coinciden con `TIPOS_PERMITIDOS`). */
@@ -567,22 +551,6 @@ export function PanelImagenesMasterModal({
   );
 }
 
-function inferirVistaPorNombre(nombre: string): string {
-  const lower = nombre.toLowerCase();
-  if (lower.endsWith(".pdf")) return "pdf";
-  if (/\.(png|jpe?g|gif|webp)$/.test(lower)) return "imagen";
-  if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "doc";
-  return "texto";
-}
-
-const PERSONAJE_VACIO: PersonajeJugadorMesa = {
-  retratoArchivoId: null,
-  fichaArchivoId: null,
-  fichaNombre: null,
-  pdfs: [],
-  notas: ""
-};
-
 export function Archivador({
   elementosMesa,
   onElementosMesa,
@@ -595,9 +563,7 @@ export function Archivador({
   onProyectarImagen,
   proyeccionOculta,
   onReabrirProyeccion,
-  onArchivosCambio,
-  personaje,
-  onActualizarPersonaje
+  onArchivosCambio
 }: ArchivadorProps) {
   const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -609,38 +575,9 @@ export function Archivador({
   >(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [pjLocal, setPjLocal] = useState<PersonajeJugadorMesa>(
-    personaje ?? PERSONAJE_VACIO
-  );
-  const [notasLocal, setNotasLocal] = useState(personaje?.notas ?? "");
-  const [guardandoPj, setGuardandoPj] = useState(false);
-  const [archivoParaRecortar, setArchivoParaRecortar] = useState<File | null>(
-    null
-  );
-  const [retratoLocalUrl, setRetratoLocalUrl] = useState<string | null>(null);
-
   const selector = useRef<HTMLInputElement>(null);
-  const selectorRetrato = useRef<HTMLInputElement>(null);
-  const selectorFicha = useRef<HTMLInputElement>(null);
-  const selectorPdfExtra = useRef<HTMLInputElement>(null);
   const onArchivosCambioRef = useRef(onArchivosCambio);
   onArchivosCambioRef.current = onArchivosCambio;
-
-  useEffect(() => {
-    if (personaje !== undefined) {
-      const siguiente = personaje ?? PERSONAJE_VACIO;
-      setPjLocal(siguiente);
-      setNotasLocal(siguiente.notas ?? "");
-    }
-  }, [personaje]);
-
-  useEffect(() => {
-    return () => {
-      if (retratoLocalUrl) {
-        URL.revokeObjectURL(retratoLocalUrl);
-      }
-    };
-  }, [retratoLocalUrl]);
 
   const sincronizarLista = useCallback(
     (lista: PublicArchivo[]) => {
@@ -782,158 +719,6 @@ export function Archivador({
     }
   }
 
-  async function guardarPersonaje(datos: ActualizacionPersonaje): Promise<void> {
-    setPjLocal(prev => ({
-      ...prev,
-      ...datos,
-      pdfs: datos.pdfs ?? prev.pdfs,
-      notas: datos.notas ?? prev.notas
-    }));
-    if (!onActualizarPersonaje) return;
-    setGuardandoPj(true);
-    setError(null);
-    try {
-      await onActualizarPersonaje(datos);
-    } catch (fallo) {
-      setError(describeError(fallo));
-    } finally {
-      setGuardandoPj(false);
-    }
-  }
-
-  function abrirArchivoPj(archivoId: string, nombreFallback?: string | null): void {
-    const encontrado = archivos.find(a => a.id === archivoId);
-    if (encontrado) {
-      setVisor(encontrado);
-      return;
-    }
-    const nombre = nombreFallback ?? "Documento";
-    setVisor({
-      id: archivoId,
-      nombre,
-      vista: inferirVistaPorNombre(nombre)
-    });
-  }
-
-  function alElegirRetrato(evento: ChangeEvent<HTMLInputElement>): void {
-    const archivo = evento.target.files?.[0];
-    evento.target.value = "";
-    if (!archivo) return;
-    setArchivoParaRecortar(archivo);
-  }
-
-  async function alConfirmarRecorteRetrato(
-    archivoRecortado: File
-  ): Promise<void> {
-    setArchivoParaRecortar(null);
-    setSubiendo(true);
-    setError(null);
-    const esPreview =
-      new URLSearchParams(window.location.search).get("preview") === "1";
-
-    try {
-      const subido = await archivosApi.subir(archivoRecortado, mesaId);
-      setRetratoLocalUrl(null);
-      await cargarArchivos();
-      await guardarPersonaje({ retratoArchivoId: subido.id });
-    } catch (fallo) {
-      if (esPreview) {
-        const localUrl = URL.createObjectURL(archivoRecortado);
-        setRetratoLocalUrl(localUrl);
-        await guardarPersonaje({ retratoArchivoId: null });
-      } else {
-        setError(describeError(fallo));
-      }
-    } finally {
-      setSubiendo(false);
-    }
-  }
-
-  async function quitarRetrato(): Promise<void> {
-    setRetratoLocalUrl(null);
-    await guardarPersonaje({ retratoArchivoId: null });
-  }
-
-  async function alSubirFichaPrincipal(
-    evento: ChangeEvent<HTMLInputElement>
-  ): Promise<void> {
-    const archivo = evento.target.files?.[0];
-    evento.target.value = "";
-    if (!archivo) return;
-
-    setSubiendo(true);
-    setError(null);
-    try {
-      const subido = await archivosApi.subir(archivo, mesaId);
-      await cargarArchivos();
-      await guardarPersonaje({
-        fichaArchivoId: subido.id,
-        fichaNombre: subido.nombre
-      });
-    } catch (fallo) {
-      setError(describeError(fallo));
-    } finally {
-      setSubiendo(false);
-    }
-  }
-
-  async function alSeleccionarFicha(archivoId: string): Promise<void> {
-    if (!archivoId) {
-      await guardarPersonaje({ fichaArchivoId: null, fichaNombre: null });
-      return;
-    }
-    const elegido = archivos.find(a => a.id === archivoId);
-    await guardarPersonaje({
-      fichaArchivoId: archivoId,
-      fichaNombre: elegido?.nombre ?? "Ficha de personaje"
-    });
-  }
-
-  async function alAgregarPdfExtra(archivoId: string): Promise<void> {
-    if (!archivoId) return;
-    if (pjLocal.pdfs.some(p => p.archivoId === archivoId)) return;
-    const elegido = archivos.find(a => a.id === archivoId);
-    const siguientes = [
-      ...pjLocal.pdfs,
-      { archivoId, nombre: elegido?.nombre ?? "Documento.pdf" }
-    ];
-    await guardarPersonaje({ pdfs: siguientes });
-  }
-
-  async function alSubirPdfExtra(
-    evento: ChangeEvent<HTMLInputElement>
-  ): Promise<void> {
-    const archivo = evento.target.files?.[0];
-    evento.target.value = "";
-    if (!archivo) return;
-
-    setSubiendo(true);
-    setError(null);
-    try {
-      const subido = await archivosApi.subir(archivo, mesaId);
-      await cargarArchivos();
-      const siguientes = [
-        ...pjLocal.pdfs,
-        { archivoId: subido.id, nombre: subido.nombre }
-      ];
-      await guardarPersonaje({ pdfs: siguientes });
-    } catch (fallo) {
-      setError(describeError(fallo));
-    } finally {
-      setSubiendo(false);
-    }
-  }
-
-  async function quitarPdfExtra(archivoId: string): Promise<void> {
-    const siguientes = pjLocal.pdfs.filter(p => p.archivoId !== archivoId);
-    await guardarPersonaje({ pdfs: siguientes });
-  }
-
-  async function guardarNotasSiCambiaron(): Promise<void> {
-    if (notasLocal === pjLocal.notas) return;
-    await guardarPersonaje({ notas: notasLocal });
-  }
-
   const positsArchivados = elementosMesa.filter(
     (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
       el.tipo === "posit" && Boolean(el.archivado)
@@ -941,23 +726,6 @@ export function Archivador({
   const archivosArchivados = archivos.filter(
     archivo => !archivosEnMesa.some(doc => doc.archivoId === archivo.id)
   );
-  const archivoFicha = pjLocal.fichaArchivoId
-    ? archivos.find(a => a.id === pjLocal.fichaArchivoId)
-    : undefined;
-  const vistaFicha =
-    archivoFicha?.vista ??
-    inferirVistaPorNombre(pjLocal.fichaNombre ?? "");
-  const formatoFicha = infoFormatoArchivo(vistaFicha);
-  const pdfsDisponibles = archivos.filter(
-    a =>
-      a.vista !== "imagen" &&
-      !pjLocal.pdfs.some(p => p.archivoId === a.id)
-  );
-  const retratoSrc =
-    retratoLocalUrl ??
-    (pjLocal.retratoArchivoId
-      ? archivosApi.url(pjLocal.retratoArchivoId)
-      : null);
 
   return (
     <div className="archivador-page">
@@ -1019,240 +787,7 @@ export function Archivador({
         <div className="archivador-contenido">
           {error && <p className="archivador-error">{error}</p>}
 
-          <div className="archivador-pj-layout">
-            <section
-              className="archivador-seccion archivador-pj-seccion"
-              aria-label="Personaje (PJ)"
-            >
-              <div className="archivador-seccion-cabecera">
-                <h2>Personaje (PJ)</h2>
-                {guardandoPj && (
-                  <span className="archivador-pj-estado">Guardando…</span>
-                )}
-              </div>
-
-              <input
-                ref={selectorRetrato}
-                type="file"
-                accept={ACEPTADOS_IMAGEN}
-                className="archivador-input"
-                onChange={alElegirRetrato}
-              />
-              <input
-                ref={selectorFicha}
-                type="file"
-                accept={ACEPTADOS}
-                className="archivador-input"
-                onChange={alSubirFichaPrincipal}
-              />
-              <input
-                ref={selectorPdfExtra}
-                type="file"
-                accept=".pdf,application/pdf"
-                className="archivador-input"
-                onChange={alSubirPdfExtra}
-              />
-
-              <div className="archivador-pj-cuerpo">
-                <div className="archivador-pj-retrato-bloque">
-                  <div className="archivador-pj-retrato-marco">
-                    {retratoSrc ? (
-                      <img
-                        src={retratoSrc}
-                        alt="Retrato del personaje"
-                        className="archivador-pj-retrato-img"
-                      />
-                    ) : (
-                      <div className="archivador-pj-retrato-vacio">
-                        <User size={28} aria-hidden="true" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="archivador-pj-retrato-acciones">
-                    <button
-                      type="button"
-                      className="archivador-pj-retrato-btn"
-                      onClick={() => selectorRetrato.current?.click()}
-                      disabled={subiendo}
-                    >
-                      <Upload size={12} aria-hidden="true" />
-                      <span>{retratoSrc ? "Cambiar retrato" : "Subir retrato"}</span>
-                    </button>
-                    {retratoSrc && (
-                      <button
-                        type="button"
-                        className="archivador-pj-retrato-quitar"
-                        onClick={() => void quitarRetrato()}
-                        title="Quitar retrato"
-                        aria-label="Quitar retrato"
-                      >
-                        <X size={13} aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="archivador-pj-ficha-bloque">
-                  <span className="archivador-pj-etiqueta">
-                    Ficha principal (privada)
-                  </span>
-
-                  {pjLocal.fichaArchivoId ? (
-                    <div className="archivador-pj-ficha-fila">
-                      <button
-                        type="button"
-                        className="archivador-pj-ficha-card"
-                        onClick={() =>
-                          abrirArchivoPj(
-                            pjLocal.fichaArchivoId!,
-                            pjLocal.fichaNombre
-                          )
-                        }
-                        title="Abrir ficha de personaje"
-                      >
-                        <span
-                          className={`ficha-doc-hoja mini ${formatoFicha.clase}`}
-                          style={{ "--doc-color": formatoFicha.color } as CSSProperties}
-                        >
-                          {formatoFicha.codigo}
-                        </span>
-                        <span className="archivador-pj-ficha-info">
-                          <span className="archivador-pj-ficha-nombre">
-                            {pjLocal.fichaNombre ??
-                              archivoFicha?.nombre ??
-                              "Ficha de personaje"}
-                          </span>
-                          <span className="archivador-pj-ficha-sub">
-                            Clic para abrir en el visor
-                          </span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="archivador-pj-ficha-quitar"
-                        onClick={() => void alSeleccionarFicha("")}
-                        title="Quitar ficha principal"
-                        aria-label="Quitar ficha principal"
-                      >
-                        <X size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="archivador-pj-ficha-selector">
-                      <select
-                        className="archivador-pj-select"
-                        value=""
-                        aria-label="Seleccionar ficha principal de mis archivos"
-                        onChange={evento =>
-                          void alSeleccionarFicha(evento.target.value)
-                        }
-                      >
-                        <option value="">Elegir de mis archivos…</option>
-                        {archivos.map(archivo => (
-                          <option key={archivo.id} value={archivo.id}>
-                            {archivo.nombre}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="archivador-pj-subir-btn"
-                        onClick={() => selectorFicha.current?.click()}
-                        disabled={subiendo}
-                      >
-                        <Plus size={12} aria-hidden="true" />
-                        <span>Subir ficha</span>
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="archivador-pj-pdfs-bloque">
-                    <span className="archivador-pj-etiqueta">
-                      PDFs adicionales
-                    </span>
-                    <div className="archivador-pj-pdfs-fila">
-                      {pjLocal.pdfs.map(pdf => (
-                        <div key={pdf.archivoId} className="archivador-pj-pdf-item">
-                          <button
-                            type="button"
-                            className="archivador-pj-pdf-chip"
-                            onClick={() =>
-                              abrirArchivoPj(pdf.archivoId, pdf.nombre)
-                            }
-                            title={`Abrir ${pdf.nombre}`}
-                          >
-                            <FileText size={13} aria-hidden="true" />
-                            <span>{pdf.nombre}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="archivador-pj-pdf-quitar"
-                            onClick={() => void quitarPdfExtra(pdf.archivoId)}
-                            title={`Desvincular ${pdf.nombre}`}
-                            aria-label={`Desvincular ${pdf.nombre}`}
-                          >
-                            <X size={11} aria-hidden="true" />
-                          </button>
-                        </div>
-                      ))}
-
-                      <select
-                        className="archivador-pj-pdf-agregar"
-                        value=""
-                        aria-label="Adjuntar PDF adicional"
-                        onChange={evento =>
-                          void alAgregarPdfExtra(evento.target.value)
-                        }
-                      >
-                        <option value="">+ PDF de archivos…</option>
-                        {pdfsDisponibles.map(archivo => (
-                          <option key={archivo.id} value={archivo.id}>
-                            {archivo.nombre}
-                          </option>
-                        ))}
-                      </select>
-
-                      <button
-                        type="button"
-                        className="archivador-pj-pdf-subir"
-                        onClick={() => selectorPdfExtra.current?.click()}
-                        disabled={subiendo}
-                        title="Subir nuevo PDF"
-                        aria-label="Subir nuevo PDF"
-                      >
-                        <Plus size={12} aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="archivador-pj-notas-bloque">
-                <label className="archivador-pj-etiqueta">
-                  Notas del personaje
-                  <textarea
-                    className="archivador-pj-notas"
-                    rows={3}
-                    value={notasLocal}
-                    placeholder="Rasgos, objetivos, recordatorios privados…"
-                    onChange={evento => setNotasLocal(evento.target.value)}
-                    onBlur={() => void guardarNotasSiCambiaron()}
-                  />
-                </label>
-                {notasLocal !== pjLocal.notas && (
-                  <button
-                    type="button"
-                    className="archivador-pj-notas-btn"
-                    onClick={() => void guardarNotasSiCambiaron()}
-                    disabled={guardandoPj}
-                  >
-                    Guardar notas
-                  </button>
-                )}
-              </div>
-            </section>
-
-            <section className="archivador-seccion">
+          <section className="archivador-seccion">
               <div className="archivador-seccion-cabecera">
                 <h2>Posits archivados</h2>
                 <span className="archivador-contador">{positsArchivados.length}</span>
@@ -1308,7 +843,6 @@ export function Archivador({
                 </div>
               )}
             </section>
-          </div>
 
           <section className="archivador-seccion">
             <div className="archivador-seccion-cabecera">
@@ -1466,15 +1000,6 @@ export function Archivador({
       />
     )
   }
-      {archivoParaRecortar && (
-        <RecorteRetratoModal
-          archivo={archivoParaRecortar}
-          onCancelar={() => setArchivoParaRecortar(null)}
-          onConfirmar={archivoRecortado =>
-            void alConfirmarRecorteRetrato(archivoRecortado)
-          }
-        />
-      )}
     </div >
   );
 }

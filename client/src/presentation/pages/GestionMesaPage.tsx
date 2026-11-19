@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, Lock, LogOut, Palette, Pencil, Play, Trash2, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { ArrowLeft, Check, Crown, DoorOpen, Lock, LogOut, Palette, Pencil, Play, Trash2, Upload, User, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
+import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
+import { RecorteRetratoModal } from "../../preview/RecorteRetratoModal";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { PALETA_JUGADOR } from "../paleta";
@@ -49,6 +51,8 @@ export function GestionMesaPage({
   const [contrasenaEditada, setContrasenaEditada] = useState<string | null>(null);
   const [expulsarObjetivo, setExpulsarObjetivo] = useState<{ id: string; nombre: string } | null>(null);
   const [confirmCerrar, setConfirmCerrar] = useState(false);
+  const [archivoParaRecortar, setArchivoParaRecortar] = useState<File | null>(null);
+  const selectorRetratoRef = useRef<HTMLInputElement>(null);
 
   const refrescar = useCallback(async () => {
     try {
@@ -206,6 +210,67 @@ export function GestionMesaPage({
     }
   }
 
+  function alElegirRetrato(evento: ChangeEvent<HTMLInputElement>) {
+    const archivo = evento.target.files?.[0];
+    evento.target.value = "";
+    if (!archivo) return;
+    setArchivoParaRecortar(archivo);
+  }
+
+  async function alConfirmarRecorteRetrato(archivoRecortado: File) {
+    if (!mesa) return;
+    setArchivoParaRecortar(null);
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const subido = await archivosApi.subir(archivoRecortado, mesa.id);
+      await mesasApi.actualizarPersonaje(mesa.id, { retratoArchivoId: subido.id });
+      setMesa(prev =>
+        prev
+          ? {
+              ...prev,
+              retratosPorJugador: {
+                ...(prev.retratosPorJugador ?? {}),
+                [user.id]: subido.id
+              }
+            }
+          : prev
+      );
+      setAviso("Retrato de personaje actualizado.");
+    } catch (retratoError) {
+      setError(describeError(retratoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quitarRetrato() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      await mesasApi.actualizarPersonaje(mesa.id, { retratoArchivoId: null });
+      setMesa(prev =>
+        prev
+          ? {
+              ...prev,
+              retratosPorJugador: {
+                ...(prev.retratosPorJugador ?? {}),
+                [user.id]: null
+              }
+            }
+          : prev
+      );
+      setAviso("Retrato de personaje eliminado.");
+    } catch (retratoError) {
+      setError(describeError(retratoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function entrarEnSala() {
     if (mesa && onAbrirSala) onAbrirSala(mesa);
   }
@@ -272,6 +337,7 @@ export function GestionMesaPage({
   const miColor = mesa.colores?.[user.id] ?? null;
   const soyJugadorEnMesa = mesa.players.some(jugador => jugador.id === user.id);
   const miApodo = mesa.playerApodos?.[user.id]?.trim() ?? "";
+  const miRetratoId = mesa.retratosPorJugador?.[user.id] ?? null;
 
   return (
     <section className="card gestion">
@@ -419,6 +485,66 @@ export function GestionMesaPage({
               </button>
             )}
           </form>
+        </div>
+      )}
+
+      {soyJugadorEnMesa && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <User size={15} aria-hidden="true" />
+            <span>Tu retrato de personaje (PJ)</span>
+          </h3>
+          <input
+            ref={selectorRetratoRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            style={{ display: "none" }}
+            onChange={alElegirRetrato}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: "50%",
+                overflow: "hidden",
+                display: "grid",
+                placeItems: "center",
+                background: miColor ?? "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                flexShrink: 0
+              }}
+            >
+              {miRetratoId ? (
+                <img
+                  src={archivosApi.url(miRetratoId)}
+                  alt="Tu retrato de personaje"
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+              ) : (
+                <User size={22} aria-hidden="true" />
+              )}
+            </div>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => selectorRetratoRef.current?.click()}
+              disabled={busy}
+            >
+              <Upload size={13} aria-hidden="true" />
+              <span>Subir / recortar retrato</span>
+            </button>
+            {miRetratoId && (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void quitarRetrato()}
+                disabled={busy}
+              >
+                Quitar
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -623,6 +749,14 @@ export function GestionMesaPage({
         onConfirm={() => void confirmarCerrarMesa()}
         onCancel={() => setConfirmCerrar(false)}
       />
+
+      {archivoParaRecortar && (
+        <RecorteRetratoModal
+          archivo={archivoParaRecortar}
+          onCancelar={() => setArchivoParaRecortar(null)}
+          onConfirmar={archivoRecortado => void alConfirmarRecorteRetrato(archivoRecortado)}
+        />
+      )}
     </section>
   );
 }

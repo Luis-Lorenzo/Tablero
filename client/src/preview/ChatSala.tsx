@@ -84,6 +84,7 @@ export function ChatSala({
           if (!j.activo) return false;
           const uid = j.userId ?? j.id;
           if (uid === miUsuarioId) return false;
+          if (destinatarios.some(d => d.id === uid)) return false;
           return j.nombre.toLowerCase().includes(filtroMencion.toLowerCase());
         });
 

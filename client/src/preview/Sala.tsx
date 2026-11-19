@@ -23,6 +23,7 @@ import {
   Sun,
   Trash2,
   Upload,
+  UserRound,
   Users,
   VenetianMask,
   Volume2,
@@ -153,6 +154,7 @@ interface SalaProps {
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
   onAbrirArchivador?: () => void;
+  onAbrirPersonaje?: () => void;
   onVolver: () => void;
   etiquetaVolver?: string;
   hostName?: string;
@@ -861,6 +863,7 @@ export function Sala({
   onAbrirPizarra,
   onAbrirMapa,
   onAbrirArchivador,
+  onAbrirPersonaje,
   onVolver,
   etiquetaVolver,
   hostName,
@@ -1177,7 +1180,8 @@ export function Sala({
   const [creandoObjeto, setCreandoObjeto] = useState(false);
   const [nuevoObjNombre, setNuevoObjNombre] = useState("");
   const [nuevoObjDesc, setNuevoObjDesc] = useState("");
-  const [nuevoObjMacroId, setNuevoObjMacroId] = useState("");
+  const [nuevoObjMacro, setNuevoObjMacro] = useState<MacroTirada | null>(null);
+  const [macroParaObjeto, setMacroParaObjeto] = useState(false);
   const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
   const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
   const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
@@ -2311,6 +2315,7 @@ export function Sala({
   }
 
   function abrirNuevaMacro(): void {
+    setMacroParaObjeto(false);
     setMacroEditandoId(null);
     setMacroNombre("");
     setMacroIcono("sword");
@@ -2322,6 +2327,7 @@ export function Sala({
   }
 
   function abrirEditarMacro(macro: MacroTirada): void {
+    setMacroParaObjeto(false);
     setMacroEditandoId(macro.id);
     setMacroNombre(macro.nombre);
     setMacroIcono(macro.icono);
@@ -2335,6 +2341,31 @@ export function Sala({
     );
     setMacroBonificador(macro.bonificador);
     setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function abrirMacroParaObjeto(): void {
+    setMacroParaObjeto(true);
+    setMacroEditandoId(null);
+    if (nuevoObjMacro) {
+      setMacroNombre(nuevoObjMacro.nombre);
+      setMacroIcono(nuevoObjMacro.icono);
+      setMacroColor(nuevoObjMacro.color ?? "");
+      setMacroGrupos(
+        nuevoObjMacro.grupos.map((g, idx) => ({
+          id: `m-${Date.now()}-${idx}`,
+          cantidad: g.cantidad,
+          caras: g.caras
+        }))
+      );
+      setMacroBonificador(nuevoObjMacro.bonificador);
+    } else {
+      setMacroNombre(nuevoObjNombre.trim().slice(0, 40));
+      setMacroIcono("sword");
+      setMacroColor("");
+      setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
+      setMacroBonificador(0);
+    }
     setMacroModalAbierto(true);
   }
 
@@ -2380,6 +2411,21 @@ export function Sala({
       caras: g.caras
     }));
     const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
+
+    if (macroParaObjeto) {
+      const nueva: MacroTirada = {
+        id: nuevoObjMacro?.id ?? nuevoId(),
+        nombre: nombreLimpio,
+        icono: macroIcono,
+        ...(macroColor ? { color: macroColor } : {}),
+        grupos: gruposLimpios,
+        bonificador: modLimpio
+      };
+      setNuevoObjMacro(nueva);
+      setMacroParaObjeto(false);
+      setMacroModalAbierto(false);
+      return;
+    }
 
     if (macroEditandoId) {
       actualizarMacrosLista(
@@ -3095,19 +3141,16 @@ export function Sala({
     const nombre = nuevoObjNombre.trim().slice(0, 60);
     if (!nombre) return;
     const cantidad = Math.max(1, Math.min(9999, Math.trunc(nuevoObjCantidad || 1)));
-    const macroAsociada = nuevoObjMacroId
-      ? macrosLista.find(m => m.id === nuevoObjMacroId)
-      : undefined;
     const nuevo: ObjetoMochila = {
       id: nuevoIdElemento(),
       nombre,
       descripcion: nuevoObjDesc.trim().slice(0, 1000),
       cantidad,
-      ...(macroAsociada
+      ...(nuevoObjMacro
         ? {
             macro: {
-              ...macroAsociada,
-              grupos: macroAsociada.grupos.map(g => ({ ...g }))
+              ...nuevoObjMacro,
+              grupos: nuevoObjMacro.grupos.map(g => ({ ...g }))
             }
           }
         : {}),
@@ -3128,7 +3171,7 @@ export function Sala({
     setNuevoObjDesc("");
     setNuevoObjCantidad(1);
     setNuevoObjArchivo(null);
-    setNuevoObjMacroId("");
+    setNuevoObjMacro(null);
     setCreandoObjeto(false);
     setObjetoMochilaId(nuevo.id);
   }
@@ -5143,20 +5186,39 @@ export function Sala({
                       />
                     </label>
 
-                    <label className="macro-campo-nombre">
-                      <span className="dados-campo-etiqueta">Macro asociada (opcional)</span>
-                      <select
-                        value={nuevoObjMacroId}
-                        onChange={e => setNuevoObjMacroId(e.target.value)}
-                      >
-                        <option value="">Sin macro</option>
-                        {macrosLista.map(m => (
-                          <option key={m.id} value={m.id}>
-                            {m.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Tirada del objeto (opcional)</span>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          className="mochila-accion-sec"
+                          style={{ flex: 1 }}
+                          onClick={abrirMacroParaObjeto}
+                        >
+                          {nuevoObjMacro
+                            ? `Editar tirada · ${formatearFormulaCompuesta(
+                                nuevoObjMacro.grupos.map((g, idx) => ({
+                                  id: `obj-${idx}`,
+                                  cantidad: g.cantidad,
+                                  caras: g.caras
+                                })),
+                                nuevoObjMacro.bonificador
+                              )}`
+                            : "Objeto con macro"}
+                        </button>
+                        {nuevoObjMacro && (
+                          <button
+                            type="button"
+                            className="mochila-accion-sec"
+                            onClick={() => setNuevoObjMacro(null)}
+                            aria-label="Quitar tirada del objeto"
+                            title="Quitar tirada"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
                     <button type="submit" className="dados-lanzar">
                       Guardar en mochila
@@ -5869,7 +5931,11 @@ export function Sala({
           {macroModalAbierto && !ajuste && (
             <div
               className="dados-compuesta-backdrop"
-              onClick={() => setMacroModalAbierto(false)}
+              style={macroParaObjeto ? { zIndex: 70 } : undefined}
+              onClick={() => {
+                setMacroParaObjeto(false);
+                setMacroModalAbierto(false);
+              }}
             >
               <form
                 className="dados-compuesta-modal macros-modal"
@@ -5886,7 +5952,10 @@ export function Sala({
                   <button
                     type="button"
                     className="dados-cerrar"
-                    onClick={() => setMacroModalAbierto(false)}
+                    onClick={() => {
+                      setMacroParaObjeto(false);
+                      setMacroModalAbierto(false);
+                    }}
                     aria-label="Cerrar editor de macro"
                   >
                     <X size={14} strokeWidth={2.4} aria-hidden="true" />
@@ -6508,6 +6577,21 @@ export function Sala({
                   )}
                 </button>
                 <span className="dock-etiqueta">Archivador</span>
+              </div>
+            )}
+
+            {onAbrirPersonaje && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className="dock-btn"
+                  onClick={onAbrirPersonaje}
+                  title="Abrir ficha y retrato de personaje (PJ)"
+                  aria-label="Personaje"
+                >
+                  <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
+                </button>
+                <span className="dock-etiqueta">Personaje</span>
               </div>
             )}
 
