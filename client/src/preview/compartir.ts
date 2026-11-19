@@ -23,6 +23,9 @@ export function tipoCortoArchivo(mime: string, nombre = ""): string {
 
   if (base === "application/pdf" || ext === "pdf") return "pdf";
   if (base === "text/plain" || ext === "txt") return "txt";
+  if (base === "text/markdown" || ext === "md") return "md";
+  if (base === "application/json" || ext === "json") return "json";
+  if (base === "text/csv" || ext === "csv") return "csv";
   if (base === TIPO_DOCX || ext === "docx" || ext === "doc") return "doc";
   if (base.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) {
     return "img";

@@ -179,7 +179,7 @@ type AccionLienzo =
     };
 
 const ACEPTADOS =
-  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.txt,.md,.json,.csv,text/markdown,application/json,text/csv";
 
 const COLORES_TINTA = [
   { nombre: "Carbón", valor: "#2b2118" },
@@ -212,7 +212,14 @@ function vistaPorArchivo(archivo: File): string {
   ) {
     return "docx";
   }
-  if (archivo.type === "text/plain" || archivo.name.endsWith(".txt")) {
+  if (
+    archivo.type.startsWith("text/") ||
+    archivo.type === "application/json" ||
+    archivo.name.endsWith(".txt") ||
+    archivo.name.endsWith(".md") ||
+    archivo.name.endsWith(".json") ||
+    archivo.name.endsWith(".csv")
+  ) {
     return "texto";
   }
   return "ninguna";

@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BookPlus,
-  Download,
   File,
   FileText,
   FolderOpen,
   Image as ImageIcon,
   Loader2,
-  Trash2,
-  X
+  Trash2
 } from "lucide-react";
 import { archivosApi } from "../../api/archivos.api";
 import type { PublicArchivo } from "../../api/types";
 import { describeError } from "../errorMessages";
+import { VisorArchivo } from "./VisorArchivo";
 
 /** Formatos que acepta el servidor (deben coincidir con `TIPOS_PERMITIDOS`). */
 const ACEPTADOS =
-  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.txt,.md,.json,.csv,text/markdown,application/json,text/csv";
 
 function formatearTamano(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -48,47 +47,6 @@ export function ArchivosMenu() {
 
   const contenedor = useRef<HTMLDivElement>(null);
   const selector = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!visor) return undefined;
-
-    const esDocx = visor.vista === "docx";
-    if (!esDocx) return undefined;
-
-    let desmontado = false;
-    let cancelado = false;
-
-    (async () => {
-      try {
-        const modulo = await import("docx-preview");
-        if (desmontado) return;
-        const docxContenedor = document.getElementById("docx-contenedor");
-        if (!docxContenedor) return;
-        docxContenedor.innerHTML = "";
-
-        const respuesta = await fetch(archivosApi.url(visor.id), {
-          credentials: "include"
-        });
-        if (!respuesta.ok || desmontado) return;
-        const blob = await respuesta.blob();
-
-        if (cancelado || desmontado) return;
-        await (modulo as { renderAsync: Function }).renderAsync(
-          blob,
-          docxContenedor,
-          undefined,
-          { className: "docx-canvas" }
-        );
-      } catch (e) {
-        console.error("No se pudo previsualizar .docx", e);
-      }
-    })();
-
-    return () => {
-      desmontado = true;
-      cancelado = true;
-    };
-  }, [visor]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -269,84 +227,17 @@ export function ArchivosMenu() {
       )}
 
       {visor && (
-        <div className="archivo-visor" onClick={() => setVisor(null)}>
-          <div className="archivo-visor-caja" onClick={event => event.stopPropagation()}>
-            <header className="archivo-visor-cabecera">
-              <span className="archivo-visor-nombre" title={visor.nombre}>
-                {visor.nombre}
-              </span>
-              <div className="archivo-visor-acciones">
-                <a
-                  className="archivo-visor-descargar"
-                  href={archivosApi.url(visor.id, true)}
-                  download={visor.nombre}
-                >
-                  <Download size={14} aria-hidden="true" />
-                  <span>Descargar</span>
-                </a>
-                <button
-                  type="button"
-                  className="archivo-visor-cerrar"
-                  onClick={() => setVisor(null)}
-                  aria-label="Cerrar"
-                >
-                  <X size={15} aria-hidden="true" />
-                  <span>Cerrar</span>
-                </button>
-              </div>
-            </header>
-
-            <div className="archivo-visor-marco">
-              {visor.vista !== "ninguna" ? (
-                visor.vista === "pdf" ? (
-                  <iframe src={archivosApi.url(visor.id)} title={visor.nombre} />
-                ) : visor.vista === "imagen" ? (
-                  <img src={archivosApi.url(visor.id)} alt={visor.nombre} />
-                ) : visor.vista === "docx" ? (
-                  <div id="docx-contenedor" className="docx-contenedor" />
-                ) : visor.vista === "texto" ? (
-                  <TextoVisor id={visor.id} nombre={visor.nombre} />
-                ) : (
-                  <iframe src={archivosApi.url(visor.id)} title={visor.nombre} />
-                )
-              ) : (
-                <p className="muted">
-                  Este tipo de archivo no se puede mostrar aquí. Usa «Descargar».
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <VisorArchivo
+          archivo={visor}
+          onCerrar={() => setVisor(null)}
+          onGuardado={actualizado => {
+            setVisor(actualizado);
+            setArchivos(prev =>
+              prev.map(item => (item.id === actualizado.id ? actualizado : item))
+            );
+          }}
+        />
       )}
     </div>
-  );
-}
-
-function TextoVisor({ id, nombre }: { id: string; nombre: string }) {
-  const [texto, setTexto] = useState<string>("Cargando…");
-
-  useEffect(() => {
-    let activo = true;
-    (async () => {
-      try {
-        const respuesta = await fetch(archivosApi.url(id), {
-          credentials: "include"
-        });
-        if (!respuesta.ok) return;
-        const contenido = await respuesta.text();
-        if (activo) setTexto(contenido);
-      } catch {
-        if (activo) setTexto("No se pudo leer este archivo de texto.");
-      }
-    })();
-    return () => {
-      activo = false;
-    };
-  }, [id]);
-
-  return (
-    <pre className="texto-visor" aria-label={nombre}>
-      {texto}
-    </pre>
   );
 }

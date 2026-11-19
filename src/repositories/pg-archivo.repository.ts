@@ -10,11 +10,13 @@ interface ArchivoRow {
   tipo: string;
   tamano: string | number;
   created_at: Date;
+  updated_at?: Date | null;
 }
 
-const SELECT_COLUMNS = `id, owner_id, mesa_id, nombre, clave, tipo, tamano, created_at`;
+const SELECT_COLUMNS = `id, owner_id, mesa_id, nombre, clave, tipo, tamano, created_at, updated_at`;
 
 function toArchivo(row: ArchivoRow): Archivo {
+  const createdAt = new Date(row.created_at);
   return {
     id: row.id,
     ownerId: row.owner_id,
@@ -23,12 +25,13 @@ function toArchivo(row: ArchivoRow): Archivo {
     clave: row.clave,
     tipo: row.tipo,
     tamano: Number(row.tamano),
-    createdAt: new Date(row.created_at)
+    createdAt,
+    updatedAt: new Date(row.updated_at ?? row.created_at)
   };
 }
 
 export class PgArchivoRepository implements ArchivoRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool) { }
 
   async listByOwner(ownerId: string, mesaId?: string): Promise<Archivo[]> {
     if (mesaId) {
@@ -78,15 +81,17 @@ export class PgArchivoRepository implements ArchivoRepository {
   }
 
   async save(archivo: Archivo): Promise<void> {
+    const updatedAt = archivo.updatedAt ?? archivo.createdAt;
     await this.pool.query(
-      `INSERT INTO archivos (id, owner_id, mesa_id, nombre, clave, tipo, tamano, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO archivos (id, owner_id, mesa_id, nombre, clave, tipo, tamano, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (id) DO UPDATE SET
          mesa_id = EXCLUDED.mesa_id,
          nombre = EXCLUDED.nombre,
          clave = EXCLUDED.clave,
          tipo = EXCLUDED.tipo,
-         tamano = EXCLUDED.tamano`,
+         tamano = EXCLUDED.tamano,
+         updated_at = EXCLUDED.updated_at`,
       [
         archivo.id,
         archivo.ownerId,
@@ -95,7 +100,8 @@ export class PgArchivoRepository implements ArchivoRepository {
         archivo.clave,
         archivo.tipo,
         archivo.tamano,
-        archivo.createdAt
+        archivo.createdAt,
+        updatedAt
       ]
     );
   }

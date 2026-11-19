@@ -18,7 +18,14 @@ export function createApp(context: AppContext, store?: Store): express.Express {
   const app = express();
 
   app.set("trust proxy", 1);
-  app.use(express.json());
+  const jsonParser = express.json();
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/archivos")) {
+      next();
+      return;
+    }
+    jsonParser(req, res, next);
+  });
   app.use(createRequestLogger(context.logger));
   app.use(
     createSessionMiddleware(

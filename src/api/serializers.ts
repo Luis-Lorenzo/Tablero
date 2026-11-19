@@ -107,6 +107,7 @@ export interface PublicArchivo {
   vista: string;
   tamano: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export function toPublicArchivo(archivo: Archivo): PublicArchivo {
@@ -116,7 +117,8 @@ export function toPublicArchivo(archivo: Archivo): PublicArchivo {
     tipo: archivo.tipo,
     vista: vistaDe(archivo.tipo),
     tamano: archivo.tamano,
-    createdAt: archivo.createdAt.toISOString()
+    createdAt: archivo.createdAt.toISOString(),
+    updatedAt: (archivo.updatedAt ?? archivo.createdAt).toISOString()
   };
 }
 

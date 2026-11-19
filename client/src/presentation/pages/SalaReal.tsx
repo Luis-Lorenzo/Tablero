@@ -813,6 +813,25 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "archivo:actualizado" && evento.mesaId === mesa.id) {
+        cargarArchivos();
+        if (evento.autorId !== user.id) {
+          window.dispatchEvent(
+            new CustomEvent("pocketrol:archivo-actualizado", {
+              detail: {
+                archivoId:
+                  typeof evento.archivoId === "string" ? evento.archivoId : "",
+                updatedAt:
+                  typeof evento.updatedAt === "string"
+                    ? evento.updatedAt
+                    : undefined
+              }
+            })
+          );
+        }
+        return;
+      }
+
       if (evento.type === "mesa:mapa-actualizado" && evento.mesaId === mesa.id && evento.mapa) {
         setEstadoMapa(evento.mapa as EstadoMapaCompartido);
         return;

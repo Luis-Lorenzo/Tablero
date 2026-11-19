@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS archivos (
 );
 
 ALTER TABLE archivos ADD COLUMN IF NOT EXISTS mesa_id UUID REFERENCES mesas(id) ON DELETE SET NULL;
+ALTER TABLE archivos ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS archivos_owner_idx
   ON archivos (owner_id, created_at DESC);

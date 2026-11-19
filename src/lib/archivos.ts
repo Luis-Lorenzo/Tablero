@@ -16,6 +16,9 @@ const TIPOS_PERMITIDOS = new Map<string, string>([
   ["image/webp", ".webp"],
   [TIPO_DOCX, ".docx"],
   ["text/plain", ".txt"],
+  ["text/markdown", ".md"],
+  ["application/json", ".json"],
+  ["text/csv", ".csv"],
   ["audio/mpeg", ".mp3"],
   ["audio/ogg", ".ogg"],
   ["audio/wav", ".wav"],
@@ -39,7 +42,59 @@ export function normalizarTipo(tipo: string): string {
     return "audio/wav";
   }
 
+  if (base === "text/x-markdown") {
+    return "text/markdown";
+  }
+
+  if (base === "application/csv" || base === "text/comma-separated-values") {
+    return "text/csv";
+  }
+
+  if (base === "text/json") {
+    return "application/json";
+  }
+
   return base;
+}
+
+const EXTENSIONES_A_MIME: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".docx": TIPO_DOCX,
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".json": "application/json",
+  ".csv": "text/csv"
+};
+
+/**
+ * Normaliza el tipo MIME recibido y, si llega genérico (`application/octet-stream`
+ * o vacío, habitual en navegadores para `.md`/`.json`/`.csv`), lo deduce por extensión.
+ */
+export function resolverTipoArchivo(tipo: string, nombre?: string): string {
+  const normalizado = normalizarTipo(tipo);
+  if (
+    normalizado &&
+    normalizado !== "application/octet-stream" &&
+    normalizado !== "application/vnd.ms-excel"
+  ) {
+    return normalizado;
+  }
+
+  if (nombre) {
+    const lower = nombre.trim().toLowerCase();
+    const punto = lower.lastIndexOf(".");
+    if (punto !== -1) {
+      const inferido = EXTENSIONES_A_MIME[lower.slice(punto)];
+      if (inferido) return inferido;
+    }
+  }
+
+  return normalizado;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,7 +129,14 @@ export function vistaDe(tipo: string): VistaArchivo {
   if (base === "application/pdf") return "pdf";
   if (base.startsWith("image/")) return "imagen";
   if (base === TIPO_DOCX) return "docx";
-  if (base === "text/plain") return "texto";
+  if (
+    base === "text/plain" ||
+    base === "text/markdown" ||
+    base === "application/json" ||
+    base === "text/csv"
+  ) {
+    return "texto";
+  }
   if (base.startsWith("audio/")) return "audio";
   return "ninguna";
 }

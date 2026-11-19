@@ -38,6 +38,7 @@ import type {
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
+import { VisorArchivo } from "../presentation/components/VisorArchivo";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
 import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
 import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
@@ -776,44 +777,6 @@ function textoLegible(color: string): string {
   return luz > 0.62 ? "#2a2433" : "#fbf8f2";
 }
 
-function TextoArchivoMesa({
-  archivoId,
-  nombre,
-  contenidoLocal
-}: {
-  archivoId: string;
-  nombre: string;
-  contenidoLocal?: string;
-}) {
-  const [texto, setTexto] = useState<string>(contenidoLocal ?? "Cargando…");
-
-  useEffect(() => {
-    if (contenidoLocal !== undefined) return undefined;
-    let activo = true;
-    (async () => {
-      try {
-        const res = await fetch(archivosApi.url(archivoId), {
-          credentials: "include"
-        });
-        if (!res.ok) return;
-        const contenido = await res.text();
-        if (activo) setTexto(contenido);
-      } catch {
-        if (activo) setTexto("No se pudo leer el archivo de texto.");
-      }
-    })();
-    return () => {
-      activo = false;
-    };
-  }, [archivoId, contenidoLocal]);
-
-  return (
-    <pre className="texto-visor" aria-label={nombre}>
-      {texto}
-    </pre>
-  );
-}
-
 export function Sala({
   jugadores,
   calibracion,
@@ -1272,41 +1235,6 @@ export function Sala({
       reproducirSonidoNotificacion();
     }
   }, [solicitudPendienteId]);
-
-  useEffect(() => {
-    if (!itemAbierto || itemAbierto.tipo !== "archivo" || itemAbierto.vista !== "docx") {
-      return undefined;
-    }
-
-    let desmontado = false;
-    (async () => {
-      try {
-        const modulo = await import("docx-preview");
-        if (desmontado) return;
-        const contenedor = document.getElementById("sala-docx-contenedor");
-        if (!contenedor) return;
-        contenedor.innerHTML = "";
-
-        const respuesta = await fetch(archivosApi.url(itemAbierto.archivoId), {
-          credentials: "include"
-        });
-        if (!respuesta.ok || desmontado) return;
-        const blob = await respuesta.blob();
-        if (desmontado) return;
-
-        await (modulo as { renderAsync: (b: Blob, c: HTMLElement) => Promise<void> }).renderAsync(
-          blob,
-          contenedor
-        );
-      } catch (e) {
-        console.error("No se pudo previsualizar .docx", e);
-      }
-    })();
-
-    return () => {
-      desmontado = true;
-    };
-  }, [itemAbierto]);
 
   useEffect(() => {
     if (
@@ -2676,7 +2604,12 @@ export function Sala({
             ? "pdf"
             : file.name.endsWith(".docx")
               ? "docx"
-              : tipoLocal.startsWith("text/") || file.name.endsWith(".txt")
+              : tipoLocal.startsWith("text/") ||
+                  tipoLocal === "application/json" ||
+                  file.name.endsWith(".txt") ||
+                  file.name.endsWith(".md") ||
+                  file.name.endsWith(".json") ||
+                  file.name.endsWith(".csv")
                 ? "texto"
                 : "ninguna";
 
@@ -3523,7 +3456,7 @@ export function Sala({
               <input
                 ref={barraFileInputRef}
                 type="file"
-                accept=".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                accept=".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.txt,.md,.json,.csv,text/markdown,application/json,text/csv"
                 multiple
                 hidden
                 onChange={e => {
@@ -6728,7 +6661,54 @@ export function Sala({
         </div>
       )}
 
-      {itemAbierto && (
+      {itemAbierto && itemAbierto.tipo === "archivo" && (
+        <VisorArchivo
+          archivo={{
+            id: itemAbierto.archivoId,
+            nombre: itemAbierto.nombre,
+            tipo: itemAbierto.mime,
+            vista: itemAbierto.vista,
+            contenidoLocal: itemAbierto.contenidoLocal
+          }}
+          accionesExtra={
+            <>
+              {esMaster && onCompartirATodos && (
+                <button
+                  type="button"
+                  className="visor-unificado-btn"
+                  onClick={() => {
+                    void onCompartirATodos(itemAbierto);
+                    setItemAbierto(null);
+                  }}
+                >
+                  Dar a todos
+                </button>
+              )}
+              {jugadorSeleccionado && onEnviarElemento && (
+                <button
+                  type="button"
+                  className="visor-unificado-btn"
+                  onClick={() => {
+                    void onEnviarElemento(jugadorSeleccionado, itemAbierto);
+                    setItemAbierto(null);
+                  }}
+                >
+                  Pasar a {jugadorSeleccionado.nombre}
+                </button>
+              )}
+            </>
+          }
+          onGuardado={actualizado => {
+            setArchivosSubidosLocal(prev =>
+              prev.map(a => (a.id === actualizado.id ? actualizado : a))
+            );
+            onSolicitarArchivos?.();
+          }}
+          onCerrar={() => setItemAbierto(null)}
+        />
+      )}
+
+      {itemAbierto && itemAbierto.tipo !== "archivo" && (
         <div className="archivo-visor" onClick={() => setItemAbierto(null)}>
           <div className="archivo-visor-caja" onClick={e => e.stopPropagation()}>
             <header className="archivo-visor-cabecera">
@@ -6736,15 +6716,6 @@ export function Sala({
                 {itemAbierto.tipo === "posit" ? "Nota en mesa" : itemAbierto.nombre}
               </span>
               <div className="archivo-visor-acciones">
-                {itemAbierto.tipo === "archivo" && !itemAbierto.contenidoLocal && (
-                  <a
-                    className="archivo-visor-descargar"
-                    href={archivosApi.url(itemAbierto.archivoId, true)}
-                    download={itemAbierto.nombre}
-                  >
-                    Descargar
-                  </a>
-                )}
                 {esMaster && onCompartirATodos && itemAbierto.tipo !== "macro" && (
                   <button
                     type="button"
@@ -6808,32 +6779,7 @@ export function Sala({
                     {itemAbierto.descripcion || itemAbierto.nombre}
                   </p>
                 </div>
-              ) : itemAbierto.tipo !== "archivo" ? null : itemAbierto.vista === "imagen" ? (
-                <img
-                  src={
-                    itemAbierto.contenidoLocal ??
-                    archivosApi.url(itemAbierto.archivoId)
-                  }
-                  alt={itemAbierto.nombre}
-                />
-              ) : itemAbierto.vista === "pdf" ? (
-                <iframe
-                  src={archivosApi.url(itemAbierto.archivoId)}
-                  title={itemAbierto.nombre}
-                />
-              ) : itemAbierto.vista === "texto" ? (
-                <TextoArchivoMesa
-                  archivoId={itemAbierto.archivoId}
-                  nombre={itemAbierto.nombre}
-                  contenidoLocal={itemAbierto.contenidoLocal}
-                />
-              ) : itemAbierto.vista === "docx" ? (
-                <div id="sala-docx-contenedor" className="docx-contenedor" />
-              ) : (
-                <p className="muted">
-                  Este tipo de archivo no se puede previsualizar aquí. Usa «Descargar».
-                </p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

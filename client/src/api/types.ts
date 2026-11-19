@@ -71,10 +71,11 @@ export interface PublicArchivo {
   id: string;
   nombre: string;
   tipo: string;
-  /** El navegador puede mostrarlo dentro de la página (PDF, imagen o .docx). */
+  /** El navegador puede mostrarlo dentro de la página (PDF, imagen, texto o .docx). */
   vista: string;
   tamano: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface PositTransferido {
