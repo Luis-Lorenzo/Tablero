@@ -39,6 +39,7 @@ import type {
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
 import { VisorArchivo } from "../presentation/components/VisorArchivo";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
 import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
@@ -5434,9 +5435,11 @@ export function Sala({
                       role="group"
                       aria-label="Colores de tus dados"
                     >
-                      <label
+                      <ColorPickerPopover
+                        value={colorDado}
+                        onChange={actualizarColorDado}
                         title="Color principal (fondo del dado)"
-                        aria-label="Color principal del dado"
+                        ariaLabel="Elegir color principal del dado"
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -5450,32 +5453,19 @@ export function Sala({
                             : tiradaSecreta
                               ? "1.5px solid #c084fc"
                               : "1.5px solid #e8c56a",
-                          backgroundColor: colorDado,
+                          background: colorDado,
                           boxShadow: modoClaro
                             ? "0 2px 5px rgb(100 110 130 / 28%)"
                             : "1.5px 1.5px 0 #090612",
                           cursor: "pointer",
                           overflow: "hidden"
                         }}
-                      >
-                        <input
-                          type="color"
-                          value={colorDado}
-                          onChange={e => actualizarColorDado(e.target.value)}
-                          aria-label="Elegir color principal del dado"
-                          style={{
-                            opacity: 0,
-                            width: "100%",
-                            height: "100%",
-                            padding: 0,
-                            border: "none",
-                            cursor: "pointer"
-                          }}
-                        />
-                      </label>
-                      <label
+                      />
+                      <ColorPickerPopover
+                        value={colorAristasDado}
+                        onChange={actualizarColorAristasDado}
                         title="Color secundario (aristas del dado)"
-                        aria-label="Color secundario de las aristas del dado"
+                        ariaLabel="Elegir color secundario de aristas del dado"
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -5485,29 +5475,14 @@ export function Sala({
                           padding: 0,
                           borderRadius: "5px",
                           border: `2.5px solid ${colorAristasDado}`,
-                          backgroundColor: modoClaro ? "#D8DCE6" : "#14101f",
+                          background: modoClaro ? "#D8DCE6" : "#14101f",
                           boxShadow: modoClaro
                             ? "0 2px 5px rgb(100 110 130 / 28%)"
                             : "1.5px 1.5px 0 #090612",
                           cursor: "pointer",
                           overflow: "hidden"
                         }}
-                      >
-                        <input
-                          type="color"
-                          value={colorAristasDado}
-                          onChange={e => actualizarColorAristasDado(e.target.value)}
-                          aria-label="Elegir color secundario de aristas del dado"
-                          style={{
-                            opacity: 0,
-                            width: "100%",
-                            height: "100%",
-                            padding: 0,
-                            border: "none",
-                            cursor: "pointer"
-                          }}
-                        />
-                      </label>
+                      />
                     </div>
                   </div>
                   <button

@@ -35,6 +35,7 @@ import type {
 } from "react";
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
 import { describeError } from "../presentation/errorMessages";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
 import {
@@ -492,46 +493,41 @@ export function Posit({
                 colorExtra && posit.color === colorExtra
               );
               return (
-                <label
+                <ColorPickerPopover
                   key={idx}
+                  value={colorExtra ?? posit.color}
+                  onChange={elegido => {
+                    const nuevos = guardarColorExtraPosit(
+                      idx,
+                      elegido,
+                      miUsuarioId
+                    );
+                    setColoresExtra(nuevos);
+                    onColor(posit.id, elegido);
+                  }}
                   className={`posit-slot-wrap cuadro${
                     colorExtra ? "" : " extra-vacio"
                   }${activoSlot ? " activo" : ""}`}
                   style={
-                    colorExtra ? { background: colorExtra } : undefined
+                    colorExtra
+                      ? { background: colorExtra }
+                      : { background: "transparent" }
+                  }
+                  ariaLabel={
+                    colorExtra
+                      ? `Color personalizado ${idx + 1}: ${colorExtra}`
+                      : `Elegir color personalizado ${idx + 1}`
                   }
                   title={
                     colorExtra
                       ? `Cambiar color personalizado ${idx + 1} (${colorExtra})`
                       : `Elegir color personalizado ${idx + 1}`
                   }
-                  onClick={evento => evento.stopPropagation()}
                 >
                   {!colorExtra && (
                     <Plus size={9} strokeWidth={2.5} aria-hidden="true" />
                   )}
-                  <input
-                    type="color"
-                    className="posit-slot-input"
-                    value={colorExtra ?? posit.color}
-                    aria-label={
-                      colorExtra
-                        ? `Color personalizado ${idx + 1}: ${colorExtra}`
-                        : `Elegir color personalizado ${idx + 1}`
-                    }
-                    onClick={evento => evento.stopPropagation()}
-                    onChange={evento => {
-                      const elegido = evento.target.value;
-                      const nuevos = guardarColorExtraPosit(
-                        idx,
-                        elegido,
-                        miUsuarioId
-                      );
-                      setColoresExtra(nuevos);
-                      onColor(posit.id, elegido);
-                    }}
-                  />
-                </label>
+                </ColorPickerPopover>
               );
             })}
           </div>

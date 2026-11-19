@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
 import type { JugadorPreview } from "./tipos";
 
 interface LobbyProps {
@@ -61,12 +62,11 @@ export function Lobby({ jugadores, onJugadores, onEmpezar }: LobbyProps) {
                 )}
               </span>
 
-              <input
-                type="color"
+              <ColorPickerPopover
                 className="jugador-color"
                 value={jugador.color}
-                onChange={evento => cambiarColor(jugador.id, evento.target.value)}
-                aria-label={`Color de ${jugador.nombre}`}
+                onChange={hex => cambiarColor(jugador.id, hex)}
+                ariaLabel={`Color de ${jugador.nombre}`}
               />
 
               {jugador.esMaster ? (

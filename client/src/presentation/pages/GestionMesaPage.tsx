@@ -8,6 +8,7 @@ import { RecorteRetratoModal } from "../../preview/RecorteRetratoModal";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { PALETA_JUGADOR } from "../paleta";
+import { ColorPickerPopover } from "../components/ColorPickerPopover";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface GestionMesaPageProps {
@@ -445,6 +446,14 @@ export function GestionMesaPage({
                 </button>
               );
             })}
+            <ColorPickerPopover
+              value={miColor ?? "#e8c56a"}
+              onCommit={hex => void elegirColor(hex)}
+              disabled={busy}
+              className="paleta-color paleta-color-libre"
+              ariaLabel="Elegir color personalizado"
+              title="Color personalizado (rueda)"
+            />
           </div>
         )}
         </div>

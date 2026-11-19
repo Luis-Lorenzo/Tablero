@@ -44,6 +44,7 @@ import {
   Users,
   X
 } from "lucide-react";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
 import { nuevoId, trazoTocaPunto } from "./calibracion";
 import { obtenerColorDadoGuardado } from "./datos";
 import { IconoDadoPoligono } from "./HudSalaCompartido";
@@ -3354,12 +3355,19 @@ export function Mapa({
 
                 <label className="mapa-campo mapa-campo-color">
                   <span>Color</span>
-                  <input
-                    type="color"
+                  <ColorPickerPopover
                     value={rejillaBorrador.color}
-                    onChange={e =>
-                      actualizarRejilla({ color: e.target.value })
-                    }
+                    onChange={color => actualizarRejilla({ color })}
+                    className="mapa-color-muestra"
+                    style={{
+                      width: 34,
+                      height: 22,
+                      padding: 0,
+                      border: "1px solid #495060",
+                      borderRadius: 4
+                    }}
+                    ariaLabel="Color de rejilla"
+                    title="Color de rejilla"
                   />
                 </label>
               </div>
@@ -3532,13 +3540,12 @@ export function Mapa({
                           onClick={() => setColorToken(color)}
                         />
                       ))}
-                      <input
-                        type="color"
-                        className="mapa-token-color-input"
+                      <ColorPickerPopover
                         value={colorToken}
-                        onChange={e => setColorToken(e.target.value)}
+                        onChange={setColorToken}
+                        className="mapa-token-color-input"
                         title="Elegir color personalizado"
-                        aria-label="Elegir color personalizado"
+                        ariaLabel="Elegir color personalizado"
                       />
                     </div>
                   </div>
