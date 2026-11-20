@@ -45,6 +45,7 @@ import {
   X
 } from "lucide-react";
 import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
+import { RecorteRetratoModal } from "./RecorteRetratoModal";
 import { nuevoId, trazoTocaPunto } from "./calibracion";
 import { obtenerColorDadoGuardado } from "./datos";
 import { IconoDadoPoligono } from "./HudSalaCompartido";
@@ -692,6 +693,8 @@ export function Mapa({
     undefined
   );
   const [subiendoToken, setSubiendoToken] = useState(false);
+  const [archivoTokenParaRecortar, setArchivoTokenParaRecortar] =
+    useState<File | null>(null);
   const [subiendoFondo, setSubiendoFondo] = useState(false);
   const [errorPanel, setErrorPanel] = useState<string | null>(null);
 
@@ -1638,13 +1641,7 @@ export function Mapa({
     );
   }
 
-  async function alSubirImagenToken(
-    evento: ChangeEvent<HTMLInputElement>
-  ): Promise<void> {
-    const archivo = evento.target.files?.[0];
-    evento.target.value = "";
-    if (!archivo) return;
-
+  async function subirArchivoTokenRecortado(archivo: File): Promise<void> {
     setErrorPanel(null);
     setSubiendoToken(true);
     try {
@@ -1664,6 +1661,42 @@ export function Mapa({
     } catch (err) {
       setErrorPanel(
         err instanceof Error ? err.message : "No se pudo cargar la imagen."
+      );
+    } finally {
+      setSubiendoToken(false);
+    }
+  }
+
+  function alSubirImagenToken(evento: ChangeEvent<HTMLInputElement>): void {
+    const archivo = evento.target.files?.[0];
+    evento.target.value = "";
+    if (!archivo) return;
+    setErrorPanel(null);
+    setArchivoTokenParaRecortar(archivo);
+  }
+
+  async function alElegirImagenArchivadorToken(
+    item: ArchivoItem
+  ): Promise<void> {
+    setErrorPanel(null);
+    setSubiendoToken(true);
+    try {
+      const resp = await fetch(urlDeArchivo(item), { credentials: "include" });
+      if (!resp.ok) {
+        throw new Error("No se pudo cargar la imagen del Archivador.");
+      }
+      const blob = await resp.blob();
+      const archivo = new File([blob], item.nombre, {
+        type: blob.type || "image/png"
+      });
+      const nombreBase = item.nombre.replace(/\.[^.]+$/, "");
+      setNombreToken(prev => (prev.trim() ? prev : nombreBase));
+      setArchivoTokenParaRecortar(archivo);
+    } catch (err) {
+      setErrorPanel(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar la imagen del Archivador."
       );
     } finally {
       setSubiendoToken(false);
@@ -3498,7 +3531,7 @@ export function Mapa({
                     type="file"
                     accept="image/*"
                     hidden
-                    onChange={e => void alSubirImagenToken(e)}
+                    onChange={alSubirImagenToken}
                   />
                   <div className="mapa-token-datos">
                     <input
@@ -3523,6 +3556,29 @@ export function Mapa({
                     </div>
                   </div>
                 </div>
+
+                {imagenesDisponibles.length > 0 && (
+                  <div className="mapa-token-archivador">
+                    <span className="mapa-token-archivador-etiqueta">
+                      O elegir de Archivador
+                    </span>
+                    <div className="mapa-token-archivador-lista">
+                      {imagenesDisponibles.map(img => (
+                        <button
+                          key={img.id}
+                          type="button"
+                          className="mapa-token-archivador-thumb"
+                          disabled={subiendoToken}
+                          onClick={() => void alElegirImagenArchivadorToken(img)}
+                          title={`Recortar y usar "${img.nombre}"`}
+                          aria-label={`Usar ${img.nombre} del Archivador`}
+                        >
+                          <img src={urlDeArchivo(img)} alt={img.nombre} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {!previewUrlToken && (
                   <div className="mapa-token-colores" role="group" aria-label="Color de esfera del token">
@@ -4574,6 +4630,18 @@ export function Mapa({
             }}
           />
         </div>
+      )}
+      {archivoTokenParaRecortar && (
+        <RecorteRetratoModal
+          archivo={archivoTokenParaRecortar}
+          circular
+          titulo="Recortar token circular"
+          onCancelar={() => setArchivoTokenParaRecortar(null)}
+          onConfirmar={recortado => {
+            setArchivoTokenParaRecortar(null);
+            void subirArchivoTokenRecortado(recortado);
+          }}
+        />
       )}
     </div>
   );

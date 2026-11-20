@@ -7,6 +7,8 @@ const EXPORT_SIZE = 256;
 
 export interface RecorteRetratoModalProps {
   archivo: File;
+  circular?: boolean;
+  titulo?: string;
   onCancelar: () => void;
   onConfirmar: (archivoRecortado: File) => void;
 }
@@ -53,6 +55,8 @@ function exportarCanvas(
 
 export function RecorteRetratoModal({
   archivo,
+  circular = false,
+  titulo = "Ajustar retrato",
   onCancelar,
   onConfirmar
 }: RecorteRetratoModalProps) {
@@ -140,7 +144,24 @@ export function RecorteRetratoModal({
       anchoDibujo,
       altoDibujo
     );
-  }, [cargada, zoom, offset]);
+
+    if (circular) {
+      const radio = PREVIEW_SIZE / 2 - 2;
+      const centro = PREVIEW_SIZE / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
+      ctx.arc(centro, centro, radio, 0, Math.PI * 2, true);
+      ctx.fillStyle = "rgba(10, 8, 18, 0.58)";
+      ctx.fill("evenodd");
+      ctx.beginPath();
+      ctx.arc(centro, centro, radio, 0, Math.PI * 2);
+      ctx.strokeStyle = "#e8c56a";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }, [cargada, zoom, offset, circular]);
 
   function alCambiarZoom(nuevoZoom: number) {
     setZoom(nuevoZoom);
@@ -224,6 +245,13 @@ export function RecorteRetratoModal({
 
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
+      if (circular) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(EXPORT_SIZE / 2, EXPORT_SIZE / 2, EXPORT_SIZE / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+      }
       ctx.drawImage(
         img,
         (EXPORT_SIZE - anchoDibujo) / 2 + ox,
@@ -231,6 +259,9 @@ export function RecorteRetratoModal({
         anchoDibujo,
         altoDibujo
       );
+      if (circular) {
+        ctx.restore();
+      }
 
       const base = nombreBaseArchivo(archivo.name);
       let blob = await exportarCanvas(salida, "image/webp");
@@ -275,7 +306,7 @@ export function RecorteRetratoModal({
         onClick={evento => evento.stopPropagation()}
       >
         <div className="recorte-retrato-cabecera">
-          <h2>Ajustar retrato</h2>
+          <h2>{titulo}</h2>
           <button
             type="button"
             className="recorte-retrato-cerrar"

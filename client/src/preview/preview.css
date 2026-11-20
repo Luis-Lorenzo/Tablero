@@ -15415,3 +15415,67 @@ html.modo-claro .pj-visor-vacio {
     height: 70vh;
   }
 }
+
+.mapa-token-archivador {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mapa-token-archivador-etiqueta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgb(236 232 223 / 78%);
+}
+
+.mapa-token-archivador-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 92px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.mapa-token-archivador-thumb {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgb(232 197 106 / 45%);
+  background: #171a22;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.mapa-token-archivador-thumb:hover:not(:disabled) {
+  transform: scale(1.08);
+  border-color: #e8c56a;
+}
+
+.mapa-token-archivador-thumb:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.mapa-token-archivador-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+html.modo-claro .mapa-token-archivador-etiqueta {
+  color: #5d4e75;
+}
+
+html.modo-claro .mapa-token-archivador-thumb {
+  border-color: #8e7cc3;
+  background: #fff8ec;
+}
+
+html.modo-claro .mapa-token-archivador-thumb:hover:not(:disabled) {
+  border-color: #b8862b;
+}
