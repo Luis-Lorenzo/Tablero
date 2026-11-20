@@ -12,7 +12,7 @@ import {
   ZoomIn,
   ZoomOut
 } from "lucide-react";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { archivosApi } from "../../api/archivos.api";
 import type { PublicArchivo } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -699,7 +699,7 @@ function VisorPdf({
     (async () => {
       try {
         const [pdfjs, pdfLib, respuesta] = await Promise.all([
-          import("pdfjs-dist"),
+          import("pdfjs-dist/legacy/build/pdf.mjs"),
           import("pdf-lib"),
           fetch(url, { credentials: "include", cache: "no-cache" })
         ]);
@@ -1118,7 +1118,7 @@ function VisorPdf({
 
     // Refresca el lienzo local desde los bytes ya guardados sin volver a descargar de red.
     try {
-      const pdfjs = await import("pdfjs-dist");
+      const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
       pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       const loadingTask = pdfjs.getDocument({
         data: bytesEditados.slice(),
