@@ -84,7 +84,7 @@ export function createArchivoRouter(
       if (
         !range &&
         typeof ifNoneMatch === "string" &&
-        (ifNoneMatch === etag || ifNoneMatch.includes(archivo.id))
+        ifNoneMatch.trim() === etag
       ) {
         if ("stream" in resultado) {
           void resultado.stream.cancel().catch(() => { });

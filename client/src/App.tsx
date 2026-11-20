@@ -528,6 +528,26 @@ function App() {
         modoUrl?: "push" | "replace";
       }
     ) => {
+      const uid = userRef.current?.id ?? "";
+      const vetado =
+        mesa.hostId !== uid && (mesa.expulsados?.includes(uid) ?? false);
+      if (vetado) {
+        navegacionSeqRef.current += 1;
+        salidaManualMesaIdRef.current = null;
+        salaMesaRef.current = null;
+        salaFaseRef.current = "sala";
+        salaVistaPizarraRef.current = "pizarra";
+        viewRef.current = "recepcion";
+        setSalaMesa(null);
+        setSalaFase("sala");
+        setSalaVistaPizarra("pizarra");
+        setView("recepcion");
+        setAvisoSala(
+          "Has sido expulsado de esta mesa: no puedes volver a entrar."
+        );
+        sincronizarUrl({ view: "recepcion" }, "replace");
+        return;
+      }
       const faseDestino: FaseSala = opciones?.fase ?? "sala";
       const vistaDestino: VistaPizarra = opciones?.vistaPizarra ?? "pizarra";
       navegacionSeqRef.current += 1;
@@ -712,27 +732,10 @@ function App() {
     [sincronizarUrl]
   );
 
-  const abrirSala = useCallback(
-    (mesa: PublicMesa) => {
-      // Última barrera: ni siquiera un administrador puede abrir la sala si el
-      // anfitrión le ha expulsado. Así el veto no depende solo de la interfaz.
-      const vetado =
-        mesa.hostId !== user?.id &&
-        (mesa.expulsados?.includes(user?.id ?? "") ?? false);
-      if (vetado) {
-        salidaManualMesaIdRef.current = null;
-        setSalaMesa(null);
-        setView("recepcion");
-        setAvisoSala("Has sido expulsado de esta mesa: no puedes volver a entrar.");
-        return;
-      }
-      salidaManualMesaIdRef.current = null;
-      setAvisoSala(null);
-      setSalaMesa(mesa);
-      setView("sala");
-    },
-    [user?.id]
-  );
+  const actualizarSalaMesa = useCallback((actualizada: PublicMesa) => {
+    salaMesaRef.current = actualizada;
+    setSalaMesa(actualizada);
+  }, []);
 
   const handleCambiarRutaSala = useCallback(
     (fase: FaseSala, vistaPizarra?: VistaPizarra) => {
