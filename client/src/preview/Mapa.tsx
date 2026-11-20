@@ -1907,13 +1907,15 @@ export function Mapa({
   function agregarCombatienteIniciativa(): void {
     const valorNum = Number(valorIniciativa);
     const valorLimpio = Number.isFinite(valorNum) ? Math.round(valorNum) : 10;
+    const nombreFinal =
+      nombreIniciativa.trim() ||
+      (monstruoIniciativa ? "Monstruo" : "Combatiente");
+    const colorFinal = monstruoIniciativa ? "#e06c75" : "#e8c56a";
     const nuevaEntrada: IniciativaEntrada = {
       id: nuevoId(),
-      nombre:
-        nombreIniciativa.trim() ||
-        (monstruoIniciativa ? "Monstruo" : "Combatiente"),
+      nombre: nombreFinal,
       valor: valorLimpio,
-      color: monstruoIniciativa ? "#e06c75" : "#e8c56a",
+      color: colorFinal,
       esMonstruo: monstruoIniciativa
     };
     setNombreIniciativa("");
@@ -1922,6 +1924,28 @@ export function Mapa({
       activa: true,
       entradas: [...iniciativa.entradas, nuevaEntrada]
     });
+
+    const rawX = 44 + Math.random() * 12;
+    const rawY = 44 + Math.random() * 12;
+    const pos = rejillaActiva.imanActivo
+      ? ajustarARejilla(rawX, rawY, 1, 1, rejillaActiva)
+      : { x: rawX, y: rawY };
+    void Promise.resolve(
+      onCrearToken(
+        {
+          nombre: nombreFinal,
+          imagenUrl: generarImagenEsferaColor(colorFinal),
+          x: pos.x,
+          y: pos.y,
+          celdasAncho: 1,
+          celdasAlto: 1,
+          escala: 1,
+          esMonstruo: monstruoIniciativa,
+          enLimbo: false
+        },
+        false
+      )
+    ).catch(() => {});
   }
 
   function agregarTokenIniciativa(token: TokenMapa): void {

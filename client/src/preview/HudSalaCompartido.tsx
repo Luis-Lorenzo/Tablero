@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Dice6,
   Eye,
   FileText,
   Minus,
@@ -1425,6 +1426,25 @@ export function HudSalaCompartido({
     );
   }
 
+  function consumirObjetoMesa(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    reproducirSonidoConsumir();
+    const restante = obj.cantidad - 1;
+    if (restante <= 0) {
+      onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+      setObjetoMesaActivo(actual => (actual?.id === obj.id ? null : actual));
+    } else {
+      const actualizado = { ...obj, cantidad: restante };
+      onElementosMesa?.(prev =>
+        prev.map(el => (el.id === obj.id ? actualizado : el))
+      );
+      setObjetoMesaActivo(actual =>
+        actual?.id === obj.id ? actualizado : actual
+      );
+    }
+  }
+
   function eliminarObjetoMochila(id: string): void {
     actualizarListaMochila(prev => prev.filter(item => item.id !== id));
     setObjetoMochilaId(actual => (actual === id ? null : actual));
@@ -1957,17 +1977,57 @@ export function HudSalaCompartido({
               }
             }}
           >
-            <div className="mesa-objeto-cuadro">
-              {obj.imagenLocal || obj.archivoId ? (
-                <img
-                  src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
-                  alt={obj.nombre}
-                  draggable={false}
-                />
-              ) : (
-                <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+            <div
+              className="mesa-objeto-acciones-hover"
+              onPointerDown={evento => evento.stopPropagation()}
+              onClick={evento => evento.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="mesa-objeto-btn-consumir"
+                onPointerDown={evento => evento.stopPropagation()}
+                onClick={evento => {
+                  evento.stopPropagation();
+                  consumirObjetoMesa(obj);
+                }}
+              >
+                Consumir -1
+              </button>
+            </div>
+            <div className="mesa-objeto-envoltura">
+              {obj.macro && (
+                <div
+                  className="mesa-objeto-macro-izq"
+                  onPointerDown={evento => evento.stopPropagation()}
+                  onClick={evento => evento.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="mesa-objeto-btn-d6"
+                    title={`Ejecutar macro: ${obj.macro.nombre}`}
+                    aria-label={`Ejecutar macro ${obj.macro.nombre}`}
+                    onPointerDown={evento => evento.stopPropagation()}
+                    onClick={evento => {
+                      evento.stopPropagation();
+                      tirarMacroDeObjeto(obj.nombre, obj.macro!, true);
+                    }}
+                  >
+                    <Dice6 size={15} strokeWidth={2.3} aria-hidden="true" />
+                  </button>
+                </div>
               )}
-              <span className="mochila-slot-cant">{obj.cantidad}</span>
+              <div className="mesa-objeto-cuadro">
+                {obj.imagenLocal || obj.archivoId ? (
+                  <img
+                    src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
+                    alt={obj.nombre}
+                    draggable={false}
+                  />
+                ) : (
+                  <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+                )}
+                <span className="mochila-slot-cant">{obj.cantidad}</span>
+              </div>
             </div>
             <span className="mesa-objeto-nombre">{obj.nombre}</span>
           </div>
@@ -2983,6 +3043,7 @@ export function HudSalaCompartido({
                   <textarea
                     rows={3}
                     maxLength={1000}
+                    spellCheck={false}
                     value={nuevoObjDesc}
                     onChange={e => setNuevoObjDesc(e.target.value)}
                     placeholder="Efecto, peso, notas..."
@@ -3094,11 +3155,38 @@ export function HudSalaCompartido({
                   </div>
                 </div>
 
+                <div className="mochila-consumir-fila">
+                  <button
+                    type="button"
+                    className="mochila-consumir-btn"
+                    onClick={() => consumirObjetoMochila(objetoSeleccionado.id)}
+                  >
+                    Consumir -1
+                  </button>
+                  {objetoSeleccionado.macro && (
+                    <button
+                      type="button"
+                      className="mochila-macro-d6-btn"
+                      title={`Ejecutar macro: ${objetoSeleccionado.macro.nombre}`}
+                      aria-label={`Ejecutar macro ${objetoSeleccionado.macro.nombre}`}
+                      onClick={() =>
+                        tirarMacroDeObjeto(
+                          objetoSeleccionado.nombre,
+                          objetoSeleccionado.macro!
+                        )
+                      }
+                    >
+                      <Dice6 size={18} strokeWidth={2.2} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+
                 <label className="macro-campo-nombre">
                   <span className="dados-campo-etiqueta">Descripción</span>
                   <textarea
                     rows={4}
                     maxLength={1000}
+                    spellCheck={false}
                     value={objetoSeleccionado.descripcion}
                     onChange={e => {
                       const desc = e.target.value;
@@ -4025,7 +4113,7 @@ export function HudSalaCompartido({
           <span className="dock-etiqueta">Posits</span>
         </div>
 
-        {onAbrirPersonaje && (
+        {!esMaster && onAbrirPersonaje && (
           <div className="dock-item">
             <button
               type="button"

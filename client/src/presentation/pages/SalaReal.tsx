@@ -2905,7 +2905,8 @@ function SalaRealContent({
         <div className="sala-aviso sala-aviso-error">{error}</div>
       )}
 
-      {miPersonaje?.fichaArchivoId &&
+      {!esMaster &&
+        miPersonaje?.fichaArchivoId &&
         (fase === "sala" || fase === "pizarra" || fase === "mapa") && (
           <button
             type="button"

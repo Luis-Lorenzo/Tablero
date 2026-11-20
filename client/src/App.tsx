@@ -136,11 +136,14 @@ function App() {
   const [avisoSala, setAvisoSala] = useState<string | null>(null);
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
   const [hogueraSilenciada, setHogueraSilenciada] = useState<boolean>(estaHogueraSilenciada);
-  /** Mesa de la que el usuario salió manualmente para no forzarle a volver. */
-  const salidaManualMesaIdRef = useRef<string | null>(null);
+  /** Último estado conocido por mesa para auto-entrar solo en transiciones ESPERA -> EN_CURSO. */
+  const estadosMesasRef = useRef<Map<string, PublicMesa["estado"]>>(new Map());
+  const estadosInicializadosRef = useRef<boolean>(false);
+  const refrescarSalaSeqRef = useRef<number>(0);
   const userRef = useRef<PublicUser | null>(user);
   const loadingRef = useRef<boolean>(loading);
   const viewRef = useRef<View>(view);
+  const gestionMesaIdRef = useRef<string | null>(gestionMesaId);
   const salaMesaRef = useRef<PublicMesa | null>(salaMesa);
   const salaFaseRef = useRef<FaseSala>(salaFase);
   const salaVistaPizarraRef = useRef<VistaPizarra>(salaVistaPizarra);
@@ -157,6 +160,10 @@ function App() {
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    gestionMesaIdRef.current = gestionMesaId;
+  }, [gestionMesaId]);
 
   useEffect(() => {
     salaMesaRef.current = salaMesa;
@@ -274,6 +281,7 @@ function App() {
         salaMesaRef.current = null;
         salaFaseRef.current = "sala";
         salaVistaPizarraRef.current = "pizarra";
+        gestionMesaIdRef.current = destino.mesaId;
         viewRef.current = "gestion";
         setSalaMesa(null);
         setSalaFase("sala");
@@ -292,6 +300,7 @@ function App() {
         salaMesaRef.current = null;
         salaFaseRef.current = "sala";
         salaVistaPizarraRef.current = "pizarra";
+        gestionMesaIdRef.current = null;
         viewRef.current = "recepcion";
         setSalaMesa(null);
         setSalaFase("sala");
@@ -307,11 +316,12 @@ function App() {
         destino.fase === "pizarra"
           ? (destino.vistaPizarra ?? "pizarra")
           : "pizarra";
-      salidaManualMesaIdRef.current = null;
+      estadosMesasRef.current.set(resultado.mesa.id, resultado.mesa.estado);
       setAvisoSala(null);
       salaMesaRef.current = resultado.mesa;
       salaFaseRef.current = destino.fase;
       salaVistaPizarraRef.current = vistaDestino;
+      gestionMesaIdRef.current = null;
       viewRef.current = "sala";
       setGestionMesaId(null);
       setSalaMesa(resultado.mesa);
@@ -495,7 +505,7 @@ function App() {
         }
 
         // Salida solo local: no termina la partida en el servidor.
-        salidaManualMesaIdRef.current = salaActual.id;
+        estadosMesasRef.current.set(salaActual.id, salaActual.estado);
         salaMesaRef.current = null;
         salaFaseRef.current = "sala";
         salaVistaPizarraRef.current = "pizarra";
@@ -533,14 +543,15 @@ function App() {
         mesa.hostId !== uid && (mesa.expulsados?.includes(uid) ?? false);
       if (vetado) {
         navegacionSeqRef.current += 1;
-        salidaManualMesaIdRef.current = null;
         salaMesaRef.current = null;
         salaFaseRef.current = "sala";
         salaVistaPizarraRef.current = "pizarra";
+        gestionMesaIdRef.current = null;
         viewRef.current = "recepcion";
         setSalaMesa(null);
         setSalaFase("sala");
         setSalaVistaPizarra("pizarra");
+        setGestionMesaId(null);
         setView("recepcion");
         setAvisoSala(
           "Has sido expulsado de esta mesa: no puedes volver a entrar."
@@ -551,11 +562,12 @@ function App() {
       const faseDestino: FaseSala = opciones?.fase ?? "sala";
       const vistaDestino: VistaPizarra = opciones?.vistaPizarra ?? "pizarra";
       navegacionSeqRef.current += 1;
-      salidaManualMesaIdRef.current = null;
+      estadosMesasRef.current.set(mesa.id, mesa.estado);
       setAvisoSala(null);
       salaMesaRef.current = mesa;
       salaFaseRef.current = faseDestino;
       salaVistaPizarraRef.current = vistaDestino;
+      gestionMesaIdRef.current = null;
       viewRef.current = "sala";
       setGestionMesaId(null);
       setSalaMesa(mesa);
@@ -577,65 +589,98 @@ function App() {
 
   const refrescarMiSala = useCallback(async () => {
     if (loadingRef.current || !user) return;
+    const seq = ++refrescarSalaSeqRef.current;
     try {
-      const mesa = await mesasApi.mia();
-      const pendiente = await mesasApi.pendiente();
-      const candidatos = [mesa, pendiente].filter(Boolean) as PublicMesa[];
-      const enCurso = candidatos.find(
+      const todasLasMesas = await mesasApi.list();
+      if (seq !== refrescarSalaSeqRef.current) return;
+
+      const misMesas = todasLasMesas.filter(
         candidata =>
-          candidata.estado === "EN_CURSO" &&
-          !candidata.expulsados?.includes(user.id)
+          !candidata.expulsados?.includes(user.id) &&
+          (candidata.hostId === user.id ||
+            candidata.players.some(jugador => jugador.id === user.id) ||
+            candidata.pendingHostId === user.id)
       );
 
-      if (mesa && mesa.estado !== "EN_CURSO") {
-        setMiMesa(mesa);
-      } else if (!mesa) {
-        setMiMesa(null);
-      }
+      const mesaPrincipal =
+        misMesas.find(candidata => candidata.hostId === user.id) ??
+        misMesas.find(candidata =>
+          candidata.players.some(jugador => jugador.id === user.id)
+        ) ??
+        null;
+      setMiMesa(mesaPrincipal);
 
-      if (enCurso) {
-        if (mesa && mesa.id === enCurso.id) {
-          setMiMesa(mesa);
-        }
-        if (viewRef.current === "sala" && salaMesaRef.current?.id === enCurso.id) {
-          salaMesaRef.current = enCurso;
-          setSalaMesa(enCurso);
-          return;
-        }
-        if (
-          viewRef.current === "recepcion" &&
-          enCurso.id !== salidaManualMesaIdRef.current
-        ) {
-          abrirSala(enCurso);
-        }
-        return;
+      const estadosPrevios = estadosMesasRef.current;
+      const yaInicializado = estadosInicializadosRef.current;
+      const recienIniciada = yaInicializado
+        ? misMesas.find(
+            candidata =>
+              candidata.estado === "EN_CURSO" &&
+              estadosPrevios.get(candidata.id) === "ESPERA"
+          )
+        : undefined;
+
+      const siguientesEstados = new Map<string, PublicMesa["estado"]>();
+      for (const candidata of misMesas) {
+        siguientesEstados.set(candidata.id, candidata.estado);
       }
+      estadosMesasRef.current = siguientesEstados;
+      estadosInicializadosRef.current = true;
 
       const salaActual = salaMesaRef.current;
       const esAdmin = user.role === "ADMIN";
-      const preparandoPropia =
-        salaActual !== null &&
-        salaActual.hostId === user.id &&
-        salaActual.estado === "ESPERA";
-      if (viewRef.current === "sala" && salaActual && !esAdmin && !preparandoPropia) {
-        salidaManualMesaIdRef.current = null;
+      if (viewRef.current === "sala" && salaActual) {
+        const actualizada = todasLasMesas.find(
+          candidata => candidata.id === salaActual.id
+        );
+        const esHost = actualizada?.hostId === user.id;
+        const esJugador =
+          actualizada?.players.some(jugador => jugador.id === user.id) ?? false;
+        const expulsado = actualizada?.expulsados?.includes(user.id) ?? false;
+        const puedeSeguir =
+          Boolean(actualizada) &&
+          (!expulsado || esAdmin) &&
+          (esAdmin ||
+            esHost ||
+            (esJugador && actualizada?.estado === "EN_CURSO"));
+
+        if (actualizada && puedeSeguir) {
+          salaMesaRef.current = actualizada;
+          setSalaMesa(actualizada);
+          return;
+        }
+
         salaMesaRef.current = null;
         salaFaseRef.current = "sala";
         salaVistaPizarraRef.current = "pizarra";
+        gestionMesaIdRef.current = null;
         viewRef.current = "recepcion";
         setSalaMesa(null);
         setSalaFase("sala");
         setSalaVistaPizarra("pizarra");
+        setGestionMesaId(null);
         setView("recepcion");
         sincronizarUrl({ view: "recepcion" }, "replace");
-        const motivo = await resolverMotivoSalidaMesa(salaActual.id, user.id, esAdmin);
+        const motivo = await resolverMotivoSalidaMesa(
+          salaActual.id,
+          user.id,
+          esAdmin
+        );
         setAvisoSala(motivo);
         return;
       }
 
-      salidaManualMesaIdRef.current = null;
+      if (recienIniciada) {
+        const enRecepcion = viewRef.current === "recepcion";
+        const enGestionDeEsaMesa =
+          viewRef.current === "gestion" &&
+          gestionMesaIdRef.current === recienIniciada.id;
+        if (enRecepcion || enGestionDeEsaMesa) {
+          abrirSala(recienIniciada);
+        }
+      }
     } catch {
-      // Ignorar: la vista de recepción seguirá funcionando.
+      // Ignorar: la vista actual seguirá funcionando.
     }
   }, [abrirSala, sincronizarUrl, user]);
 
@@ -673,10 +718,13 @@ function App() {
       // Ignoramos el error: la sesión local se descarta igualmente.
     }
     navegacionSeqRef.current += 1;
-    salidaManualMesaIdRef.current = null;
+    refrescarSalaSeqRef.current += 1;
+    estadosMesasRef.current = new Map();
+    estadosInicializadosRef.current = false;
     salaMesaRef.current = null;
     salaFaseRef.current = "sala";
     salaVistaPizarraRef.current = "pizarra";
+    gestionMesaIdRef.current = null;
     viewRef.current = "recepcion";
     userRef.current = null;
     setUser(null);
@@ -692,6 +740,7 @@ function App() {
 
   const irARecepcion = useCallback(() => {
     navegacionSeqRef.current += 1;
+    gestionMesaIdRef.current = null;
     viewRef.current = "recepcion";
     setGestionMesaId(null);
     setView("recepcion");
@@ -700,6 +749,7 @@ function App() {
 
   const irACuenta = useCallback(() => {
     navegacionSeqRef.current += 1;
+    gestionMesaIdRef.current = null;
     viewRef.current = "cuenta";
     setGestionMesaId(null);
     setView("cuenta");
@@ -709,12 +759,14 @@ function App() {
   const irAModerar = useCallback(() => {
     navegacionSeqRef.current += 1;
     if (!esRutaPermitidaParaUsuario({ view: "moderar" }, userRef.current?.role)) {
+      gestionMesaIdRef.current = null;
       viewRef.current = "recepcion";
       setGestionMesaId(null);
       setView("recepcion");
       sincronizarUrl({ view: "recepcion" }, "replace");
       return;
     }
+    gestionMesaIdRef.current = null;
     viewRef.current = "moderar";
     setGestionMesaId(null);
     setView("moderar");
@@ -724,6 +776,8 @@ function App() {
   const abrirGestion = useCallback(
     (mesa: PublicMesa) => {
       navegacionSeqRef.current += 1;
+      estadosMesasRef.current.set(mesa.id, mesa.estado);
+      gestionMesaIdRef.current = mesa.id;
       viewRef.current = "gestion";
       setGestionMesaId(mesa.id);
       setView("gestion");
@@ -765,16 +819,21 @@ function App() {
     (motivo?: string) => {
       navegacionSeqRef.current += 1;
       const esSalidaAutomatica = typeof motivo === "string" && motivo.trim().length > 0;
+      if (salaMesaRef.current) {
+        estadosMesasRef.current.set(
+          salaMesaRef.current.id,
+          salaMesaRef.current.estado
+        );
+      }
       if (esSalidaAutomatica) {
-        salidaManualMesaIdRef.current = null;
         setAvisoSala(motivo);
       } else {
-        salidaManualMesaIdRef.current = salaMesaRef.current?.id ?? null;
         setAvisoSala(null);
       }
       salaMesaRef.current = null;
       salaFaseRef.current = "sala";
       salaVistaPizarraRef.current = "pizarra";
+      gestionMesaIdRef.current = null;
       viewRef.current = "recepcion";
       setSalaMesa(null);
       setSalaFase("sala");
@@ -790,19 +849,9 @@ function App() {
     [refrescarMiSala, sincronizarUrl]
   );
 
-  const handleMiMesa = useCallback(
-    (mesa: PublicMesa | null) => {
-      setMiMesa(mesa);
-      if (
-        viewRef.current === "recepcion" &&
-        mesa?.estado === "EN_CURSO" &&
-        mesa.id !== salidaManualMesaIdRef.current
-      ) {
-        abrirSala(mesa);
-      }
-    },
-    [abrirSala]
-  );
+  const handleMiMesa = useCallback((mesa: PublicMesa | null) => {
+    setMiMesa(mesa);
+  }, []);
 
   if (enVerificacionCorreo) {
     const params = new URLSearchParams(rutaActual.search);
