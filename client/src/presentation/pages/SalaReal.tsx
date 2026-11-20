@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode
 } from "react";
+import { ChevronLeft } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
@@ -38,11 +39,12 @@ import {
   sanitizarColorDado
 } from "../../preview/datos";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
-import { PersonajePanel } from "../../preview/PersonajePanel";
+import { PersonajePanel, inferirVistaPorNombre } from "../../preview/PersonajePanel";
 import {
   cargarCalibracion,
   guardarCalibracion
 } from "../../preview/calibracion";
+import { VisorArchivo } from "../components/VisorArchivo";
 import {
   calcularPosicionRecepcion,
   crearElementoDesdeArchivo,
@@ -283,6 +285,7 @@ function SalaRealContent({
   const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
   const [miPersonaje, setMiPersonaje] = useState<PersonajeJugadorMesa | null>(null);
+  const [fichaRapidaVisorAbierto, setFichaRapidaVisorAbierto] = useState(false);
   const [intercambioActivo, setIntercambioActivo] = useState<SesionIntercambio | null>(null);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
   const [reglasRemotas, setReglasRemotas] = useState<ReglaVisual[]>([]);
@@ -2756,6 +2759,62 @@ function SalaRealContent({
       {error && (
         <div className="sala-aviso sala-aviso-error">{error}</div>
       )}
+
+      {miPersonaje?.fichaArchivoId &&
+        (fase === "sala" || fase === "pizarra" || fase === "mapa") && (
+          <button
+            type="button"
+            className="ficha-retro-tab"
+            onClick={() => setFichaRapidaVisorAbierto(true)}
+            title="Abrir vista previa de tu ficha de PJ"
+            aria-label="Abrir ficha de personaje"
+          >
+            <ChevronLeft size={14} strokeWidth={2.6} aria-hidden="true" />
+            <span>FICHA</span>
+          </button>
+        )}
+
+      {fichaRapidaVisorAbierto &&
+        miPersonaje?.fichaArchivoId &&
+        (() => {
+          const encontrada = archivosDisponibles.find(
+            a => a.id === miPersonaje.fichaArchivoId
+          );
+          const nombre =
+            encontrada?.nombre ??
+            miPersonaje.fichaNombre ??
+            "Ficha de personaje.pdf";
+          const archivoParaVisor = encontrada ?? {
+            id: miPersonaje.fichaArchivoId,
+            nombre,
+            vista: inferirVistaPorNombre(nombre),
+            url: archivosApi.url(miPersonaje.fichaArchivoId)
+          };
+          return (
+            <VisorArchivo
+              archivo={archivoParaVisor}
+              onCerrar={() => setFichaRapidaVisorAbierto(false)}
+              onGuardado={() => {
+                void cargarArchivos();
+              }}
+              accionesExtra={
+                <button
+                  type="button"
+                  className="visor-unificado-btn"
+                  onClick={() => {
+                    setFichaRapidaVisorAbierto(false);
+                    if (fase === "sala" || fase === "pizarra" || fase === "mapa") {
+                      personajeOrigenRef.current = fase;
+                    }
+                    setFase("personaje");
+                  }}
+                >
+                  Ir a PJ
+                </button>
+              }
+            />
+          );
+        })()}
     </div>
   );
 }

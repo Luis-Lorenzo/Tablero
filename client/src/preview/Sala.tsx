@@ -3811,18 +3811,21 @@ export function Sala({
 
                 {musicaActual.pistas.length > 0 && (
                   <span
-                    className={`sala-musica-estado${musicaActual.loop ? " bucle" : ""}`}
-                    aria-label={
-                      musicaActual.loop
-                        ? `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)} (bucle activado)`
-                        : `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}`
-                    }
+                    className={`sala-musica-estado${
+                      musicaActual.loop || musicaActual.aleatorio ? " bucle" : ""
+                    }`}
+                    aria-label={`Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}${
+                      musicaActual.loop ? " (bucle activado)" : ""
+                    }${musicaActual.aleatorio ? " (aleatorio activado)" : ""}`}
                   >
                     <span>
                       {`${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
                     </span>
                     {musicaActual.loop && (
                       <Repeat size={11} strokeWidth={2.4} aria-hidden="true" />
+                    )}
+                    {musicaActual.aleatorio && (
+                      <Shuffle size={11} strokeWidth={2.4} aria-hidden="true" />
                     )}
                   </span>
                 )}
@@ -4006,8 +4009,8 @@ export function Sala({
                             }
                             title={
                               musicaActual.aleatorio
-                                ? "Reproducción aleatoria"
-                                : "Reproducción ordenada"
+                                ? "Aleatorio activado"
+                                : "Activar aleatorio"
                             }
                             aria-label="Alternar reproducción aleatoria"
                             aria-pressed={musicaActual.aleatorio}

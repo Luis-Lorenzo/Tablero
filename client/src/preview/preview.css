@@ -13723,6 +13723,72 @@ html.modo-claro .pizarra-sidebar-borrar:hover {
   color: #9E2A38;
 }
 
+/* Acceso rápido retro lateral a Ficha PJ (Sala, Pizarra y Mapa, encima de Limbo) */
+
+.ficha-retro-tab {
+  position: fixed;
+  right: 0;
+  bottom: 132px;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px 9px 10px;
+  border: 2px solid #c8a8e5;
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  background: rgb(22 17 34 / 94%);
+  color: #f3ecfc;
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  box-shadow:
+    -3px 3px 0 #090612,
+    0 6px 16px rgb(0 0 0 / 42%);
+  cursor: pointer;
+  transform: translateX(6px);
+  transition:
+    transform 0.16s ease,
+    padding-right 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.ficha-retro-tab:hover,
+.ficha-retro-tab:focus-visible {
+  transform: translateX(0);
+  padding-right: 18px;
+  background: rgb(42 30 66 / 98%);
+  border-color: #e2ccf7;
+  color: #fff8ec;
+  outline: none;
+}
+
+html.modo-claro .ficha-retro-tab {
+  border-color: #7c5cbf;
+  background: rgb(255 248 236 / 96%);
+  color: #2a1f3d;
+  box-shadow:
+    -2px 3px 0 rgb(60 40 90 / 28%),
+    0 6px 14px rgb(60 40 90 / 18%);
+}
+
+html.modo-claro .ficha-retro-tab:hover,
+html.modo-claro .ficha-retro-tab:focus-visible {
+  background: #ede4f7;
+  border-color: #5b3d9e;
+  color: #1e1430;
+}
+
+@media (max-width: 760px) {
+  .ficha-retro-tab {
+    bottom: 138px;
+    padding: 8px 10px 8px 8px;
+    font-size: 8px;
+  }
+}
+
 /* =========================================================================
    FASE E — Archivador PJ, Recorte Retrato, Ficha Rápida, Intercambio,
    Susurros Grupales, Macro en Asiento y Tirada de Macro en Mochila

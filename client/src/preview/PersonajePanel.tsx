@@ -45,7 +45,7 @@ const PERSONAJE_VACIO: PersonajeJugadorMesa = {
   notas: ""
 };
 
-function inferirVistaPorNombre(nombre: string): string {
+export function inferirVistaPorNombre(nombre: string): string {
   const lower = nombre.toLowerCase();
   if (lower.endsWith(".pdf")) return "pdf";
   if (/\.(png|jpe?g|gif|webp)$/.test(lower)) return "imagen";
