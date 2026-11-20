@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { errors } from "../lib/errors.js";
 import { esUuid } from "../lib/archivos.js";
 import type { Logger } from "../lib/logger.js";
@@ -31,10 +32,18 @@ export function nombreVisible(email: string): string {
   return corte === -1 ? email : email.slice(0, corte);
 }
 
+function coincideContrasena(esperada: string, recibida: string): boolean {
+  const bufEsperada = Buffer.from(esperada, "utf8");
+  const bufRecibida = Buffer.from(recibida, "utf8");
+  if (bufEsperada.length !== bufRecibida.length) return false;
+  return timingSafeEqual(bufEsperada, bufRecibida);
+}
+
 export interface MesaJugador {
   id: string;
   name: string;
   color?: string | null;
+  retratoArchivoId?: string | null;
 }
 
 export interface MesaVista {
@@ -50,11 +59,13 @@ export interface MesaVista {
   estado: EstadoMesa;
   colores?: Record<string, string>;
   playerApodos?: Record<string, string>;
+  retratosPorJugador?: Record<string, string | null>;
   imagenEscena: ImagenMesa | null;
   imagenProyectada: ImagenMesa | null;
   divisaNombre?: string;
   divisasConfig?: DivisaConfig[];
   musicaAmbiente?: MusicaAmbienteMesa | null;
+  contrasena?: string | null;
   createdAt: Date;
 }
 
@@ -117,7 +128,7 @@ export class MesaService {
     return { mesa: await this.vista(mesa), creada: true };
   }
 
-  async unirse(actor: User, mesaId: string): Promise<MesaVista> {
+  async unirse(actor: User, mesaId: string, contrasena?: unknown): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
@@ -131,6 +142,16 @@ export class MesaService {
 
     if (mesa.players.length >= MESA_MAX_JUGADORES) {
       throw errors.mesaFull();
+    }
+
+    if (mesa.contrasena && actor.role !== "ADMIN") {
+      const intento = typeof contrasena === "string" ? contrasena.trim() : "";
+      if (!intento) {
+        throw errors.mesaPasswordRequired();
+      }
+      if (!coincideContrasena(mesa.contrasena, intento)) {
+        throw errors.mesaPasswordInvalid();
+      }
     }
 
     await this.salirDeOtras(actor.id, mesa.id);
@@ -151,7 +172,7 @@ export class MesaService {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
-    if (mesa.hostId !== actor.id) throw errors.mesaForbidden();
+    this.exigirAnfitrionOAdmin(actor, mesa);
 
     if (mesa.estado !== "EN_CURSO") {
       mesa.estado = "EN_CURSO";
@@ -167,7 +188,7 @@ export class MesaService {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
 
-    if (mesa.hostId !== actor.id) throw errors.mesaForbidden();
+    this.exigirAnfitrionOAdmin(actor, mesa);
 
     if (mesa.estado !== "ESPERA") {
       mesa.estado = "ESPERA";
@@ -333,11 +354,15 @@ export class MesaService {
     return mesa ? this.vista(mesa) : null;
   }
 
-  private exigirAnfitrionOAdmin(actor: User, mesa: Mesa): void {
+  private esAnfitrionOAdmin(actor: User, mesa: Mesa): boolean {
     // Un administrador es omnipotente, pero pierde el mando de una mesa en
     // cuanto pasa a ser jugador de ella (por ejemplo, tras cederla a otro).
     const esAdminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
-    if (mesa.hostId !== actor.id && !esAdminLibre) {
+    return mesa.hostId === actor.id || esAdminLibre;
+  }
+
+  private exigirAnfitrionOAdmin(actor: User, mesa: Mesa): void {
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
       throw errors.mesaForbidden();
     }
   }
@@ -385,18 +410,21 @@ export class MesaService {
       players: mesa.players.map(id => ({
         id,
         name: nombres.get(id) ?? "desconocido",
-        color: mesa.colores?.[id] ?? null
+        color: mesa.colores?.[id] ?? null,
+        retratoArchivoId: mesa.retratosPorJugador?.[id] ?? null
       })),
       expulsados: mesa.expulsados ?? [],
       pendingHostId: mesa.pendingHostId,
       estado: mesa.estado,
       colores: mesa.colores ?? {},
       playerApodos: mesa.apodos ?? {},
+      retratosPorJugador: mesa.retratosPorJugador ?? {},
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
       divisaNombre: mesa.divisaNombre?.trim() || "Divisa",
       divisasConfig: resolverDivisasConfig(mesa),
       musicaAmbiente: mesa.musicaAmbiente ?? null,
+      contrasena: mesa.contrasena ?? null,
       createdAt: mesa.createdAt
     }));
   }
@@ -425,7 +453,9 @@ export class MesaService {
   ): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
-    if (mesa.hostId !== actor.id) throw errors.forbidden();
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     let valor: ImagenMesa | null = null;
     if (imagen !== null) {
@@ -498,7 +528,9 @@ export class MesaService {
   ): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
-    if (mesa.hostId !== actor.id) throw errors.forbidden();
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     const limpio = nombreBruto.trim().slice(0, 24) || "Divisa";
     mesa.divisaNombre = limpio;
@@ -520,7 +552,9 @@ export class MesaService {
   ): Promise<MesaVista> {
     const mesa = await this.mesas.findById(mesaId);
     if (!mesa) throw errors.mesaNotFound();
-    this.exigirAnfitrionOAdmin(actor, mesa);
+    if (!this.esAnfitrionOAdmin(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     if (!Array.isArray(divisas)) {
       throw errors.invalidRequest();
@@ -535,6 +569,38 @@ export class MesaService {
     const principal = limpias.find(d => d.id === "principal") ?? limpias[0];
     mesa.divisaNombre = principal.nombre;
     await this.mesas.save(mesa);
+    return this.vista(mesa);
+  }
+
+  async cambiarContrasena(
+    actor: User,
+    mesaId: string,
+    contrasenaRaw: unknown
+  ): Promise<MesaVista> {
+    const mesa = await this.mesas.findById(mesaId);
+    if (!mesa) throw errors.mesaNotFound();
+    this.exigirAnfitrionOAdmin(actor, mesa);
+
+    if (
+      contrasenaRaw !== undefined &&
+      contrasenaRaw !== null &&
+      typeof contrasenaRaw !== "string"
+    ) {
+      throw errors.invalidRequest();
+    }
+
+    const limpia = typeof contrasenaRaw === "string" ? contrasenaRaw.trim() : "";
+    if (limpia.length > 64) {
+      throw errors.invalidRequest();
+    }
+
+    mesa.contrasena = limpia || null;
+    await this.mesas.save(mesa);
+    this.logger.info("Contraseña de mesa actualizada", {
+      mesaId,
+      actorId: actor.id,
+      protegida: Boolean(mesa.contrasena)
+    });
     return this.vista(mesa);
   }
 }

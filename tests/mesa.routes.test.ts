@@ -68,11 +68,12 @@ function montar() {
 
   const app = createApp(context);
 
-  async function aprobar(email: string) {
+  async function aprobar(email: string, role: "USER" | "ADMIN" = "USER") {
     const user = createUser({
       email,
       passwordHash: await hasher.hash(PASSWORD),
-      status: "ACTIVE"
+      status: "ACTIVE",
+      role
     });
     await users.save(user);
     return user;
@@ -946,5 +947,274 @@ describe("rutas de /api/mesas", () => {
     expect(estado.body.elementos).toEqual([
       { id: "macro-1", tipo: "macro", variante: "dado", formula: "1d20+5" }
     ]);
+  });
+
+  it("permite a un ADMIN entrar y supervisar una sala ajena sin quedar en players y salir si estaba dentro", async () => {
+    await aprobar("anfitrion-adm@pocket.test");
+    await aprobar("super-admin@pocket.test", "ADMIN");
+    const cookieHost = await sesionDe("anfitrion-adm@pocket.test");
+    const cookieAdmin = await sesionDe("super-admin@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieHost)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/iniciar`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+
+    // Admin libre consulta todas las vistas de sala sin unirse como jugador -> 200
+    await request(app).get(`/api/mesas/${mesaId}/chat`).set("Cookie", cookieAdmin).expect(200);
+    await request(app).get(`/api/mesas/${mesaId}/pizarra`).set("Cookie", cookieAdmin).expect(200);
+    await request(app).get(`/api/mesas/${mesaId}/estado`).set("Cookie", cookieAdmin).expect(200);
+    await request(app).get(`/api/mesas/${mesaId}/mapa`).set("Cookie", cookieAdmin).expect(200);
+    await request(app)
+      .get(`/api/mesas/${mesaId}/compartir/pendientes`)
+      .set("Cookie", cookieAdmin)
+      .expect(200);
+    await request(app)
+      .get(`/api/mesas/${mesaId}/master-resumen`)
+      .set("Cookie", cookieAdmin)
+      .expect(200);
+
+    const mesaSinAdmin = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+    expect(mesaSinAdmin.body.players).toHaveLength(0);
+
+    // Si un ADMIN se une (o queda en players tras ceder mando), puede abandonar limpiamente
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieAdmin)
+      .expect(200);
+    await request(app)
+      .post(`/api/mesas/${mesaId}/abandonar`)
+      .set("Cookie", cookieAdmin)
+      .expect(204);
+
+    const mesaFinal = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+    expect(mesaFinal.body.players).toHaveLength(0);
+  });
+
+  it("permite contraseña opcional visible al máster, exige validación al unirse y nunca la filtra a jugadores", async () => {
+    await aprobar("jugadora-pass@pocket.test");
+    await aprobar("otra-pass@pocket.test");
+    const cookieHost = await sesionDe("anfitrion@pocket.test");
+    const cookieJugadora = await sesionDe("jugadora-pass@pocket.test");
+    const cookieOtra = await sesionDe("otra-pass@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieHost)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+    expect(crear.body.tieneContrasena).toBe(false);
+    expect(crear.body.contrasena).toBeNull();
+
+    // Un tercero no puede fijar contraseña en mesa ajena
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "hack" })
+      .expect(403);
+
+    // El máster configura una contraseña opcional y la ve sin ocultar
+    const conPass = await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieHost)
+      .send({ contrasena: "  dragones20  " })
+      .expect(200);
+    expect(conPass.body.tieneContrasena).toBe(true);
+    expect(conPass.body.contrasena).toBe("dragones20");
+
+    // En GET /:id y /inicio, el host ve la contraseña y otro usuario solo sabe que tiene contraseña
+    const hostGet = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieHost)
+      .expect(200);
+    expect(hostGet.body.tieneContrasena).toBe(true);
+    expect(hostGet.body.contrasena).toBe("dragones20");
+
+    const otroGet = await request(app)
+      .get(`/api/mesas/${mesaId}`)
+      .set("Cookie", cookieJugadora)
+      .expect(200);
+    expect(otroGet.body.tieneContrasena).toBe(true);
+    expect(otroGet.body.contrasena).toBeUndefined();
+
+    // Unirse sin contraseña o con contraseña incorrecta falla con 403 específico
+    const sinPass = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send()
+      .expect(403);
+    expect(sinPass.body.error).toBe("MESA_PASSWORD_REQUIRED");
+
+    const passMal = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "incorrecta" })
+      .expect(403);
+    expect(passMal.body.error).toBe("MESA_PASSWORD_INVALID");
+
+    // Con la contraseña correcta entra a la mesa, y tampoco se le filtra después
+    const passOk = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "dragones20" })
+      .expect(200);
+    expect(passOk.body.players).toHaveLength(1);
+    expect(passOk.body.contrasena).toBeUndefined();
+
+    // Un jugador dentro no puede cambiar ni ver la contraseña
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieJugadora)
+      .send({ contrasena: "otra" })
+      .expect(403);
+
+    // El máster quita la contraseña -> otro jugador puede entrar directo sin ella
+    const sinCandado = await request(app)
+      .patch(`/api/mesas/${mesaId}/contrasena`)
+      .set("Cookie", cookieHost)
+      .send({ contrasena: null })
+      .expect(200);
+    expect(sinCandado.body.tieneContrasena).toBe(false);
+    expect(sinCandado.body.contrasena).toBeNull();
+
+    const abiertaRes = await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieOtra)
+      .send()
+      .expect(200);
+    expect(abiertaRes.body.players).toHaveLength(2);
+  });
+
+  it("persiste textosEscena y trazos flecha en pizarra, y acepta ping en [-100, 200] en pizarra/escena pero [0, 100] en mapa", async () => {
+    await aprobar("master-fase-d@pocket.test");
+    const cookieMaster = await sesionDe("master-fase-d@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .send({
+        posits: [],
+        trazos: [],
+        documentos: [],
+        trazosEscena: [
+          {
+            id: "trazo-flecha-1",
+            color: "#e8c56a",
+            grosor: 2.5,
+            forma: "flecha",
+            puntos: [
+              { x: -20, y: 10 },
+              { x: 140, y: 180 }
+            ]
+          }
+        ],
+        positsEscena: [],
+        docsEscena: [],
+        tamanoImagenesEscena: {},
+        congelada: false,
+        textosEscena: [
+          {
+            id: "txt-1",
+            texto: "Zona norte",
+            x: -150,
+            y: 250,
+            color: "#ffaa00",
+            tamano: "lg",
+            ancho: 1200,
+            autorId: "u1",
+            autorNombre: "Máster"
+          },
+          {
+            id: "",
+            texto: "Inválido sin id",
+            x: 10,
+            y: 10,
+            color: "#ffffff",
+            tamano: "md"
+          }
+        ]
+      })
+      .expect(204);
+
+    const pizarra = await request(app)
+      .get(`/api/mesas/${mesaId}/pizarra`)
+      .set("Cookie", cookieMaster)
+      .expect(200);
+    expect(pizarra.body.trazosEscena).toEqual([
+      {
+        id: "trazo-flecha-1",
+        color: "#e8c56a",
+        grosor: 2.5,
+        forma: "flecha",
+        puntos: [
+          { x: -20, y: 10 },
+          { x: 140, y: 180 }
+        ]
+      }
+    ]);
+    expect(pizarra.body.textosEscena).toEqual([
+      {
+        id: "txt-1",
+        texto: "Zona norte",
+        x: -100,
+        y: 200,
+        color: "#ffaa00",
+        tamano: "lg",
+        ancho: 800,
+        autorId: "u1",
+        autorNombre: "Máster"
+      }
+    ]);
+
+    const inicioEnvios = notifier.envios.length;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/ping`)
+      .set("Cookie", cookieMaster)
+      .send({ x: -80, y: 165, vista: "pizarra", color: "#e8c56a" })
+      .expect(204);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/ping`)
+      .set("Cookie", cookieMaster)
+      .send({ x: -150, y: 240, vista: "escena", color: "#96fbc7" })
+      .expect(204);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/ping`)
+      .set("Cookie", cookieMaster)
+      .send({ x: -40, y: 140, vista: "mapa", color: "#ffb3cb" })
+      .expect(204);
+
+    const pings = notifier.envios
+      .slice(inicioEnvios)
+      .map(e => e.payload as { type: string; ping: { vista: string; x: number; y: number } })
+      .filter(p => p.type === "mesa:ping");
+
+    expect(pings).toHaveLength(3);
+    expect(pings[0].ping).toMatchObject({ vista: "pizarra", x: -80, y: 165 });
+    expect(pings[1].ping).toMatchObject({ vista: "escena", x: -100, y: 200 });
+    expect(pings[2].ping).toMatchObject({ vista: "mapa", x: 0, y: 100 });
   });
 });

@@ -2926,6 +2926,41 @@ html.modo-claro .feedback.aviso {
   color: #7A4F0C;
 }
 
+html.modo-claro .archivos-panel {
+  background: #FFF8EC;
+  backdrop-filter: none;
+}
+
+html.modo-claro .archivos-item {
+  border: 1px solid rgb(142 124 195 / 35%);
+  border-radius: 10px;
+}
+
+html.modo-claro .archivos-item-icono {
+  color: #5B4688;
+}
+
+html.modo-claro .archivos-item-borrar {
+  color: #9E2A38;
+}
+
+html.modo-claro .archivos-item-borrar:hover {
+  background: #FCE8EC;
+  color: #8F1D2C;
+}
+
+html.modo-claro .archivos-mensaje.error {
+  background: #FCE8EC;
+  border-color: #C94A5A;
+  color: #8F1D2C;
+}
+
+html.modo-claro .archivos-mensaje.ok {
+  background: #E8FAF2;
+  border-color: #1E9E78;
+  color: #156E52;
+}
+
 html.modo-claro .gestion-subtitulo {
   color: #1E1430;
   font-weight: 700;
@@ -3028,6 +3063,70 @@ html.modo-claro .apodo-propio-input::placeholder {
 }
 
 html.modo-claro .apodo-propio-input:focus {
+  outline: 2px solid rgb(124 92 191 / 35%);
+  border-color: #7C5CBF;
+}
+
+.mesa-candado {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgb(232 197 106 / 48%);
+  background: rgb(232 197 106 / 14%);
+  color: #f4d98c;
+}
+
+html.modo-claro .mesa-candado {
+  border-color: #B8862B;
+  background: #F6E6C6;
+  color: #5D3B08;
+}
+
+.gestion-contrasena-nota {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+}
+
+.modal-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-password-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid rgb(135 114 166 / 52%);
+  background: rgb(18 14 27 / 90%);
+  color: #f4eefc;
+  font-size: 0.95rem;
+}
+
+.modal-password-input:focus {
+  outline: 2px solid rgb(232 197 106 / 55%);
+  border-color: #e8c56a;
+}
+
+.modal-password-error {
+  margin: 0;
+}
+
+html.modo-claro .modal-password-input {
+  background: #FFFDF8;
+  border-color: #8E7CC3;
+  color: #2A1F3D;
+}
+
+html.modo-claro .modal-password-input::placeholder {
+  color: #534469;
+  opacity: 1;
+}
+
+html.modo-claro .modal-password-input:focus {
   outline: 2px solid rgb(124 92 191 / 35%);
   border-color: #7C5CBF;
 }

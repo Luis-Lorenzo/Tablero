@@ -1,4 +1,14 @@
+import {
+  sanitizarMacros,
+  type MacroTiradaPersistida
+} from "./user-macros.repository.js";
+
 export type ElementoMesaPersistido = Record<string, unknown>;
+
+export function sanitizarMacroOpcional(raw: unknown): MacroTiradaPersistida | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  return sanitizarMacros([raw])[0];
+}
 
 export interface ObjetoMochilaPersistido {
   id: string;
@@ -8,6 +18,7 @@ export interface ObjetoMochilaPersistido {
   emoji?: string;
   archivoId?: string;
   archivoNombre?: string;
+  macro?: MacroTiradaPersistida;
 }
 
 export interface EstadoJugadorMesa {
@@ -90,6 +101,14 @@ export function sanitizarElementosMesa(raw: unknown): ElementoMesaPersistido[] {
         delete copia[campo];
       }
     }
+    if (copia.tipo === "objeto" && "macro" in copia) {
+      const macro = sanitizarMacroOpcional(copia.macro);
+      if (macro) {
+        copia.macro = macro;
+      } else {
+        delete copia.macro;
+      }
+    }
     if (typeof copia.id === "string" && typeof copia.tipo === "string") {
       limpios.push(copia);
     }
@@ -128,6 +147,7 @@ export function sanitizarMochila(raw: unknown): ObjetoMochilaPersistido[] {
       typeof obj.archivoNombre === "string" && obj.archivoNombre.trim()
         ? obj.archivoNombre.trim().slice(0, 120)
         : undefined;
+    const macro = sanitizarMacroOpcional(obj.macro);
 
     limpios.push({
       id,
@@ -136,7 +156,8 @@ export function sanitizarMochila(raw: unknown): ObjetoMochilaPersistido[] {
       cantidad,
       ...(emoji ? { emoji } : {}),
       ...(archivoId ? { archivoId } : {}),
-      ...(archivoNombre ? { archivoNombre } : {})
+      ...(archivoNombre ? { archivoNombre } : {}),
+      ...(macro ? { macro } : {})
     });
     if (limpios.length >= 120) break;
   }

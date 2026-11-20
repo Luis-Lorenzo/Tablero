@@ -287,6 +287,24 @@ export function guardarPizarraCongelada(congelada: boolean): void {
   escribir(CLAVE_PIZARRA_CONGELADA, congelada);
 }
 
+function puntoTocaSegmento(
+  a: Punto,
+  b: Punto,
+  punto: Punto,
+  umbral: number
+): boolean {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const lenSq = abx * abx + aby * aby;
+  const t =
+    lenSq === 0
+      ? 0
+      : limitar(((punto.x - a.x) * abx + (punto.y - a.y) * aby) / lenSq, 0, 1);
+  const px = a.x + t * abx;
+  const py = a.y + t * aby;
+  return Math.hypot(punto.x - px, punto.y - py) <= umbral;
+}
+
 /** Comprueba si el borrador en `punto` toca algún segmento de un trazo. */
 export function trazoTocaPunto(
   trazo: TrazoPizarra,
@@ -300,20 +318,34 @@ export function trazoTocaPunto(
   }
 
   for (let i = 0; i < pts.length - 1; i += 1) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    const abx = b.x - a.x;
-    const aby = b.y - a.y;
-    const lenSq = abx * abx + aby * aby;
-    const t =
-      lenSq === 0
-        ? 0
-        : limitar(((punto.x - a.x) * abx + (punto.y - a.y) * aby) / lenSq, 0, 1);
-    const px = a.x + t * abx;
-    const py = a.y + t * aby;
-    if (Math.hypot(punto.x - px, punto.y - py) <= umbral) {
+    if (puntoTocaSegmento(pts[i], pts[i + 1], punto, umbral)) {
       return true;
     }
   }
+
+  if (trazo.forma === "flecha" && pts.length >= 2) {
+    const prev = pts[pts.length - 2];
+    const fin = pts[pts.length - 1];
+    if (Math.hypot(fin.x - prev.x, fin.y - prev.y) > 0.001) {
+      const ang = Math.atan2(fin.y - prev.y, fin.x - prev.x);
+      const largoPunta = Math.min(Math.max(1.8, (trazo.grosor || 2) * 0.6 + 1.2), 4.5);
+      const apertura = Math.PI / 6;
+      const aleta1: Punto = {
+        x: fin.x - largoPunta * Math.cos(ang - apertura),
+        y: fin.y - largoPunta * Math.sin(ang - apertura)
+      };
+      const aleta2: Punto = {
+        x: fin.x - largoPunta * Math.cos(ang + apertura),
+        y: fin.y - largoPunta * Math.sin(ang + apertura)
+      };
+      if (
+        puntoTocaSegmento(fin, aleta1, punto, umbral) ||
+        puntoTocaSegmento(fin, aleta2, punto, umbral)
+      ) {
+        return true;
+      }
+    }
+  }
+
   return false;
 }

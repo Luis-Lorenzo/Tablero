@@ -6,26 +6,35 @@ import {
   toPublicTransferencia
 } from "./serializers.js";
 import { errors } from "../lib/errors.js";
-import { vistaDe } from "../lib/archivos.js";
+import { esUuid, vistaDe } from "../lib/archivos.js";
 import {
+  personajeVacio,
   resolverDivisasConfig,
-  sanitizarMusicaAmbiente
+  sanitizarMusicaAmbiente,
+  sanitizarPersonajePdfs,
+  type Mesa,
+  type PersonajeJugadorMesa
 } from "../repositories/mesa.repository.js";
-import { nombreDeUsuario } from "../repositories/user.repository.js";
+import { nombreDeUsuario, type User } from "../repositories/user.repository.js";
 import {
   MemoryMesaEstadoRepository,
   sanitizarDivisa,
   sanitizarDivisaId,
   sanitizarElementosMesa,
+  sanitizarMacroOpcional,
   sanitizarMochila
 } from "../repositories/mesa-estado.repository.js";
 import {
   MemoryPizarraEstadoRepository,
   sanitizarPizarraEstado
 } from "../repositories/pizarra-estado.repository.js";
-import { MemoryMapaEstadoRepository } from "../repositories/mapa-estado.repository.js";
+import {
+  COLOR_TRAZO_REGEX,
+  MemoryMapaEstadoRepository
+} from "../repositories/mapa-estado.repository.js";
 import { MapaEstadoService } from "../services/mapa-estado.service.js";
 import { TransferenciaService } from "../services/transferencia.service.js";
+import { IntercambioService } from "../services/intercambio.service.js";
 
 function leerImagenBody(body: unknown): { id: string; titulo: string | null } | null {
   const { archivoId, titulo } = (body ?? {}) as {
@@ -38,6 +47,18 @@ function leerImagenBody(body: unknown): { id: string; titulo: string | null } | 
   const tituloLimpio =
     typeof titulo === "string" && titulo.trim() ? titulo.trim() : null;
   return { id: archivoId.trim(), titulo: tituloLimpio };
+}
+
+function esAdminLibre(actor: User, mesa: Mesa): boolean {
+  return actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+}
+
+function esParticipanteOAdminLibre(actor: User, mesa: Mesa): boolean {
+  return (
+    mesa.hostId === actor.id ||
+    mesa.players.includes(actor.id) ||
+    esAdminLibre(actor, mesa)
+  );
 }
 
 export function createMesaRouter(context: AppContext, requireAuth: RequestHandler): Router {
@@ -60,11 +81,20 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       context.archivoService,
       context.logger
     );
+  const intercambios =
+    context.intercambioService ??
+    new IntercambioService(
+      context.mesaRepository,
+      context.userRepository,
+      mesaEstado,
+      context.archivoService,
+      context.logger
+    );
 
   router.get("/inicio", requireAuth, async (req, res, next) => {
     try {
       const huecos = await context.mesaService.inicio();
-      res.json(huecos.map(mesa => (mesa ? toPublicMesa(mesa) : null)));
+      res.json(huecos.map(mesa => (mesa ? toPublicMesa(mesa, req.currentUser) : null)));
     } catch (error) {
       next(error);
     }
@@ -74,7 +104,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
     try {
       const busqueda = typeof req.query.q === "string" ? req.query.q : undefined;
       const mesas = await context.mesaService.listar(busqueda);
-      res.json(mesas.map(toPublicMesa));
+      res.json(mesas.map(mesa => toPublicMesa(mesa, req.currentUser)));
     } catch (error) {
       next(error);
     }
@@ -86,7 +116,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (creada) {
         context.mesasNotifier.notificarCambio();
       }
-      res.status(creada ? 201 : 200).json(toPublicMesa(mesa));
+      res.status(creada ? 201 : 200).json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -95,7 +125,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/mia", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.mia(req.currentUser!);
-      res.json(mesa ? toPublicMesa(mesa) : null);
+      res.json(mesa ? toPublicMesa(mesa, req.currentUser) : null);
     } catch (error) {
       next(error);
     }
@@ -104,7 +134,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/pendiente", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.pendienteDe(req.currentUser!);
-      res.json(mesa ? toPublicMesa(mesa) : null);
+      res.json(mesa ? toPublicMesa(mesa, req.currentUser) : null);
     } catch (error) {
       next(error);
     }
@@ -113,7 +143,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.get("/:id", requireAuth, async (req, res, next) => {
     try {
       const mesa = await context.mesaService.obtener(String(req.params.id));
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -121,9 +151,29 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
   router.post("/:id/unirse", requireAuth, async (req, res, next) => {
     try {
-      const mesa = await context.mesaService.unirse(req.currentUser!, String(req.params.id));
+      const body = (req.body ?? {}) as { contrasena?: unknown };
+      const mesa = await context.mesaService.unirse(
+        req.currentUser!,
+        String(req.params.id),
+        body.contrasena
+      );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/contrasena", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { contrasena?: unknown };
+      const mesa = await context.mesaService.cambiarContrasena(
+        req.currentUser!,
+        String(req.params.id),
+        body.contrasena
+      );
+      context.mesasNotifier.notificarCambio();
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -146,7 +196,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         String(req.params.id)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -159,7 +209,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         String(req.params.id)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -170,7 +220,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const color = typeof (req.body ?? {}).color === "string" ? (req.body ?? {}).color : null;
       const mesa = await context.mesaService.ponerColor(req.currentUser!, String(req.params.id), color);
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -194,7 +244,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         apodo
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(vista));
+      res.json(toPublicMesa(vista, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -208,7 +258,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         leerImagenBody(req.body)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -222,7 +272,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         leerImagenBody(req.body)
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(mesa));
+      res.json(toPublicMesa(mesa, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -517,6 +567,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           archivoId = archivo.id;
           archivoNombre = archivo.nombre;
         }
+        const macro = sanitizarMacroOpcional(rawObj.macro);
         elemento = {
           tipo: "objeto",
           objeto: {
@@ -526,7 +577,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
             cantidad,
             ...(emoji ? { emoji } : {}),
             ...(archivoId ? { archivoId } : {}),
-            ...(archivoNombre ? { archivoNombre } : {})
+            ...(archivoNombre ? { archivoNombre } : {}),
+            ...(macro ? { macro } : {})
           }
         };
       }
@@ -573,12 +625,17 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
   router.post("/:id/chat", requireAuth, async (req, res, next) => {
     try {
       const mesaId = String(req.params.id);
-      const body = (req.body ?? {}) as { texto?: unknown; destinatarioId?: unknown };
+      const body = (req.body ?? {}) as {
+        texto?: unknown;
+        destinatarioId?: unknown;
+        destinatarioIds?: unknown;
+      };
       const { mensaje, destinatarios } = await context.chatService.enviar(
         req.currentUser!,
         mesaId,
         body.texto,
-        body.destinatarioId
+        body.destinatarioId,
+        body.destinatarioIds
       );
       context.mesasNotifier.enviarAUsuarios(destinatarios, {
         type: "chat:message",
@@ -645,8 +702,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId) {
+      const actor = req.currentUser!;
+      if (mesa.hostId !== actor.id && !esAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -684,22 +741,26 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
           const objetosMesa = estado.elementos
             .filter(el => el.tipo === "objeto" && typeof el.nombre === "string")
-            .map(el => ({
-              id: typeof el.id === "string" ? el.id : "",
-              nombre: String(el.nombre ?? ""),
-              descripcion: typeof el.descripcion === "string" ? el.descripcion : "",
-              cantidad:
-                typeof el.cantidad === "number" && Number.isFinite(el.cantidad)
-                  ? Math.max(1, Math.trunc(el.cantidad))
-                  : 1,
-              ...(typeof el.emoji === "string" && el.emoji ? { emoji: el.emoji } : {}),
-              ...(typeof el.archivoId === "string" && el.archivoId
-                ? { archivoId: el.archivoId }
-                : {}),
-              ...(typeof el.archivoNombre === "string" && el.archivoNombre
-                ? { archivoNombre: el.archivoNombre }
-                : {})
-            }));
+            .map(el => {
+              const macro = sanitizarMacroOpcional(el.macro);
+              return {
+                id: typeof el.id === "string" ? el.id : "",
+                nombre: String(el.nombre ?? ""),
+                descripcion: typeof el.descripcion === "string" ? el.descripcion : "",
+                cantidad:
+                  typeof el.cantidad === "number" && Number.isFinite(el.cantidad)
+                    ? Math.max(1, Math.trunc(el.cantidad))
+                    : 1,
+                ...(typeof el.emoji === "string" && el.emoji ? { emoji: el.emoji } : {}),
+                ...(typeof el.archivoId === "string" && el.archivoId
+                  ? { archivoId: el.archivoId }
+                  : {}),
+                ...(typeof el.archivoNombre === "string" && el.archivoNombre
+                  ? { archivoNombre: el.archivoNombre }
+                  : {}),
+                ...(macro ? { macro } : {})
+              };
+            });
 
           return {
             userId: playerId,
@@ -728,10 +789,15 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      const actorId = actor.id;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
+
+      const personaje = context.mesaRepository.getPersonaje
+        ? await context.mesaRepository.getPersonaje(mesaId, actorId)
+        : personajeVacio();
 
       if (mesaEstado.getEstadoCompleto) {
         const estado = await mesaEstado.getEstadoCompleto(mesaId, actorId);
@@ -739,17 +805,249 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           elementos: estado.elementos,
           divisa: estado.divisa,
           divisasSaldos: estado.divisasSaldos ?? {},
-          mochila: estado.mochila
+          mochila: estado.mochila,
+          personaje
         });
         return;
       }
 
       const elementos = await mesaEstado.getElementos(mesaId, actorId);
-      res.json({ elementos, divisa: 0, divisasSaldos: {}, mochila: [] });
+      res.json({ elementos, divisa: 0, divisasSaldos: {}, mochila: [], personaje });
     } catch (error) {
       next(error);
     }
   });
+
+  router.patch("/:id/personaje", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const patch: Partial<PersonajeJugadorMesa> = {};
+      let retratoActualizado = false;
+
+      if ("retratoArchivoId" in body) {
+        retratoActualizado = true;
+        if (body.retratoArchivoId === null || body.retratoArchivoId === "") {
+          patch.retratoArchivoId = null;
+        } else if (
+          typeof body.retratoArchivoId === "string" &&
+          esUuid(body.retratoArchivoId.trim())
+        ) {
+          patch.retratoArchivoId = body.retratoArchivoId.trim();
+        } else {
+          throw errors.invalidRequest();
+        }
+      }
+
+      if ("fichaArchivoId" in body) {
+        if (body.fichaArchivoId === null || body.fichaArchivoId === "") {
+          patch.fichaArchivoId = null;
+        } else if (
+          typeof body.fichaArchivoId === "string" &&
+          esUuid(body.fichaArchivoId.trim())
+        ) {
+          patch.fichaArchivoId = body.fichaArchivoId.trim();
+        } else {
+          throw errors.invalidRequest();
+        }
+      }
+
+      if ("fichaNombre" in body) {
+        if (body.fichaNombre === null || body.fichaNombre === "") {
+          patch.fichaNombre = null;
+        } else if (typeof body.fichaNombre === "string") {
+          patch.fichaNombre = body.fichaNombre.trim().slice(0, 180) || null;
+        } else {
+          throw errors.invalidRequest();
+        }
+      }
+
+      if ("pdfs" in body) {
+        if (!Array.isArray(body.pdfs)) {
+          throw errors.invalidRequest();
+        }
+        patch.pdfs = sanitizarPersonajePdfs(body.pdfs);
+      }
+
+      if ("notas" in body) {
+        if (typeof body.notas !== "string") {
+          throw errors.invalidRequest();
+        }
+        patch.notas = body.notas.slice(0, 20_000);
+      }
+
+      const actualizado = context.mesaRepository.savePersonaje
+        ? await context.mesaRepository.savePersonaje(mesaId, actor.id, patch)
+        : { ...personajeVacio(), ...patch };
+
+      if (retratoActualizado) {
+        const miembros = [mesa.hostId, ...mesa.players];
+        context.mesasNotifier.enviarAUsuarios(miembros, {
+          type: "mesa:personaje",
+          mesaId,
+          userId: actor.id,
+          retratoArchivoId: actualizado.retratoArchivoId
+        });
+      }
+
+      res.json(actualizado);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/intercambio/iniciar", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const body = (req.body ?? {}) as { conUsuarioId?: unknown };
+      const { sesion, creada } = await intercambios.iniciar(
+        req.currentUser!,
+        mesaId,
+        body.conUsuarioId
+      );
+      if (creada) {
+        context.mesasNotifier.enviarAUsuarios(sesion.participantes, {
+          type: "intercambio:estado",
+          mesaId,
+          intercambio: sesion
+        });
+      }
+      res.status(creada ? 201 : 200).json(sesion);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch(
+    "/:id/intercambio/:intercambioId/oferta",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mesaId = String(req.params.id);
+        const intercambioId = String(req.params.intercambioId);
+        const body = (req.body ?? {}) as {
+          monedas?: Record<string, number>;
+          objetos?: Array<{ objetoId: string; cantidad: number }>;
+          archivos?: Array<{ archivoId: string; nombre: string; tipoMime?: string }>;
+          posits?: Array<{
+            positId: string;
+            titulo?: string;
+            contenido?: string;
+            color?: string;
+          }>;
+        };
+        const sesion = await intercambios.actualizarOferta(
+          req.currentUser!,
+          mesaId,
+          intercambioId,
+          body
+        );
+        context.mesasNotifier.enviarAUsuarios(sesion.participantes, {
+          type: "intercambio:estado",
+          mesaId,
+          intercambio: sesion
+        });
+        res.json(sesion);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/intercambio/:intercambioId/listo",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mesaId = String(req.params.id);
+        const intercambioId = String(req.params.intercambioId);
+        const body = (req.body ?? {}) as { listo?: unknown };
+        const resultado = await intercambios.marcarListo(
+          req.currentUser!,
+          mesaId,
+          intercambioId,
+          Boolean(body.listo)
+        );
+
+        if (resultado.completado) {
+          if (resultado.divisaEventos.length > 0) {
+            const mesa = await context.mesaRepository.findById(mesaId);
+            if (mesa) {
+              const miembros = [mesa.hostId, ...mesa.players];
+              const ahora = new Date().toISOString();
+              for (const ev of resultado.divisaEventos) {
+                context.mesasNotifier.enviarAUsuarios(miembros, {
+                  type: "mesa:divisa",
+                  mesaId,
+                  userId: ev.userId,
+                  nombre: ev.nombre,
+                  color: ev.color,
+                  divisaId: ev.divisaId,
+                  divisa: ev.divisa,
+                  divisaNombre: ev.divisaNombre,
+                  delta: ev.delta,
+                  jugadorId: ev.userId,
+                  jugadorNombre: ev.nombre,
+                  createdAt: ahora
+                });
+              }
+            }
+          }
+
+          context.mesasNotifier.enviarAUsuarios(resultado.sesion.participantes, {
+            type: "intercambio:completado",
+            mesaId,
+            intercambio: resultado.sesion,
+            ...(resultado.estadosActualizados
+              ? { estadosActualizados: resultado.estadosActualizados }
+              : {})
+          });
+        } else {
+          context.mesasNotifier.enviarAUsuarios(resultado.sesion.participantes, {
+            type: "intercambio:estado",
+            mesaId,
+            intercambio: resultado.sesion
+          });
+        }
+
+        res.json(resultado.sesion);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/intercambio/:intercambioId/cancelar",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const mesaId = String(req.params.id);
+        const intercambioId = String(req.params.intercambioId);
+        const sesion = await intercambios.cancelar(
+          req.currentUser!,
+          mesaId,
+          intercambioId
+        );
+        context.mesasNotifier.enviarAUsuarios(sesion.participantes, {
+          type: "intercambio:estado",
+          mesaId,
+          intercambio: sesion
+        });
+        res.json(sesion);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.patch("/:id/estado", requireAuth, async (req, res, next) => {
     try {
@@ -757,8 +1055,9 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      const actorId = actor.id;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -790,7 +1089,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (!mesa) throw errors.mesaNotFound();
 
       const actor = req.currentUser!;
-      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -860,7 +1159,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
       const actor = req.currentUser!;
       const miembros = [mesa.hostId, ...mesa.players];
-      if (!miembros.includes(actor.id)) {
+      if (!miembros.includes(actor.id) && !esAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -993,7 +1292,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         body.nombre
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(vista));
+      res.json(toPublicMesa(vista, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -1011,7 +1310,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         divisas
       );
       context.mesasNotifier.notificarCambio();
-      res.json(toPublicMesa(vista));
+      res.json(toPublicMesa(vista, req.currentUser));
     } catch (error) {
       next(error);
     }
@@ -1099,8 +1398,8 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -1117,13 +1416,14 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       const mesa = await context.mesaRepository.findById(mesaId);
       if (!mesa) throw errors.mesaNotFound();
 
-      const actorId = req.currentUser!.id;
-      if (mesa.hostId !== actorId && !mesa.players.includes(actorId)) {
+      const actor = req.currentUser!;
+      const actorId = actor.id;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
       const actual = await pizarraEstado.getEstado(mesaId);
-      const esMaster = mesa.hostId === actorId;
+      const esMaster = mesa.hostId === actorId || esAdminLibre(actor, mesa);
       const limpio = sanitizarPizarraEstado(req.body);
 
       if (!esMaster && (actual.congelada || limpio.congelada !== actual.congelada)) {
@@ -1151,7 +1451,7 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
       if (!mesa) throw errors.mesaNotFound();
 
       const actor = req.currentUser!;
-      if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
         throw errors.forbidden();
       }
 
@@ -1171,8 +1471,10 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         throw errors.invalidRequest();
       }
 
-      const x = Math.max(0, Math.min(100, body.x));
-      const y = Math.max(0, Math.min(100, body.y));
+      const minCoord = body.vista === "mapa" ? 0 : -100;
+      const maxCoord = body.vista === "mapa" ? 100 : 200;
+      const x = Math.max(minCoord, Math.min(maxCoord, body.x));
+      const y = Math.max(minCoord, Math.min(maxCoord, body.y));
       const color =
         typeof body.color === "string" && body.color.trim()
           ? body.color.trim().slice(0, 32)
@@ -1190,6 +1492,86 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
           x,
           y,
           vista: body.vista
+        }
+      });
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/regla", requireAuth, async (req, res, next) => {
+    try {
+      const mesaId = String(req.params.id);
+      const mesa = await context.mesaRepository.findById(mesaId);
+      if (!mesa) throw errors.mesaNotFound();
+
+      const actor = req.currentUser!;
+      if (!esParticipanteOAdminLibre(actor, mesa)) {
+        throw errors.forbidden();
+      }
+
+      const body = (req.body ?? {}) as {
+        activa?: unknown;
+        x1?: unknown;
+        y1?: unknown;
+        x2?: unknown;
+        y2?: unknown;
+        color?: unknown;
+        seq?: unknown;
+      };
+      const seq =
+        typeof body.seq === "number" && Number.isFinite(body.seq)
+          ? Math.trunc(body.seq)
+          : undefined;
+
+      const miembros = [mesa.hostId, ...mesa.players];
+      if (body.activa === false) {
+        context.mesasNotifier.enviarAUsuarios(miembros, {
+          type: "mesa:regla",
+          mesaId,
+          regla: {
+            autorId: actor.id,
+            autorNombre: nombreDeUsuario(actor),
+            activa: false,
+            ...(seq !== undefined ? { seq } : {})
+          }
+        });
+        res.status(204).end();
+        return;
+      }
+
+      if (
+        typeof body.x1 !== "number" ||
+        !Number.isFinite(body.x1) ||
+        typeof body.y1 !== "number" ||
+        !Number.isFinite(body.y1) ||
+        typeof body.x2 !== "number" ||
+        !Number.isFinite(body.x2) ||
+        typeof body.y2 !== "number" ||
+        !Number.isFinite(body.y2)
+      ) {
+        throw errors.invalidRequest();
+      }
+
+      const clamp = (n: number) => Math.max(0, Math.min(100, n));
+      const colorBruto = typeof body.color === "string" ? body.color.trim().slice(0, 32) : "";
+      const color =
+        colorBruto && COLOR_TRAZO_REGEX.test(colorBruto) ? colorBruto : "#e8c56a";
+
+      context.mesasNotifier.enviarAUsuarios(miembros, {
+        type: "mesa:regla",
+        mesaId,
+        regla: {
+          autorId: actor.id,
+          autorNombre: nombreDeUsuario(actor),
+          activa: true,
+          x1: clamp(body.x1),
+          y1: clamp(body.y1),
+          x2: clamp(body.x2),
+          y2: clamp(body.y2),
+          color,
+          ...(seq !== undefined ? { seq } : {})
         }
       });
       res.status(204).end();
@@ -1245,9 +1627,30 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
 
   router.post("/:id/mapa/iniciativa/siguiente", requireAuth, async (req, res, next) => {
     try {
+      const body = (req.body ?? {}) as {
+        porTiempo?: unknown;
+        rondaEsperada?: unknown;
+        turnoIndiceEsperado?: unknown;
+        entradaIdEsperada?: unknown;
+      };
       const mapa = await mapaEstadoService.avanzarTurnoIniciativa(
         req.currentUser!,
-        String(req.params.id)
+        String(req.params.id),
+        {
+          ...(body.porTiempo === true ? { porTiempo: true } : {}),
+          ...(typeof body.rondaEsperada === "number" &&
+          Number.isFinite(body.rondaEsperada)
+            ? { rondaEsperada: Math.trunc(body.rondaEsperada) }
+            : {}),
+          ...(typeof body.turnoIndiceEsperado === "number" &&
+          Number.isFinite(body.turnoIndiceEsperado)
+            ? { turnoIndiceEsperado: Math.trunc(body.turnoIndiceEsperado) }
+            : {}),
+          ...(typeof body.entradaIdEsperada === "string" &&
+          body.entradaIdEsperada.trim()
+            ? { entradaIdEsperada: body.entradaIdEsperada.trim() }
+            : {})
+        }
       );
       res.json(mapa);
     } catch (error) {
@@ -1345,6 +1748,20 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         req.body
       );
       res.status(201).json(mapa);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/mapa/trazos/eliminar-lote", requireAuth, async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as { ids?: unknown };
+      const mapa = await mapaEstadoService.eliminarTrazos(
+        req.currentUser!,
+        String(req.params.id),
+        body.ids
+      );
+      res.json(mapa);
     } catch (error) {
       next(error);
     }

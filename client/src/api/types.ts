@@ -19,6 +19,20 @@ export interface MesaJugador {
   id: string;
   name: string;
   color?: string | null;
+  retratoArchivoId?: string | null;
+}
+
+export interface PersonajePdfMeta {
+  archivoId: string;
+  nombre: string;
+}
+
+export interface PersonajeJugadorMesa {
+  retratoArchivoId: string | null;
+  fichaArchivoId: string | null;
+  fichaNombre: string | null;
+  pdfs: PersonajePdfMeta[];
+  notas: string;
 }
 
 export interface ImagenMaster {
@@ -58,11 +72,14 @@ export interface PublicMesa {
   estado: "ESPERA" | "EN_CURSO";
   colores?: Record<string, string>;
   playerApodos?: Record<string, string>;
+  retratosPorJugador?: Record<string, string | null>;
   imagenEscena?: ImagenMaster | null;
   imagenProyectada?: ImagenMaster | null;
   divisaNombre?: string;
   divisasConfig?: DivisaConfig[];
   musicaAmbiente?: MusicaAmbienteMesa | null;
+  tieneContrasena?: boolean;
+  contrasena?: string | null;
   createdAt: string;
 }
 
@@ -71,10 +88,11 @@ export interface PublicArchivo {
   id: string;
   nombre: string;
   tipo: string;
-  /** El navegador puede mostrarlo dentro de la página (PDF, imagen o .docx). */
+  /** El navegador puede mostrarlo dentro de la página (PDF, imagen, texto o .docx). */
   vista: string;
   tamano: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface PositTransferido {
@@ -155,6 +173,8 @@ export interface MensajeChat {
   texto: string;
   destinatarioId: string | null;
   destinatarioNombre: string | null;
+  destinatarioIds?: string[];
+  destinatarioNombres?: string[];
   createdAt: string;
 }
 
@@ -259,6 +279,8 @@ export interface MapaIniciativaEstado {
   ronda: number;
   turnoIndice: number;
   entradas: IniciativaEntrada[];
+  turnoMaxSegundos?: number | null;
+  turnoIniciadoEn?: number;
 }
 
 export interface TrazoMapa {
@@ -308,6 +330,7 @@ export interface EstadoMapaCompartido {
   trazos?: TrazoMapa[];
   areas?: AreaMapa[];
   dibujoCongelado?: boolean;
+  servidorAhora?: number;
 }
 
 export interface GuardarMapaFondoPayload {
@@ -343,4 +366,70 @@ export interface ActualizarTokenMapaPayload {
 export interface ActualizarPlantillaMapaPayload {
   categoria?: string;
   nombre?: string;
+}
+
+export type TamanoTextoEscena = "sm" | "md" | "lg";
+
+export interface TextoEscena {
+  id: string;
+  texto: string;
+  x: number;
+  y: number;
+  color: string;
+  tamano: TamanoTextoEscena;
+  ancho?: number;
+  autorId?: string;
+  autorNombre?: string;
+}
+
+export type EstadoIntercambio = "abierto" | "completado" | "cancelado";
+
+export interface OfertaObjetoIntercambio {
+  objetoId: string;
+  cantidad: number;
+  nombre?: string;
+  descripcion?: string;
+  emoji?: string;
+  archivoId?: string;
+  archivoNombre?: string;
+  macro?: unknown;
+}
+
+export interface OfertaArchivoIntercambio {
+  archivoId: string;
+  nombre: string;
+  tipoMime?: string;
+}
+
+export interface OfertaPositIntercambio {
+  positId: string;
+  titulo?: string;
+  contenido?: string;
+  color?: string;
+}
+
+export interface OfertaIntercambio {
+  monedas: Record<string, number>;
+  objetos: OfertaObjetoIntercambio[];
+  archivos: OfertaArchivoIntercambio[];
+  posits: OfertaPositIntercambio[];
+}
+
+export interface SesionIntercambio {
+  id: string;
+  mesaId: string;
+  participantes: [string, string];
+  nombres: Record<string, string>;
+  ofertas: Record<string, OfertaIntercambio>;
+  listos: Record<string, boolean>;
+  estado: EstadoIntercambio;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EntradaOfertaIntercambio {
+  monedas?: Record<string, number>;
+  objetos?: Array<{ objetoId: string; cantidad: number }>;
+  archivos?: OfertaArchivoIntercambio[];
+  posits?: OfertaPositIntercambio[];
 }

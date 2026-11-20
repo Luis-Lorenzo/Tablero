@@ -118,6 +118,47 @@ export function resolverDivisasConfig(mesa: {
   ];
 }
 
+export interface PersonajePdfMeta {
+  archivoId: string;
+  nombre: string;
+}
+
+export interface PersonajeJugadorMesa {
+  retratoArchivoId: string | null;
+  fichaArchivoId: string | null;
+  fichaNombre: string | null;
+  pdfs: PersonajePdfMeta[];
+  notas: string;
+}
+
+export function personajeVacio(): PersonajeJugadorMesa {
+  return {
+    retratoArchivoId: null,
+    fichaArchivoId: null,
+    fichaNombre: null,
+    pdfs: [],
+    notas: ""
+  };
+}
+
+export function sanitizarPersonajePdfs(raw: unknown): PersonajePdfMeta[] {
+  if (!Array.isArray(raw)) return [];
+  const limpios: PersonajePdfMeta[] = [];
+  const vistos = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    const archivoId = typeof obj.archivoId === "string" ? obj.archivoId.trim() : "";
+    if (!esUuid(archivoId) || vistos.has(archivoId)) continue;
+    const nombreRaw = typeof obj.nombre === "string" ? obj.nombre.trim() : "";
+    const nombre = nombreRaw.slice(0, 180) || "Documento.pdf";
+    vistos.add(archivoId);
+    limpios.push({ archivoId, nombre });
+    if (limpios.length >= 20) break;
+  }
+  return limpios;
+}
+
 export interface Mesa {
   id: string;
   hostId: string;
@@ -134,6 +175,7 @@ export interface Mesa {
   estado: EstadoMesa;
   colores: Record<string, string>;
   apodos?: Record<string, string>;
+  retratosPorJugador?: Record<string, string | null>;
   /** Imagen fijada por el máster en la pizarra de la sala (Opción B). */
   imagenEscena?: ImagenMesa | null;
   /** Imagen proyectada por el máster a toda la pantalla (Opción A). */
@@ -144,6 +186,8 @@ export interface Mesa {
   divisasConfig?: DivisaConfig[];
   /** Estado de la música ambiente de la mesa. */
   musicaAmbiente?: MusicaAmbienteMesa | null;
+  /** Contraseña opcional de acceso a la sala (texto plano visible para el máster). */
+  contrasena?: string | null;
   createdAt: Date;
 }
 
@@ -157,6 +201,12 @@ export interface MesaRepository {
   list(limite?: number): Promise<Mesa[]>;
   save(mesa: Mesa): Promise<void>;
   delete(id: string): Promise<void>;
+  getPersonaje?(mesaId: string, userId: string): Promise<PersonajeJugadorMesa>;
+  savePersonaje?(
+    mesaId: string,
+    userId: string,
+    patch: Partial<PersonajeJugadorMesa>
+  ): Promise<PersonajeJugadorMesa>;
 }
 
 export function createMesa(hostId: string): Mesa {
@@ -169,15 +219,22 @@ export function createMesa(hostId: string): Mesa {
     estado: "ESPERA",
     colores: {},
     apodos: {},
+    retratosPorJugador: {},
     imagenEscena: null,
     imagenProyectada: null,
     musicaAmbiente: null,
+    contrasena: null,
     createdAt: new Date()
   };
 }
 
 export class MemoryMesaRepository implements MesaRepository {
   private mesas = new Map<string, Mesa>();
+  private personajes = new Map<string, PersonajeJugadorMesa>();
+
+  private clavePersonaje(mesaId: string, userId: string): string {
+    return `${mesaId}:${userId}`;
+  }
 
   async findById(id: string) {
     return this.mesas.get(id);
@@ -202,8 +259,10 @@ export class MemoryMesaRepository implements MesaRepository {
       estado: mesa.estado ?? "ESPERA",
       colores: { ...(mesa.colores ?? {}) },
       apodos: { ...(mesa.apodos ?? {}) },
+      retratosPorJugador: { ...(mesa.retratosPorJugador ?? {}) },
       imagenEscena: mesa.imagenEscena ?? null,
       imagenProyectada: mesa.imagenProyectada ?? null,
+      contrasena: mesa.contrasena ?? null,
       musicaAmbiente: mesa.musicaAmbiente
         ? {
             ...mesa.musicaAmbiente,
@@ -218,5 +277,57 @@ export class MemoryMesaRepository implements MesaRepository {
 
   async delete(id: string) {
     this.mesas.delete(id);
+    const prefijo = `${id}:`;
+    for (const key of this.personajes.keys()) {
+      if (key.startsWith(prefijo)) {
+        this.personajes.delete(key);
+      }
+    }
+  }
+
+  async getPersonaje(mesaId: string, userId: string): Promise<PersonajeJugadorMesa> {
+    const actual = this.personajes.get(this.clavePersonaje(mesaId, userId));
+    if (!actual) return personajeVacio();
+    return {
+      ...actual,
+      pdfs: actual.pdfs.map(p => ({ ...p }))
+    };
+  }
+
+  async savePersonaje(
+    mesaId: string,
+    userId: string,
+    patch: Partial<PersonajeJugadorMesa>
+  ): Promise<PersonajeJugadorMesa> {
+    const actual = await this.getPersonaje(mesaId, userId);
+    const siguiente: PersonajeJugadorMesa = {
+      retratoArchivoId:
+        patch.retratoArchivoId !== undefined
+          ? patch.retratoArchivoId
+          : actual.retratoArchivoId,
+      fichaArchivoId:
+        patch.fichaArchivoId !== undefined
+          ? patch.fichaArchivoId
+          : actual.fichaArchivoId,
+      fichaNombre:
+        patch.fichaNombre !== undefined ? patch.fichaNombre : actual.fichaNombre,
+      pdfs:
+        patch.pdfs !== undefined ? patch.pdfs.map(p => ({ ...p })) : actual.pdfs,
+      notas: patch.notas !== undefined ? patch.notas : actual.notas
+    };
+    this.personajes.set(this.clavePersonaje(mesaId, userId), siguiente);
+
+    const mesa = this.mesas.get(mesaId);
+    if (mesa) {
+      mesa.retratosPorJugador = {
+        ...(mesa.retratosPorJugador ?? {}),
+        [userId]: siguiente.retratoArchivoId
+      };
+    }
+
+    return {
+      ...siguiente,
+      pdfs: siguiente.pdfs.map(p => ({ ...p }))
+    };
   }
 }

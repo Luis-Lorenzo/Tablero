@@ -3,6 +3,7 @@ import { vistaDe } from "../lib/archivos.js";
 import { errors } from "../lib/errors.js";
 import type { Logger } from "../lib/logger.js";
 import type { Archivo } from "../repositories/archivo.repository.js";
+import { sanitizarMacroOpcional } from "../repositories/mesa-estado.repository.js";
 import type { Mesa, MesaRepository } from "../repositories/mesa.repository.js";
 import {
   MemoryTransferenciaRepository,
@@ -24,37 +25,37 @@ export type {
 
 export type EntradaTransferencia =
   | {
-      receptorId: string;
-      tipo: "posit";
-      posit: { texto: string; color: string; giro?: number };
-    }
+    receptorId: string;
+    tipo: "posit";
+    posit: { texto: string; color: string; giro?: number };
+  }
   | {
-      receptorId: string;
-      tipo: "archivo";
-      archivoId: string;
-    }
+    receptorId: string;
+    tipo: "archivo";
+    archivoId: string;
+  }
   | {
-      receptorId: string;
-      tipo: "objeto";
-      objeto: ObjetoTransferido;
-    };
+    receptorId: string;
+    tipo: "objeto";
+    objeto: ObjetoTransferido;
+  };
 
 export type ResultadoAceptacion =
   | {
-      transferencia: Transferencia;
-      tipo: "posit";
-      posit: PositTransferido;
-    }
+    transferencia: Transferencia;
+    tipo: "posit";
+    posit: PositTransferido;
+  }
   | {
-      transferencia: Transferencia;
-      tipo: "archivo";
-      archivo: Archivo;
-    }
+    transferencia: Transferencia;
+    tipo: "archivo";
+    archivo: Archivo;
+  }
   | {
-      transferencia: Transferencia;
-      tipo: "objeto";
-      objeto: ObjetoTransferido;
-    };
+    transferencia: Transferencia;
+    tipo: "objeto";
+    objeto: ObjetoTransferido;
+  };
 
 function esMiembroDeMesa(mesa: Mesa, userId: string): boolean {
   return mesa.hostId === userId || mesa.players.includes(userId);
@@ -70,7 +71,7 @@ export class TransferenciaService {
     private readonly archivos: ArchivoService,
     private readonly logger: Logger,
     private readonly transferencias: TransferenciaRepository = new MemoryTransferenciaRepository()
-  ) {}
+  ) { }
 
   async crear(
     emisor: User,
@@ -159,6 +160,7 @@ export class TransferenciaService {
         archivoId = archivo.id;
         archivoNombre = archivo.nombre;
       }
+      const macro = sanitizarMacroOpcional(entrada.objeto?.macro);
       transferencia = {
         id,
         mesaId,
@@ -173,7 +175,8 @@ export class TransferenciaService {
           cantidad,
           ...(emoji ? { emoji } : {}),
           ...(archivoId ? { archivoId } : {}),
-          ...(archivoNombre ? { archivoNombre } : {})
+          ...(archivoNombre ? { archivoNombre } : {}),
+          ...(macro ? { macro } : {})
         },
         createdAt
       };
@@ -198,6 +201,9 @@ export class TransferenciaService {
     if (!mesa) throw errors.mesaNotFound();
 
     if (!esMiembroDeMesa(mesa, actor.id)) {
+      if (actor.role === "ADMIN") {
+        return [];
+      }
       throw errors.mesaForbidden();
     }
 

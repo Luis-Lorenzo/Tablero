@@ -5,6 +5,7 @@ import {
   extensionDe,
   limpiarNombre,
   normalizarTipo,
+  resolverTipoArchivo,
   tipoPermitido
 } from "../lib/archivos.js";
 import { errors } from "../lib/errors.js";
@@ -43,7 +44,8 @@ export class ArchivoService {
   ) { }
 
   async subir(actor: User, entrada: EntradaArchivo): Promise<Archivo> {
-    if (!tipoPermitido(entrada.tipo)) {
+    const tipo = resolverTipoArchivo(entrada.tipo, entrada.nombre);
+    if (!tipoPermitido(tipo)) {
       throw errors.archivoTipoInvalido();
     }
 
@@ -73,7 +75,6 @@ export class ArchivoService {
     }
 
     const id = randomUUID();
-    const tipo = normalizarTipo(entrada.tipo);
     const nombre = limpiarNombre(entrada.nombre);
     const clave = mesaId
       ? `archivos/${actor.id}/mesas/${mesaId}/${id}${extensionDe(tipo)}`
@@ -81,6 +82,7 @@ export class ArchivoService {
 
     await this.almacen.guardar(clave, entrada.datos, tipo);
 
+    const ahora = new Date();
     const archivo: Archivo = {
       id,
       ownerId: actor.id,
@@ -89,7 +91,8 @@ export class ArchivoService {
       clave,
       tipo,
       tamano: entrada.datos.length,
-      createdAt: new Date()
+      createdAt: ahora,
+      updatedAt: ahora
     };
 
     await this.archivos.save(archivo);
@@ -103,6 +106,71 @@ export class ArchivoService {
     });
 
     return archivo;
+  }
+
+  /**
+   * Actualiza los bytes de un archivo existente (PDF editado, texto/markdown,
+   * etc.). Si la clave en R2 está compartida por referencia entre varios
+   * usuarios (`countByClave > 1`), aplica copy-on-write generando una clave nueva
+   * para no sobrescribir las copias ajenas.
+   */
+  async actualizar(
+    actor: User,
+    id: string,
+    entrada: { datos: Uint8Array; tipo?: string }
+  ): Promise<Archivo> {
+    const archivo = await this.autorizado(actor, id);
+
+    if (entrada.datos.length === 0) {
+      throw errors.archivoVacio();
+    }
+
+    if (entrada.datos.length > this.maxBytes) {
+      throw errors.archivoDemasiadoGrande();
+    }
+
+    const tipoCrudo = entrada.tipo ? normalizarTipo(entrada.tipo) : "";
+    let tipoFinal = archivo.tipo;
+    if (
+      tipoCrudo &&
+      tipoCrudo !== "application/octet-stream" &&
+      tipoCrudo !== "application/vnd.ms-excel"
+    ) {
+      if (!tipoPermitido(tipoCrudo)) {
+        throw errors.archivoTipoInvalido();
+      }
+      tipoFinal = tipoCrudo;
+    }
+
+    const referencias = await this.archivos.countByClave(archivo.clave);
+    const copyOnWrite = referencias > 1;
+    const claveFinal = copyOnWrite
+      ? archivo.mesaId
+        ? `archivos/${archivo.ownerId}/mesas/${archivo.mesaId}/${archivo.id}-${randomUUID()}${extensionDe(tipoFinal)}`
+        : `archivos/${archivo.ownerId}/${archivo.id}-${randomUUID()}${extensionDe(tipoFinal)}`
+      : archivo.clave;
+
+    await this.almacen.guardar(claveFinal, entrada.datos, tipoFinal);
+
+    const actualizado: Archivo = {
+      ...archivo,
+      clave: claveFinal,
+      tipo: tipoFinal,
+      tamano: entrada.datos.length,
+      updatedAt: new Date()
+    };
+
+    await this.archivos.save(actualizado);
+
+    this.logger.info("Archivo actualizado", {
+      id,
+      ownerId: actor.id,
+      mesaId: actualizado.mesaId ?? null,
+      copyOnWrite,
+      tamano: actualizado.tamano
+    });
+
+    return actualizado;
   }
 
   async listar(actor: User, mesaId?: string): Promise<Archivo[]> {

@@ -1,0 +1,169 @@
+/* =========================================================================
+   ColorPickerPopover (iro.js SVG circular wheel + value slider)
+   ========================================================================= */
+
+.iro-trigger {
+  cursor: pointer;
+}
+
+.iro-popover {
+  position: fixed;
+  z-index: 9999;
+  width: 212px;
+  padding: 10px 12px 12px;
+  border: 2px solid #6b5888;
+  border-radius: 12px;
+  background: rgb(20 16 30 / 98%);
+  color: #f3ece0;
+  box-shadow:
+    0 16px 36px rgb(0 0 0 / 60%),
+    4px 4px 0 #090612;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
+}
+
+.iro-popover-cabecera {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.iro-popover-muestra {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgb(255 255 255 / 70%);
+  flex-shrink: 0;
+}
+
+.iro-popover-titulo {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #f6e3b0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iro-popover-cerrar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 8%);
+  color: #f3ece0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.iro-popover-cerrar:hover {
+  background: rgb(255 255 255 / 18%);
+}
+
+.iro-wheel-host {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  touch-action: none;
+}
+
+.iro-popover-pie {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iro-hex-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1.5px solid rgb(200 168 229 / 40%);
+  border-radius: 7px;
+  background: rgb(10 8 16 / 80%);
+  color: #f6e3b0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.iro-hex-input:focus {
+  outline: none;
+  border-color: #e8c56a;
+}
+
+.iro-btn-listo {
+  padding: 5px 10px;
+  border: 1.5px solid #e8c56a;
+  border-radius: 7px;
+  background: rgb(232 197 106 / 18%);
+  color: #f6e3b0;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.iro-btn-listo:hover {
+  background: rgb(232 197 106 / 32%);
+}
+
+/* ------------------------------------------------ Modo claro */
+
+html.modo-claro .iro-popover {
+  border-color: #8e7cc3;
+  background: #fffdf8;
+  color: #2a1f3d;
+  box-shadow:
+    0 14px 32px rgb(60 40 90 / 28%),
+    0 2px 6px rgb(60 40 90 / 16%);
+}
+
+html.modo-claro .iro-popover-muestra {
+  border-color: rgb(42 31 61 / 35%);
+}
+
+html.modo-claro .iro-popover-titulo {
+  color: #2a1f3d;
+}
+
+html.modo-claro .iro-popover-cerrar {
+  border-color: rgb(142 124 195 / 45%);
+  background: rgb(124 92 191 / 10%);
+  color: #2a1f3d;
+}
+
+html.modo-claro .iro-popover-cerrar:hover {
+  background: rgb(124 92 191 / 20%);
+}
+
+html.modo-claro .iro-hex-input {
+  border-color: #8e7cc3;
+  background: #f8f2e6;
+  color: #2a1f3d;
+}
+
+html.modo-claro .iro-hex-input:focus {
+  border-color: #b8862b;
+}
+
+html.modo-claro .iro-btn-listo {
+  border-color: #a8741a;
+  background: #e2a93b;
+  color: #1e1430;
+}
+
+html.modo-claro .iro-btn-listo:hover {
+  background: #d4982a;
+}

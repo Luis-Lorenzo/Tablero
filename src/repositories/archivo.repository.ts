@@ -19,6 +19,7 @@ export interface Archivo {
   /** Tamaño en bytes. */
   tamano: number;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface ArchivoRepository {
@@ -54,7 +55,8 @@ export function createArchivo(input: {
     clave: input.clave,
     tipo: input.tipo,
     tamano: input.tamano,
-    createdAt: input.createdAt ?? new Date()
+    createdAt: input.createdAt ?? new Date(),
+    updatedAt: input.createdAt ?? new Date()
   };
 }
 
@@ -113,5 +115,7 @@ export class MemoryArchivoRepository implements ArchivoRepository {
 }
 
 function clonar(archivo: Archivo): Archivo {
-  return { ...archivo, createdAt: new Date(archivo.createdAt) };
+  const createdAt = new Date(archivo.createdAt);
+  const updatedAt = new Date(archivo.updatedAt ?? archivo.createdAt);
+  return { ...archivo, createdAt, updatedAt };
 }

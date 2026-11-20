@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import { ArrowLeft, Check, Crown, DoorOpen, Palette, Pencil, Play, Trash2, UserX, Wrench } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { ArrowLeft, Check, Crown, DoorOpen, Lock, LogOut, Palette, Pencil, Play, Trash2, Upload, User, UserX, Volume2, VolumeX, Wrench } from "lucide-react";
+import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
+import { RecorteRetratoModal } from "../../preview/RecorteRetratoModal";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
 import { PALETA_JUGADOR } from "../paleta";
+import { ColorPickerPopover } from "../components/ColorPickerPopover";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface GestionMesaPageProps {
@@ -14,6 +17,8 @@ interface GestionMesaPageProps {
   onVolver: () => void;
   onAbrirSala?: (mesa: PublicMesa) => void;
   onSessionExpired?: () => void;
+  hogueraSilenciada?: boolean;
+  onAlternarHoguera?: () => void;
 }
 
 /** Color del hexágono según los jugadores: rojo 0, amarillo 1, verde 2 o más. */
@@ -33,7 +38,9 @@ export function GestionMesaPage({
   user,
   onVolver,
   onAbrirSala,
-  onSessionExpired
+  onSessionExpired,
+  hogueraSilenciada = false,
+  onAlternarHoguera
 }: GestionMesaPageProps) {
   const [mesa, setMesa] = useState<PublicMesa | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,8 +49,11 @@ export function GestionMesaPage({
   const [busy, setBusy] = useState(false);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
   const [apodoInput, setApodoInput] = useState("");
+  const [contrasenaEditada, setContrasenaEditada] = useState<string | null>(null);
   const [expulsarObjetivo, setExpulsarObjetivo] = useState<{ id: string; nombre: string } | null>(null);
   const [confirmCerrar, setConfirmCerrar] = useState(false);
+  const [archivoParaRecortar, setArchivoParaRecortar] = useState<File | null>(null);
+  const selectorRetratoRef = useRef<HTMLInputElement>(null);
 
   const refrescar = useCallback(async () => {
     try {
@@ -106,6 +116,19 @@ export function GestionMesaPage({
     } catch (expulsarError) {
       setError(describeError(expulsarError));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function abandonarMesa() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await mesasApi.abandonar(mesa.id);
+      onVolver();
+    } catch (abandonarError) {
+      setError(describeError(abandonarError));
       setBusy(false);
     }
   }
@@ -193,6 +216,67 @@ export function GestionMesaPage({
     }
   }
 
+  function alElegirRetrato(evento: ChangeEvent<HTMLInputElement>) {
+    const archivo = evento.target.files?.[0];
+    evento.target.value = "";
+    if (!archivo) return;
+    setArchivoParaRecortar(archivo);
+  }
+
+  async function alConfirmarRecorteRetrato(archivoRecortado: File) {
+    if (!mesa) return;
+    setArchivoParaRecortar(null);
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const subido = await archivosApi.subir(archivoRecortado, mesa.id);
+      await mesasApi.actualizarPersonaje(mesa.id, { retratoArchivoId: subido.id });
+      setMesa(prev =>
+        prev
+          ? {
+              ...prev,
+              retratosPorJugador: {
+                ...(prev.retratosPorJugador ?? {}),
+                [user.id]: subido.id
+              }
+            }
+          : prev
+      );
+      setAviso("Retrato de personaje actualizado.");
+    } catch (retratoError) {
+      setError(describeError(retratoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quitarRetrato() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      await mesasApi.actualizarPersonaje(mesa.id, { retratoArchivoId: null });
+      setMesa(prev =>
+        prev
+          ? {
+              ...prev,
+              retratosPorJugador: {
+                ...(prev.retratosPorJugador ?? {}),
+                [user.id]: null
+              }
+            }
+          : prev
+      );
+      setAviso("Retrato de personaje eliminado.");
+    } catch (retratoError) {
+      setError(describeError(retratoError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function entrarEnSala() {
     if (!mesa || !onAbrirSala) return;
     if (expulsado) {
@@ -200,6 +284,42 @@ export function GestionMesaPage({
       return;
     }
     onAbrirSala(mesa);
+  }
+
+  async function guardarContrasena(evento: FormEvent) {
+    evento.preventDefault();
+    if (!mesa) return;
+    const limpia = (contrasenaEditada ?? mesa.contrasena ?? "").trim().slice(0, 64);
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarContrasena(mesa.id, limpia || null);
+      setMesa(actualizada);
+      setContrasenaEditada(null);
+      setAviso(limpia ? "Contraseña de la sala guardada." : "Contraseña eliminada (sala abierta).");
+    } catch (passError) {
+      setError(describeError(passError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quitarContrasena() {
+    if (!mesa) return;
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const actualizada = await mesasApi.cambiarContrasena(mesa.id, null);
+      setMesa(actualizada);
+      setContrasenaEditada(null);
+      setAviso("Contraseña eliminada (sala abierta).");
+    } catch (passError) {
+      setError(describeError(passError));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (loading) {
@@ -232,6 +352,7 @@ export function GestionMesaPage({
   const miColor = mesa.colores?.[user.id] ?? null;
   const soyJugadorEnMesa = mesa.players.some(jugador => jugador.id === user.id);
   const miApodo = mesa.playerApodos?.[user.id]?.trim() ?? "";
+  const miRetratoId = mesa.retratosPorJugador?.[user.id] ?? null;
 
   return (
     <section className="card gestion">
@@ -244,6 +365,30 @@ export function GestionMesaPage({
         <span className={mesa.estado === "EN_CURSO" ? "pill on" : "pill pending"}>
           {mesa.estado === "EN_CURSO" ? "En curso" : "En espera"}
         </span>
+        {onAlternarHoguera && (
+          <button
+            type="button"
+            className={`topbar-tema-btn${hogueraSilenciada ? " silenciada" : ""}`}
+            onClick={onAlternarHoguera}
+            title={
+              hogueraSilenciada
+                ? "Sonido de hoguera apagado (pulsa para activar)"
+                : "Sonido de hoguera activo (pulsa para apagar)"
+            }
+            aria-label={
+              hogueraSilenciada
+                ? "Activar sonido de hoguera"
+                : "Apagar sonido de hoguera"
+            }
+            aria-pressed={!hogueraSilenciada}
+          >
+            {hogueraSilenciada ? (
+              <VolumeX size={16} strokeWidth={2.2} aria-hidden="true" />
+            ) : (
+              <Volume2 size={16} strokeWidth={2.2} aria-hidden="true" />
+            )}
+          </button>
+        )}
       </div>
 
       {error && <p className="feedback ko">{error}</p>}
@@ -274,11 +419,12 @@ export function GestionMesaPage({
         </p>
       )}
 
-      <div className="gestion-bloque">
-        <h3 className="gestion-subtitulo">
-          <Palette size={15} aria-hidden="true" />
-          <span>Tu color de esfera</span>
-        </h3>
+      {(esAnfitrion || soyJugador) && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <Palette size={15} aria-hidden="true" />
+            <span>Tu color de esfera</span>
+          </h3>
         <div className="color-propio">
           <button
             type="button"
@@ -314,9 +460,18 @@ export function GestionMesaPage({
                 </button>
               );
             })}
+            <ColorPickerPopover
+              value={miColor ?? "#e8c56a"}
+              onCommit={hex => void elegirColor(hex)}
+              disabled={busy}
+              className="paleta-color paleta-color-libre"
+              ariaLabel="Elegir color personalizado"
+              title="Color personalizado (rueda)"
+            />
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {soyJugadorEnMesa && (
         <div className="gestion-bloque">
@@ -353,6 +508,114 @@ export function GestionMesaPage({
               </button>
             )}
           </form>
+        </div>
+      )}
+
+      {soyJugadorEnMesa && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <User size={15} aria-hidden="true" />
+            <span>Tu retrato de personaje (PJ)</span>
+          </h3>
+          <input
+            ref={selectorRetratoRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            style={{ display: "none" }}
+            onChange={alElegirRetrato}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: "50%",
+                overflow: "hidden",
+                display: "grid",
+                placeItems: "center",
+                background: miColor ?? "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                flexShrink: 0
+              }}
+            >
+              {miRetratoId ? (
+                <img
+                  src={archivosApi.url(miRetratoId)}
+                  alt="Tu retrato de personaje"
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+              ) : (
+                <User size={22} aria-hidden="true" />
+              )}
+            </div>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => selectorRetratoRef.current?.click()}
+              disabled={busy}
+            >
+              <Upload size={13} aria-hidden="true" />
+              <span>Subir / recortar retrato</span>
+            </button>
+            {miRetratoId && (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void quitarRetrato()}
+                disabled={busy}
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {gestiona && (
+        <div className="gestion-bloque">
+          <h3 className="gestion-subtitulo">
+            <Lock size={15} aria-hidden="true" />
+            <span>Contraseña de la sala (opcional)</span>
+          </h3>
+          <form className="apodo-propio-form" onSubmit={evento => void guardarContrasena(evento)}>
+            <input
+              type="text"
+              className="apodo-propio-input"
+              maxLength={64}
+              value={contrasenaEditada ?? mesa.contrasena ?? ""}
+              onChange={e => setContrasenaEditada(e.target.value)}
+              placeholder="Sin contraseña (sala abierta)…"
+              aria-label="Contraseña de la sala"
+              autoComplete="off"
+              disabled={busy}
+            />
+            <button
+              type="submit"
+              className="ghost small"
+              disabled={
+                busy ||
+                (contrasenaEditada ?? mesa.contrasena ?? "").trim().slice(0, 64) ===
+                  (mesa.contrasena ?? "")
+              }
+            >
+              Guardar
+            </button>
+            {mesa.tieneContrasena && (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void quitarContrasena()}
+                disabled={busy}
+              >
+                Quitar
+              </button>
+            )}
+          </form>
+          <p className="muted gestion-contrasena-nota">
+            {mesa.tieneContrasena
+              ? "Sala protegida: los jugadores deberán escribir esta contraseña al unirse."
+              : "Sala abierta: cualquiera puede unirse sin contraseña."}
+          </p>
         </div>
       )}
 
@@ -464,17 +727,30 @@ export function GestionMesaPage({
           )}
         </div>
 
-        {esAnfitrion && (
-          <button
-            type="button"
-            className="danger"
-            onClick={() => setConfirmCerrar(true)}
-            disabled={busy}
-          >
-            <Trash2 size={15} aria-hidden="true" />
-            <span>Cerrar mesa</span>
-          </button>
-        )}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          {soyJugador && !esAnfitrion && (
+            <button
+              type="button"
+              className="danger"
+              onClick={() => void abandonarMesa()}
+              disabled={busy}
+            >
+              <LogOut size={15} aria-hidden="true" />
+              <span>Abandonar mesa</span>
+            </button>
+          )}
+          {(esAnfitrion || gestiona) && (
+            <button
+              type="button"
+              className="danger"
+              onClick={() => setConfirmCerrar(true)}
+              disabled={busy}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              <span>Cerrar mesa</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog
@@ -496,6 +772,14 @@ export function GestionMesaPage({
         onConfirm={() => void confirmarCerrarMesa()}
         onCancel={() => setConfirmCerrar(false)}
       />
+
+      {archivoParaRecortar && (
+        <RecorteRetratoModal
+          archivo={archivoParaRecortar}
+          onCancelar={() => setArchivoParaRecortar(null)}
+          onConfirmar={archivoRecortado => void alConfirmarRecorteRetrato(archivoRecortado)}
+        />
+      )}
     </section>
   );
 }

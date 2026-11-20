@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -16,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  Eraser,
   Eye,
   EyeOff,
   Grid3x3,
@@ -33,6 +35,7 @@ import {
   Sliders,
   Snowflake,
   Swords,
+  Timer,
   Trash2,
   Undo2,
   Unlock,
@@ -41,7 +44,10 @@ import {
   Users,
   X
 } from "lucide-react";
-import { nuevoId } from "./calibracion";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
+import { RecorteRetratoModal } from "./RecorteRetratoModal";
+import { nuevoId, trazoTocaPunto } from "./calibracion";
+import { obtenerColorDadoGuardado } from "./datos";
 import { IconoDadoPoligono } from "./HudSalaCompartido";
 import { reproducirSonidoPing } from "./sonido";
 import type {
@@ -54,6 +60,7 @@ import type {
   MapaRejillaConfig,
   PingVisual,
   PlantillaTokenMapa,
+  ReglaVisual,
   TiradaAsiento,
   TokenMapa,
   TrazoPizarra
@@ -72,11 +79,26 @@ export interface MapaProps {
   onVolver: () => void;
   pingsActivos?: PingVisual[];
   onEnviarPing?: (datos: { x: number; y: number; vista: "mapa" }) => void;
+  reglasRemotas?: ReglaVisual[];
+  onEnviarRegla?: (
+    datos:
+      | {
+          activa: true;
+          x1: number;
+          y1: number;
+          x2: number;
+          y2: number;
+          color: string;
+          seq?: number;
+        }
+      | { activa: false; seq?: number }
+  ) => void;
   colorJugador?: string;
   nombreJugador?: string;
   esMaster?: boolean;
   miUsuarioId?: string;
   estadoMapa: EstadoMapaCompartido;
+  desfaseRelojMs?: number;
   onCambiarFondoYRejilla: (
     fondo: MapaFondoConfig | null,
     rejilla: MapaRejillaConfig
@@ -109,9 +131,15 @@ export interface MapaProps {
   jugadores?: JugadorPreview[];
   tiradasAsiento?: Record<string, TiradaAsiento>;
   onCambiarIniciativa?: (iniciativa: MapaIniciativaEstado) => void | Promise<void>;
-  onTerminarTurnoIniciativa?: () => void | Promise<void>;
+  onTerminarTurnoIniciativa?: (opciones?: {
+    porTiempo?: boolean;
+    rondaEsperada?: number;
+    turnoIndiceEsperado?: number;
+    entradaIdEsperada?: string;
+  }) => void | Promise<void>;
   onAgregarTrazo?: (trazo: TrazoPizarra) => void | Promise<void>;
   onEliminarTrazo?: (trazoId: string) => void | Promise<void>;
+  onEliminarTrazosLote?: (trazoIds: string[]) => void | Promise<void>;
   onBorrarTrazos?: () => void | Promise<void>;
   onCambiarDibujoCongelado?: (congelado: boolean) => void | Promise<void>;
   onCrearArea?: (area: {
@@ -134,6 +162,7 @@ const ZOOM_MAX = 4;
 const ASPECTO_POR_DEFECTO = 16 / 9;
 const PRESETS_TAMANO = [1, 2, 3, 4] as const;
 const PRESETS_AREA = [1, 2, 3, 4, 6] as const;
+const PRESETS_CONTRARELOJ = [30, 60, 90, 120, 180] as const;
 const COLORES_AREA = [
   "#f97316",
   "#ef4444",
@@ -142,6 +171,12 @@ const COLORES_AREA = [
   "#a855f7",
   "#f5c542"
 ] as const;
+
+let ultimoSeqReglaLocal = 0;
+function siguienteSeqRegla(): number {
+  ultimoSeqReglaLocal = Math.max(ultimoSeqReglaLocal + 1, Date.now() * 10);
+  return ultimoSeqReglaLocal;
+}
 const COLORES_DIBUJO = [
   "#f5c542",
   "#ef4444",
@@ -388,11 +423,14 @@ export function Mapa({
   onVolver,
   pingsActivos,
   onEnviarPing,
+  reglasRemotas = [],
+  onEnviarRegla,
   colorJugador,
   nombreJugador,
   esMaster = false,
   miUsuarioId,
   estadoMapa,
+  desfaseRelojMs = 0,
   onCambiarFondoYRejilla,
   onCrearToken,
   onActualizarToken,
@@ -407,6 +445,7 @@ export function Mapa({
   onTerminarTurnoIniciativa,
   onAgregarTrazo,
   onEliminarTrazo,
+  onEliminarTrazosLote,
   onBorrarTrazos,
   onCambiarDibujoCongelado,
   onCrearArea,
@@ -416,29 +455,48 @@ export function Mapa({
   const { tokens, plantillas } = estadoMapa;
   const tokensEnMapa = useMemo(() => tokens.filter(t => !t.enLimbo), [tokens]);
   const tokensEnLimbo = useMemo(() => tokens.filter(t => Boolean(t.enLimbo)), [tokens]);
-  const trazos = estadoMapa.trazos ?? [];
+  const trazos = useMemo(() => estadoMapa.trazos ?? [], [estadoMapa.trazos]);
   const areas = estadoMapa.areas ?? [];
   const dibujoCongelado = Boolean(estadoMapa.dibujoCongelado);
   const dibujoBloqueado = dibujoCongelado && !esMaster;
 
   const [modoPing, setModoPing] = useState(false);
   const [modoDibujo, setModoDibujo] = useState(false);
+  const [herramientaDibujo, setHerramientaDibujo] = useState<"pincel" | "goma">("pincel");
   const [reglaAbierta, setReglaAbierta] = useState(false);
   const [modoReglaLinea, setModoReglaLinea] = useState(false);
-  const [colorArea, setColorArea] = useState<string>(COLORES_AREA[0]);
+  const [contrarelojAbierto, setContrarelojAbierto] = useState(false);
+  const [contrarelojInput, setContrarelojInput] = useState("60");
+  const [colorAreaElegido, setColorAreaElegido] = useState<string | null>(null);
+  const colorArea = colorAreaElegido ?? colorJugador ?? COLORES_AREA[0];
+  const coloresAreaPaleta = useMemo(() => {
+    const lista = colorJugador ? [colorJugador, ...COLORES_AREA] : [...COLORES_AREA];
+    return Array.from(new Set(lista));
+  }, [colorJugador]);
   const [reglaLinea, setReglaLinea] = useState<{
     x1: number;
     y1: number;
     x2: number;
     y2: number;
+    color: string;
   } | null>(null);
   const reglaLineaRef = useRef<{
     x1: number;
     y1: number;
     x2: number;
     y2: number;
+    color: string;
   } | null>(null);
   const pointerIdReglaRef = useRef<number | null>(null);
+  const ultimoEnvioReglaRef = useRef<number>(0);
+  const timerReglaRef = useRef<number | null>(null);
+  const pendienteReglaRef = useRef<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+  } | null>(null);
   const [areaSeleccionadaId, setAreaSeleccionadaId] = useState<string | null>(null);
   const [arrastreArea, setArrastreArea] = useState<{
     areaId: string;
@@ -485,6 +543,74 @@ export function Mapa({
   const [trazoEnCurso, setTrazoEnCurso] = useState<TrazoPizarra | null>(null);
   const trazoEnCursoRef = useRef<TrazoPizarra | null>(null);
   const pointerIdDibujoRef = useRef<number | null>(null);
+  const [trazosBorrandoIds, setTrazosBorrandoIds] = useState<Set<string>>(() => new Set());
+  const borrandoGomaRef = useRef(false);
+  const pointerIdGomaRef = useRef<number | null>(null);
+  const idsBorradosGomaRef = useRef<Set<string>>(new Set());
+  const onEnviarReglaRef = useRef(onEnviarRegla);
+  useEffect(() => {
+    onEnviarReglaRef.current = onEnviarRegla;
+  }, [onEnviarRegla]);
+  const onTerminarTurnoRef = useRef(onTerminarTurnoIniciativa);
+  useEffect(() => {
+    onTerminarTurnoRef.current = onTerminarTurnoIniciativa;
+  }, [onTerminarTurnoIniciativa]);
+
+  const emitReglaDirecto = useCallback(
+    (
+      linea: {
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+        color: string;
+      } | null
+    ) => {
+      const enviar = onEnviarReglaRef.current;
+      if (!enviar) return;
+      const seq = siguienteSeqRegla();
+      if (linea === null) {
+        if (timerReglaRef.current !== null) {
+          window.clearTimeout(timerReglaRef.current);
+          timerReglaRef.current = null;
+        }
+        pendienteReglaRef.current = null;
+        ultimoEnvioReglaRef.current = 0;
+        enviar({ activa: false, seq });
+        return;
+      }
+
+      const ahora = Date.now();
+      const transcurrido = ahora - ultimoEnvioReglaRef.current;
+      if (transcurrido >= 60) {
+        if (timerReglaRef.current !== null) {
+          window.clearTimeout(timerReglaRef.current);
+          timerReglaRef.current = null;
+        }
+        pendienteReglaRef.current = null;
+        ultimoEnvioReglaRef.current = ahora;
+        enviar({ activa: true, ...linea, seq });
+        return;
+      }
+
+      pendienteReglaRef.current = linea;
+      if (timerReglaRef.current === null) {
+        timerReglaRef.current = window.setTimeout(() => {
+          timerReglaRef.current = null;
+          const pendiente = pendienteReglaRef.current;
+          if (!pendiente) return;
+          pendienteReglaRef.current = null;
+          ultimoEnvioReglaRef.current = Date.now();
+          onEnviarReglaRef.current?.({
+            activa: true,
+            ...pendiente,
+            seq: siguienteSeqRegla()
+          });
+        }, Math.max(10, 60 - transcurrido));
+      }
+    },
+    []
+  );
   const [pingsLocales, setPingsLocales] = useState<PingVisual[]>([]);
   const [panelAbierto, setPanelAbierto] = useState<
     "fondo" | "tokens" | "bandeja" | null
@@ -567,6 +693,8 @@ export function Mapa({
     undefined
   );
   const [subiendoToken, setSubiendoToken] = useState(false);
+  const [archivoTokenParaRecortar, setArchivoTokenParaRecortar] =
+    useState<File | null>(null);
   const [subiendoFondo, setSubiendoFondo] = useState(false);
   const [errorPanel, setErrorPanel] = useState<string | null>(null);
 
@@ -668,8 +796,21 @@ export function Mapa({
           setPanelAbierto(null);
         } else if (iniciativaAbierta) {
           setIniciativaAbierta(false);
+        } else if (contrarelojAbierto) {
+          setContrarelojAbierto(false);
+        } else if (areaSeleccionadaId) {
+          setAreaSeleccionadaId(null);
         } else if (tokenSeleccionadoId) {
           setTokenSeleccionadoId(null);
+        } else if (modoReglaLinea || reglaAbierta) {
+          if (reglaLineaRef.current) {
+            reglaLineaRef.current = null;
+            pointerIdReglaRef.current = null;
+            setReglaLinea(null);
+            emitReglaDirecto(null);
+          }
+          setModoReglaLinea(false);
+          setReglaAbierta(false);
         } else if (modoDibujo) {
           setModoDibujo(false);
         } else if (modoPing) {
@@ -693,10 +834,15 @@ export function Mapa({
   }, [
     panelAbierto,
     iniciativaAbierta,
+    contrarelojAbierto,
+    areaSeleccionadaId,
     tokenSeleccionadoId,
+    modoReglaLinea,
+    reglaAbierta,
     modoDibujo,
     modoPing,
-    cerrarPanelFondoSinConfirmar
+    cerrarPanelFondoSinConfirmar,
+    emitReglaDirecto
   ]);
 
   // Deseleccionar si el token desaparece o pierde permisos
@@ -751,6 +897,8 @@ export function Mapa({
   }
 
   const dibujandoActivo = modoDibujo && !dibujoBloqueado;
+  const pincelActivo = dibujandoActivo && herramientaDibujo === "pincel";
+  const gomaActiva = dibujandoActivo && herramientaDibujo === "goma";
 
   const coloresPaleta = useMemo(() => {
     const lista = colorJugador
@@ -772,10 +920,13 @@ export function Mapa({
     return null;
   }, [trazos, esMaster, miUsuarioId]);
 
-  const trazosVisibles = useMemo(
-    () => (trazoEnCurso ? [...trazos, trazoEnCurso] : trazos),
-    [trazos, trazoEnCurso]
-  );
+  const trazosVisibles = useMemo(() => {
+    const filtrados =
+      trazosBorrandoIds.size > 0
+        ? trazos.filter(t => !trazosBorrandoIds.has(t.id))
+        : trazos;
+    return trazoEnCurso ? [...filtrados, trazoEnCurso] : filtrados;
+  }, [trazos, trazoEnCurso, trazosBorrandoIds]);
 
   function obtenerPuntoCanvas(
     clientX: number,
@@ -791,6 +942,47 @@ export function Mapa({
     };
   }
 
+  function borrarTrazosEnPunto(
+    punto: { x: number; y: number },
+    rect: DOMRect
+  ): void {
+    const dim = Math.sqrt(Math.max(1, rect.width * rect.height));
+    const umbral = limitar((16 / dim) * 100, 0.45, 6);
+    const nuevosIds: string[] = [];
+    for (const trazo of trazos) {
+      if (idsBorradosGomaRef.current.has(trazo.id)) continue;
+      const permitido = esMaster || !miUsuarioId || trazo.autorId === miUsuarioId;
+      if (!permitido) continue;
+      if (trazoTocaPunto(trazo, punto, umbral)) {
+        idsBorradosGomaRef.current.add(trazo.id);
+        nuevosIds.push(trazo.id);
+      }
+    }
+    if (nuevosIds.length > 0) {
+      setTrazosBorrandoIds(prev => {
+        const sig = new Set(prev);
+        for (const id of nuevosIds) sig.add(id);
+        return sig;
+      });
+    }
+  }
+
+  useEffect(
+    () => () => {
+      if (timerReglaRef.current !== null) {
+        window.clearTimeout(timerReglaRef.current);
+        timerReglaRef.current = null;
+      }
+      if (reglaLineaRef.current) {
+        onEnviarReglaRef.current?.({
+          activa: false,
+          seq: siguienteSeqRegla()
+        });
+      }
+    },
+    []
+  );
+
   function alBajarPunteroCanvas(
     evento: ReactPointerEvent<HTMLDivElement>
   ): void {
@@ -800,14 +992,36 @@ export function Mapa({
       evento.stopPropagation();
       evento.preventDefault();
       evento.currentTarget.setPointerCapture(evento.pointerId);
-      const linea = { x1: punto.x, y1: punto.y, x2: punto.x, y2: punto.y };
+      const linea = {
+        x1: punto.x,
+        y1: punto.y,
+        x2: punto.x,
+        y2: punto.y,
+        color: colorArea
+      };
       pointerIdReglaRef.current = evento.pointerId;
       reglaLineaRef.current = linea;
       setReglaLinea(linea);
+      emitReglaDirecto(linea);
       return;
     }
 
-    if (!dibujandoActivo || evento.button !== 0 || espacioPulsado) return;
+    if (gomaActiva && evento.button === 0 && !espacioPulsado) {
+      const canvas = canvasRef.current;
+      const rect = canvas?.getBoundingClientRect();
+      const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
+      if (!rect || !punto) return;
+      evento.stopPropagation();
+      evento.preventDefault();
+      evento.currentTarget.setPointerCapture(evento.pointerId);
+      borrandoGomaRef.current = true;
+      pointerIdGomaRef.current = evento.pointerId;
+      idsBorradosGomaRef.current = new Set();
+      borrarTrazosEnPunto(punto, rect);
+      return;
+    }
+
+    if (!pincelActivo || evento.button !== 0 || espacioPulsado) return;
     const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
     if (!punto) return;
 
@@ -837,6 +1051,16 @@ export function Mapa({
       const siguiente = { ...reglaActiva, x2: punto.x, y2: punto.y };
       reglaLineaRef.current = siguiente;
       setReglaLinea(siguiente);
+      emitReglaDirecto(siguiente);
+      return;
+    }
+
+    if (borrandoGomaRef.current && pointerIdGomaRef.current === evento.pointerId) {
+      const canvas = canvasRef.current;
+      const rect = canvas?.getBoundingClientRect();
+      const punto = obtenerPuntoCanvas(evento.clientX, evento.clientY);
+      if (!rect || !punto) return;
+      borrarTrazosEnPunto(punto, rect);
       return;
     }
 
@@ -868,8 +1092,35 @@ export function Mapa({
       reglaLineaRef.current = null;
       pointerIdReglaRef.current = null;
       setReglaLinea(null);
+      emitReglaDirecto(null);
       if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
         evento.currentTarget.releasePointerCapture(evento.pointerId);
+      }
+      return;
+    }
+
+    if (borrandoGomaRef.current && pointerIdGomaRef.current === evento.pointerId) {
+      borrandoGomaRef.current = false;
+      pointerIdGomaRef.current = null;
+      if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
+        evento.currentTarget.releasePointerCapture(evento.pointerId);
+      }
+      const ids = Array.from(idsBorradosGomaRef.current);
+      idsBorradosGomaRef.current = new Set();
+      if (ids.length > 0) {
+        if (onEliminarTrazosLote) {
+          void Promise.resolve(onEliminarTrazosLote(ids)).finally(() => {
+            setTrazosBorrandoIds(new Set());
+          });
+        } else if (onEliminarTrazo) {
+          void Promise.all(ids.map(id => onEliminarTrazo(id))).finally(() => {
+            setTrazosBorrandoIds(new Set());
+          });
+        } else {
+          setTrazosBorrandoIds(new Set());
+        }
+      } else {
+        setTrazosBorrandoIds(new Set());
       }
       return;
     }
@@ -1165,7 +1416,7 @@ export function Mapa({
   }
 
   function colocarAreaEnMapa(tipo: "circulo" | "cono"): void {
-    if (!onCrearArea) return;
+    if (!onCrearArea || dibujoBloqueado) return;
     let x = 50;
     let y = 50;
     const viewport = viewportRef.current;
@@ -1203,7 +1454,7 @@ export function Mapa({
     setTokenSeleccionadoId(null);
     setAreaSeleccionadaId(area.id);
 
-    if (!puedeEditarArea(area, esMaster, miUsuarioId) || evento.button !== 0) {
+    if (dibujoBloqueado || !puedeEditarArea(area, esMaster, miUsuarioId) || evento.button !== 0) {
       return;
     }
 
@@ -1230,7 +1481,7 @@ export function Mapa({
     evento: ReactPointerEvent<HTMLButtonElement>,
     area: AreaMapa
   ): void {
-    if (!puedeEditarArea(area, esMaster, miUsuarioId) || evento.button !== 0) return;
+    if (dibujoBloqueado || !puedeEditarArea(area, esMaster, miUsuarioId) || evento.button !== 0) return;
     evento.stopPropagation();
     evento.preventDefault();
     const canvas = canvasRef.current;
@@ -1257,7 +1508,7 @@ export function Mapa({
     evento: ReactPointerEvent<HTMLDivElement>,
     token: TokenMapa
   ): void {
-    if (modoPing || dibujandoActivo || espacioPulsado || evento.button === 1) {
+    if (modoPing || dibujandoActivo || modoReglaLinea || espacioPulsado || evento.button === 1) {
       return;
     }
     evento.stopPropagation();
@@ -1390,13 +1641,7 @@ export function Mapa({
     );
   }
 
-  async function alSubirImagenToken(
-    evento: ChangeEvent<HTMLInputElement>
-  ): Promise<void> {
-    const archivo = evento.target.files?.[0];
-    evento.target.value = "";
-    if (!archivo) return;
-
+  async function subirArchivoTokenRecortado(archivo: File): Promise<void> {
     setErrorPanel(null);
     setSubiendoToken(true);
     try {
@@ -1416,6 +1661,42 @@ export function Mapa({
     } catch (err) {
       setErrorPanel(
         err instanceof Error ? err.message : "No se pudo cargar la imagen."
+      );
+    } finally {
+      setSubiendoToken(false);
+    }
+  }
+
+  function alSubirImagenToken(evento: ChangeEvent<HTMLInputElement>): void {
+    const archivo = evento.target.files?.[0];
+    evento.target.value = "";
+    if (!archivo) return;
+    setErrorPanel(null);
+    setArchivoTokenParaRecortar(archivo);
+  }
+
+  async function alElegirImagenArchivadorToken(
+    item: ArchivoItem
+  ): Promise<void> {
+    setErrorPanel(null);
+    setSubiendoToken(true);
+    try {
+      const resp = await fetch(urlDeArchivo(item), { credentials: "include" });
+      if (!resp.ok) {
+        throw new Error("No se pudo cargar la imagen del Archivador.");
+      }
+      const blob = await resp.blob();
+      const archivo = new File([blob], item.nombre, {
+        type: blob.type || "image/png"
+      });
+      const nombreBase = item.nombre.replace(/\.[^.]+$/, "");
+      setNombreToken(prev => (prev.trim() ? prev : nombreBase));
+      setArchivoTokenParaRecortar(archivo);
+    } catch (err) {
+      setErrorPanel(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar la imagen del Archivador."
       );
     } finally {
       setSubiendoToken(false);
@@ -1602,14 +1883,18 @@ export function Mapa({
         .filter((id): id is string => Boolean(id))
     );
     const nuevos: IniciativaEntrada[] = jugadoresActivos
-      .filter(j => !j.esMaster && !existentes.has(j.id))
+      .filter(j => {
+        if (j.esMaster) return false;
+        const uid = j.usuarioId ?? j.id;
+        return !existentes.has(uid) && !existentes.has(j.id);
+      })
       .map(j => ({
         id: nuevoId(),
         nombre: !j.esMaster && j.apodo?.trim() ? j.apodo.trim() : j.nombre,
         valor: 10,
         color: j.color,
         esMonstruo: false,
-        jugadorId: j.id
+        jugadorId: j.usuarioId ?? j.id
       }));
     if (nuevos.length === 0) return;
     emitirIniciativa({
@@ -1753,7 +2038,10 @@ export function Mapa({
       activa: false,
       ronda: 1,
       turnoIndice: 0,
-      entradas: []
+      entradas: [],
+      ...(iniciativa.turnoMaxSegundos !== undefined
+        ? { turnoMaxSegundos: iniciativa.turnoMaxSegundos }
+        : {})
     });
   }
 
@@ -1815,37 +2103,144 @@ export function Mapa({
     nombreJugador
   ]);
 
-  const [segundosTurno, setSegundosTurno] = useState(0);
+  const esTurnoMasterActual = useMemo(() => {
+    if (!iniciativa.activa || iniciativa.entradas.length === 0 || !entradaActual) {
+      return false;
+    }
+    if (entradaActual.esMonstruo) return true;
+    const masterSet = new Set(
+      jugadoresActivos
+        .filter(j => j.esMaster)
+        .flatMap(j => (j.usuarioId ? [j.id, j.usuarioId] : [j.id]))
+    );
+    if (entradaActual.jugadorId) {
+      if (masterSet.has(entradaActual.jugadorId)) return true;
+      if (esMaster && miUsuarioId && entradaActual.jugadorId === miUsuarioId) {
+        return true;
+      }
+      return false;
+    }
+    if (entradaActual.tokenId) {
+      const tok = estadoMapa.tokens.find(t => t.id === entradaActual.tokenId);
+      if (!tok || tok.esMonstruo) return true;
+      return masterSet.has(tok.autorId);
+    }
+    return true;
+  }, [
+    entradaActual,
+    esMaster,
+    estadoMapa.tokens,
+    iniciativa.activa,
+    iniciativa.entradas.length,
+    jugadoresActivos,
+    miUsuarioId
+  ]);
+
+  const modoContrareloj =
+    typeof iniciativa.turnoMaxSegundos === "number" && iniciativa.turnoMaxSegundos > 0;
+  const maxSegContrareloj = modoContrareloj ? (iniciativa.turnoMaxSegundos as number) : 0;
+
+  const [ahoraLocalMs, setAhoraLocalMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!iniciativa.activa || iniciativa.entradas.length === 0) return;
+    const id = window.setInterval(() => {
+      setAhoraLocalMs(Date.now());
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [iniciativa.activa, iniciativa.entradas.length]);
+
+  const ahoraServidorEstMs = ahoraLocalMs + desfaseRelojMs;
+  const iniciadoMs =
+    typeof iniciativa.turnoIniciadoEn === "number"
+      ? iniciativa.turnoIniciadoEn
+      : ahoraServidorEstMs;
+  const transcurridoMs = Math.max(0, ahoraServidorEstMs - iniciadoMs);
+  const maxMs = maxSegContrareloj * 1000;
+  const restanteMs = Math.max(0, maxMs - transcurridoMs);
+
+  let textoTimer = "00:00";
+  let claseEstadoTimer = "";
+  if (!modoContrareloj) {
+    textoTimer = formatearTimerTurno(Math.floor(transcurridoMs / 1000));
+    claseEstadoTimer = " activo";
+  } else if (esTurnoMasterActual) {
+    textoTimer = `∞ ${formatearTimerTurno(Math.floor(transcurridoMs / 1000))}`;
+    claseEstadoTimer = " sin-limite";
+  } else {
+    const segsRestantes = Math.ceil(restanteMs / 1000);
+    const pct = maxMs > 0 ? restanteMs / maxMs : 0;
+    textoTimer = formatearTimerTurno(segsRestantes);
+    if (pct > 0.5) {
+      claseEstadoTimer = " estado-verde";
+    } else if (pct > 0.2) {
+      claseEstadoTimer = " estado-amarillo";
+    } else {
+      claseEstadoTimer = segsRestantes <= 5 ? " estado-rojo urgente" : " estado-rojo";
+    }
+  }
+
+  const puedePasarTurno = Boolean(onTerminarTurnoIniciativa) && (esMaster || esMiTurnoJugador);
+
+  const autoAvanceTurnoKeyRef = useRef<string | null>(null);
+  const turnoExpirado =
+    iniciativa.activa &&
+    iniciativa.entradas.length > 0 &&
+    modoContrareloj &&
+    !esTurnoMasterActual &&
+    typeof iniciativa.turnoIniciadoEn === "number" &&
+    restanteMs <= 0;
 
   useEffect(() => {
-    setSegundosTurno(0);
-    if (!esMiTurnoJugador) return;
-    const id = window.setInterval(() => {
-      setSegundosTurno(prev => prev + 1);
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [esMiTurnoJugador, iniciativa.turnoIndice, iniciativa.ronda]);
+    if (!turnoExpirado || !entradaActual || !onTerminarTurnoRef.current) return;
+    const clave = `${iniciativa.ronda}:${iniciativa.turnoIndice}:${entradaActual.id}`;
+    if (autoAvanceTurnoKeyRef.current === clave) return;
+    const retraso = esMaster || esMiTurnoJugador ? 40 : 650;
+    const timer = window.setTimeout(() => {
+      if (autoAvanceTurnoKeyRef.current === clave) return;
+      autoAvanceTurnoKeyRef.current = clave;
+      void onTerminarTurnoRef.current?.({
+        porTiempo: true,
+        rondaEsperada: iniciativa.ronda,
+        turnoIndiceEsperado: iniciativa.turnoIndice,
+        entradaIdEsperada: entradaActual.id
+      });
+    }, retraso);
+    return () => window.clearTimeout(timer);
+  }, [
+    turnoExpirado,
+    entradaActual,
+    iniciativa.ronda,
+    iniciativa.turnoIndice,
+    esMaster,
+    esMiTurnoJugador
+  ]);
 
   return (
     <div className="mapa-page">
-      {!esMaster && iniciativa.activa && iniciativa.entradas.length > 0 && (
-        <div className="mapa-turno-panel">
-          <button
-            type="button"
-            className="mapa-pasar-turno-btn"
-            disabled={!esMiTurnoJugador}
-            onClick={() => void onTerminarTurnoIniciativa?.()}
-          >
-            Pasar turno
-          </button>
-          <span
-            className={`mapa-turno-timer${esMiTurnoJugador ? " activo" : ""}`}
-          >
-            {formatearTimerTurno(segundosTurno)}
-          </span>
+      {iniciativa.activa && iniciativa.entradas.length > 0 && (
+        <div
+          className={`mapa-turno-panel${modoContrareloj ? " contrareloj" : ""}`}
+        >
+          {modoContrareloj && (
+            <span className="mapa-contrareloj-titulo">Contrareloj</span>
+          )}
+          <div className="mapa-turno-fila">
+            <button
+              type="button"
+              className="mapa-pasar-turno-btn"
+              disabled={!puedePasarTurno}
+              onClick={() => void onTerminarTurnoIniciativa?.()}
+            >
+              Pasar turno
+            </button>
+            <span className={`mapa-turno-timer${claseEstadoTimer}`}>
+              {textoTimer}
+            </span>
+          </div>
         </div>
       )}
 
+      <div className="mapa-top-stack">
       {/* Barra flotante superior izquierda (deja libre arriba-derecha y abajo) */}
       <div className="mapa-barra-flotante">
         <button type="button" className="pizarra-btn mapa-btn-volver" onClick={onVolver}>
@@ -1865,6 +2260,7 @@ export function Mapa({
                 setModoDibujo(false);
                 setModoReglaLinea(false);
                 setReglaAbierta(false);
+                setContrarelojAbierto(false);
               }
               return siguiente;
             });
@@ -1887,6 +2283,7 @@ export function Mapa({
                 setModoPing(false);
                 setModoReglaLinea(false);
                 setReglaAbierta(false);
+                setContrarelojAbierto(false);
               }
               return siguiente;
             });
@@ -1894,7 +2291,7 @@ export function Mapa({
           title={
             dibujoBloqueado
               ? "El Máster ha congelado el dibujo en el mapa"
-              : "Dibujar sobre el mapa"
+              : "Dibujar o borrar sobre el mapa"
           }
         >
           <Pencil size={14} strokeWidth={2.1} aria-hidden="true" />
@@ -1907,6 +2304,7 @@ export function Mapa({
           onClick={() => {
             setModoPing(false);
             setModoDibujo(false);
+            setContrarelojAbierto(false);
             if (modoReglaLinea) {
               setModoReglaLinea(false);
               setReglaAbierta(false);
@@ -1967,8 +2365,8 @@ export function Mapa({
               }}
               title={
                 dibujoCongelado
-                  ? "Descongelar dibujo para los jugadores"
-                  : "Congelar dibujo para los jugadores"
+                  ? "Descongelar dibujo y áreas para los jugadores"
+                  : "Congelar dibujo y áreas para los jugadores (mantiene tokens y regla)"
               }
             >
               <Snowflake size={14} strokeWidth={2.1} aria-hidden="true" />
@@ -2061,6 +2459,31 @@ export function Mapa({
             role="group"
             aria-label="Opciones de dibujo"
           >
+            <div className="mapa-dibujo-herramientas" role="group" aria-label="Herramienta de dibujo">
+              <button
+                type="button"
+                className={`mapa-herramienta-btn${herramientaDibujo === "pincel" ? " activo" : ""}`}
+                onClick={() => setHerramientaDibujo("pincel")}
+                title="Pincel (dibujo libre)"
+              >
+                <Pencil size={12} strokeWidth={2.2} aria-hidden="true" />
+                <span>Pincel</span>
+              </button>
+              <button
+                type="button"
+                className={`mapa-herramienta-btn${herramientaDibujo === "goma" ? " activo" : ""}`}
+                onClick={() => setHerramientaDibujo("goma")}
+                title={
+                  esMaster
+                    ? "Goma de borrar (pulsa o arrastra sobre cualquier trazo)"
+                    : "Goma de borrar (pulsa o arrastra sobre tus propios trazos)"
+                }
+              >
+                <Eraser size={12} strokeWidth={2.2} aria-hidden="true" />
+                <span>Goma</span>
+              </button>
+            </div>
+            <span className="mapa-barra-sep" aria-hidden="true" />
             <div className="mapa-dibujo-colores" title="Color del trazo">
               {coloresPaleta.map(color => (
                 <button
@@ -2070,7 +2493,10 @@ export function Mapa({
                     }`}
                   style={{ backgroundColor: color }}
                   aria-label={`Color ${color}`}
-                  onClick={() => setColorDibujo(color)}
+                  onClick={() => {
+                    setHerramientaDibujo("pincel");
+                    setColorDibujo(color);
+                  }}
                 />
               ))}
             </div>
@@ -2082,7 +2508,10 @@ export function Mapa({
                   type="button"
                   className={`mapa-grosor-btn${grosorDibujo === item.valor ? " activo" : ""
                     }`}
-                  onClick={() => setGrosorDibujo(item.valor)}
+                  onClick={() => {
+                    setHerramientaDibujo("pincel");
+                    setGrosorDibujo(item.valor);
+                  }}
                 >
                   {item.etiqueta}
                 </button>
@@ -2114,9 +2543,13 @@ export function Mapa({
             <button
               type="button"
               className="mapa-regla-opcion"
-              disabled={!onCrearArea}
+              disabled={!onCrearArea || dibujoBloqueado}
               onClick={() => colocarAreaEnMapa("circulo")}
-              title="Colocar área circular semitranslúcida"
+              title={
+                dibujoBloqueado
+                  ? "El Máster ha congelado la edición de áreas"
+                  : "Colocar área circular semitranslúcida"
+              }
             >
               <span>◯ Círculo</span>
             </button>
@@ -2124,24 +2557,28 @@ export function Mapa({
             <button
               type="button"
               className="mapa-regla-opcion"
-              disabled={!onCrearArea}
+              disabled={!onCrearArea || dibujoBloqueado}
               onClick={() => colocarAreaEnMapa("cono")}
-              title="Colocar área cónica semitranslúcida"
+              title={
+                dibujoBloqueado
+                  ? "El Máster ha congelado la edición de áreas"
+                  : "Colocar área cónica semitranslúcida"
+              }
             >
               <span>◁ Cono</span>
             </button>
 
             <span className="mapa-barra-sep" aria-hidden="true" />
 
-            <div className="mapa-dibujo-colores" title="Color del área">
-              {COLORES_AREA.map(color => (
+            <div className="mapa-dibujo-colores" title="Color de regla y áreas">
+              {coloresAreaPaleta.map(color => (
                 <button
                   key={color}
                   type="button"
                   className={`mapa-color-swatch${colorArea === color ? " activo" : ""}`}
                   style={{ backgroundColor: color }}
-                  aria-label={`Color de área ${color}`}
-                  onClick={() => setColorArea(color)}
+                  aria-label={`Color de regla y área ${color}`}
+                  onClick={() => setColorAreaElegido(color)}
                 />
               ))}
             </div>
@@ -2274,9 +2711,104 @@ export function Mapa({
                   <Sliders size={12} aria-hidden="true" />
                   {iniciativa.entradas.length === 0 && <span>Configurar</span>}
                 </button>
+                <button
+                  type="button"
+                  className={`pizarra-tool-btn${contrarelojAbierto || modoContrareloj ? " activo" : ""}`}
+                  onClick={() => {
+                    setModoPing(false);
+                    setModoDibujo(false);
+                    setModoReglaLinea(false);
+                    setReglaAbierta(false);
+                    if (
+                      !contrarelojAbierto &&
+                      typeof iniciativa.turnoMaxSegundos === "number" &&
+                      iniciativa.turnoMaxSegundos > 0
+                    ) {
+                      setContrarelojInput(String(iniciativa.turnoMaxSegundos));
+                    }
+                    setContrarelojAbierto(prev => !prev);
+                  }}
+                  title={
+                    modoContrareloj
+                      ? `Modo Contrareloj activo (${iniciativa.turnoMaxSegundos}s por turno)`
+                      : "Configurar tiempo máximo por turno (Contrareloj)"
+                  }
+                >
+                  <Timer size={14} strokeWidth={2.1} aria-hidden="true" />
+                  <span>
+                    {modoContrareloj
+                      ? `Contrareloj (${iniciativa.turnoMaxSegundos}s)`
+                      : "Contrareloj"}
+                  </span>
+                </button>
               </div>
             )}
           </div>
+
+          {esMaster && contrarelojAbierto && (
+            <div
+              className="mapa-contrareloj-paleta"
+              role="group"
+              aria-label="Configurar modo contrareloj"
+            >
+              <button
+                type="button"
+                className={`mapa-grosor-btn${!modoContrareloj ? " activo" : ""}`}
+                onClick={() => {
+                  emitirIniciativa({ ...iniciativa, turnoMaxSegundos: null });
+                }}
+              >
+                Infinito (∞)
+              </button>
+              {PRESETS_CONTRARELOJ.map(seg => (
+                <button
+                  key={seg}
+                  type="button"
+                  className={`mapa-grosor-btn${iniciativa.turnoMaxSegundos === seg ? " activo" : ""}`}
+                  onClick={() => {
+                    setContrarelojInput(String(seg));
+                    emitirIniciativa({ ...iniciativa, turnoMaxSegundos: seg });
+                  }}
+                >
+                  {seg}s
+                </button>
+              ))}
+              <span className="mapa-barra-sep" aria-hidden="true" />
+              <form
+                className="mapa-contrareloj-form"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const parsed = Math.round(Number(contrarelojInput));
+                  if (!Number.isFinite(parsed) || parsed <= 0) {
+                    emitirIniciativa({ ...iniciativa, turnoMaxSegundos: null });
+                    return;
+                  }
+                  const clamped = Math.max(5, Math.min(3600, parsed));
+                  setContrarelojInput(String(clamped));
+                  emitirIniciativa({ ...iniciativa, turnoMaxSegundos: clamped });
+                }}
+              >
+                <label className="mapa-contrareloj-label" htmlFor="mapa-contrareloj-seg">
+                  Segs:
+                </label>
+                <input
+                  id="mapa-contrareloj-seg"
+                  type="number"
+                  min={5}
+                  max={3600}
+                  value={contrarelojInput}
+                  onChange={e => setContrarelojInput(e.target.value)}
+                  className="mapa-contrareloj-input"
+                />
+                <button type="submit" className="mapa-grosor-btn activo">
+                  Aplicar
+                </button>
+              </form>
+              <span className="mapa-contrareloj-nota">
+                El Máster no tiene límite
+              </span>
+            </div>
+          )}
 
           {esMaster && iniciativaAbierta && (
             <div
@@ -2306,7 +2838,9 @@ export function Mapa({
                   disabled={jugadoresActivos.every(
                     j =>
                       j.esMaster ||
-                      iniciativa.entradas.some(e => e.jugadorId === j.id)
+                      iniciativa.entradas.some(
+                        e => e.jugadorId === (j.usuarioId ?? j.id) || e.jugadorId === j.id
+                      )
                   )}
                 >
                   <UserPlus size={12} aria-hidden="true" />
@@ -2531,6 +3065,7 @@ export function Mapa({
           )}
         </div>
       )}
+      </div>
 
       {/* Columna vertical de jugadores activos y tiradas recientes */}
       {jugadoresActivos.length > 0 && (
@@ -2574,13 +3109,9 @@ export function Mapa({
               const deTirada = (tirada as TiradaAsiento & { colorDado?: string })
                 .colorDado;
               if (deTirada) return deTirada;
-              if (esMioJugador && typeof window !== "undefined") {
-                try {
-                  const guardado = window.localStorage.getItem("pocketrol.colorDado");
-                  if (guardado) return guardado;
-                } catch {
-                  // ignorar errores de acceso a localStorage
-                }
+              if (esMioJugador) {
+                const guardado = obtenerColorDadoGuardado(miUsuarioId);
+                if (guardado) return guardado;
               }
               return j.color || "#ffe9a8";
             })();
@@ -2614,7 +3145,11 @@ export function Mapa({
                   <div
                     className={`mapa-jugador-tirada${tirada.especial === "critico" ? " critico" : ""
                       }${tirada.especial === "pifia" ? " pifia" : ""}`}
-                    aria-label={`${etiqueta} sacó ${tirada.total}`}
+                    aria-label={
+                      tirada.nombreMacro
+                        ? `${etiqueta} tiró ${tirada.nombreMacro} y sacó ${tirada.total}`
+                        : `${etiqueta} sacó ${tirada.total}`
+                    }
                   >
                     <span
                       className="mapa-jugador-tirada-icono"
@@ -2631,6 +3166,14 @@ export function Mapa({
                     <span className="mapa-jugador-tirada-total">
                       {tirada.total}
                     </span>
+                    {tirada.nombreMacro && (
+                      <span
+                        className="mapa-jugador-tirada-macro"
+                        title={tirada.nombreMacro}
+                      >
+                        {tirada.nombreMacro}
+                      </span>
+                    )}
                     {tirada.desglose && (
                       <span className="mapa-jugador-tirada-desglose">
                         {tirada.desglose}
@@ -2846,12 +3389,19 @@ export function Mapa({
 
                 <label className="mapa-campo mapa-campo-color">
                   <span>Color</span>
-                  <input
-                    type="color"
+                  <ColorPickerPopover
                     value={rejillaBorrador.color}
-                    onChange={e =>
-                      actualizarRejilla({ color: e.target.value })
-                    }
+                    onChange={color => actualizarRejilla({ color })}
+                    className="mapa-color-muestra"
+                    style={{
+                      width: 34,
+                      height: 22,
+                      padding: 0,
+                      border: "1px solid #495060",
+                      borderRadius: 4
+                    }}
+                    ariaLabel="Color de rejilla"
+                    title="Color de rejilla"
                   />
                 </label>
               </div>
@@ -2981,7 +3531,7 @@ export function Mapa({
                     type="file"
                     accept="image/*"
                     hidden
-                    onChange={e => void alSubirImagenToken(e)}
+                    onChange={alSubirImagenToken}
                   />
                   <div className="mapa-token-datos">
                     <input
@@ -3007,6 +3557,29 @@ export function Mapa({
                   </div>
                 </div>
 
+                {imagenesDisponibles.length > 0 && (
+                  <div className="mapa-token-archivador">
+                    <span className="mapa-token-archivador-etiqueta">
+                      O elegir de Archivador
+                    </span>
+                    <div className="mapa-token-archivador-lista">
+                      {imagenesDisponibles.map(img => (
+                        <button
+                          key={img.id}
+                          type="button"
+                          className="mapa-token-archivador-thumb"
+                          disabled={subiendoToken}
+                          onClick={() => void alElegirImagenArchivadorToken(img)}
+                          title={`Recortar y usar "${img.nombre}"`}
+                          aria-label={`Usar ${img.nombre} del Archivador`}
+                        >
+                          <img src={urlDeArchivo(img)} alt={img.nombre} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {!previewUrlToken && (
                   <div className="mapa-token-colores" role="group" aria-label="Color de esfera del token">
                     <span className="mapa-token-colores-etiqueta">Color</span>
@@ -3024,13 +3597,12 @@ export function Mapa({
                           onClick={() => setColorToken(color)}
                         />
                       ))}
-                      <input
-                        type="color"
-                        className="mapa-token-color-input"
+                      <ColorPickerPopover
                         value={colorToken}
-                        onChange={e => setColorToken(e.target.value)}
+                        onChange={setColorToken}
+                        className="mapa-token-color-input"
                         title="Elegir color personalizado"
-                        aria-label="Elegir color personalizado"
+                        ariaLabel="Elegir color personalizado"
                       />
                     </div>
                   </div>
@@ -3364,8 +3936,9 @@ export function Mapa({
       {/* Viewport interactivo (Zoom + Pan) */}
       <div
         ref={viewportRef}
-        className={`mapa-viewport${modoPing ? " modo-ping" : ""}${dibujandoActivo ? " modo-dibujo" : ""
-          }${modoReglaLinea ? " modo-regla" : ""}${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
+        className={`mapa-viewport${modoPing ? " modo-ping" : ""}${
+          pincelActivo ? " modo-dibujo" : ""
+        }${gomaActiva ? " modo-goma" : ""}${modoReglaLinea ? " modo-regla" : ""}${mapaBloqueado ? " bloqueado" : ""}${espacioPulsado && !mapaBloqueado ? " modo-pan" : ""}${paneando ? " paneando" : ""}`}
         onWheel={alGirarRueda}
         onPointerDown={alBajarPunteroViewport}
         onPointerMove={alMoverPunteroViewport}
@@ -3523,7 +4096,7 @@ export function Mapa({
 
             {/* Capa 2.75: Áreas semitranslúcidas (círculos y conos) */}
             {areas.map(area => {
-              const editable = puedeEditarArea(area, esMaster, miUsuarioId);
+              const editable = !dibujoBloqueado && puedeEditarArea(area, esMaster, miUsuarioId);
               const seleccionada = area.id === areaSeleccionadaId;
               const enArrastre = arrastreArea?.areaId === area.id ? arrastreArea : null;
               const enRotacion = rotandoArea?.areaId === area.id ? rotandoArea : null;
@@ -3766,24 +4339,35 @@ export function Mapa({
               );
             })}
 
-            {/* Capa 2.8: Línea temporal de regla entre 2 puntos (desaparece al soltar) */}
-            {reglaLinea && (() => {
+            {/* Capa 2.8: Línea temporal de regla entre 2 puntos (propia y remotas) */}
+            {[
+              ...(reglaLinea
+                ? [{ key: "local-regla", linea: reglaLinea, autorNombre: undefined }]
+                : []),
+              ...reglasRemotas.map(r => ({
+                key: `remota-${r.autorId}`,
+                linea: r,
+                autorNombre: r.autorNombre
+              }))
+            ].map(({ key, linea, autorNombre }) => {
               const celdas = calcularCeldasLinea(
-                reglaLinea.x1,
-                reglaLinea.y1,
-                reglaLinea.x2,
-                reglaLinea.y2,
+                linea.x1,
+                linea.y1,
+                linea.x2,
+                linea.y2,
                 rejillaActiva
               );
               const total = celdas.length;
-              const midX = (reglaLinea.x1 + reglaLinea.x2) / 2;
-              const midY = (reglaLinea.y1 + reglaLinea.y2) / 2;
+              const midX = (linea.x1 + linea.x2) / 2;
+              const midY = (linea.y1 + linea.y2) / 2;
+              const estiloColor = { "--regla-color": linea.color } as CSSProperties;
               return (
-                <>
+                <Fragment key={key}>
                   <svg
                     className="mapa-regla-svg"
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
+                    style={estiloColor}
                     aria-hidden="true"
                   >
                     {celdas.map(celda => (
@@ -3797,35 +4381,36 @@ export function Mapa({
                       />
                     ))}
                     <line
-                      x1={reglaLinea.x1}
-                      y1={reglaLinea.y1}
-                      x2={reglaLinea.x2}
-                      y2={reglaLinea.y2}
+                      x1={linea.x1}
+                      y1={linea.y1}
+                      x2={linea.x2}
+                      y2={linea.y2}
                       className="mapa-regla-linea"
                       vectorEffect="non-scaling-stroke"
                     />
                     <circle
-                      cx={reglaLinea.x1}
-                      cy={reglaLinea.y1}
+                      cx={linea.x1}
+                      cy={linea.y1}
                       r={0.55}
                       className="mapa-regla-punto"
                     />
                     <circle
-                      cx={reglaLinea.x2}
-                      cy={reglaLinea.y2}
+                      cx={linea.x2}
+                      cy={linea.y2}
                       r={0.55}
                       className="mapa-regla-punto"
                     />
                   </svg>
                   <div
                     className="mapa-regla-etiqueta"
-                    style={{ left: `${midX}%`, top: `${midY}%` }}
+                    style={{ ...estiloColor, left: `${midX}%`, top: `${midY}%` }}
                   >
+                    {autorNombre ? `${autorNombre}: ` : ""}
                     {total} {total === 1 ? "casilla" : "casillas"}
                   </div>
-                </>
+                </Fragment>
               );
-            })()}
+            })}
 
             {/* Capa 3: Tokens */}
             {tokensEnMapa.map(token => {
@@ -4045,6 +4630,18 @@ export function Mapa({
             }}
           />
         </div>
+      )}
+      {archivoTokenParaRecortar && (
+        <RecorteRetratoModal
+          archivo={archivoTokenParaRecortar}
+          circular
+          titulo="Recortar token circular"
+          onCancelar={() => setArchivoTokenParaRecortar(null)}
+          onConfirmar={recortado => {
+            setArchivoTokenParaRecortar(null);
+            void subirArchivoTokenRecortado(recortado);
+          }}
+        />
       )}
     </div>
   );

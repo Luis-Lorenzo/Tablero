@@ -24,6 +24,8 @@ const MESSAGES: Record<string, string> = {
   MESA_FULL: "La mesa está llena. No caben más jugadores.",
   MESA_FORBIDDEN: "No puedes hacer eso en esta mesa.",
   MESA_BANNED: "Te han expulsado de esta mesa y no puedes volver a entrar.",
+  MESA_PASSWORD_REQUIRED: "Esta mesa requiere contraseña para unirte.",
+  MESA_PASSWORD_INVALID: "Contraseña incorrecta. Inténtalo de nuevo.",
   INVALID_NICKNAME:
     "El nombre no es válido: de 3 a 20 caracteres, empieza por letra, termina en letra o número y solo admite letras, números y guion bajo.",
   NICKNAME_TAKEN: "Ese nombre ya está en uso. Prueba con otro.",

@@ -6,40 +6,50 @@ import {
   useState,
   type ReactNode
 } from "react";
+import { ChevronLeft } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { archivosApi } from "../../api/archivos.api";
 import { mesasApi } from "../../api/mesas.api";
 import { usersApi } from "../../api/users.api";
 import type {
+  EntradaOfertaIntercambio,
   EventoTirada,
   MensajeChat,
+  PersonajeJugadorMesa,
   PublicArchivo,
   PublicMesa,
   PublicTransferencia,
-  PublicUser
+  PublicUser,
+  SesionIntercambio
 } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
+import type { FaseSala, VistaPizarra } from "../routing/rutas";
 import {
   Sala,
   type MusicaAmbienteMesa
 } from "../../preview/Sala";
 import { HudSalaCompartido } from "../../preview/HudSalaCompartido";
+import { IntercambioModal } from "../../preview/IntercambioModal";
 import { Pizarra } from "../../preview/Pizarra";
 import { Mapa } from "../../preview/Mapa";
 import { reproducirSonidoTirada } from "../../preview/sonidoDados";
 import {
+  obtenerColorAristasDadoGuardado,
   obtenerColorDadoGuardado,
   sanitizarColorDado
 } from "../../preview/datos";
 import { Archivador, ProyeccionMasterModal } from "../../preview/Archivador";
+import { PersonajePanel, inferirVistaPorNombre } from "../../preview/PersonajePanel";
 import {
   cargarCalibracion,
   guardarCalibracion
 } from "../../preview/calibracion";
+import { VisorArchivo } from "../components/VisorArchivo";
 import {
   calcularPosicionRecepcion,
   crearElementoDesdeArchivo,
+  mensajeSolicitudTransferencia,
   nuevoIdElemento
 } from "../../preview/compartir";
 import {
@@ -66,7 +76,9 @@ import type {
   PingVisual,
   PlantillaTokenMapa,
   PositPreview,
+  ReglaVisual,
   SolicitudTransferencia,
+  TextoEscena,
   TipoEspecialTirada,
   TiradaAsiento,
   TokenMapa,
@@ -80,9 +92,12 @@ interface SalaRealProps {
   onActualizarMesa: (mesa: PublicMesa) => void;
   onVolver: (motivo?: string) => void;
   onSessionExpired?: () => void;
+  faseExterna?: Fase;
+  vistaPizarraExterna?: VistaPizarra;
+  onCambiarRutaSala?: (fase: Fase, vistaPizarra?: VistaPizarra) => void;
 }
 
-type Fase = "sala" | "pizarra" | "mapa" | "archivador";
+type Fase = FaseSala;
 type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
 
 function elegirPosicionLibrePizarra(
@@ -130,6 +145,7 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
       usuarioId: mesa.hostId,
       userId: mesa.hostId,
       nombre: mesa.hostName,
+      retratoArchivoId: mesa.retratosPorJugador?.[mesa.hostId] ?? null,
       color: mesa.colores?.[mesa.hostId] ?? "#e8c56a",
       esMaster: true,
       activo: true
@@ -143,6 +159,8 @@ function construirJugadores(mesa: PublicMesa): JugadorPreview[] {
       userId: jugador.id,
       nombre: jugador.name,
       apodo: mesa.playerApodos?.[jugador.id],
+      retratoArchivoId:
+        mesa.retratosPorJugador?.[jugador.id] ?? jugador.retratoArchivoId ?? null,
       color:
         mesa.colores?.[jugador.id] ??
         jugador.color ??
@@ -219,9 +237,12 @@ function SalaRealContent({
   user,
   onActualizarMesa,
   onVolver,
-  onSessionExpired
+  onSessionExpired,
+  faseExterna,
+  vistaPizarraExterna,
+  onCambiarRutaSala
 }: SalaRealProps) {
-  const [fase, setFase] = useState<Fase>("sala");
+  const [fase, setFase] = useState<Fase>(faseExterna ?? "sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>([]);
   const [elementosMesa, setElementosMesa] = useState<ElementoMesa[]>([]);
@@ -234,6 +255,56 @@ function SalaRealContent({
   const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [textosEscena, setTextosEscena] = useState<TextoEscena[]>([]);
+  const [vistaPizarra, setVistaPizarra] = useState<VistaPizarra>(
+    vistaPizarraExterna ?? "pizarra"
+  );
+  const vistaPizarraRef = useRef<VistaPizarra>(vistaPizarra);
+
+  useEffect(() => {
+    vistaPizarraRef.current = vistaPizarra;
+  }, [vistaPizarra]);
+
+  useEffect(() => {
+    if (faseExterna !== undefined) {
+      setFase(faseExterna);
+    }
+  }, [faseExterna]);
+
+  useEffect(() => {
+    if (vistaPizarraExterna !== undefined) {
+      vistaPizarraRef.current = vistaPizarraExterna;
+      setVistaPizarra(vistaPizarraExterna);
+    }
+  }, [vistaPizarraExterna]);
+
+  const cambiarFase = useCallback(
+    (nuevaFase: Fase, nuevaVistaPizarra?: VistaPizarra) => {
+      const vistaFinal = nuevaVistaPizarra ?? vistaPizarraRef.current;
+      setFase(nuevaFase);
+      if (nuevaVistaPizarra !== undefined) {
+        vistaPizarraRef.current = nuevaVistaPizarra;
+        setVistaPizarra(nuevaVistaPizarra);
+      }
+      onCambiarRutaSala?.(
+        nuevaFase,
+        nuevaFase === "pizarra" ? vistaFinal : undefined
+      );
+    },
+    [onCambiarRutaSala]
+  );
+
+  const cambiarVistaPizarra = useCallback(
+    (nuevaVista: VistaPizarra) => {
+      vistaPizarraRef.current = nuevaVista;
+      setVistaPizarra(nuevaVista);
+      onCambiarRutaSala?.("pizarra", nuevaVista);
+    },
+    [onCambiarRutaSala]
+  );
+
+  const archivadorOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
+  const personajeOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
     Record<string, { w: number; h: number }>
   >({});
@@ -266,9 +337,22 @@ function SalaRealContent({
   const [divisa, setDivisa] = useState<number>(0);
   const [divisasSaldos, setDivisasSaldos] = useState<Record<string, number>>({});
   const [mochila, setMochila] = useState<ObjetoMochila[]>([]);
+  const [miPersonaje, setMiPersonaje] = useState<PersonajeJugadorMesa | null>(null);
+  const [fichaRapidaVisorAbierto, setFichaRapidaVisorAbierto] = useState(false);
+  const [intercambioActivo, setIntercambioActivo] = useState<SesionIntercambio | null>(null);
   const [pingsActivos, setPingsActivos] = useState<PingVisual[]>([]);
+  const [reglasRemotas, setReglasRemotas] = useState<ReglaVisual[]>([]);
+  const reglaTimersRef = useRef<Map<string, number>>(new Map());
+  const reglaSeqRef = useRef<Map<string, number>>(new Map());
   const [macros, setMacros] = useState<import("../../preview/tipos").MacroTirada[]>([]);
   const [estadoMapa, setEstadoMapa] = useState<EstadoMapaCompartido>(ESTADO_MAPA_DEFECTO);
+  const [desfaseRelojMs, setDesfaseRelojMs] = useState(0);
+  const aplicarEstadoMapa = useCallback((mapa: EstadoMapaCompartido) => {
+    setEstadoMapa(mapa);
+    if (typeof mapa.servidorAhora === "number" && Number.isFinite(mapa.servidorAhora)) {
+      setDesfaseRelojMs(mapa.servidorAhora - Date.now());
+    }
+  }, []);
   const [musicaAmbiente, setMusicaAmbiente] = useState<MusicaAmbienteMesa>(() => {
     const rem = (mesa as PublicMesa & { musicaAmbiente?: MusicaAmbienteMesa }).musicaAmbiente;
     return rem ?? MUSICA_DEFECTO;
@@ -304,7 +388,10 @@ function SalaRealContent({
   const estadoCargadoRef = useRef(false);
   const pizarraCargadaRef = useRef(false);
   const ignorarGuardadoPizarraRef = useRef(false);
-  const esMaster = mesa.hostId === user.id;
+  const esAnfitrion = mesa.hostId === user.id;
+  const soyJugador = mesa.players.some(p => p.id === user.id);
+  const esAdminLibre = user.role === "ADMIN" && !esAnfitrion && !soyJugador;
+  const esMaster = esAnfitrion || esAdminLibre;
   const divisasConfig = useMemo<DivisaConfig[]>(() => {
     const rem = (mesa as PublicMesa & { divisasConfig?: DivisaConfig[] }).divisasConfig;
     if (Array.isArray(rem) && rem.length > 0) return rem;
@@ -352,18 +439,92 @@ function SalaRealContent({
     }, 2400);
   }, []);
 
+  const actualizarReglaRemota = useCallback(
+    (datos: {
+      autorId: string;
+      autorNombre?: string;
+      activa?: boolean;
+      x1?: number;
+      y1?: number;
+      x2?: number;
+      y2?: number;
+      color?: string;
+      seq?: number;
+    }) => {
+      if (typeof datos.seq === "number" && Number.isFinite(datos.seq)) {
+        const prevSeq = reglaSeqRef.current.get(datos.autorId);
+        if (prevSeq !== undefined && datos.seq <= prevSeq) {
+          return;
+        }
+        reglaSeqRef.current.set(datos.autorId, datos.seq);
+      }
+
+      const prevTimer = reglaTimersRef.current.get(datos.autorId);
+      if (prevTimer !== undefined) {
+        window.clearTimeout(prevTimer);
+        reglaTimersRef.current.delete(datos.autorId);
+      }
+
+      if (datos.activa === false) {
+        setReglasRemotas(prev => prev.filter(r => r.autorId !== datos.autorId));
+        return;
+      }
+
+      if (
+        typeof datos.x1 !== "number" ||
+        typeof datos.y1 !== "number" ||
+        typeof datos.x2 !== "number" ||
+        typeof datos.y2 !== "number"
+      ) {
+        return;
+      }
+
+      const regla: ReglaVisual = {
+        autorId: datos.autorId,
+        autorNombre: datos.autorNombre,
+        x1: datos.x1,
+        y1: datos.y1,
+        x2: datos.x2,
+        y2: datos.y2,
+        color: datos.color || "#e8c56a"
+      };
+
+      setReglasRemotas(prev => {
+        const existe = prev.some(r => r.autorId === datos.autorId);
+        return existe
+          ? prev.map(r => (r.autorId === datos.autorId ? regla : r))
+          : [...prev, regla];
+      });
+
+      const timer = window.setTimeout(() => {
+        reglaTimersRef.current.delete(datos.autorId);
+        setReglasRemotas(prev => prev.filter(r => r.autorId !== datos.autorId));
+      }, 12000);
+      reglaTimersRef.current.set(datos.autorId, timer);
+    },
+    []
+  );
+
   useEffect(
     () => () => {
       if (avisoTimerRef.current !== null) {
         window.clearTimeout(avisoTimerRef.current);
       }
+      reglaTimersRef.current.forEach(timer => window.clearTimeout(timer));
+      reglaTimersRef.current.clear();
+      reglaSeqRef.current.clear();
     },
     []
   );
 
   useEffect(() => {
     const root = document.getElementById("root");
-    if (fase === "pizarra" || fase === "mapa" || fase === "archivador") {
+    if (
+      fase === "pizarra" ||
+      fase === "mapa" ||
+      fase === "archivador" ||
+      fase === "personaje"
+    ) {
       root?.classList.add("ocultar-menus");
     } else {
       root?.classList.remove("ocultar-menus");
@@ -385,6 +546,7 @@ function SalaRealContent({
       trazosEscena?: unknown[];
       positsEscena?: unknown[];
       docsEscena?: unknown[];
+      textosEscena?: unknown[];
       tamanoImagenesEscena?: Record<string, { w: number; h: number }>;
       congelada?: boolean;
     }) => {
@@ -417,6 +579,11 @@ function SalaRealContent({
       setDocsEscena(
         Array.isArray(datos.docsEscena)
           ? (datos.docsEscena as DocumentoMesa[])
+          : []
+      );
+      setTextosEscena(
+        Array.isArray(datos.textosEscena)
+          ? (datos.textosEscena as TextoEscena[])
           : []
       );
       setTamanoImagenesEscena(datos.tamanoImagenesEscena ?? {});
@@ -514,6 +681,7 @@ function SalaRealContent({
         trazosEscena,
         positsEscena,
         docsEscena: limpiarDocs(docsEscena),
+        textosEscena,
         tamanoImagenesEscena,
         congelada: pizarraCongelada
       };
@@ -533,9 +701,47 @@ function SalaRealContent({
     trazosEscena,
     positsEscena,
     docsEscena,
+    textosEscena,
     tamanoImagenesEscena,
     pizarraCongelada
   ]);
+
+  const recargarEstado = useCallback(async () => {
+    try {
+      const res = await mesasApi.obtenerEstado(mesa.id);
+      const rawRes = res as {
+        elementos: unknown[];
+        divisa?: number;
+        divisasSaldos?: Record<string, number>;
+        mochila?: unknown[];
+        personaje?: PersonajeJugadorMesa;
+      };
+      const cargados = Array.isArray(rawRes.elementos)
+        ? (rawRes.elementos as ElementoMesa[])
+        : [];
+      setElementosMesa(cargados);
+      const saldos =
+        rawRes.divisasSaldos && typeof rawRes.divisasSaldos === "object"
+          ? rawRes.divisasSaldos
+          : typeof rawRes.divisa === "number"
+            ? { [divisasConfig[0]?.id ?? "principal"]: rawRes.divisa }
+            : {};
+      setDivisasSaldos(saldos);
+      setDivisa(
+        typeof rawRes.divisa === "number"
+          ? rawRes.divisa
+          : (saldos[divisasConfig[0]?.id ?? "principal"] ?? 0)
+      );
+      setMochila(
+        Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
+      );
+      if (rawRes.personaje) {
+        setMiPersonaje(rawRes.personaje);
+      }
+    } catch {
+      // Silencioso si falla la recarga puntual
+    }
+  }, [mesa.id, divisasConfig]);
 
   useEffect(() => {
     let activo = true;
@@ -549,6 +755,7 @@ function SalaRealContent({
           divisa?: number;
           divisasSaldos?: Record<string, number>;
           mochila?: unknown[];
+          personaje?: PersonajeJugadorMesa;
         };
         const cargados = Array.isArray(rawRes.elementos)
           ? (rawRes.elementos as ElementoMesa[])
@@ -569,6 +776,7 @@ function SalaRealContent({
         setMochila(
           Array.isArray(rawRes.mochila) ? (rawRes.mochila as ObjetoMochila[]) : []
         );
+        setMiPersonaje(rawRes.personaje ?? null);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -584,13 +792,13 @@ function SalaRealContent({
     void mesasApi
       .obtenerMapa(mesa.id)
       .then(mapa => {
-        if (activo && mapa) setEstadoMapa(mapa);
+        if (activo && mapa) aplicarEstadoMapa(mapa);
       })
       .catch(() => undefined);
     return () => {
       activo = false;
     };
-  }, [mesa.id, fase === "mapa"]);
+  }, [mesa.id, fase === "mapa", aplicarEstadoMapa]);
 
   useEffect(() => {
     if (!estadoCargadoRef.current) return;
@@ -637,12 +845,13 @@ function SalaRealContent({
       const actualizada = await mesasApi.obtener(mesa.id);
       const sigueEnMesa =
         actualizada.hostId === user.id ||
-        actualizada.players.some(p => p.id === user.id);
+        actualizada.players.some(p => p.id === user.id) ||
+        user.role === "ADMIN";
       if (!sigueEnMesa) {
         onVolver("Has sido expulsado de la mesa.");
         return;
       }
-      if (actualizada.estado !== "EN_CURSO" && !esMaster) {
+      if (actualizada.estado !== "EN_CURSO" && !esAnfitrion && !esAdminLibre) {
         onActualizarMesa(actualizada);
         onVolver("La partida ha terminado y la mesa ha vuelto a espera.");
         return;
@@ -658,7 +867,7 @@ function SalaRealContent({
       }
       setError(describeError(refrescoError));
     }
-  }, [mesa.id, user.id, onActualizarMesa, onVolver]);
+  }, [mesa.id, user.id, user.role, esAnfitrion, esAdminLibre, onActualizarMesa, onVolver]);
 
   const cargarArchivos = useCallback(() => {
     void archivosApi
@@ -723,6 +932,34 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "mesa:regla" && evento.mesaId === mesa.id && evento.regla) {
+        const bruto = evento.regla as {
+          autorId?: string;
+          autorNombre?: string;
+          activa?: boolean;
+          x1?: number;
+          y1?: number;
+          x2?: number;
+          y2?: number;
+          color?: string;
+          seq?: number;
+        };
+        if (bruto.autorId && bruto.autorId !== user.id) {
+          actualizarReglaRemota({
+            autorId: bruto.autorId,
+            autorNombre: bruto.autorNombre,
+            activa: bruto.activa,
+            x1: bruto.x1,
+            y1: bruto.y1,
+            x2: bruto.x2,
+            y2: bruto.y2,
+            color: bruto.color,
+            seq: bruto.seq
+          });
+        }
+        return;
+      }
+
       if (evento.type === "pizarra:actualizada" && evento.mesaId === mesa.id) {
         if (evento.autorId !== user.id && evento.estado && typeof evento.estado === "object") {
           aplicarEstadoPizarraRemoto(
@@ -732,8 +969,27 @@ function SalaRealContent({
         return;
       }
 
+      if (evento.type === "archivo:actualizado" && evento.mesaId === mesa.id) {
+        cargarArchivos();
+        if (evento.autorId !== user.id) {
+          window.dispatchEvent(
+            new CustomEvent("pocketrol:archivo-actualizado", {
+              detail: {
+                archivoId:
+                  typeof evento.archivoId === "string" ? evento.archivoId : "",
+                updatedAt:
+                  typeof evento.updatedAt === "string"
+                    ? evento.updatedAt
+                    : undefined
+              }
+            })
+          );
+        }
+        return;
+      }
+
       if (evento.type === "mesa:mapa-actualizado" && evento.mesaId === mesa.id && evento.mapa) {
-        setEstadoMapa(evento.mapa as EstadoMapaCompartido);
+        aplicarEstadoMapa(evento.mapa as EstadoMapaCompartido);
         return;
       }
 
@@ -947,16 +1203,63 @@ function SalaRealContent({
           }
           mostrarAvisoBreve(`${nombre} rechazó la transferencia.`);
         }
+        return;
+      }
+
+      if (evento.type === "mesa:personaje" && evento.mesaId === mesa.id) {
+        const targetUserId = typeof evento.userId === "string" ? evento.userId : "";
+        if (!targetUserId) return;
+        const retratoArchivoId =
+          typeof evento.retratoArchivoId === "string" ? evento.retratoArchivoId : null;
+        onActualizarMesa({
+          ...mesa,
+          retratosPorJugador: {
+            ...(mesa.retratosPorJugador ?? {}),
+            [targetUserId]: retratoArchivoId
+          },
+          players: mesa.players.map(p =>
+            p.id === targetUserId ? { ...p, retratoArchivoId } : p
+          )
+        });
+        if (targetUserId === user.id) {
+          setMiPersonaje(prev =>
+            prev ? { ...prev, retratoArchivoId } : prev
+          );
+        }
+        return;
+      }
+
+      if (evento.type === "intercambio:estado" && evento.mesaId === mesa.id && evento.intercambio) {
+        const sesion = evento.intercambio as SesionIntercambio;
+        if (!sesion.participantes.includes(user.id)) return;
+        if (sesion.estado === "cancelado") {
+          setIntercambioActivo(prev => (prev?.id === sesion.id ? null : prev));
+          mostrarAvisoBreve("El intercambio fue cancelado.");
+        } else if (sesion.estado === "abierto") {
+          setIntercambioActivo(sesion);
+        }
+        return;
+      }
+
+      if (evento.type === "intercambio:completado" && evento.mesaId === mesa.id) {
+        void recargarEstado();
+        cargarArchivos();
+        setIntercambioActivo(null);
+        mostrarAvisoBreve("¡Intercambio completado!");
       }
     },
     [
-      mesa.id,
+      mesa,
       user.id,
       jugadores,
       divisasConfig,
       cargarArchivos,
+      recargarEstado,
+      onActualizarMesa,
+      aplicarEstadoMapa,
       aplicarEstadoPizarraRemoto,
       agregarPingVisual,
+      actualizarReglaRemota,
       mostrarAvisoBreve
     ]
   );
@@ -1131,6 +1434,8 @@ function SalaRealContent({
 
         const colorDado = sanitizarColorDado(roll.colorDado);
         const colorAristasDado = sanitizarColorDado(roll.colorAristasDado);
+        const idxMacro = typeof roll.formula === "string" ? roll.formula.indexOf(" · ") : -1;
+        const nombreMacro = idxMacro > 0 ? roll.formula.slice(0, idxMacro) : undefined;
 
         setTiradasAsiento(prev => ({
           ...prev,
@@ -1140,6 +1445,7 @@ function SalaRealContent({
             especial: roll.especial ?? null,
             caras: roll.caras ?? 20,
             desglose,
+            ...(nombreMacro ? { nombreMacro } : {}),
             ...(colorDado ? { colorDado } : {}),
             ...(colorAristasDado ? { colorAristasDado } : {})
           }
@@ -1292,12 +1598,9 @@ function SalaRealContent({
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.loop = musicaAmbiente.pistas.length === 1 && musicaAmbiente.loop;
+    audio.loop = musicaAmbiente.loop;
     audio.muted = musicaSilenciadaLocal;
-    audio.volume = Math.max(
-      0,
-      Math.min(1, (musicaAmbiente.volumenMaster ?? 0.7) * volumenMusicaLocal)
-    );
+    audio.volume = Math.max(0, Math.min(1, volumenMusicaLocal));
 
     if (!pistaActual) {
       audio.pause();
@@ -1341,7 +1644,6 @@ function SalaRealContent({
     musicaAmbiente.pistas.length,
     musicaAmbiente.loop,
     musicaAmbiente.reproduciendo,
-    musicaAmbiente.volumenMaster,
     musicaSilenciadaLocal,
     volumenMusicaLocal
   ]);
@@ -1410,6 +1712,13 @@ function SalaRealContent({
       return;
     }
 
+    if (!esMaster) return;
+
+    if (actual.pistas.length === 1) {
+      void actualizarMusica({ ...actual, reproduciendo: false });
+      return;
+    }
+
     let siguienteIndice = actual.indiceActual;
     let sigueReproduciendo = true;
 
@@ -1458,15 +1767,112 @@ function SalaRealContent({
     alMensajeEnVivo
   );
 
-  async function enviarChat(texto: string, destinatarioId: string | null): Promise<void> {
+  async function enviarChat(
+    texto: string,
+    destinatarioIds: string[] | string | null
+  ): Promise<void> {
     setError(null);
     try {
-      const creado = await mesasApi.enviarChat(mesa.id, texto, destinatarioId);
+      const ids = Array.isArray(destinatarioIds)
+        ? destinatarioIds
+        : destinatarioIds
+          ? [destinatarioIds]
+          : null;
+      const creado = await mesasApi.enviarChat(
+        mesa.id,
+        texto,
+        ids && ids.length === 1 ? ids[0] : null,
+        ids && ids.length > 0 ? ids : undefined
+      );
       setMensajesChat(prev =>
         prev.some(item => item.id === creado.id) ? prev : [...prev, creado]
       );
     } catch (chatError) {
       setError(describeError(chatError));
+    }
+  }
+
+  async function actualizarPersonaje(
+    datos: Partial<PersonajeJugadorMesa>
+  ): Promise<void> {
+    setError(null);
+    try {
+      const actualizado = await mesasApi.actualizarPersonaje(mesa.id, datos);
+      setMiPersonaje(actualizado);
+      if (datos.retratoArchivoId !== undefined) {
+        onActualizarMesa({
+          ...mesa,
+          retratosPorJugador: {
+            ...(mesa.retratosPorJugador ?? {}),
+            [user.id]: actualizado.retratoArchivoId
+          },
+          players: mesa.players.map(p =>
+            p.id === user.id
+              ? { ...p, retratoArchivoId: actualizado.retratoArchivoId }
+              : p
+          )
+        });
+      }
+    } catch (pjError) {
+      setError(describeError(pjError));
+    }
+  }
+
+  async function iniciarIntercambio(conUsuarioId: string): Promise<void> {
+    setError(null);
+    try {
+      const sesion = await mesasApi.iniciarIntercambio(mesa.id, conUsuarioId);
+      setIntercambioActivo(sesion);
+    } catch (tradeError) {
+      setError(describeError(tradeError));
+    }
+  }
+
+  async function actualizarOfertaIntercambio(
+    oferta: EntradaOfertaIntercambio
+  ): Promise<void> {
+    if (!intercambioActivo) return;
+    try {
+      const sesion = await mesasApi.actualizarOfertaIntercambio(
+        mesa.id,
+        intercambioActivo.id,
+        oferta
+      );
+      setIntercambioActivo(sesion);
+    } catch (tradeError) {
+      setError(describeError(tradeError));
+    }
+  }
+
+  async function marcarListoIntercambio(listo: boolean): Promise<void> {
+    if (!intercambioActivo) return;
+    try {
+      const sesion = await mesasApi.marcarListoIntercambio(
+        mesa.id,
+        intercambioActivo.id,
+        listo
+      );
+      if (sesion.estado === "completado") {
+        void recargarEstado();
+        cargarArchivos();
+        setIntercambioActivo(null);
+        mostrarAvisoBreve("¡Intercambio completado!");
+      } else {
+        setIntercambioActivo(sesion);
+      }
+    } catch (tradeError) {
+      setError(describeError(tradeError));
+    }
+  }
+
+  async function cancelarIntercambio(): Promise<void> {
+    if (!intercambioActivo) return;
+    const idActual = intercambioActivo.id;
+    setIntercambioActivo(null);
+    try {
+      await mesasApi.cancelarIntercambio(mesa.id, idActual);
+    } catch (tradeError) {
+      setError(describeError(tradeError));
     }
   }
 
@@ -1484,7 +1890,9 @@ function SalaRealContent({
     try {
       const colorDado =
         sanitizarColorDado(tirada.colorDado) ?? obtenerColorDadoGuardado(user.id);
-      const colorAristasDado = sanitizarColorDado(tirada.colorAristasDado);
+      const colorAristasDado =
+        sanitizarColorDado(tirada.colorAristasDado) ??
+        obtenerColorAristasDadoGuardado(user.id);
       await mesasApi.enviarTirada(mesa.id, {
         ...tirada,
         secreta: false,
@@ -1732,7 +2140,17 @@ function SalaRealContent({
   }
 
   async function volverAEspera() {
-    if (!esMaster || mesa.estado !== "EN_CURSO") {
+    if (user.role === "ADMIN" && soyJugador) {
+      try {
+        await mesasApi.abandonar(mesa.id);
+      } catch {
+        // Si fallara por estado ya cerrado, igualmente salimos a recepción.
+      }
+      onVolver();
+      return;
+    }
+
+    if (!esAnfitrion || mesa.estado !== "EN_CURSO") {
       onVolver();
       return;
     }
@@ -1760,7 +2178,7 @@ function SalaRealContent({
   }
 
   const yoAsientoId =
-    jugadores.find(j => j.usuarioId === user.id)?.id ?? "master";
+    jugadores.find(j => j.usuarioId === user.id)?.id ?? "";
 
   async function cambiarEscena(imagen: ImagenEscenaPreview | null) {
     if (!esMaster) return;
@@ -1817,6 +2235,31 @@ function SalaRealContent({
       .catch(() => undefined);
   }
 
+  function enviarRegla(
+    datos:
+      | {
+          activa: true;
+          x1: number;
+          y1: number;
+          x2: number;
+          y2: number;
+          color: string;
+          seq?: number;
+        }
+      | { activa: false; seq?: number }
+  ): void {
+    void mesasApi.enviarRegla(mesa.id, datos).catch(() => undefined);
+  }
+
+  function recargarMapaSilencioso(): void {
+    void mesasApi
+      .obtenerMapa(mesa.id)
+      .then(mapa => {
+        if (mapa) aplicarEstadoMapa(mapa);
+      })
+      .catch(() => undefined);
+  }
+
   async function cambiarFondoYRejilla(
     fondo: MapaFondoConfig | null,
     rejilla: MapaRejillaConfig
@@ -1824,9 +2267,10 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, fondo, rejilla }));
     try {
       const actualizado = await mesasApi.guardarMapaFondo(mesa.id, { fondo, rejilla });
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1841,7 +2285,7 @@ function SalaRealContent({
         guardarPlantilla,
         ...(categoria !== undefined ? { categoria } : {})
       });
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
     }
@@ -1859,9 +2303,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.actualizarTokenMapa(mesa.id, tokenId, patch);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1872,9 +2317,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarTokenMapa(mesa.id, tokenId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1907,9 +2353,10 @@ function SalaRealContent({
         plantillaId,
         patch
       );
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1920,9 +2367,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarPlantillaMapa(mesa.id, plantillaId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1930,18 +2378,26 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, iniciativa }));
     try {
       const actualizado = await mesasApi.guardarMapaIniciativa(mesa.id, iniciativa);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
-  async function terminarTurnoIniciativaMapa(): Promise<void> {
+  async function terminarTurnoIniciativaMapa(opciones?: {
+    porTiempo?: boolean;
+    rondaEsperada?: number;
+    turnoIndiceEsperado?: number;
+    entradaIdEsperada?: string;
+  }): Promise<void> {
     try {
-      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id);
-      if (actualizado) setEstadoMapa(actualizado);
+      const actualizado = await mesasApi.avanzarTurnoMapa(mesa.id, opciones);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
-      setError(describeError(err));
+      if (!opciones?.porTiempo) {
+        setError(describeError(err));
+      }
     }
   }
 
@@ -1956,9 +2412,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.agregarTrazoMapa(mesa.id, trazo);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1969,9 +2426,26 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarTrazoMapa(mesa.id, trazoId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
+    }
+  }
+
+  async function eliminarTrazosLoteMapa(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const idsSet = new Set(ids);
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => !idsSet.has(t.id))
+    }));
+    try {
+      const actualizado = await mesasApi.eliminarTrazosMapaLote(mesa.id, ids);
+      if (actualizado) aplicarEstadoMapa(actualizado);
+    } catch (err) {
+      setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1979,9 +2453,10 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, trazos: [] }));
     try {
       const actualizado = await mesasApi.borrarTrazosMapa(mesa.id);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -1989,9 +2464,10 @@ function SalaRealContent({
     setEstadoMapa(prev => ({ ...prev, dibujoCongelado: congelado }));
     try {
       const actualizado = await mesasApi.congelarDibujoMapa(mesa.id, congelado);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2005,9 +2481,10 @@ function SalaRealContent({
   }): Promise<void> {
     try {
       const actualizado = await mesasApi.crearAreaMapa(mesa.id, area);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2021,9 +2498,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.actualizarAreaMapa(mesa.id, areaId, patch);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2034,9 +2512,10 @@ function SalaRealContent({
     }));
     try {
       const actualizado = await mesasApi.eliminarAreaMapa(mesa.id, areaId);
-      if (actualizado) setEstadoMapa(actualizado);
+      if (actualizado) aplicarEstadoMapa(actualizado);
     } catch (err) {
       setError(describeError(err));
+      recargarMapaSilencioso();
     }
   }
 
@@ -2072,13 +2551,22 @@ function SalaRealContent({
         onPositsEscena={setPositsEscena}
         docsEscena={docsEscena}
         onDocsEscena={setDocsEscena}
+        textosEscena={textosEscena}
+        onTextosEscena={setTextosEscena}
+        vistaPizarra={vistaPizarra}
+        onVistaPizarra={cambiarVistaPizarra}
         tamanoImagenesEscena={tamanoImagenesEscena}
         onTamanoImagenesEscena={setTamanoImagenesEscena}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
-        onVolver={() => setFase("sala")}
+        onVolver={() => cambiarFase("sala")}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "pizarra";
+          cambiarFase("archivador");
+        }}
         mesaId={mesa.id}
         esMaster={esMaster}
+        miUsuarioId={user.id}
         colorJugador={colorJugadorActual}
         nombreJugador={nombreJugadorActual}
         imagenEscena={imagenEscena}
@@ -2094,9 +2582,11 @@ function SalaRealContent({
     contenido = (
       <>
         <Mapa
-          onVolver={() => setFase("sala")}
+          onVolver={() => cambiarFase("sala")}
           pingsActivos={pingsActivos}
           onEnviarPing={enviarPing}
+          reglasRemotas={reglasRemotas}
+          onEnviarRegla={enviarRegla}
           colorJugador={colorJugadorActual}
           nombreJugador={nombreJugadorActual}
           esMaster={esMaster}
@@ -2104,6 +2594,7 @@ function SalaRealContent({
           jugadores={jugadores}
           tiradasAsiento={tiradasAsiento}
           estadoMapa={estadoMapa}
+          desfaseRelojMs={desfaseRelojMs}
           onCambiarFondoYRejilla={cambiarFondoYRejilla}
           onCrearToken={crearTokenMapa}
           onActualizarToken={actualizarTokenMapa}
@@ -2114,6 +2605,7 @@ function SalaRealContent({
           onTerminarTurnoIniciativa={terminarTurnoIniciativaMapa}
           onAgregarTrazo={agregarTrazoMapa}
           onEliminarTrazo={eliminarTrazoMapa}
+          onEliminarTrazosLote={eliminarTrazosLoteMapa}
           onBorrarTrazos={borrarTrazosMapa}
           onCambiarDibujoCongelado={cambiarDibujoCongeladoMapa}
           onCrearArea={crearAreaMapa}
@@ -2159,7 +2651,14 @@ function SalaRealContent({
           onElementosMesa={setElementosMesa}
           archivosDisponibles={archivosDisponibles}
           onEnviarElemento={enviarElemento}
-          onAbrirArchivador={() => setFase("archivador")}
+          onAbrirArchivador={() => {
+            archivadorOrigenRef.current = "mapa";
+            cambiarFase("archivador");
+          }}
+          onAbrirPersonaje={() => {
+            personajeOrigenRef.current = "mapa";
+            cambiarFase("personaje");
+          }}
           onCompartirATodos={compartirATodos}
         />
       </>
@@ -2169,7 +2668,7 @@ function SalaRealContent({
       <Archivador
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
-        onVolver={() => setFase("sala")}
+        onVolver={() => cambiarFase(archivadorOrigenRef.current)}
         mesaId={mesa.id}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
@@ -2181,6 +2680,21 @@ function SalaRealContent({
         onReabrirProyeccion={() => setProyeccionOcultadaId(null)}
       />
     );
+  } else if (fase === "personaje") {
+    contenido = (
+      <PersonajePanel
+        mesaId={mesa.id}
+        onVolver={() => cambiarFase(personajeOrigenRef.current)}
+        personaje={miPersonaje}
+        onActualizarPersonaje={actualizarPersonaje}
+        apodoActual={mesa.playerApodos?.[user.id] ?? ""}
+        onActualizarApodo={cambiarApodo}
+        colorJugador={colorJugadorActual}
+        nombreJugador={nombreJugadorActual}
+        archivosDisponibles={archivosDisponibles}
+        onArchivosCambio={setArchivosDisponibles}
+      />
+    );
   } else {
     contenido = (
       <Sala
@@ -2188,10 +2702,18 @@ function SalaRealContent({
         mesaId={mesa.id}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
-        onAbrirPizarra={() => setFase("pizarra")}
-        onAbrirMapa={() => setFase("mapa")}
-        onAbrirArchivador={() => setFase("archivador")}
+        onAbrirPizarra={() => cambiarFase("pizarra")}
+        onAbrirMapa={() => cambiarFase("mapa")}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "sala";
+          cambiarFase("archivador");
+        }}
+        onAbrirPersonaje={() => {
+          personajeOrigenRef.current = "sala";
+          cambiarFase("personaje");
+        }}
         onVolver={volverAEspera}
+        etiquetaVolver={esAdminLibre ? "Salir de administración" : undefined}
         hostName={mesa.hostName}
         esMaster={esMaster}
         estadoPartida={mesa.estado}
@@ -2199,6 +2721,8 @@ function SalaRealContent({
         miUsuarioId={user.id}
         mensajesChat={mensajesChat}
         onEnviarChat={enviarChat}
+        retratosPorJugador={mesa.retratosPorJugador}
+        onIniciarIntercambio={iniciarIntercambio}
         tiradasAsiento={tiradasAsiento}
         onTiradaPublica={enviarTiradaPublica}
         colorJugador={colorJugadorActual}
@@ -2243,7 +2767,7 @@ function SalaRealContent({
             }
             : undefined
         }
-        onCambiarApodo={!esMaster ? cambiarApodo : undefined}
+        onCambiarApodo={soyJugador ? cambiarApodo : undefined}
         musicaAmbiente={musicaAmbiente}
         musicaTiempo={tiempoMusica}
         musicaDuracion={duracionMusica}
@@ -2282,6 +2806,26 @@ function SalaRealContent({
       />
       {contenido}
 
+      {intercambioActivo && (
+        <IntercambioModal
+          sesion={intercambioActivo}
+          miUsuarioId={user.id}
+          jugadores={jugadores}
+          divisasConfig={divisasConfig}
+          divisasSaldos={divisasSaldos}
+          mochila={mochila}
+          archivosDisponibles={archivosDisponibles}
+          positsDisponibles={elementosMesa.filter(
+            (el): el is Extract<ElementoMesa, { tipo: "posit" }> =>
+              el.tipo === "posit" && !el.archivado
+          )}
+          retratosPorJugador={mesa.retratosPorJugador}
+          onActualizarOferta={actualizarOfertaIntercambio}
+          onMarcarListo={marcarListoIntercambio}
+          onCancelar={cancelarIntercambio}
+        />
+      )}
+
       {audioBloqueado && musicaAmbiente.reproduciendo && pistaActual && (
         <button
           type="button"
@@ -2311,16 +2855,114 @@ function SalaRealContent({
         </button>
       )}
 
+      {fase !== "sala" && colaSolicitudes[0] && (
+        <div
+          className="transferencia-dialogo"
+          role="alertdialog"
+          aria-modal="false"
+          aria-label="Solicitud de transferencia"
+        >
+          <p className="transferencia-texto">
+            {mensajeSolicitudTransferencia(colaSolicitudes[0])}
+          </p>
+          {colaSolicitudes[0].tipo === "posit" && colaSolicitudes[0].textoPosit && (
+            <p className="transferencia-preview-posit">
+              «{colaSolicitudes[0].textoPosit}»
+            </p>
+          )}
+          {colaSolicitudes[0].tipo === "objeto" && colaSolicitudes[0].objeto && (
+            <p className="transferencia-preview-posit">
+              {colaSolicitudes[0].objeto.emoji ? `${colaSolicitudes[0].objeto.emoji} ` : ""}
+              {colaSolicitudes[0].objeto.nombre}
+              {colaSolicitudes[0].objeto.cantidad > 1
+                ? ` (x${colaSolicitudes[0].objeto.cantidad})`
+                : ""}
+            </p>
+          )}
+          <div className="transferencia-acciones">
+            <button
+              type="button"
+              className="transferencia-btn-rechazar"
+              onClick={() => void rechazarSolicitud(colaSolicitudes[0]!)}
+            >
+              Rechazar
+            </button>
+            <button
+              type="button"
+              className="transferencia-btn-aceptar"
+              onClick={() => void aceptarSolicitud(colaSolicitudes[0]!)}
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
+
       {estadoAviso && !error && (
         <div className="sala-aviso sala-aviso-ok">{estadoAviso}</div>
       )}
       {error && (
         <div className="sala-aviso sala-aviso-error">{error}</div>
       )}
+
+      {miPersonaje?.fichaArchivoId &&
+        (fase === "sala" || fase === "pizarra" || fase === "mapa") && (
+          <button
+            type="button"
+            className="ficha-retro-tab"
+            onClick={() => setFichaRapidaVisorAbierto(true)}
+            title="Abrir vista previa de tu ficha de PJ"
+            aria-label="Abrir ficha de personaje"
+          >
+            <ChevronLeft size={14} strokeWidth={2.6} aria-hidden="true" />
+            <span>FICHA</span>
+          </button>
+        )}
+
+      {fichaRapidaVisorAbierto &&
+        miPersonaje?.fichaArchivoId &&
+        (() => {
+          const encontrada = archivosDisponibles.find(
+            a => a.id === miPersonaje.fichaArchivoId
+          );
+          const nombre =
+            encontrada?.nombre ??
+            miPersonaje.fichaNombre ??
+            "Ficha de personaje.pdf";
+          const archivoParaVisor = encontrada ?? {
+            id: miPersonaje.fichaArchivoId,
+            nombre,
+            vista: inferirVistaPorNombre(nombre)
+          };
+          return (
+            <VisorArchivo
+              archivo={archivoParaVisor}
+              onCerrar={() => setFichaRapidaVisorAbierto(false)}
+              onGuardado={() => {
+                void cargarArchivos();
+              }}
+              accionesExtra={
+                <button
+                  type="button"
+                  className="visor-unificado-btn"
+                  onClick={() => {
+                    setFichaRapidaVisorAbierto(false);
+                    if (fase === "sala" || fase === "pizarra" || fase === "mapa") {
+                      personajeOrigenRef.current = fase;
+                    }
+                    cambiarFase("personaje");
+                  }}
+                >
+                  Ir a PJ
+                </button>
+              }
+            />
+          );
+        })()}
     </div>
   );
 }
 
 export function SalaReal(props: SalaRealProps) {
-  return <SalaRealContent key={props.user.id} {...props} />;
+  return <SalaRealContent key={`${props.user.id}:${props.mesa.id}`} {...props} />;
 }

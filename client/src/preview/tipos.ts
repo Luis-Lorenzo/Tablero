@@ -12,6 +12,7 @@ export interface JugadorPreview {
   nombre: string;
   /** Nombre del personaje en esta mesa (editable por cada jugador). */
   apodo?: string;
+  retratoArchivoId?: string | null;
   color: string;
   esMaster: boolean;
   /** Asiento habilitado. El trasero derecho empieza desactivado. */
@@ -58,6 +59,8 @@ export interface MensajeSala {
   texto: string;
   destinatarioId: string | null;
   destinatarioNombre: string | null;
+  destinatarioIds?: string[];
+  destinatarioNombres?: string[];
   createdAt: string;
   /** Mensajes de sistema locales (ej. tiradas públicas en chat). */
   esSistema?: boolean;
@@ -73,6 +76,7 @@ export interface TiradaAsiento {
   especial?: TipoEspecialTirada;
   caras?: number;
   desglose?: string;
+  nombreMacro?: string;
   colorDado?: string;
   colorAristasDado?: string;
 }
@@ -140,6 +144,7 @@ export type ElementoMesa =
       archivoId?: string;
       archivoNombre?: string;
       imagenLocal?: string;
+      macro?: MacroTirada;
       x: number;
       y: number;
       archivado?: boolean;
@@ -186,6 +191,7 @@ export interface ObjetoMochila {
   archivoId?: string;
   archivoNombre?: string;
   imagenLocal?: string;
+  macro?: MacroTirada;
 }
 
 export interface DivisaAsientoDelta {
@@ -225,6 +231,8 @@ export interface DocumentoMesa {
   url?: string;
 }
 
+export type FormaTrazo = "libre" | "linea" | "flecha";
+
 export interface TrazoPizarra {
   id: string;
   color: string;
@@ -232,6 +240,21 @@ export interface TrazoPizarra {
   /** Puntos normalizados (0-100) dentro del lienzo de la pizarra. */
   puntos: Punto[];
   autorId?: string;
+  forma?: FormaTrazo;
+}
+
+export type TamanoTextoEscena = "sm" | "md" | "lg";
+
+export interface TextoEscena {
+  id: string;
+  texto: string;
+  x: number;
+  y: number;
+  color: string;
+  tamano: TamanoTextoEscena;
+  ancho?: number;
+  autorId?: string;
+  autorNombre?: string;
 }
 
 export interface ImagenEscenaPreview {
@@ -247,6 +270,16 @@ export interface PingVisual {
   color: string;
   vista: "pizarra" | "escena" | "mapa";
   autorNombre?: string;
+}
+
+export interface ReglaVisual {
+  autorId: string;
+  autorNombre?: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
 }
 
 export interface GrupoDadoMacro {
@@ -351,6 +384,8 @@ export interface MapaIniciativaEstado {
   ronda: number;
   turnoIndice: number;
   entradas: IniciativaEntrada[];
+  turnoMaxSegundos?: number | null;
+  turnoIniciadoEn?: number;
 }
 
 export interface AreaMapa {
@@ -374,4 +409,5 @@ export interface EstadoMapaCompartido {
   trazos?: TrazoPizarra[];
   areas?: AreaMapa[];
   dibujoCongelado?: boolean;
+  servidorAhora?: number;
 }

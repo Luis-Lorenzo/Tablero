@@ -8,17 +8,18 @@ import type {
 import {
   ArrowLeft,
   Crown,
-  Download,
   Eye,
   Image as ImageIcon,
   Plus,
   Sparkles,
   Trash2,
+  Upload,
   X
 } from "lucide-react";
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
+import { VisorArchivo } from "../presentation/components/VisorArchivo";
 import {
   infoFormatoArchivo,
   nuevoId,
@@ -48,42 +49,13 @@ interface ArchivadorProps {
 
 /** Formatos aceptados por el servidor (coinciden con `TIPOS_PERMITIDOS`). */
 const ACEPTADOS =
-  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+  ".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.txt,.md,.json,.csv,text/markdown,application/json,text/csv";
 const ACEPTADOS_IMAGEN = "image/png,image/jpeg,image/gif,image/webp";
 
 function formatearTamano(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function TextoVisor({ id, nombre }: { id: string; nombre: string }) {
-  const [texto, setTexto] = useState("Cargando…");
-
-  useEffect(() => {
-    let activo = true;
-    (async () => {
-      try {
-        const respuesta = await fetch(archivosApi.url(id), {
-          credentials: "include"
-        });
-        if (!respuesta.ok) return;
-        const contenido = await respuesta.text();
-        if (activo) setTexto(contenido);
-      } catch {
-        if (activo) setTexto("No se pudo leer este archivo de texto.");
-      }
-    })();
-    return () => {
-      activo = false;
-    };
-  }, [id]);
-
-  return (
-    <pre className="archivador-texto-visor" aria-label={nombre}>
-      {texto}
-    </pre>
-  );
 }
 
 export function DocumentoVisorModal({
@@ -98,7 +70,7 @@ export function DocumentoVisorModal({
   archivo:
   | PublicArchivo
   | DocumentoMesa
-  | { id: string; nombre: string; vista: string; url?: string };
+  | { id: string; nombre: string; tipo?: string; vista: string; url?: string; updatedAt?: string };
   onCerrar: () => void;
   esMaster?: boolean;
   imagenEscena?: ImagenEscenaPreview | null;
@@ -109,173 +81,72 @@ export function DocumentoVisorModal({
   onReabrirProyeccion?: () => void;
   onArchivosCambio?: (archivos: PublicArchivo[]) => void;
 }) {
-  const docxRef = useRef<HTMLDivElement>(null);
   const urlPersonalizada = "url" in archivo ? archivo.url : undefined;
-  const recursoUrl = urlPersonalizada ?? archivosApi.url(archivo.id);
-  const descargaUrl = urlPersonalizada ?? archivosApi.url(archivo.id, true);
   const esImagen = archivo.vista === "imagen";
   const enEscena = Boolean(imagenEscena && imagenEscena.id === archivo.id);
   const enProyeccion = Boolean(
     imagenProyectada && imagenProyectada.id === archivo.id
   );
 
-  useEffect(() => {
-    if (archivo.vista !== "docx") return undefined;
+  const accionesExtra = (
+    <>
+      {esMaster && esImagen && onProyectarImagen && (
+        <button
+          type="button"
+          className={`master-accion-btn${enProyeccion ? " activo" : ""}`}
+          onClick={() =>
+            onProyectarImagen(
+              enProyeccion
+                ? null
+                : {
+                  id: archivo.id,
+                  titulo: archivo.nombre,
+                  url: urlPersonalizada
+                }
+            )
+          }
+        >
+          <Sparkles size={13} aria-hidden="true" />
+          <span>{enProyeccion ? "Quitar proyección" : "Mostrar a todos"}</span>
+        </button>
+      )}
+      {esMaster && esImagen && onCambiarEscena && (
+        <button
+          type="button"
+          className={`master-accion-btn${enEscena ? " activo" : ""}`}
+          onClick={() =>
+            onCambiarEscena(
+              enEscena
+                ? null
+                : {
+                  id: archivo.id,
+                  titulo: archivo.nombre,
+                  url: urlPersonalizada
+                }
+            )
+          }
+        >
+          <ImageIcon size={13} aria-hidden="true" />
+          <span>{enEscena ? "Quitar de pizarra" : "Fijar en pizarra"}</span>
+        </button>
+      )}
+    </>
+  );
 
-    let cancelado = false;
-
-    (async () => {
-      try {
-        const modulo = await import("docx-preview");
-        const contenedor = docxRef.current;
-        if (cancelado || !contenedor) return;
-        contenedor.innerHTML = "";
-
-          const respuesta = await fetch(recursoUrl, {
-            credentials: "include"
-          });
-          if(!respuesta.ok || cancelado) return;
-        const blob = await respuesta.blob();
-
-        if (cancelado) return;
-        await (modulo as { renderAsync: Function }).renderAsync(
-          blob,
-          contenedor,
-          undefined,
-          { className: "archivador-docx-canvas" }
-        );
-      } catch (e) {
-        console.error("No se pudo previsualizar .docx", e);
-      }
-    })();
-
-    return () => {
-      cancelado = true;
-    };
-}, [archivo.id, archivo.vista, recursoUrl]);
-
-useEffect(() => {
-  function alPulsarTecla(evento: KeyboardEvent) {
-    if (evento.key === "Escape") {
-      onCerrar();
-    }
-  }
-
-  document.addEventListener("keydown", alPulsarTecla);
-  return () => document.removeEventListener("keydown", alPulsarTecla);
-}, [onCerrar]);
-
-return (
-  <div className="archivador-visor" onClick={onCerrar}>
-    <div
-      className="archivador-visor-caja"
-      onClick={evento => evento.stopPropagation()}
-    >
-      <header className="archivador-visor-cabecera">
-        <span className="archivador-visor-nombre" title={archivo.nombre}>
-          {archivo.nombre}
-        </span>
-        <div className="archivador-visor-acciones">
-          {esMaster && esImagen && onProyectarImagen && (
-            <button
-              type="button"
-              className={`master-accion-btn${enProyeccion ? " activo" : ""}`}
-              onClick={() =>
-                onProyectarImagen(
-                  enProyeccion
-                    ? null
-                    : {
-                      id: archivo.id,
-                      titulo: archivo.nombre,
-                      url: urlPersonalizada
-                    }
-                )
-              }
-            >
-              {enProyeccion ? (
-                <>
-                  <Sparkles size={13} aria-hidden="true" />
-                  <span>Quitar proyección</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={13} aria-hidden="true" />
-                  <span>Mostrar a todos</span>
-                </>
-              )}
-            </button>
-          )}
-          {esMaster && esImagen && onCambiarEscena && (
-            <button
-              type="button"
-              className={`master-accion-btn${enEscena ? " activo" : ""}`}
-              onClick={() =>
-                onCambiarEscena(
-                  enEscena
-                    ? null
-                    : {
-                      id: archivo.id,
-                      titulo: archivo.nombre,
-                      url: urlPersonalizada
-                    }
-                )
-              }
-            >
-              {enEscena ? (
-                <>
-                  <ImageIcon size={13} aria-hidden="true" />
-                  <span>Quitar de pizarra</span>
-                </>
-              ) : (
-                <>
-                  <ImageIcon size={13} aria-hidden="true" />
-                  <span>Fijar en pizarra</span>
-                </>
-              )}
-            </button>
-          )}
-          <a
-            className="archivador-visor-descargar"
-            href={descargaUrl}
-            download={archivo.nombre}
-          >
-            <Download size={13} aria-hidden="true" />
-            <span>Descargar</span>
-          </a>
-          <button
-            type="button"
-            className="archivador-visor-cerrar"
-            onClick={onCerrar}
-            aria-label="Cerrar"
-          >
-            <X size={13} aria-hidden="true" />
-            <span>Cerrar</span>
-          </button>
-        </div>
-      </header>
-
-      <div className="archivador-visor-marco">
-        {archivo.vista !== "ninguna" ? (
-          archivo.vista === "pdf" ? (
-              <iframe src={recursoUrl} title={archivo.nombre} />
-          ) : archivo.vista === "imagen" ? (
-              <img src={recursoUrl} alt={archivo.nombre} />
-          ) : archivo.vista === "docx" ? (
-            <div ref={docxRef} className="archivador-docx-contenedor" />
-          ) : archivo.vista === "texto" ? (
-            <TextoVisor id={archivo.id} nombre={archivo.nombre} />
-          ) : (
-              <iframe src={recursoUrl} title={archivo.nombre} />
-          )
-        ) : (
-          <p className="archivador-vacio">
-            Este tipo de archivo no se puede mostrar aquí. Usa «Descargar».
-          </p>
-        )}
-      </div>
-    </div>
-  </div>
-);
+  return (
+    <VisorArchivo
+      archivo={{
+        id: archivo.id,
+        nombre: archivo.nombre,
+        tipo: "tipo" in archivo ? archivo.tipo : undefined,
+        vista: archivo.vista,
+        url: urlPersonalizada,
+        updatedAt: "updatedAt" in archivo ? archivo.updatedAt : undefined
+      }}
+      accionesExtra={accionesExtra}
+      onCerrar={onCerrar}
+    />
+  );
 }
 
 /**
@@ -698,7 +569,13 @@ export function Archivador({
   const [archivos, setArchivos] = useState<PublicArchivo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
-  const [visor, setVisor] = useState<PublicArchivo | null>(null);
+  const [arrastrandoSobreDropzone, setArrastrandoSobreDropzone] =
+    useState(false);
+  const [visor, setVisor] = useState<
+    | PublicArchivo
+    | { id: string; nombre: string; tipo?: string; vista: string; url?: string }
+    | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   const selector = useRef<HTMLInputElement>(null);
@@ -762,9 +639,8 @@ export function Archivador({
     };
   }, [sincronizarLista]);
 
-  async function alElegirArchivos(evento: ChangeEvent<HTMLInputElement>) {
-    const elegidos = Array.from(evento.target.files ?? []);
-    evento.target.value = "";
+  async function subirArchivos(lista: FileList | File[]) {
+    const elegidos = Array.from(lista);
     if (elegidos.length === 0) return;
 
     setSubiendo(true);
@@ -779,6 +655,12 @@ export function Archivador({
     } finally {
       setSubiendo(false);
     }
+  }
+
+  async function alElegirArchivos(evento: ChangeEvent<HTMLInputElement>) {
+    const elegidos = Array.from(evento.target.files ?? []);
+    evento.target.value = "";
+    await subirArchivos(elegidos);
   }
 
   function desarchivarPosit(id: string): void {
@@ -914,67 +796,123 @@ export function Archivador({
           {error && <p className="archivador-error">{error}</p>}
 
           <section className="archivador-seccion">
-            <div className="archivador-seccion-cabecera">
-              <h2>Posits archivados</h2>
-              <span className="archivador-contador">{positsArchivados.length}</span>
-            </div>
-
-            {positsArchivados.length === 0 ? (
-              <p className="archivador-vacio">
-                No tienes posits archivados. Puedes archivar tus notas desde la vista
-                de la mesa.
-              </p>
-            ) : (
-              <div className="archivador-grid">
-                {positsArchivados.map(posit => (
-                  <article
-                    key={posit.id}
-                    className="archivador-card archivador-card-posit"
-                  >
-                    <div
-                      className="archivador-posit-preview"
-                      style={{
-                        background: posit.color,
-                        color: textoLegible(posit.color)
-                      }}
-                    >
-                      <p
-                        className={`archivador-posit-texto${posit.texto.trim() ? "" : " vacio"
-                          }`}
-                      >
-                        {posit.texto.trim() ? posit.texto : "Posit sin texto"}
-                      </p>
-                    </div>
-
-                    <div className="archivador-card-acciones">
-                      <button
-                        type="button"
-                        className="archivador-accion-principal"
-                        onClick={() => desarchivarPosit(posit.id)}
-                      >
-                        Desarchivar
-                      </button>
-                      <button
-                        type="button"
-                        className="archivador-accion-borrar"
-                        title="Borrar posit"
-                        aria-label="Borrar posit"
-                        onClick={() => borrarPosit(posit.id)}
-                      >
-                        <Trash2 size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-                  </article>
-                ))}
+              <div className="archivador-seccion-cabecera">
+                <h2>Posits archivados</h2>
+                <span className="archivador-contador">{positsArchivados.length}</span>
               </div>
-            )}
-          </section>
+
+              {positsArchivados.length === 0 ? (
+                <p className="archivador-vacio">
+                  No tienes posits archivados. Puedes archivar tus notas desde la vista
+                  de la mesa.
+                </p>
+              ) : (
+                <div className="archivador-grid">
+                  {positsArchivados.map(posit => (
+                    <article
+                      key={posit.id}
+                      className="archivador-card archivador-card-posit"
+                    >
+                      <div
+                        className="archivador-posit-preview"
+                        style={{
+                          background: posit.color,
+                          color: textoLegible(posit.color)
+                        }}
+                      >
+                        <p
+                          className={`archivador-posit-texto${posit.texto.trim() ? "" : " vacio"
+                            }`}
+                        >
+                          {posit.texto.trim() ? posit.texto : "Posit sin texto"}
+                        </p>
+                      </div>
+
+                      <div className="archivador-card-acciones">
+                        <button
+                          type="button"
+                          className="archivador-accion-principal"
+                          onClick={() => desarchivarPosit(posit.id)}
+                        >
+                          Desarchivar
+                        </button>
+                        <button
+                          type="button"
+                          className="archivador-accion-borrar"
+                          title="Borrar posit"
+                          aria-label="Borrar posit"
+                          onClick={() => borrarPosit(posit.id)}
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
 
           <section className="archivador-seccion">
             <div className="archivador-seccion-cabecera">
               <h2>Mis archivos</h2>
               <span className="archivador-contador">
                 {archivosArchivados.length}
+              </span>
+            </div>
+
+            <div
+              role="button"
+              tabIndex={subiendo ? -1 : 0}
+              aria-disabled={subiendo}
+              aria-label="Subir archivos arrastrando o haciendo clic"
+              className={`archivador-dropzone${arrastrandoSobreDropzone ? " arrastrando" : ""}${subiendo ? " subiendo" : ""}`}
+              onClick={() => {
+                if (!subiendo) selector.current?.click();
+              }}
+              onKeyDown={e => {
+                if (!subiendo && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  selector.current?.click();
+                }
+              }}
+              onDragOver={e => {
+                e.preventDefault();
+                setArrastrandoSobreDropzone(true);
+              }}
+              onDragEnter={e => {
+                e.preventDefault();
+                setArrastrandoSobreDropzone(true);
+              }}
+              onDragLeave={e => {
+                if (
+                  !(e.relatedTarget instanceof Node) ||
+                  !e.currentTarget.contains(e.relatedTarget)
+                ) {
+                  setArrastrandoSobreDropzone(false);
+                }
+              }}
+              onDrop={e => {
+                e.preventDefault();
+                setArrastrandoSobreDropzone(false);
+                if (!subiendo && e.dataTransfer.files?.length) {
+                  void subirArchivos(e.dataTransfer.files);
+                }
+              }}
+            >
+              <Upload
+                size={20}
+                className="archivador-dropzone-icono"
+                aria-hidden="true"
+              />
+              <span className="archivador-dropzone-texto">
+                {subiendo
+                  ? "Subiendo archivos…"
+                  : arrastrandoSobreDropzone
+                    ? "Suelta los archivos para subirlos"
+                    : "Arrastra y suelta documentos aquí, o haz clic para subir"}
+              </span>
+              <span className="archivador-dropzone-hint">
+                PDF, Word (.docx), imágenes, texto
               </span>
             </div>
 

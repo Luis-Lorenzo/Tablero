@@ -17,23 +17,34 @@ import { BloqueoService } from "../src/services/bloqueo.service.js";
 import { MesaService } from "../src/services/mesa.service.js";
 import { ChatService } from "../src/services/chat.service.js";
 import { UserService } from "../src/services/user.service.js";
-import { NoopMesasNotifier } from "../src/realtime/mesas-notifier.js";
+import { NoopMesasNotifier, type MesasNotifier } from "../src/realtime/mesas-notifier.js";
 import type { AppContext } from "../src/api/context.js";
 
 const PASSWORD = "secreto123";
 const PDF = Buffer.from("%PDF-1.4 contenido de prueba");
 
+class SpyMesasNotifier extends NoopMesasNotifier implements MesasNotifier {
+  readonly enviados: Array<{ userIds: readonly string[]; payload: unknown }> = [];
+
+  override enviarAUsuarios(userIds: readonly string[], payload: unknown): void {
+    this.enviados.push({ userIds, payload });
+  }
+}
+
 function montar() {
   const users = new MemoryUserRepository();
   const mesas = new MemoryMesaRepository();
+  const archivoRepo = new MemoryArchivoRepository();
+  const almacen = new MemoryAlmacen();
   const hasher = new FakePasswordHasher();
   const archivoService = new ArchivoService(
-    new MemoryArchivoRepository(),
-    new MemoryAlmacen(),
+    archivoRepo,
+    almacen,
     logger,
     config.archivos.maxBytes,
     mesas
   );
+  const notifier = new SpyMesasNotifier();
 
   const context: AppContext = {
     config,
@@ -46,15 +57,16 @@ function montar() {
     mesaService: new MesaService(mesas, users, logger, archivoService),
     chatService: new ChatService(mesas, users),
     archivoService,
-    mesasNotifier: new NoopMesasNotifier()
+    mesasNotifier: notifier
   };
 
   const app = createApp(context);
 
-  async function aprobar(email: string) {
+  async function aprobar(email: string, role: "USER" | "ADMIN" = "USER") {
     const user = createUser({
       email,
       passwordHash: await hasher.hash(PASSWORD),
+      role,
       status: "ACTIVE"
     });
     await users.save(user);
@@ -69,7 +81,7 @@ function montar() {
     return String(login.headers["set-cookie"][0]).split(";")[0];
   }
 
-  return { app, aprobar, sesionDe };
+  return { app, aprobar, sesionDe, users, archivoService, notifier };
 }
 
 describe("rutas de /api/archivos", () => {
@@ -214,5 +226,179 @@ describe("rutas de /api/archivos", () => {
       .set("Cookie", cookie);
     expect(archivoPersonalTrasCierre.status).toBe(200);
     expect(archivoPersonalTrasCierre.body).toEqual(PDF);
+  });
+
+  it("PUT /api/archivos/:id sobrescribe en sitio, actualiza ETag y respeta permisos y límites", async () => {
+    await montado.aprobar("admin@pocket.test", "ADMIN");
+    const cookieAdmin = await montado.sesionDe("admin@pocket.test");
+    const cookieOtra = await montado.sesionDe("otra@pocket.test");
+
+    const subida = await request(montado.app)
+      .post("/api/archivos?nombre=notas.txt")
+      .set("Cookie", cookie)
+      .set("Content-Type", "text/plain")
+      .send(Buffer.from("versión 1", "utf8"));
+    expect(subida.status).toBe(201);
+    const id = String(subida.body.id);
+
+    const getInicial = await request(montado.app)
+      .get(`/api/archivos/${id}`)
+      .set("Cookie", cookie);
+    expect(getInicial.status).toBe(200);
+    expect(getInicial.headers["cache-control"]).toBe("private, no-cache");
+    const etagInicial = String(getInicial.headers.etag);
+
+    // Sin sesión -> 401
+    const sinSesion = await request(montado.app)
+      .put(`/api/archivos/${id}`)
+      .set("Content-Type", "text/plain")
+      .send(Buffer.from("hack", "utf8"));
+    expect(sinSesion.status).toBe(401);
+
+    // Otro usuario -> 403
+    const ajeno = await request(montado.app)
+      .put(`/api/archivos/${id}`)
+      .set("Cookie", cookieOtra)
+      .set("Content-Type", "text/plain")
+      .send(Buffer.from("ajeno", "utf8"));
+    expect(ajeno.status).toBe(403);
+
+    // Cuerpo vacío -> 400 ARCHIVO_VACIO
+    const vacio = await request(montado.app)
+      .put(`/api/archivos/${id}`)
+      .set("Cookie", cookie)
+      .set("Content-Type", "text/plain")
+      .send(Buffer.alloc(0));
+    expect(vacio.status).toBe(400);
+    expect(vacio.body.error).toBe("ARCHIVO_VACIO");
+
+    // Excede límite de bytes -> 413
+    const demasiado = Buffer.alloc(config.archivos.maxBytes + 10, 65);
+    const grande = await request(montado.app)
+      .put(`/api/archivos/${id}`)
+      .set("Cookie", cookie)
+      .set("Content-Type", "text/plain")
+      .send(demasiado);
+    expect(grande.status).toBe(413);
+
+    // Propietario actualiza -> 200 y nuevo ETag
+    const nuevoTexto = Buffer.from("versión 2 actualizada!", "utf8");
+    const actualizado = await request(montado.app)
+      .put(`/api/archivos/${id}`)
+      .set("Cookie", cookie)
+      .set("Content-Type", "text/plain")
+      .send(nuevoTexto);
+    expect(actualizado.status).toBe(200);
+    expect(actualizado.body.tamano).toBe(nuevoTexto.length);
+    expect(actualizado.body.updatedAt).toBeTruthy();
+
+    // El ETag antiguo ya NO devuelve 304, devuelve 200 con los bytes nuevos
+    const trasCambioConEtagViejo = await request(montado.app)
+      .get(`/api/archivos/${id}`)
+      .set("Cookie", cookie)
+      .set("If-None-Match", etagInicial);
+    expect(trasCambioConEtagViejo.status).toBe(200);
+    expect(trasCambioConEtagViejo.text).toBe("versión 2 actualizada!");
+
+    const etagNuevo = String(trasCambioConEtagViejo.headers.etag);
+    expect(etagNuevo).not.toBe(etagInicial);
+
+    const revalidadoNuevo = await request(montado.app)
+      .get(`/api/archivos/${id}`)
+      .set("Cookie", cookie)
+      .set("If-None-Match", etagNuevo);
+    expect(revalidadoNuevo.status).toBe(304);
+
+    // Admin también puede actualizar -> 200
+    const adminEdit = await request(montado.app)
+      .put(`/api/archivos/${id}`)
+      .set("Cookie", cookieAdmin)
+      .set("Content-Type", "text/plain")
+      .send(Buffer.from("editado por admin", "utf8"));
+    expect(adminEdit.status).toBe(200);
+  });
+
+  it("aplica copy-on-write al actualizar un archivo compartido por referencia y emite WS archivo:actualizado en mesa", async () => {
+    const dueña = await montado.users.findByEmail("jugadora@pocket.test");
+    const receptora = await montado.users.findByEmail("otra@pocket.test");
+    expect(dueña && receptora).toBeTruthy();
+
+    const mesaRes = await request(montado.app).post("/api/mesas").set("Cookie", cookie);
+    expect(mesaRes.status).toBe(201);
+    const mesaId = String(mesaRes.body.id);
+
+    const originalPdf = Buffer.from("%PDF-1.4 ficha vacia");
+    const subida = await request(montado.app)
+      .post(`/api/archivos?nombre=ficha.pdf&mesaId=${encodeURIComponent(mesaId)}`)
+      .set("Cookie", cookie)
+      .set("Content-Type", "application/pdf")
+      .send(originalPdf);
+    expect(subida.status).toBe(201);
+
+    const clon = await montado.archivoService.clonarPara(
+      dueña!.id,
+      String(subida.body.id),
+      receptora!,
+      mesaId
+    );
+    const cookieReceptora = await montado.sesionDe("otra@pocket.test");
+    montado.notifier.enviados.length = 0;
+
+    // La receptora guarda cambios en su copia -> copy-on-write, no pisa el original de la dueña
+    const pdfRellenado = Buffer.from("%PDF-1.4 ficha rellenada por jugadora");
+    const putClon = await request(montado.app)
+      .put(`/api/archivos/${clon.id}`)
+      .set("Cookie", cookieReceptora)
+      .set("Content-Type", "application/pdf")
+      .send(pdfRellenado);
+    expect(putClon.status).toBe(200);
+
+    const lecturaOriginal = await request(montado.app)
+      .get(`/api/archivos/${subida.body.id}`)
+      .set("Cookie", cookie);
+    expect(Buffer.from(lecturaOriginal.body)).toEqual(originalPdf);
+
+    const lecturaClon = await request(montado.app)
+      .get(`/api/archivos/${clon.id}`)
+      .set("Cookie", cookieReceptora);
+    expect(Buffer.from(lecturaClon.body)).toEqual(pdfRellenado);
+
+    // Se emitió evento WS archivo:actualizado a los miembros de la mesa
+    expect(montado.notifier.enviados).toHaveLength(1);
+    expect(montado.notifier.enviados[0].payload).toMatchObject({
+      type: "archivo:actualizado",
+      mesaId,
+      archivoId: clon.id,
+      autorId: receptora!.id,
+      tamano: pdfRellenado.length
+    });
+  });
+
+  it("permite subir y editar archivos .md, .json y .csv con vista 'texto'", async () => {
+    for (const caso of [
+      { nombre: "notas.md", tipo: "text/markdown", body: "# Título\nHola", next: "# Editado" },
+      { nombre: "hoja.json", tipo: "application/json", body: "{\"hp\":10}", next: "{\"hp\":12}" },
+      { nombre: "tabla.csv", tipo: "text/csv", body: "a,b\n1,2", next: "a,b\n3,4" }
+    ]) {
+      const resSubida = await request(montado.app)
+        .post(`/api/archivos?nombre=${encodeURIComponent(caso.nombre)}`)
+        .set("Cookie", cookie)
+        .set("Content-Type", caso.tipo)
+        .send(caso.body);
+      expect(resSubida.status).toBe(201);
+      expect(resSubida.body.vista).toBe("texto");
+
+      const resPut = await request(montado.app)
+        .put(`/api/archivos/${resSubida.body.id}`)
+        .set("Cookie", cookie)
+        .set("Content-Type", caso.tipo)
+        .send(caso.next);
+      expect(resPut.status).toBe(200);
+
+      const resGet = await request(montado.app)
+        .get(`/api/archivos/${resSubida.body.id}`)
+        .set("Cookie", cookie);
+      expect(resGet.text).toBe(caso.next);
+    }
   });
 });

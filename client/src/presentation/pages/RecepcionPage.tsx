@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Check, Crown, Plus, Search, X } from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Check, Crown, Lock, Plus, Search, X } from "lucide-react";
 import { mesasApi } from "../../api/mesas.api";
 import type { PublicMesa, PublicUser } from "../../api/types";
 import { describeError } from "../errorMessages";
@@ -38,6 +38,9 @@ export function RecepcionPage({
   const [pendiente, setPendiente] = useState<PublicMesa | null>(null);
   const [cesionBusy, setCesionBusy] = useState(false);
   const [mesaACerrar, setMesaACerrar] = useState<PublicMesa | null>(null);
+  const [mesaConContrasena, setMesaConContrasena] = useState<PublicMesa | null>(null);
+  const [contrasenaIngreso, setContrasenaIngreso] = useState("");
+  const [errorContrasena, setErrorContrasena] = useState<string | null>(null);
 
   const esAdmin = user.role === "ADMIN";
   const yaTengoMesa = huecos.some(mesa => mesa?.hostId === user.id);
@@ -80,6 +83,19 @@ export function RecepcionPage({
     return () => window.clearTimeout(timer);
   }, [buscando, texto]);
 
+  useEffect(() => {
+    if (!mesaConContrasena) return undefined;
+    function alPulsarTecla(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) {
+        setMesaConContrasena(null);
+        setContrasenaIngreso("");
+        setErrorContrasena(null);
+      }
+    }
+    document.addEventListener("keydown", alPulsarTecla);
+    return () => document.removeEventListener("keydown", alPulsarTecla);
+  }, [mesaConContrasena, busy]);
+
   async function crearSala() {
     setBusy(true);
     setError(null);
@@ -95,6 +111,13 @@ export function RecepcionPage({
   }
 
   async function unirse(mesa: PublicMesa) {
+    if (mesa.tieneContrasena) {
+      setError(null);
+      setMesaConContrasena(mesa);
+      setContrasenaIngreso("");
+      setErrorContrasena(null);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -102,7 +125,41 @@ export function RecepcionPage({
       await refrescar();
       if (buscando) setResultados(await mesasApi.list(texto.trim()));
     } catch (unirseError) {
-      setError(describeError(unirseError));
+      const code =
+        unirseError && typeof unirseError === "object" && "code" in unirseError
+          ? String((unirseError as { code: unknown }).code)
+          : "";
+      if (code === "MESA_PASSWORD_REQUIRED" || code === "MESA_PASSWORD_INVALID") {
+        setMesaConContrasena(mesa);
+        setContrasenaIngreso("");
+        setErrorContrasena(null);
+      } else {
+        setError(describeError(unirseError));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function enviarContrasenaIngreso(evento: FormEvent) {
+    evento.preventDefault();
+    if (!mesaConContrasena || busy) return;
+    const limpia = contrasenaIngreso.trim();
+    if (!limpia) {
+      setErrorContrasena("Introduce la contraseña de la sala.");
+      return;
+    }
+    setBusy(true);
+    setErrorContrasena(null);
+    setError(null);
+    try {
+      await mesasApi.unirse(mesaConContrasena.id, limpia);
+      setMesaConContrasena(null);
+      setContrasenaIngreso("");
+      await refrescar();
+      if (buscando) setResultados(await mesasApi.list(texto.trim()));
+    } catch (passError) {
+      setErrorContrasena(describeError(passError));
     } finally {
       setBusy(false);
     }
@@ -306,6 +363,98 @@ export function RecepcionPage({
         onConfirm={() => void confirmarCerrar()}
         onCancel={() => setMesaACerrar(null)}
       />
+
+      {mesaConContrasena && (
+        <div
+          className="modal-fondo"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="password-dialog-title"
+          onClick={() => {
+            if (!busy) {
+              setMesaConContrasena(null);
+              setContrasenaIngreso("");
+              setErrorContrasena(null);
+            }
+          }}
+        >
+          <div className="modal-caja" onClick={event => event.stopPropagation()}>
+            <div className="modal-cabecera">
+              <div className="modal-titulo-wrap">
+                <span className="modal-icono aviso" aria-hidden="true">
+                  <Lock size={18} />
+                </span>
+                <h3 id="password-dialog-title">Contraseña</h3>
+              </div>
+              <button
+                type="button"
+                className="modal-cerrar"
+                onClick={() => {
+                  if (busy) return;
+                  setMesaConContrasena(null);
+                  setContrasenaIngreso("");
+                  setErrorContrasena(null);
+                }}
+                disabled={busy}
+                aria-label="Cerrar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="modal-descripcion">
+              Introduce la contraseña para unirte a <strong>“Mesa {mesaConContrasena.hostName}”</strong>.
+            </p>
+
+            <form
+              className="modal-password-form"
+              onSubmit={evento => void enviarContrasenaIngreso(evento)}
+            >
+              <input
+                type="text"
+                className="modal-password-input"
+                value={contrasenaIngreso}
+                onChange={event => {
+                  setContrasenaIngreso(event.target.value);
+                  if (errorContrasena) setErrorContrasena(null);
+                }}
+                placeholder="Contraseña…"
+                aria-label="Contraseña de la sala"
+                autoComplete="off"
+                maxLength={64}
+                disabled={busy}
+                autoFocus
+              />
+
+              {errorContrasena && (
+                <p className="feedback ko modal-password-error">{errorContrasena}</p>
+              )}
+
+              <div className="modal-acciones">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setMesaConContrasena(null);
+                    setContrasenaIngreso("");
+                    setErrorContrasena(null);
+                  }}
+                  disabled={busy}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="primary morado"
+                  disabled={busy || !contrasenaIngreso.trim()}
+                >
+                  {busy ? "Entrando…" : "Enviar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

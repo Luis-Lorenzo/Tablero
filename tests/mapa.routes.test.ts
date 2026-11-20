@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Pool } from "pg";
 import { createApp } from "../src/app.js";
@@ -30,11 +30,17 @@ function notificadorEspia() {
     mesaId: string;
     mapa: EstadoMapaCompartido;
   }> = [];
+  const enviosDirectos: Array<{
+    userIds: readonly string[];
+    payload: unknown;
+  }> = [];
 
   return {
     notificarCambio: () => {},
     notificarUsuario: () => {},
-    enviarAUsuarios: () => {},
+    enviarAUsuarios: (userIds: readonly string[], payload: unknown) => {
+      enviosDirectos.push({ userIds, payload });
+    },
     mapaActualizado: (
       userIds: readonly string[],
       mesaId: string,
@@ -42,7 +48,8 @@ function notificadorEspia() {
     ) => {
       mapasDifundidos.push({ userIds, mesaId, mapa });
     },
-    mapasDifundidos
+    mapasDifundidos,
+    enviosDirectos
   };
 }
 
@@ -258,20 +265,23 @@ describe("rutas de /api/mesas/:id/mapa", () => {
       .send({ iniciativa: iniciativaPayload })
       .expect(200);
 
-    expect(putRes.body.iniciativa).toEqual(iniciativaPayload);
+    expect(putRes.body.iniciativa).toMatchObject(iniciativaPayload);
+    expect(typeof putRes.body.iniciativa.turnoIniciadoEn).toBe("number");
+    expect(typeof putRes.body.servidorAhora).toBe("number");
 
     // Se difundió mesa:mapa-actualizado a todos los miembros
     expect(notifier.mapasDifundidos).toHaveLength(1);
     expect(notifier.mapasDifundidos[0]!.mesaId).toBe(mesaId);
     expect(notifier.mapasDifundidos[0]!.userIds).toEqual([master.id, jugador.id]);
-    expect(notifier.mapasDifundidos[0]!.mapa.iniciativa).toEqual(iniciativaPayload);
+    expect(notifier.mapasDifundidos[0]!.mapa.iniciativa).toMatchObject(iniciativaPayload);
 
     // El jugador ve la iniciativa al consultar GET /mapa
     const getJugador = await request(app)
       .get(`/api/mesas/${mesaId}/mapa`)
       .set("Cookie", cookieJugador)
       .expect(200);
-    expect(getJugador.body.iniciativa).toEqual(iniciativaPayload);
+    expect(getJugador.body.iniciativa).toMatchObject(iniciativaPayload);
+    expect(typeof getJugador.body.servidorAhora).toBe("number");
   });
 
   it("el jugador con el turno activo puede avanzar el turno y otro jugador recibe 403", async () => {
@@ -688,6 +698,273 @@ describe("rutas de /api/mesas/:id/mapa", () => {
         puntos: [{ x: 15, y: 15 }]
       })
       .expect(201);
+  });
+
+  it("modo Contrareloj avanza turnos de jugadores al expirar, respeta idempotencia y deja sin límite al Máster", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-19T18:00:00.000Z"));
+
+      const { app, aprobar, sesionDe } = montar();
+      const master = await aprobar("master-cr@pocket.test");
+      const jugador = await aprobar("jugador-cr@pocket.test");
+      const cookieMaster = await sesionDe("master-cr@pocket.test");
+      const cookieJugador = await sesionDe("jugador-cr@pocket.test");
+
+      const crear = await request(app)
+        .post("/api/mesas")
+        .set("Cookie", cookieMaster)
+        .send()
+        .expect(201);
+      const mesaId = crear.body.id as string;
+
+      await request(app)
+        .post(`/api/mesas/${mesaId}/unirse`)
+        .set("Cookie", cookieJugador)
+        .send()
+        .expect(200);
+
+      const iniPayload = {
+        activa: true,
+        ronda: 1,
+        turnoIndice: 0,
+        turnoMaxSegundos: 10,
+        entradas: [
+          { id: "init-j", nombre: "Kael", valor: 18, jugadorId: jugador.id },
+          { id: "init-m", nombre: "Orco", valor: 12, esMonstruo: true }
+        ]
+      };
+
+      const guardada1 = await request(app)
+        .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+        .set("Cookie", cookieMaster)
+        .send({ iniciativa: iniPayload })
+        .expect(200);
+      const inicioOriginal = guardada1.body.iniciativa.turnoIniciadoEn as number;
+      expect(guardada1.body.iniciativa.turnoMaxSegundos).toBe(10);
+
+      // Avanzar 4s no debe cambiar el turno por tiempo; volver a guardar el mismo turno preserva turnoIniciadoEn
+      vi.advanceTimersByTime(4000);
+      const reGuardada = await request(app)
+        .put(`/api/mesas/${mesaId}/mapa/iniciativa`)
+        .set("Cookie", cookieMaster)
+        .send({ iniciativa: iniPayload })
+        .expect(200);
+      expect(reGuardada.body.iniciativa.turnoIniciadoEn).toBe(inicioOriginal);
+
+      const antesDeTiempo = await request(app)
+        .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+        .set("Cookie", cookieJugador)
+        .send({
+          porTiempo: true,
+          rondaEsperada: 1,
+          turnoIndiceEsperado: 0,
+          entradaIdEsperada: "init-j"
+        })
+        .expect(200);
+      expect(antesDeTiempo.body.iniciativa.turnoIndice).toBe(0);
+
+      // Al vencer los 10s, se avanza automáticamente al turno del monstruo/Máster
+      vi.advanceTimersByTime(6100);
+      const expirado = await request(app)
+        .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+        .set("Cookie", cookieJugador)
+        .send({
+          porTiempo: true,
+          rondaEsperada: 1,
+          turnoIndiceEsperado: 0,
+          entradaIdEsperada: "init-j"
+        })
+        .expect(200);
+      expect(expirado.body.iniciativa.turnoIndice).toBe(1);
+      expect(expirado.body.iniciativa.ronda).toBe(1);
+      expect(expirado.body.iniciativa.turnoIniciadoEn).toBeGreaterThan(inicioOriginal);
+
+      // Petición repetida con las referencias ya pasadas es idempotente
+      const duplicado = await request(app)
+        .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+        .set("Cookie", cookieMaster)
+        .send({
+          porTiempo: true,
+          rondaEsperada: 1,
+          turnoIndiceEsperado: 0,
+          entradaIdEsperada: "init-j"
+        })
+        .expect(200);
+      expect(duplicado.body.iniciativa.turnoIndice).toBe(1);
+
+      // El turno del Máster/monstruo nunca expira por tiempo
+      vi.advanceTimersByTime(60000);
+      const turnoMasterSinLimite = await request(app)
+        .post(`/api/mesas/${mesaId}/mapa/iniciativa/siguiente`)
+        .set("Cookie", cookieJugador)
+        .send({
+          porTiempo: true,
+          rondaEsperada: 1,
+          turnoIndiceEsperado: 1,
+          entradaIdEsperada: "init-m"
+        })
+        .expect(200);
+      expect(turnoMasterSinLimite.body.iniciativa.turnoIndice).toBe(1);
+      expect(turnoMasterSinLimite.body.iniciativa.ronda).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("goma en lote borra trazos propios, congela áreas pero permite tokens y regla compartida con seq", async () => {
+    const { app, aprobar, sesionDe, notifier } = montar();
+    const master = await aprobar("master-gc@pocket.test");
+    const jugador = await aprobar("jugador-gc@pocket.test");
+    const cookieMaster = await sesionDe("master-gc@pocket.test");
+    const cookieJugador = await sesionDe("jugador-gc@pocket.test");
+
+    const crear = await request(app)
+      .post("/api/mesas")
+      .set("Cookie", cookieMaster)
+      .send()
+      .expect(201);
+    const mesaId = crear.body.id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/unirse`)
+      .set("Cookie", cookieJugador)
+      .send()
+      .expect(200);
+
+    // Token, trazos y área iniciales
+    const tokRes = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/tokens`)
+      .set("Cookie", cookieJugador)
+      .send({ nombre: "Pícara", imagenUrl: "/api/archivos/t1", x: 10, y: 10 })
+      .expect(201);
+    const tokenId = tokRes.body.tokens[0].id as string;
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .send({ id: "t-j1", color: "#38bdf8", grosor: 4, puntos: [{ x: 10, y: 10 }] })
+      .expect(201);
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieJugador)
+      .send({ id: "t-j2", color: "#38bdf8", grosor: 4, puntos: [{ x: 20, y: 20 }] })
+      .expect(201);
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos`)
+      .set("Cookie", cookieMaster)
+      .send({ id: "t-m1", color: "#e8c56a", grosor: 4, puntos: [{ x: 30, y: 30 }] })
+      .expect(201);
+
+    const areaJugRes = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/areas`)
+      .set("Cookie", cookieJugador)
+      .send({ tipo: "circulo", x: 50, y: 50, celdas: 2, color: "#38bdf8" })
+      .expect(201);
+    const areaId = areaJugRes.body.areas[0].id as string;
+
+    // Congelar mapa bloquea áreas y borrado en lote de trazos para jugadores, pero deja libres tokens y regla
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/congelar`)
+      .set("Cookie", cookieMaster)
+      .send({ congelado: true })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/areas`)
+      .set("Cookie", cookieJugador)
+      .send({ tipo: "cono", x: 40, y: 40, celdas: 3 })
+      .expect(403);
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/mapa/areas/${areaId}`)
+      .set("Cookie", cookieJugador)
+      .send({ x: 60 })
+      .expect(403);
+    await request(app)
+      .delete(`/api/mesas/${mesaId}/mapa/areas/${areaId}`)
+      .set("Cookie", cookieJugador)
+      .expect(403);
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos/eliminar-lote`)
+      .set("Cookie", cookieJugador)
+      .send({ ids: ["t-j1", "t-j2"] })
+      .expect(403);
+
+    // El máster sí puede crear área congelado
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/areas`)
+      .set("Cookie", cookieMaster)
+      .send({ tipo: "cono", x: 40, y: 40, celdas: 3, color: "#ef4444" })
+      .expect(201);
+
+    // Tokens y regla compartida siguen funcionando con mapa congelado
+    await request(app)
+      .patch(`/api/mesas/${mesaId}/mapa/tokens/${tokenId}`)
+      .set("Cookie", cookieJugador)
+      .send({ x: 35, y: 45 })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/mesas/${mesaId}/regla`)
+      .set("Cookie", cookieJugador)
+      .send({
+        activa: true,
+        x1: 12,
+        y1: 14,
+        x2: 48,
+        y2: 52,
+        color: "#38bdf8",
+        seq: 101
+      })
+      .expect(204);
+    await request(app)
+      .post(`/api/mesas/${mesaId}/regla`)
+      .set("Cookie", cookieJugador)
+      .send({ activa: false, seq: 102 })
+      .expect(204);
+
+    const ultimosRegla = notifier.enviosDirectos.slice(-2);
+    expect(ultimosRegla[0]!.userIds).toEqual([master.id, jugador.id]);
+    expect(ultimosRegla[0]!.payload).toMatchObject({
+      type: "mesa:regla",
+      mesaId,
+      regla: { activa: true, color: "#38bdf8", seq: 101 }
+    });
+    expect(ultimosRegla[1]!.payload).toMatchObject({
+      type: "mesa:regla",
+      mesaId,
+      regla: { activa: false, seq: 102 }
+    });
+
+    // Descongelar y probar borrado en lote con permisos
+    await request(app)
+      .put(`/api/mesas/${mesaId}/mapa/congelar`)
+      .set("Cookie", cookieMaster)
+      .send({ congelado: false })
+      .expect(200);
+
+    // El jugador no puede borrar un lote que incluya el trazo del máster
+    await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos/eliminar-lote`)
+      .set("Cookie", cookieJugador)
+      .send({ ids: ["t-j1", "t-m1"] })
+      .expect(403);
+
+    // Sí puede borrar sus dos trazos juntos
+    const loteJug = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos/eliminar-lote`)
+      .set("Cookie", cookieJugador)
+      .send({ ids: ["t-j1", "t-j2"] })
+      .expect(200);
+    expect(loteJug.body.trazos.map((t: { id: string }) => t.id)).toEqual(["t-m1"]);
+
+    // El máster puede borrar cualquier lote
+    const loteMaster = await request(app)
+      .post(`/api/mesas/${mesaId}/mapa/trazos/eliminar-lote`)
+      .set("Cookie", cookieMaster)
+      .send({ ids: ["t-m1"] })
+      .expect(200);
+    expect(loteMaster.body.trazos).toEqual([]);
   });
 });
 

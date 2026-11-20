@@ -23,6 +23,7 @@ import {
   Sun,
   Trash2,
   Upload,
+  UserRound,
   Users,
   VenetianMask,
   Volume2,
@@ -38,6 +39,8 @@ import type {
 import { archivosApi } from "../api/archivos.api";
 import type { PublicArchivo } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
+import { VisorArchivo } from "../presentation/components/VisorArchivo";
 import { DocumentoVisorModal, PanelImagenesMasterModal } from "./Archivador";
 import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
 import { infoFormatoArchivo, nuevoId, urlImagenEscena } from "./calibracion";
@@ -54,6 +57,10 @@ import {
   COLORES_POSIT,
   FONDO_SALA,
   FONDO_SALA_DIA,
+  guardarColorAristasDado,
+  guardarColorDado,
+  obtenerColorAristasDadoGuardado,
+  obtenerColorDadoGuardado,
   obtenerModoClaro
 } from "./datos";
 import type { PublicJugadorResumenInventario } from "../api/types";
@@ -83,6 +90,8 @@ import {
   establecerSonidoSilenciado,
   estaMusicaSilenciada,
   estaSonidoSilenciado,
+  guardarVolumenMusica,
+  obtenerVolumenMusica,
   reproducirSonidoConsumir,
   reproducirSonidoMonedas,
   reproducirSonidoNotificacion
@@ -139,21 +148,6 @@ const MUSICA_VACIA: MusicaAmbienteMesa = {
 
 type TiradaAsientoConColor = TiradaAsiento & { color?: string; colorAristasDado?: string };
 
-const CLAVE_COLOR_DADO = "pocketrol.colorDado";
-const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
-
-function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
-  try {
-    const guardado = window.localStorage.getItem(clave);
-    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
-      return guardado;
-    }
-  } catch {
-    // Ignoramos errores de almacenamiento
-  }
-  return fallback;
-}
-
 interface SalaProps {
   jugadores: JugadorPreview[];
   calibracion: Calibracion;
@@ -161,7 +155,9 @@ interface SalaProps {
   onAbrirPizarra: () => void;
   onAbrirMapa: () => void;
   onAbrirArchivador?: () => void;
+  onAbrirPersonaje?: () => void;
   onVolver: () => void;
+  etiquetaVolver?: string;
   hostName?: string;
   yoAsientoId?: string;
   posits?: PositPreview[];
@@ -182,7 +178,9 @@ interface SalaProps {
   onEmpezarPartida?: () => void | Promise<void>;
   miUsuarioId?: string;
   mensajesChat?: MensajeSala[];
-  onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  onEnviarChat?: (texto: string, destinatarioIds: string[] | string | null) => void | Promise<void>;
+  retratosPorJugador?: Record<string, string | null>;
+  onIniciarIntercambio?: (conUsuarioId: string) => void | Promise<void>;
   tiradasAsiento?: Record<string, TiradaAsientoConColor>;
   onTiradaPublica?: (tirada: {
     total: number;
@@ -774,42 +772,89 @@ function textoLegible(color: string): string {
   return luz > 0.62 ? "#2a2433" : "#fbf8f2";
 }
 
-function TextoArchivoMesa({
-  archivoId,
-  nombre,
-  contenidoLocal
-}: {
-  archivoId: string;
-  nombre: string;
-  contenidoLocal?: string;
-}) {
-  const [texto, setTexto] = useState<string>(contenidoLocal ?? "Cargando…");
+interface CajaPorc {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
 
-  useEffect(() => {
-    if (contenidoLocal !== undefined) return undefined;
-    let activo = true;
-    (async () => {
-      try {
-        const res = await fetch(archivosApi.url(archivoId), {
-          credentials: "include"
-        });
-        if (!res.ok) return;
-        const contenido = await res.text();
-        if (activo) setTexto(contenido);
-      } catch {
-        if (activo) setTexto("No se pudo leer el archivo de texto.");
-      }
-    })();
-    return () => {
-      activo = false;
-    };
-  }, [archivoId, contenidoLocal]);
+const SELECTORES_HUD_EXCLUIDOS =
+  ".sala-hud-derecha, .sala-barra, .sala-tema-btn, .sala-master-partida-ctrl, .sala-apodo-flotante";
 
-  return (
-    <pre className="texto-visor" aria-label={nombre}>
-      {texto}
-    </pre>
-  );
+function obtenerCajasHudExcluidas(
+  root: HTMLElement | null,
+  mesaEl: HTMLElement | null
+): CajaPorc[] {
+  if (!root || !mesaEl) return [];
+  const mesaRect = mesaEl.getBoundingClientRect();
+  if (mesaRect.width <= 0 || mesaRect.height <= 0) return [];
+
+  const padXPct = (16 / mesaRect.width) * 100 + 2.5;
+  const padYPct = (16 / mesaRect.height) * 100 + 3.2;
+  const cajas: CajaPorc[] = [];
+
+  for (const nodo of root.querySelectorAll(SELECTORES_HUD_EXCLUIDOS)) {
+    const r = nodo.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    cajas.push({
+      left: ((r.left - mesaRect.left) / mesaRect.width) * 100 - padXPct,
+      top: ((r.top - mesaRect.top) / mesaRect.height) * 100 - padYPct,
+      right: ((r.right - mesaRect.left) / mesaRect.width) * 100 + padXPct,
+      bottom: ((r.bottom - mesaRect.top) / mesaRect.height) * 100 + padYPct
+    });
+  }
+  return cajas;
+}
+
+function puntoEnCajas(x: number, y: number, cajas: CajaPorc[]): CajaPorc | null {
+  for (const caja of cajas) {
+    if (x >= caja.left && x <= caja.right && y >= caja.top && y <= caja.bottom) {
+      return caja;
+    }
+  }
+  return null;
+}
+
+function resolverPosicionLibre(
+  x: number,
+  y: number,
+  cajas: CajaPorc[],
+  indiceRescate = 0
+): { x: number; y: number; reubicado: boolean } {
+  const cx = limitar(x, 6, 94);
+  const cy = limitar(y, 12, 88);
+  const colision = puntoEnCajas(cx, cy, cajas);
+  if (!colision) {
+    return { x: cx, y: cy, reubicado: cx !== x || cy !== y };
+  }
+
+  const candidatos: Array<{ x: number; y: number }> = [
+    { x: cx, y: colision.bottom + 3 },
+    { x: colision.left - 4, y: cy },
+    { x: colision.left - 4, y: colision.bottom + 3 }
+  ];
+  for (let i = 0; i < 8; i++) {
+    const k = (indiceRescate + i) % 8;
+    candidatos.push({
+      x: 24 + (k % 4) * 13,
+      y: 58 - Math.floor(k / 4) * 12
+    });
+  }
+
+  for (const cand of candidatos) {
+    const tx = Number(limitar(cand.x, 8, 92).toFixed(2));
+    const ty = Number(limitar(cand.y, 14, 86).toFixed(2));
+    if (!puntoEnCajas(tx, ty, cajas)) {
+      return { x: tx, y: ty, reubicado: true };
+    }
+  }
+
+  return {
+    x: Number(limitar(28 + (indiceRescate % 4) * 10, 12, 88).toFixed(2)),
+    y: Number(limitar(62 + Math.floor(indiceRescate / 4) * 6, 28, 82).toFixed(2)),
+    reubicado: true
+  };
 }
 
 export function Sala({
@@ -819,7 +864,9 @@ export function Sala({
   onAbrirPizarra,
   onAbrirMapa,
   onAbrirArchivador,
+  onAbrirPersonaje,
   onVolver,
+  etiquetaVolver,
   hostName,
   yoAsientoId = "master",
   elementosMesa = [],
@@ -840,6 +887,8 @@ export function Sala({
   miUsuarioId = "master",
   mensajesChat,
   onEnviarChat,
+  retratosPorJugador,
+  onIniciarIntercambio,
   tiradasAsiento,
   onTiradaPublica,
   colorJugador,
@@ -882,6 +931,11 @@ export function Sala({
     y: number;
     origen: "pelota" | "chat";
   } | null>(null);
+  const [fichaJugadorId, setFichaJugadorId] = useState<string | null>(null);
+  const [anclaFichaJugador, setAnclaFichaJugador] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [dragSobreDropzone, setDragSobreDropzone] = useState(false);
   const [punteroSobreDropzone, setPunteroSobreDropzone] = useState(false);
   const [subiendoDrop, setSubiendoDrop] = useState(false);
@@ -923,10 +977,10 @@ export function Sala({
   const [itemAbierto, setItemAbierto] = useState<ElementoMesa | null>(null);
   const [tiradaSecreta, setTiradaSecreta] = useState(false);
   const [colorDado, setColorDado] = useState<string>(() =>
-    cargarColorDadoLocal(colorJugador || "#e8c56a")
+    obtenerColorDadoGuardado(miUsuarioId) ?? (colorJugador || "#e8c56a")
   );
   const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
-    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+    obtenerColorAristasDadoGuardado(miUsuarioId) ?? "#b794f4"
   );
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
 
@@ -936,22 +990,29 @@ export function Sala({
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
   }, []);
 
+  useEffect(() => {
+    const sincronizarColores = () => {
+      const cDado = obtenerColorDadoGuardado(miUsuarioId);
+      if (cDado) setColorDado(cDado);
+      const cAristas = obtenerColorAristasDadoGuardado(miUsuarioId);
+      if (cAristas) setColorAristasDado(cAristas);
+    };
+    window.addEventListener("pocketrol:color-dado", sincronizarColores);
+    window.addEventListener("storage", sincronizarColores);
+    return () => {
+      window.removeEventListener("pocketrol:color-dado", sincronizarColores);
+      window.removeEventListener("storage", sincronizarColores);
+    };
+  }, [miUsuarioId]);
+
   function actualizarColorDado(nuevoColor: string): void {
-    setColorDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorDado(guardado);
   }
 
   function actualizarColorAristasDado(nuevoColor: string): void {
-    setColorAristasDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorAristasDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorAristasDado(guardado);
   }
   const [sonidoSilenciado, setSonidoSilenciado] = useState<boolean>(
     estaSonidoSilenciado
@@ -966,16 +1027,40 @@ export function Sala({
   const [musicaSilenciada, setMusicaSilenciada] = useState<boolean>(
     estaMusicaSilenciada
   );
+  const [volumenMusicaLocal, setVolumenMusicaLocal] = useState<number>(
+    obtenerVolumenMusica
+  );
   const [musicaPopoverAbierto, setMusicaPopoverAbierto] = useState(false);
   const [subiendoMusica, setSubiendoMusica] = useState(false);
   const musicaFileInputRef = useRef<HTMLInputElement | null>(null);
   const musicaContenedorRef = useRef<HTMLDivElement | null>(null);
   const musicaActual = musicaAmbiente ?? MUSICA_VACIA;
 
+  useEffect(() => {
+    const sincronizarLocal = () => {
+      setMusicaSilenciada(estaMusicaSilenciada());
+      setVolumenMusicaLocal(obtenerVolumenMusica());
+    };
+    window.addEventListener("pocketrol:musica-local", sincronizarLocal);
+    window.addEventListener("storage", sincronizarLocal);
+    return () => {
+      window.removeEventListener("pocketrol:musica-local", sincronizarLocal);
+      window.removeEventListener("storage", sincronizarLocal);
+    };
+  }, []);
+
   function alternarSilencioMusica(): void {
     const siguiente = !musicaSilenciada;
     setMusicaSilenciada(siguiente);
     establecerMusicaSilenciada(siguiente);
+  }
+
+  function cambiarVolumenMusicaLocal(nuevoVolumen: number): void {
+    const limpio = Number.isFinite(nuevoVolumen)
+      ? Math.max(0, Math.min(1, nuevoVolumen))
+      : 1;
+    setVolumenMusicaLocal(limpio);
+    guardarVolumenMusica(limpio);
   }
 
   useEffect(() => {
@@ -1096,6 +1181,8 @@ export function Sala({
   const [creandoObjeto, setCreandoObjeto] = useState(false);
   const [nuevoObjNombre, setNuevoObjNombre] = useState("");
   const [nuevoObjDesc, setNuevoObjDesc] = useState("");
+  const [nuevoObjMacro, setNuevoObjMacro] = useState<MacroTirada | null>(null);
+  const [macroParaObjeto, setMacroParaObjeto] = useState(false);
   const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
   const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
   const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
@@ -1203,6 +1290,7 @@ export function Sala({
   const [visorEscena, setVisorEscena] = useState(false);
   const [panelMasterAbierto, setPanelMasterAbierto] = useState(false);
 
+  const salaRef = useRef<HTMLDivElement>(null);
   const plano = useRef<HTMLDivElement>(null);
   const asientoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dropzoneRef = useRef<HTMLDivElement>(null);
@@ -1246,41 +1334,6 @@ export function Sala({
       reproducirSonidoNotificacion();
     }
   }, [solicitudPendienteId]);
-
-  useEffect(() => {
-    if (!itemAbierto || itemAbierto.tipo !== "archivo" || itemAbierto.vista !== "docx") {
-      return undefined;
-    }
-
-    let desmontado = false;
-    (async () => {
-      try {
-        const modulo = await import("docx-preview");
-        if (desmontado) return;
-        const contenedor = document.getElementById("sala-docx-contenedor");
-        if (!contenedor) return;
-        contenedor.innerHTML = "";
-
-        const respuesta = await fetch(archivosApi.url(itemAbierto.archivoId), {
-          credentials: "include"
-        });
-        if (!respuesta.ok || desmontado) return;
-        const blob = await respuesta.blob();
-        if (desmontado) return;
-
-        await (modulo as { renderAsync: (b: Blob, c: HTMLElement) => Promise<void> }).renderAsync(
-          blob,
-          contenedor
-        );
-      } catch (e) {
-        console.error("No se pudo previsualizar .docx", e);
-      }
-    })();
-
-    return () => {
-      desmontado = true;
-    };
-  }, [itemAbierto]);
 
   useEffect(() => {
     if (
@@ -1368,6 +1421,13 @@ export function Sala({
   }, [ajuste]);
 
   useEffect(() => {
+    function programarLimpiezaArrastreDoc() {
+      if (!arrastreDocMovido.current) return;
+      window.setTimeout(() => {
+        arrastreDocMovido.current = false;
+      }, 0);
+    }
+
     function buscarAsientoDestino(clientX: number, clientY: number): string | null {
       for (const jugador of jugadoresRef.current) {
         if (!jugador.activo || jugador.id === yoAsientoIdRef.current) continue;
@@ -1685,7 +1745,21 @@ export function Sala({
 
         if (!actual.movido) {
           setItemAbierto(actual.elemento);
+        } else {
+          const cajas = obtenerCajasHudExcluidas(salaRef.current, capaPosits.current);
+          const elemActual = elementosMesaRef.current.find(el => el.id === actual.id);
+          if (elemActual) {
+            const libre = resolverPosicionLibre(elemActual.x, elemActual.y, cajas);
+            if (libre.reubicado) {
+              onElementosMesaRef.current?.(prev =>
+                prev.map(item =>
+                  item.id === actual.id ? { ...item, x: libre.x, y: libre.y } : item
+                )
+              );
+            }
+          }
         }
+        programarLimpiezaArrastreDoc();
         return;
       }
 
@@ -1722,12 +1796,17 @@ export function Sala({
         }
 
         const rectMesa = capaPosits.current?.getBoundingClientRect();
-        const x = rectMesa
+        const rawX = rectMesa
           ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
           : 50;
-        const y = rectMesa
+        const rawY = rectMesa
           ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
           : 55;
+        const { x, y } = resolverPosicionLibre(
+          rawX,
+          rawY,
+          obtenerCajasHudExcluidas(salaRef.current, capaPosits.current)
+        );
         onElementosMesaRef.current?.(prev => [
           ...prev,
           {
@@ -1765,12 +1844,17 @@ export function Sala({
       if (actual.tipo === "macro-menu") {
         if (actual.movido) {
           const rectMesa = capaPosits.current?.getBoundingClientRect();
-          const x = rectMesa
+          const rawX = rectMesa
             ? limitar(((evento.clientX - rectMesa.left) / rectMesa.width) * 100, 8, 92)
             : 50;
-          const y = rectMesa
+          const rawY = rectMesa
             ? limitar(((evento.clientY - rectMesa.top) / rectMesa.height) * 100, 14, 86)
             : 55;
+          const { x, y } = resolverPosicionLibre(
+          rawX,
+          rawY,
+          obtenerCajasHudExcluidas(salaRef.current, capaPosits.current)
+        );
           onElementosMesaRef.current?.(prev => [
             ...prev,
             {
@@ -1787,11 +1871,21 @@ export function Sala({
             }
           ]);
           mostrarAviso(`Macro «${actual.macro.nombre}» colocada en la mesa.`);
-          window.setTimeout(() => {
-            arrastreDocMovido.current = false;
-          }, 0);
+          programarLimpiezaArrastreDoc();
         }
         return;
+      }
+
+      function asegurarFueraDeHud(elemId: string) {
+        const cajas = obtenerCajasHudExcluidas(salaRef.current, capaPosits.current);
+        const item = elementosMesaRef.current.find(el => el.id === elemId);
+        if (!item) return;
+        const libre = resolverPosicionLibre(item.x, item.y, cajas);
+        if (libre.reubicado) {
+          onElementosMesaRef.current?.(prev =>
+            prev.map(el => (el.id === elemId ? { ...el, x: libre.x, y: libre.y } : el))
+          );
+        }
       }
 
       if (actual.tipo === "objeto-mesa") {
@@ -1813,7 +1907,10 @@ export function Sala({
             void onEnviarElementoRef.current?.(destino, item);
           } else if (enDropzone && !destino) {
             mostrarAviso("Elige primero un jugador para enviarle el objeto.");
+          } else {
+            asegurarFueraDeHud(actual.id);
           }
+          programarLimpiezaArrastreDoc();
           return;
         }
         if (
@@ -1829,8 +1926,11 @@ export function Sala({
               y: actual.base.y
             });
           }
-          arrastreDocMovido.current = false;
+          programarLimpiezaArrastreDoc();
+          return;
         }
+        asegurarFueraDeHud(actual.id);
+        programarLimpiezaArrastreDoc();
         return;
       }
 
@@ -1883,7 +1983,9 @@ export function Sala({
               y: actual.base.y
             });
           }
+          return;
         }
+        asegurarFueraDeHud(actual.id);
         return;
       }
 
@@ -1912,7 +2014,7 @@ export function Sala({
           } else if (enDropzone && !destino) {
             mostrarAviso("Elige primero un jugador para enviarle el documento.");
           }
-          arrastreDocMovido.current = false;
+          programarLimpiezaArrastreDoc();
           return;
         }
         if (
@@ -1932,16 +2034,19 @@ export function Sala({
               y: actual.base.y
             });
           }
-          arrastreDocMovido.current = false;
+          programarLimpiezaArrastreDoc();
           return;
+        }
+        if (actual.movido) {
+          asegurarFueraDeHud(actual.id);
         }
       }
 
-      if (arrastreDocMovido.current) {
-        window.setTimeout(() => {
-          arrastreDocMovido.current = false;
-        }, 0);
+      if (actual.tipo === "macro-mesa" && actual.movido) {
+        asegurarFueraDeHud(actual.id);
       }
+
+      programarLimpiezaArrastreDoc();
     }
 
     window.addEventListener("pointermove", mover);
@@ -1954,6 +2059,32 @@ export function Sala({
       window.removeEventListener("pointercancel", soltar);
     };
   }, [onCalibracion]);
+
+  // Rescate automático: expulsa elementos guardados o cargados debajo del HUD superior/derecho.
+  useEffect(() => {
+    if (ajuste || !onElementosMesa || elementosMesa.length === 0) return undefined;
+    const raf = window.requestAnimationFrame(() => {
+      if (arrastre.current) return;
+      const cajas = obtenerCajasHudExcluidas(salaRef.current, capaPosits.current);
+      if (cajas.length === 0) return;
+
+      let indiceRescate = 0;
+      let hayCambios = false;
+      const siguientes = elementosMesa.map(el => {
+        if (el.archivado) return el;
+        if (!puntoEnCajas(el.x, el.y, cajas)) return el;
+        const libre = resolverPosicionLibre(el.x, el.y, cajas, indiceRescate);
+        indiceRescate += 1;
+        if (libre.x === el.x && libre.y === el.y) return el;
+        hayCambios = true;
+        return { ...el, x: libre.x, y: libre.y };
+      });
+      if (hayCambios) {
+        onElementosMesa(siguientes);
+      }
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [ajuste, elementosMesa, onElementosMesa]);
 
   useEffect(() => {
     const timersMap = timersAsiento.current;
@@ -2078,7 +2209,8 @@ export function Sala({
     caras = 20,
     desglose?: string,
     color?: string,
-    colorAristasDado?: string
+    colorAristasDado?: string,
+    nombreMacro?: string
   ): void {
     const prevTimer = timersAsiento.current[asientoId];
     if (prevTimer !== undefined) {
@@ -2087,7 +2219,16 @@ export function Sala({
     const tiradaId = `${Date.now()}-${Math.random()}`;
     setTiradasAsientoLocales(prev => ({
       ...prev,
-      [asientoId]: { id: tiradaId, total, especial, caras, desglose, color, colorAristasDado }
+      [asientoId]: {
+        id: tiradaId,
+        total,
+        especial,
+        caras,
+        desglose,
+        color,
+        colorAristasDado,
+        ...(nombreMacro ? { nombreMacro } : {})
+      }
     }));
     timersAsiento.current[asientoId] = window.setTimeout(() => {
       setTiradasAsientoLocales(prev => {
@@ -2100,11 +2241,20 @@ export function Sala({
     }, DURACION_D20_ASIENTO);
   }
 
-  function enviarChatLocal(texto: string, destinatarioId: string | null): void {
+  function enviarChatLocal(
+    texto: string,
+    destinatarioIds: string[] | string | null
+  ): void {
+    const ids = Array.isArray(destinatarioIds)
+      ? destinatarioIds
+      : destinatarioIds
+        ? [destinatarioIds]
+        : null;
+    const primerId = ids && ids.length > 0 ? ids[0] : null;
     const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
-    const receptor = destinatarioId
-      ? jugadores.find(j => (j.userId ?? j.id) === destinatarioId)
-      : undefined;
+    const receptores = ids
+      ? jugadores.filter(j => ids.includes(j.userId ?? j.id))
+      : [];
 
     setMensajesLocales(prev => [
       ...prev,
@@ -2113,8 +2263,12 @@ export function Sala({
         autorId: miUsuarioId,
         autorNombre: autor?.nombre ?? "Tú",
         texto,
-        destinatarioId,
-        destinatarioNombre: receptor?.nombre ?? null,
+        destinatarioId: primerId,
+        destinatarioNombre: receptores[0]?.nombre ?? null,
+        ...(ids && ids.length > 0 ? { destinatarioIds: ids } : {}),
+        ...(receptores.length > 0
+          ? { destinatarioNombres: receptores.map(r => r.nombre) }
+          : {}),
         createdAt: new Date().toISOString()
       }
     ]);
@@ -2162,6 +2316,7 @@ export function Sala({
   }
 
   function abrirNuevaMacro(): void {
+    setMacroParaObjeto(false);
     setMacroEditandoId(null);
     setMacroNombre("");
     setMacroIcono("sword");
@@ -2173,6 +2328,7 @@ export function Sala({
   }
 
   function abrirEditarMacro(macro: MacroTirada): void {
+    setMacroParaObjeto(false);
     setMacroEditandoId(macro.id);
     setMacroNombre(macro.nombre);
     setMacroIcono(macro.icono);
@@ -2186,6 +2342,31 @@ export function Sala({
     );
     setMacroBonificador(macro.bonificador);
     setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function abrirMacroParaObjeto(): void {
+    setMacroParaObjeto(true);
+    setMacroEditandoId(null);
+    if (nuevoObjMacro) {
+      setMacroNombre(nuevoObjMacro.nombre);
+      setMacroIcono(nuevoObjMacro.icono);
+      setMacroColor(nuevoObjMacro.color ?? "");
+      setMacroGrupos(
+        nuevoObjMacro.grupos.map((g, idx) => ({
+          id: `m-${Date.now()}-${idx}`,
+          cantidad: g.cantidad,
+          caras: g.caras
+        }))
+      );
+      setMacroBonificador(nuevoObjMacro.bonificador);
+    } else {
+      setMacroNombre(nuevoObjNombre.trim().slice(0, 40));
+      setMacroIcono("sword");
+      setMacroColor("");
+      setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
+      setMacroBonificador(0);
+    }
     setMacroModalAbierto(true);
   }
 
@@ -2231,6 +2412,21 @@ export function Sala({
       caras: g.caras
     }));
     const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
+
+    if (macroParaObjeto) {
+      const nueva: MacroTirada = {
+        id: nuevoObjMacro?.id ?? nuevoId(),
+        nombre: nombreLimpio,
+        icono: macroIcono,
+        ...(macroColor ? { color: macroColor } : {}),
+        grupos: gruposLimpios,
+        bonificador: modLimpio
+      };
+      setNuevoObjMacro(nueva);
+      setMacroParaObjeto(false);
+      setMacroModalAbierto(false);
+      return;
+    }
 
     if (macroEditandoId) {
       actualizarMacrosLista(
@@ -2377,7 +2573,8 @@ export function Sala({
               resultadoFinal.caras,
               desglose,
               colorDado,
-              colorAristasDado
+              colorAristasDado,
+              opciones?.nombreMacro
             );
             const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
             setMensajesLocales(prev => [
@@ -2533,30 +2730,31 @@ export function Sala({
     null;
   jugadorSeleccionadoRef.current = jugadorSeleccionado;
 
-  function abrirCompartirDesdePelota(jugadorId: string): void {
-    if (compartirAbierto && jugadorSeleccionadoId === jugadorId) {
-      setCompartirAbierto(false);
-      setJugadorSeleccionadoId(null);
-      setAnclaCompartir(null);
+  const fichaJugador =
+    jugadores.find(j => j.activo && j.id === fichaJugadorId && j.id !== yoAsientoId) ??
+    null;
+
+  function abrirFichaDesdePelota(jugadorId: string): void {
+    if (fichaJugadorId === jugadorId) {
+      setFichaJugadorId(null);
+      setAnclaFichaJugador(null);
       return;
     }
 
     const nodo = asientoRefs.current.get(jugadorId);
     if (nodo) {
       const rect = nodo.getBoundingClientRect();
-      setAnclaCompartir({
+      setAnclaFichaJugador({
         x: rect.left + rect.width / 2,
-        y: rect.bottom + 10,
-        origen: "pelota"
+        y: rect.top + rect.height / 2
       });
     } else {
-      setAnclaCompartir(null);
+      setAnclaFichaJugador(null);
     }
 
-    setJugadorSeleccionadoId(jugadorId);
+    setCompartirAbierto(false);
     setSelectorAbierto(false);
-    setCompartirAbierto(true);
-    onSolicitarArchivos?.();
+    setFichaJugadorId(jugadorId);
   }
 
   function alternarCompartirDesdeChat(ancla?: { left: number; bottom: number }): void {
@@ -2650,7 +2848,12 @@ export function Sala({
             ? "pdf"
             : file.name.endsWith(".docx")
               ? "docx"
-              : tipoLocal.startsWith("text/") || file.name.endsWith(".txt")
+              : tipoLocal.startsWith("text/") ||
+                  tipoLocal === "application/json" ||
+                  file.name.endsWith(".txt") ||
+                  file.name.endsWith(".md") ||
+                  file.name.endsWith(".json") ||
+                  file.name.endsWith(".csv")
                 ? "texto"
                 : "ninguna";
 
@@ -2918,6 +3121,14 @@ export function Sala({
       nombre,
       descripcion: nuevoObjDesc.trim().slice(0, 1000),
       cantidad,
+      ...(nuevoObjMacro
+        ? {
+            macro: {
+              ...nuevoObjMacro,
+              grupos: nuevoObjMacro.grupos.map(g => ({ ...g }))
+            }
+          }
+        : {}),
       ...(nuevoObjArchivo?.archivoId
         ? {
             archivoId: nuevoObjArchivo.archivoId,
@@ -2935,8 +3146,31 @@ export function Sala({
     setNuevoObjDesc("");
     setNuevoObjCantidad(1);
     setNuevoObjArchivo(null);
+    setNuevoObjMacro(null);
     setCreandoObjeto(false);
     setObjetoMochilaId(nuevo.id);
+  }
+
+  function tirarMacroDeObjeto(
+    nombreObjeto: string,
+    macro: MacroTirada,
+    cerrarDetalleMesa = false
+  ): void {
+    setMochilaAbierta(false);
+    setObjetoMochilaId(null);
+    if (cerrarDetalleMesa) {
+      setObjetoMesaActivo(null);
+    }
+    const gruposMacro: GrupoDado[] = macro.grupos.map((g, idx) => ({
+      id: `obj-macro-${idx}`,
+      cantidad: g.cantidad,
+      caras: g.caras
+    }));
+    tirarDado(gruposMacro, macro.bonificador, {
+      forzarPublica: !macroSecreta,
+      forzarSecreta: macroSecreta,
+      nombreMacro: `${nombreObjeto} · ${macro.nombre}`
+    });
   }
 
   function consumirObjetoMochila(id: string): void {
@@ -2971,6 +3205,7 @@ export function Sala({
       ...(objeto.archivoId ? { archivoId: objeto.archivoId } : {}),
       ...(objeto.archivoNombre ? { archivoNombre: objeto.archivoNombre } : {}),
       ...(objeto.imagenLocal ? { imagenLocal: objeto.imagenLocal } : {}),
+      ...(objeto.macro ? { macro: objeto.macro } : {}),
       x: 78,
       y: 78
     });
@@ -2991,7 +3226,8 @@ export function Sala({
         ...(obj.emoji ? { emoji: obj.emoji } : {}),
         ...(obj.archivoId ? { archivoId: obj.archivoId } : {}),
         ...(obj.archivoNombre ? { archivoNombre: obj.archivoNombre } : {}),
-        ...(obj.imagenLocal ? { imagenLocal: obj.imagenLocal } : {})
+        ...(obj.imagenLocal ? { imagenLocal: obj.imagenLocal } : {}),
+        ...(obj.macro ? { macro: obj.macro } : {})
       }
     ]);
     onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
@@ -3111,6 +3347,7 @@ export function Sala({
 
   return (
     <div
+      ref={salaRef}
       className="sala"
       onPointerDown={evento => {
         if (!(evento.target as HTMLElement).closest(".posit, .mesa-posit-dar-todos")) {
@@ -3317,7 +3554,7 @@ export function Sala({
                   onClick={
                     ajuste || esMio
                       ? undefined
-                      : () => abrirCompartirDesdePelota(jugador.id)
+                      : () => abrirFichaDesdePelota(jugador.id)
                   }
                   onKeyDown={
                     ajuste || esMio
@@ -3325,7 +3562,7 @@ export function Sala({
                       : evento => {
                           if (evento.key === "Enter" || evento.key === " ") {
                             evento.preventDefault();
-                            abrirCompartirDesdePelota(jugador.id);
+                            abrirFichaDesdePelota(jugador.id);
                           }
                         }
                   }
@@ -3358,6 +3595,11 @@ export function Sala({
                         }
                         aria-label={`Tirada de ${jugador.nombre}: ${tiradaSobreAsiento.total}`}
                       >
+                        {tiradaSobreAsiento.nombreMacro && (
+                          <span className="asiento-d20-macro">
+                            {tiradaSobreAsiento.nombreMacro}
+                          </span>
+                        )}
                         {tiradaSobreAsiento.desglose && (
                           <span className="asiento-d20-suma">
                             {tiradaSobreAsiento.desglose}
@@ -3475,7 +3717,7 @@ export function Sala({
             <div className="sala-barra-grupo">
               <button type="button" className="sala-btn" onClick={onVolver}>
                 <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
-                <span>Sala de espera</span>
+                <span>{etiquetaVolver ?? "Sala de espera"}</span>
               </button>
               <span className="sala-titulo-visible">
                 SALA DE {hostName ? hostName.toUpperCase() : "MESA"}
@@ -3497,7 +3739,7 @@ export function Sala({
               <input
                 ref={barraFileInputRef}
                 type="file"
-                accept=".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                accept=".pdf,image/png,image/jpeg,image/gif,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.txt,.md,.json,.csv,text/markdown,application/json,text/csv"
                 multiple
                 hidden
                 onChange={e => {
@@ -3541,7 +3783,7 @@ export function Sala({
                 <button
                   type="button"
                   className={`sala-btn sala-btn-disco${
-                    esMaster && musicaPopoverAbierto ? " activo" : ""
+                    musicaPopoverAbierto ? " activo" : ""
                   }${musicaSilenciada ? " silenciada" : ""}${
                     musicaActual.reproduciendo &&
                     musicaActual.pistas.length > 0 &&
@@ -3549,48 +3791,46 @@ export function Sala({
                       ? " reproduciendo"
                       : ""
                   }`}
-                  onClick={() => {
-                    if (esMaster) {
-                      setMusicaPopoverAbierto(v => !v);
-                    } else {
-                      alternarSilencioMusica();
-                    }
-                  }}
+                  onClick={() => setMusicaPopoverAbierto(v => !v)}
                   title={
                     esMaster
                       ? "Música ambiente de la sala"
                       : musicaSilenciada
-                        ? "Música silenciada (pulsa para activar)"
-                        : "Silenciar música ambiente"
+                        ? "Música silenciada (pulsa para ajustar)"
+                        : "Ajustar volumen de música ambiente"
                   }
                   aria-label={
                     esMaster
                       ? "Configurar música ambiente"
-                      : musicaSilenciada
-                        ? "Activar música ambiente"
-                        : "Silenciar música ambiente"
+                      : "Ajustar volumen de música ambiente"
                   }
-                  aria-pressed={esMaster ? musicaPopoverAbierto : musicaSilenciada}
+                  aria-pressed={musicaPopoverAbierto}
                 >
                   <Disc3 size={14} strokeWidth={2.2} aria-hidden="true" />
                 </button>
 
                 {musicaActual.pistas.length > 0 && (
                   <span
-                    className={`sala-musica-estado${musicaActual.loop ? " bucle" : ""}`}
-                    aria-label={
-                      musicaActual.loop
-                        ? "Reproducción en bucle"
-                        : `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}`
-                    }
+                    className={`sala-musica-estado${
+                      musicaActual.loop || musicaActual.aleatorio ? " bucle" : ""
+                    }`}
+                    aria-label={`Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}${
+                      musicaActual.loop ? " (bucle activado)" : ""
+                    }${musicaActual.aleatorio ? " (aleatorio activado)" : ""}`}
                   >
-                    {musicaActual.loop
-                      ? "BUCLE"
-                      : `${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
+                    <span>
+                      {`${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
+                    </span>
+                    {musicaActual.loop && (
+                      <Repeat size={11} strokeWidth={2.4} aria-hidden="true" />
+                    )}
+                    {musicaActual.aleatorio && (
+                      <Shuffle size={11} strokeWidth={2.4} aria-hidden="true" />
+                    )}
                   </span>
                 )}
 
-                {esMaster && musicaPopoverAbierto && (
+                {musicaPopoverAbierto && (
                   <div
                     className="sala-musica-popover"
                     role="dialog"
@@ -3636,141 +3876,149 @@ export function Sala({
                       </div>
                     </div>
 
-                    <input
-                      ref={musicaFileInputRef}
-                      type="file"
-                      accept="audio/*,.mp3,.ogg,.wav,.m4a"
-                      multiple
-                      hidden
-                      onChange={e => {
-                        void manejarSubidaMusica(e.target.files);
-                        e.target.value = "";
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="sala-musica-subir-btn"
-                      disabled={subiendoMusica || !onSubirMusica}
-                      onClick={() => musicaFileInputRef.current?.click()}
-                    >
-                      <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
-                      <span>
-                        {subiendoMusica ? "Subiendo canción…" : "Subir canción"}
-                      </span>
-                    </button>
+                    {esMaster && (
+                      <>
+                        <input
+                          ref={musicaFileInputRef}
+                          type="file"
+                          accept="audio/*,.mp3,.ogg,.wav,.m4a"
+                          multiple
+                          hidden
+                          onChange={e => {
+                            void manejarSubidaMusica(e.target.files);
+                            e.target.value = "";
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="sala-musica-subir-btn"
+                          disabled={subiendoMusica || !onSubirMusica}
+                          onClick={() => musicaFileInputRef.current?.click()}
+                        >
+                          <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+                          <span>
+                            {subiendoMusica ? "Subiendo canción…" : "Subir canción"}
+                          </span>
+                        </button>
 
-                    <div className="sala-musica-lista">
-                      {musicaActual.pistas.length === 0 ? (
-                        <div className="sala-musica-vacia">
-                          No hay canciones en la lista.
-                        </div>
-                      ) : (
-                        musicaActual.pistas.map((pista, idx) => {
-                          const activa = idx === musicaActual.indiceActual;
-                          return (
-                            <div
-                              key={`${pista.archivoId}-${idx}`}
-                              className={`sala-musica-pista${
-                                activa ? " activa" : ""
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                className="sala-musica-pista-nombre"
-                                onClick={() =>
-                                  emitirMusica(
-                                    activa && musicaActual.reproduciendo
-                                      ? { reproduciendo: false }
-                                      : { indiceActual: idx, reproduciendo: true }
-                                  )
-                                }
-                                title={
-                                  activa && musicaActual.reproduciendo
-                                    ? `Pausar ${pista.nombre}`
-                                    : `Reproducir ${pista.nombre}`
-                                }
-                              >
-                                <span className="sala-musica-pista-indice">
-                                  {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
-                                </span>
-                                <span>{pista.nombre}</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="sala-musica-pista-quitar"
-                                onClick={() => quitarPistaMusica(idx)}
-                                title="Quitar canción de la lista"
-                                aria-label={`Quitar ${pista.nombre}`}
-                              >
-                                <Trash2 size={13} strokeWidth={2.1} aria-hidden="true" />
-                              </button>
+                        <div className="sala-musica-lista">
+                          {musicaActual.pistas.length === 0 ? (
+                            <div className="sala-musica-vacia">
+                              No hay canciones en la lista.
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
+                          ) : (
+                            musicaActual.pistas.map((pista, idx) => {
+                              const activa = idx === musicaActual.indiceActual;
+                              return (
+                                <div
+                                  key={`${pista.archivoId}-${idx}`}
+                                  className={`sala-musica-pista${
+                                    activa ? " activa" : ""
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="sala-musica-pista-nombre"
+                                    onClick={() =>
+                                      emitirMusica(
+                                        activa && musicaActual.reproduciendo
+                                          ? { reproduciendo: false }
+                                          : { indiceActual: idx, reproduciendo: true }
+                                      )
+                                    }
+                                    title={
+                                      activa && musicaActual.reproduciendo
+                                        ? `Pausar ${pista.nombre}`
+                                        : `Reproducir ${pista.nombre}`
+                                    }
+                                  >
+                                    <span className="sala-musica-pista-indice">
+                                      {activa && musicaActual.reproduciendo ? "▶" : `${idx + 1}.`}
+                                    </span>
+                                    <span>{pista.nombre}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="sala-musica-pista-quitar"
+                                    onClick={() => quitarPistaMusica(idx)}
+                                    title="Quitar canción de la lista"
+                                    aria-label={`Quitar ${pista.nombre}`}
+                                  >
+                                    <Trash2 size={13} strokeWidth={2.1} aria-hidden="true" />
+                                  </button>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </>
+                    )}
 
                     <div className="sala-musica-controles">
-                      <button
-                        type="button"
-                        className={`sala-musica-ctrl-btn${
-                          musicaActual.reproduciendo ? " activo" : ""
-                        }`}
-                        disabled={musicaActual.pistas.length === 0}
-                        onClick={() =>
-                          emitirMusica({
-                            reproduciendo: !musicaActual.reproduciendo
-                          })
-                        }
-                        title={musicaActual.reproduciendo ? "Pausar" : "Reproducir"}
-                        aria-label={
-                          musicaActual.reproduciendo ? "Pausar música" : "Reproducir música"
-                        }
-                      >
-                        {musicaActual.reproduciendo ? (
-                          <Pause size={14} strokeWidth={2.2} aria-hidden="true" />
-                        ) : (
-                          <Play size={14} strokeWidth={2.2} aria-hidden="true" />
-                        )}
-                      </button>
+                      {esMaster && (
+                        <>
+                          <button
+                            type="button"
+                            className={`sala-musica-ctrl-btn${
+                              musicaActual.reproduciendo ? " activo" : ""
+                            }`}
+                            disabled={musicaActual.pistas.length === 0}
+                            onClick={() =>
+                              emitirMusica({
+                                reproduciendo: !musicaActual.reproduciendo
+                              })
+                            }
+                            title={musicaActual.reproduciendo ? "Pausar" : "Reproducir"}
+                            aria-label={
+                              musicaActual.reproduciendo ? "Pausar música" : "Reproducir música"
+                            }
+                          >
+                            {musicaActual.reproduciendo ? (
+                              <Pause size={14} strokeWidth={2.2} aria-hidden="true" />
+                            ) : (
+                              <Play size={14} strokeWidth={2.2} aria-hidden="true" />
+                            )}
+                          </button>
 
-                      <button
-                        type="button"
-                        className={`sala-musica-ctrl-btn${
-                          musicaActual.loop ? " activo" : ""
-                        }`}
-                        onClick={() =>
-                          emitirMusica({ loop: !musicaActual.loop })
-                        }
-                        title={
-                          musicaActual.loop
-                            ? "Bucle activado"
-                            : "Activar bucle"
-                        }
-                        aria-label="Alternar bucle"
-                        aria-pressed={musicaActual.loop}
-                      >
-                        <Repeat size={14} strokeWidth={2.2} aria-hidden="true" />
-                      </button>
+                          <button
+                            type="button"
+                            className={`sala-musica-ctrl-btn${
+                              musicaActual.loop ? " activo" : ""
+                            }`}
+                            onClick={() =>
+                              emitirMusica({ loop: !musicaActual.loop })
+                            }
+                            title={
+                              musicaActual.loop
+                                ? "Bucle activado"
+                                : "Activar bucle"
+                            }
+                            aria-label="Alternar bucle"
+                            aria-pressed={musicaActual.loop}
+                          >
+                            <Repeat size={14} strokeWidth={2.2} aria-hidden="true" />
+                          </button>
 
-                      <button
-                        type="button"
-                        className={`sala-musica-ctrl-btn${
-                          musicaActual.aleatorio ? " activo" : ""
-                        }`}
-                        onClick={() =>
-                          emitirMusica({ aleatorio: !musicaActual.aleatorio })
-                        }
-                        title={
-                          musicaActual.aleatorio
-                            ? "Reproducción aleatoria"
-                            : "Reproducción ordenada"
-                        }
-                        aria-label="Alternar reproducción aleatoria"
-                        aria-pressed={musicaActual.aleatorio}
-                      >
-                        <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
-                      </button>
+                          <button
+                            type="button"
+                            className={`sala-musica-ctrl-btn${
+                              musicaActual.aleatorio ? " activo" : ""
+                            }`}
+                            onClick={() =>
+                              emitirMusica({ aleatorio: !musicaActual.aleatorio })
+                            }
+                            title={
+                              musicaActual.aleatorio
+                                ? "Aleatorio activado"
+                                : "Activar aleatorio"
+                            }
+                            aria-label="Alternar reproducción aleatoria"
+                            aria-pressed={musicaActual.aleatorio}
+                          >
+                            <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
+                          </button>
+                        </>
+                      )}
 
                       <div className="sala-musica-volumen">
                         <Volume2 size={13} strokeWidth={2.1} aria-hidden="true" />
@@ -3778,18 +4026,14 @@ export function Sala({
                           type="range"
                           min={0}
                           max={100}
-                          value={Math.round(
-                            (musicaActual.volumenMaster ?? 0.7) * 100
-                          )}
+                          value={Math.round(volumenMusicaLocal * 100)}
                           onChange={e =>
-                            emitirMusica({
-                              volumenMaster: Number(e.target.value) / 100
-                            })
+                            cambiarVolumenMusicaLocal(Number(e.target.value) / 100)
                           }
-                          aria-label="Volumen de la música ambiente"
+                          aria-label="Volumen local de la música ambiente"
                         />
                         <span className="sala-musica-volumen-valor">
-                          {Math.round((musicaActual.volumenMaster ?? 0.7) * 100)}%
+                          {Math.round(volumenMusicaLocal * 100)}%
                         </span>
                       </div>
                     </div>
@@ -4909,6 +5153,40 @@ export function Sala({
                       />
                     </label>
 
+                    <div className="macro-campo-nombre">
+                      <span className="dados-campo-etiqueta">Tirada del objeto (opcional)</span>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          className="mochila-accion-sec"
+                          style={{ flex: 1 }}
+                          onClick={abrirMacroParaObjeto}
+                        >
+                          {nuevoObjMacro
+                            ? `Editar tirada · ${formatearFormulaCompuesta(
+                                nuevoObjMacro.grupos.map((g, idx) => ({
+                                  id: `obj-${idx}`,
+                                  cantidad: g.cantidad,
+                                  caras: g.caras
+                                })),
+                                nuevoObjMacro.bonificador
+                              )}`
+                            : "Objeto con macro"}
+                        </button>
+                        {nuevoObjMacro && (
+                          <button
+                            type="button"
+                            className="mochila-accion-sec"
+                            onClick={() => setNuevoObjMacro(null)}
+                            aria-label="Quitar tirada del objeto"
+                            title="Quitar tirada"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
                     <button type="submit" className="dados-lanzar">
                       Guardar en mochila
                     </button>
@@ -5047,6 +5325,21 @@ export function Sala({
                       </div>
                     )}
 
+                    {objetoSeleccionado.macro && (
+                      <button
+                        type="button"
+                        className="mochila-btn-tirar-macro"
+                        onClick={() =>
+                          tirarMacroDeObjeto(
+                            objetoSeleccionado.nombre,
+                            objetoSeleccionado.macro!
+                          )
+                        }
+                      >
+                        Tirar · {objetoSeleccionado.macro.nombre}
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="mochila-consumir-btn"
@@ -5148,9 +5441,11 @@ export function Sala({
                       role="group"
                       aria-label="Colores de tus dados"
                     >
-                      <label
+                      <ColorPickerPopover
+                        value={colorDado}
+                        onChange={actualizarColorDado}
                         title="Color principal (fondo del dado)"
-                        aria-label="Color principal del dado"
+                        ariaLabel="Elegir color principal del dado"
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -5164,32 +5459,19 @@ export function Sala({
                             : tiradaSecreta
                               ? "1.5px solid #c084fc"
                               : "1.5px solid #e8c56a",
-                          backgroundColor: colorDado,
+                          background: colorDado,
                           boxShadow: modoClaro
                             ? "0 2px 5px rgb(100 110 130 / 28%)"
                             : "1.5px 1.5px 0 #090612",
                           cursor: "pointer",
                           overflow: "hidden"
                         }}
-                      >
-                        <input
-                          type="color"
-                          value={colorDado}
-                          onChange={e => actualizarColorDado(e.target.value)}
-                          aria-label="Elegir color principal del dado"
-                          style={{
-                            opacity: 0,
-                            width: "100%",
-                            height: "100%",
-                            padding: 0,
-                            border: "none",
-                            cursor: "pointer"
-                          }}
-                        />
-                      </label>
-                      <label
+                      />
+                      <ColorPickerPopover
+                        value={colorAristasDado}
+                        onChange={actualizarColorAristasDado}
                         title="Color secundario (aristas del dado)"
-                        aria-label="Color secundario de las aristas del dado"
+                        ariaLabel="Elegir color secundario de aristas del dado"
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -5199,29 +5481,14 @@ export function Sala({
                           padding: 0,
                           borderRadius: "5px",
                           border: `2.5px solid ${colorAristasDado}`,
-                          backgroundColor: modoClaro ? "#D8DCE6" : "#14101f",
+                          background: modoClaro ? "#D8DCE6" : "#14101f",
                           boxShadow: modoClaro
                             ? "0 2px 5px rgb(100 110 130 / 28%)"
                             : "1.5px 1.5px 0 #090612",
                           cursor: "pointer",
                           overflow: "hidden"
                         }}
-                      >
-                        <input
-                          type="color"
-                          value={colorAristasDado}
-                          onChange={e => actualizarColorAristasDado(e.target.value)}
-                          aria-label="Elegir color secundario de aristas del dado"
-                          style={{
-                            opacity: 0,
-                            width: "100%",
-                            height: "100%",
-                            padding: 0,
-                            border: "none",
-                            cursor: "pointer"
-                          }}
-                        />
-                      </label>
+                      />
                     </div>
                   </div>
                   <button
@@ -5605,7 +5872,11 @@ export function Sala({
           {macroModalAbierto && !ajuste && (
             <div
               className="dados-compuesta-backdrop"
-              onClick={() => setMacroModalAbierto(false)}
+              style={macroParaObjeto ? { zIndex: 70 } : undefined}
+              onClick={() => {
+                setMacroParaObjeto(false);
+                setMacroModalAbierto(false);
+              }}
             >
               <form
                 className="dados-compuesta-modal macros-modal"
@@ -5622,7 +5893,10 @@ export function Sala({
                   <button
                     type="button"
                     className="dados-cerrar"
-                    onClick={() => setMacroModalAbierto(false)}
+                    onClick={() => {
+                      setMacroParaObjeto(false);
+                      setMacroModalAbierto(false);
+                    }}
                     aria-label="Cerrar editor de macro"
                   >
                     <X size={14} strokeWidth={2.4} aria-hidden="true" />
@@ -5869,6 +6143,7 @@ export function Sala({
                 <Posit
                   key={posit.id}
                   posit={posit}
+                  miUsuarioId={miUsuarioId}
                   enMesa
                   activo={positActivo === posit.id}
                   onActivar={setPositActivo}
@@ -6228,6 +6503,21 @@ export function Sala({
               <span className="dock-etiqueta">Posits</span>
             </div>
 
+            {onAbrirPersonaje && (
+              <div className="dock-item">
+                <button
+                  type="button"
+                  className="dock-btn"
+                  onClick={onAbrirPersonaje}
+                  title="Abrir ficha y retrato de personaje (PJ)"
+                  aria-label="PJ"
+                >
+                  <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
+                </button>
+                <span className="dock-etiqueta">PJ</span>
+              </div>
+            )}
+
             {onAbrirArchivador && (
               <div className="dock-item">
                 <button
@@ -6307,6 +6597,83 @@ export function Sala({
               </div>
             </div>
           )}
+
+      {fichaJugador && !ajuste && (() => {
+        const retratoId =
+          fichaJugador.retratoArchivoId ??
+          retratosPorJugador?.[
+            fichaJugador.userId ?? fichaJugador.usuarioId ?? fichaJugador.id
+          ] ??
+          null;
+        const targetUserId =
+          fichaJugador.userId ?? fichaJugador.usuarioId ?? fichaJugador.id;
+        return (
+          <div
+            className="ficha-rapida-jugador"
+            style={
+              anclaFichaJugador
+                ? {
+                    left: `clamp(165px, ${anclaFichaJugador.x}px, calc(100vw - 165px))`,
+                    top: `${Math.max(330, Math.min(anclaFichaJugador.y, window.innerHeight - 16))}px`
+                  }
+                : undefined
+            }
+            role="dialog"
+            aria-label={`Ficha rápida de ${fichaJugador.nombre}`}
+          >
+            <div className="ficha-rapida-cabecera">
+              <div className="ficha-rapida-nombres">
+                <strong className="ficha-rapida-nombre">{fichaJugador.nombre}</strong>
+                {!fichaJugador.esMaster && fichaJugador.apodo?.trim() && (
+                  <span className="ficha-rapida-apodo">{fichaJugador.apodo.trim()}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="dados-cerrar"
+                onClick={() => {
+                  setFichaJugadorId(null);
+                  setAnclaFichaJugador(null);
+                }}
+                aria-label="Cerrar ficha rápida"
+              >
+                <X size={13} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </div>
+            {retratoId ? (
+              <img
+                className="ficha-rapida-retrato-grande"
+                src={archivosApi.url(retratoId)}
+                alt={fichaJugador.nombre}
+                style={{ "--color": fichaJugador.color } as CSSProperties}
+              />
+            ) : (
+              <div className="ficha-rapida-retrato-vacio">
+                <span
+                  className="ficha-rapida-esfera-fallback grande"
+                  style={{ "--color": fichaJugador.color } as CSSProperties}
+                  aria-hidden="true"
+                />
+              </div>
+            )}
+            <div className="ficha-rapida-acciones">
+              {onIniciarIntercambio && (
+                <button
+                  type="button"
+                  className="ficha-rapida-btn-comerciar"
+                  onClick={() => {
+                    setFichaJugadorId(null);
+                    setAnclaFichaJugador(null);
+                    void onIniciarIntercambio(targetUserId);
+                  }}
+                >
+                  Intercambio
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {compartirAbierto && !ajuste && (
         <div
@@ -6659,6 +7026,21 @@ export function Sala({
                 )}
               </div>
               <div className="mochila-detalle-acciones">
+                {objetoMesaActivo.macro && (
+                  <button
+                    type="button"
+                    className="mochila-btn-tirar-macro"
+                    onClick={() =>
+                      tirarMacroDeObjeto(
+                        objetoMesaActivo.nombre,
+                        objetoMesaActivo.macro!,
+                        true
+                      )
+                    }
+                  >
+                    Tirar · {objetoMesaActivo.macro.nombre}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="mochila-consumir-btn"
@@ -6706,7 +7088,54 @@ export function Sala({
         </div>
       )}
 
-      {itemAbierto && (
+      {itemAbierto && itemAbierto.tipo === "archivo" && (
+        <VisorArchivo
+          archivo={{
+            id: itemAbierto.archivoId,
+            nombre: itemAbierto.nombre,
+            tipo: itemAbierto.mime,
+            vista: itemAbierto.vista,
+            contenidoLocal: itemAbierto.contenidoLocal
+          }}
+          accionesExtra={
+            <>
+              {esMaster && onCompartirATodos && (
+                <button
+                  type="button"
+                  className="visor-unificado-btn"
+                  onClick={() => {
+                    void onCompartirATodos(itemAbierto);
+                    setItemAbierto(null);
+                  }}
+                >
+                  Dar a todos
+                </button>
+              )}
+              {jugadorSeleccionado && onEnviarElemento && (
+                <button
+                  type="button"
+                  className="visor-unificado-btn"
+                  onClick={() => {
+                    void onEnviarElemento(jugadorSeleccionado, itemAbierto);
+                    setItemAbierto(null);
+                  }}
+                >
+                  Pasar a {jugadorSeleccionado.nombre}
+                </button>
+              )}
+            </>
+          }
+          onGuardado={actualizado => {
+            setArchivosSubidosLocal(prev =>
+              prev.map(a => (a.id === actualizado.id ? actualizado : a))
+            );
+            onSolicitarArchivos?.();
+          }}
+          onCerrar={() => setItemAbierto(null)}
+        />
+      )}
+
+      {itemAbierto && itemAbierto.tipo !== "archivo" && (
         <div className="archivo-visor" onClick={() => setItemAbierto(null)}>
           <div className="archivo-visor-caja" onClick={e => e.stopPropagation()}>
             <header className="archivo-visor-cabecera">
@@ -6714,15 +7143,6 @@ export function Sala({
                 {itemAbierto.tipo === "posit" ? "Nota en mesa" : itemAbierto.nombre}
               </span>
               <div className="archivo-visor-acciones">
-                {itemAbierto.tipo === "archivo" && !itemAbierto.contenidoLocal && (
-                  <a
-                    className="archivo-visor-descargar"
-                    href={archivosApi.url(itemAbierto.archivoId, true)}
-                    download={itemAbierto.nombre}
-                  >
-                    Descargar
-                  </a>
-                )}
                 {esMaster && onCompartirATodos && itemAbierto.tipo !== "macro" && (
                   <button
                     type="button"
@@ -6786,32 +7206,7 @@ export function Sala({
                     {itemAbierto.descripcion || itemAbierto.nombre}
                   </p>
                 </div>
-              ) : itemAbierto.tipo !== "archivo" ? null : itemAbierto.vista === "imagen" ? (
-                <img
-                  src={
-                    itemAbierto.contenidoLocal ??
-                    archivosApi.url(itemAbierto.archivoId)
-                  }
-                  alt={itemAbierto.nombre}
-                />
-              ) : itemAbierto.vista === "pdf" ? (
-                <iframe
-                  src={archivosApi.url(itemAbierto.archivoId)}
-                  title={itemAbierto.nombre}
-                />
-              ) : itemAbierto.vista === "texto" ? (
-                <TextoArchivoMesa
-                  archivoId={itemAbierto.archivoId}
-                  nombre={itemAbierto.nombre}
-                  contenidoLocal={itemAbierto.contenidoLocal}
-                />
-              ) : itemAbierto.vista === "docx" ? (
-                <div id="sala-docx-contenedor" className="docx-contenedor" />
-              ) : (
-                <p className="muted">
-                  Este tipo de archivo no se puede previsualizar aquí. Usa «Descargar».
-                </p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

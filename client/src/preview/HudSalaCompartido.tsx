@@ -16,6 +16,7 @@ import {
   Snowflake,
   Trash2,
   Upload,
+  UserRound,
   Users,
   VenetianMask,
   X
@@ -30,11 +31,19 @@ import type {
 import { archivosApi } from "../api/archivos.api";
 import type { PublicJugadorResumenInventario } from "../api/types";
 import { describeError } from "../presentation/errorMessages";
+import { ColorPickerPopover } from "../presentation/components/ColorPickerPopover";
 import { DocumentoVisorModal } from "./Archivador";
 import { infoFormatoArchivo, nuevoId } from "./calibracion";
 import { ChatSala } from "./ChatSala";
 import { crearElementoDesdeArchivo, nuevoIdElemento } from "./compartir";
-import { COLORES_POSIT, obtenerModoClaro } from "./datos";
+import {
+  COLORES_POSIT,
+  guardarColorAristasDado,
+  guardarColorDado,
+  obtenerColorAristasDadoGuardado,
+  obtenerColorDadoGuardado,
+  obtenerModoClaro
+} from "./datos";
 import type { ArchivoItem } from "./Mapa";
 import { Posit } from "./Pizarra";
 import { PopoverPalomaEnviar } from "./PopoverPalomaEnviar";
@@ -78,21 +87,6 @@ import type {
   TiradaAsiento
 } from "./tipos";
 
-const CLAVE_COLOR_DADO = "pocketrol.colorDado";
-const CLAVE_COLOR_ARISTAS_DADO = "pocketrol.colorAristasDado";
-
-function cargarColorDadoLocal(fallback = "#e8c56a", clave = CLAVE_COLOR_DADO): string {
-  try {
-    const guardado = window.localStorage.getItem(clave);
-    if (guardado && /^#[0-9a-fA-F]{6}$/.test(guardado)) {
-      return guardado;
-    }
-  } catch {
-    // Ignoramos errores de almacenamiento
-  }
-  return fallback;
-}
-
 export interface HudSalaCompartidoProps {
   jugadores: JugadorPreview[];
   mesaId?: string;
@@ -101,7 +95,7 @@ export interface HudSalaCompartidoProps {
   hostName?: string;
   yoAsientoId?: string;
   mensajesChat?: MensajeSala[];
-  onEnviarChat?: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  onEnviarChat?: (texto: string, destinatarioIds: string[] | string | null) => void | Promise<void>;
   onTiradaPublica?: (tirada: {
     total: number;
     formula: string;
@@ -144,6 +138,7 @@ export interface HudSalaCompartidoProps {
   archivosDisponibles?: ArchivoItem[];
   onEnviarElemento?: (destino: JugadorPreview, elemento: ElementoMesa) => void | Promise<void>;
   onAbrirArchivador?: () => void;
+  onAbrirPersonaje?: () => void;
   onCompartirATodos?: (elemento: ElementoMesa) => void | Promise<void>;
   onAviso?: (texto: string) => void;
   chatRect?: RectPizarra;
@@ -519,6 +514,7 @@ export function HudSalaCompartido({
   archivosDisponibles,
   onEnviarElemento,
   onAbrirArchivador,
+  onAbrirPersonaje,
   onCompartirATodos,
   onAviso,
   chatRect = { x: 76.5, y: 66, w: 22, h: 28 },
@@ -530,10 +526,10 @@ export function HudSalaCompartido({
   const colorJugadorActual =
     jugadores.find(j => (j.userId ?? j.id) === miUsuarioId)?.color || "#e8c56a";
   const [colorDado, setColorDado] = useState<string>(() =>
-    cargarColorDadoLocal(colorJugadorActual)
+    obtenerColorDadoGuardado(miUsuarioId) ?? colorJugadorActual
   );
   const [colorAristasDado, setColorAristasDado] = useState<string>(() =>
-    cargarColorDadoLocal("#b794f4", CLAVE_COLOR_ARISTAS_DADO)
+    obtenerColorAristasDadoGuardado(miUsuarioId) ?? "#b794f4"
   );
   const [modoClaro, setModoClaro] = useState<boolean>(obtenerModoClaro);
 
@@ -543,22 +539,29 @@ export function HudSalaCompartido({
     return () => window.removeEventListener("pocketrol:tema", alCambiarTema);
   }, []);
 
+  useEffect(() => {
+    const sincronizarColores = () => {
+      const cDado = obtenerColorDadoGuardado(miUsuarioId);
+      if (cDado) setColorDado(cDado);
+      const cAristas = obtenerColorAristasDadoGuardado(miUsuarioId);
+      if (cAristas) setColorAristasDado(cAristas);
+    };
+    window.addEventListener("pocketrol:color-dado", sincronizarColores);
+    window.addEventListener("storage", sincronizarColores);
+    return () => {
+      window.removeEventListener("pocketrol:color-dado", sincronizarColores);
+      window.removeEventListener("storage", sincronizarColores);
+    };
+  }, [miUsuarioId]);
+
   function actualizarColorDado(nuevoColor: string): void {
-    setColorDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorDado(guardado);
   }
 
   function actualizarColorAristasDado(nuevoColor: string): void {
-    setColorAristasDado(nuevoColor);
-    try {
-      window.localStorage.setItem(CLAVE_COLOR_ARISTAS_DADO, nuevoColor);
-    } catch {
-      // Ignoramos errores de almacenamiento
-    }
+    const guardado = guardarColorAristasDado(nuevoColor, miUsuarioId) ?? nuevoColor;
+    setColorAristasDado(guardado);
   }
   const [cantidadDados, setCantidadDados] = useState(1);
   const [tipoDado, setTipoDado] = useState<number>(20);
@@ -707,6 +710,8 @@ export function HudSalaCompartido({
   const [creandoObjeto, setCreandoObjeto] = useState(false);
   const [nuevoObjNombre, setNuevoObjNombre] = useState("");
   const [nuevoObjDesc, setNuevoObjDesc] = useState("");
+  const [nuevoObjMacro, setNuevoObjMacro] = useState<MacroTirada | null>(null);
+  const [macroParaObjeto, setMacroParaObjeto] = useState(false);
   const [nuevoObjCantidad, setNuevoObjCantidad] = useState(1);
   const [nuevoObjEmoji, setNuevoObjEmoji] = useState("🧪");
   const [nuevoObjArchivo, setNuevoObjArchivo] = useState<{
@@ -803,11 +808,20 @@ export function HudSalaCompartido({
     avisoTimerRef.current = window.setTimeout(() => setAvisoLocal(null), 3200);
   }
 
-  function enviarChatLocal(texto: string, destinatarioId: string | null): void {
+  function enviarChatLocal(
+    texto: string,
+    destinatarioIds: string[] | string | null
+  ): void {
+    const ids = Array.isArray(destinatarioIds)
+      ? destinatarioIds
+      : destinatarioIds
+        ? [destinatarioIds]
+        : null;
+    const primerId = ids && ids.length > 0 ? ids[0] : null;
     const autor = jugadores.find(j => (j.userId ?? j.id) === miUsuarioId);
-    const destino = destinatarioId
-      ? jugadores.find(j => (j.userId ?? j.id) === destinatarioId)
-      : null;
+    const destinos = ids
+      ? jugadores.filter(j => ids.includes(j.userId ?? j.id))
+      : [];
     setMensajesLocales(prev => [
       ...prev,
       {
@@ -815,8 +829,12 @@ export function HudSalaCompartido({
         autorId: miUsuarioId,
         autorNombre: autor?.nombre ?? (esMaster ? "Máster" : "Jugador"),
         texto,
-        destinatarioId,
-        destinatarioNombre: destino?.nombre ?? null,
+        destinatarioId: primerId,
+        destinatarioNombre: destinos[0]?.nombre ?? null,
+        ...(ids && ids.length > 0 ? { destinatarioIds: ids } : {}),
+        ...(destinos.length > 0
+          ? { destinatarioNombres: destinos.map(d => d.nombre) }
+          : {}),
         createdAt: new Date().toISOString()
       }
     ]);
@@ -920,6 +938,7 @@ export function HudSalaCompartido({
   }
 
   function abrirNuevaMacro(): void {
+    setMacroParaObjeto(false);
     setMacroEditandoId(null);
     setMacroNombre("");
     setMacroIcono("sword");
@@ -931,6 +950,7 @@ export function HudSalaCompartido({
   }
 
   function abrirEditarMacro(macro: MacroTirada): void {
+    setMacroParaObjeto(false);
     setMacroEditandoId(macro.id);
     setMacroNombre(macro.nombre);
     setMacroIcono(macro.icono);
@@ -944,6 +964,31 @@ export function HudSalaCompartido({
     );
     setMacroBonificador(macro.bonificador);
     setMacrosAbierto(false);
+    setMacroModalAbierto(true);
+  }
+
+  function abrirMacroParaObjeto(): void {
+    setMacroParaObjeto(true);
+    setMacroEditandoId(null);
+    if (nuevoObjMacro) {
+      setMacroNombre(nuevoObjMacro.nombre);
+      setMacroIcono(nuevoObjMacro.icono);
+      setMacroColor(nuevoObjMacro.color ?? "");
+      setMacroGrupos(
+        nuevoObjMacro.grupos.map((g, idx) => ({
+          id: `m-${Date.now()}-${idx}`,
+          cantidad: g.cantidad,
+          caras: g.caras
+        }))
+      );
+      setMacroBonificador(nuevoObjMacro.bonificador);
+    } else {
+      setMacroNombre(nuevoObjNombre.trim().slice(0, 40));
+      setMacroIcono("sword");
+      setMacroColor("");
+      setMacroGrupos([{ id: `m-${Date.now()}-0`, cantidad: 1, caras: 20 }]);
+      setMacroBonificador(0);
+    }
     setMacroModalAbierto(true);
   }
 
@@ -989,6 +1034,21 @@ export function HudSalaCompartido({
       caras: g.caras
     }));
     const modLimpio = Math.round(limitar(macroBonificador, -99, 99));
+
+    if (macroParaObjeto) {
+      const nueva: MacroTirada = {
+        id: nuevoObjMacro?.id ?? nuevoId(),
+        nombre: nombreLimpio,
+        icono: macroIcono,
+        ...(macroColor ? { color: macroColor } : {}),
+        grupos: gruposLimpios,
+        bonificador: modLimpio
+      };
+      setNuevoObjMacro(nueva);
+      setMacroParaObjeto(false);
+      setMacroModalAbierto(false);
+      return;
+    }
 
     if (macroEditandoId) {
       actualizarMacrosLista(
@@ -1121,6 +1181,7 @@ export function HudSalaCompartido({
             especial: resultadoFinal.especial,
             caras: resultadoFinal.caras,
             desglose: desgloseTexto,
+            ...(opciones?.nombreMacro ? { nombreMacro: opciones.nombreMacro } : {}),
             color: colorDado,
             colorDado,
             colorAristasDado
@@ -1297,6 +1358,14 @@ export function HudSalaCompartido({
       nombre,
       descripcion: nuevoObjDesc.trim().slice(0, 1000),
       cantidad,
+      ...(nuevoObjMacro
+        ? {
+            macro: {
+              ...nuevoObjMacro,
+              grupos: nuevoObjMacro.grupos.map(g => ({ ...g }))
+            }
+          }
+        : {}),
       ...(nuevoObjArchivo?.archivoId
         ? {
           archivoId: nuevoObjArchivo.archivoId,
@@ -1314,8 +1383,31 @@ export function HudSalaCompartido({
     setNuevoObjDesc("");
     setNuevoObjCantidad(1);
     setNuevoObjArchivo(null);
+    setNuevoObjMacro(null);
     setCreandoObjeto(false);
     setObjetoMochilaId(nuevo.id);
+  }
+
+  function tirarMacroDeObjeto(
+    nombreObjeto: string,
+    macro: MacroTirada,
+    cerrarDetalleMesa = false
+  ): void {
+    setMochilaAbierta(false);
+    setObjetoMochilaId(null);
+    if (cerrarDetalleMesa) {
+      setObjetoMesaActivo(null);
+    }
+    const gruposMacro: GrupoDado[] = macro.grupos.map((g, idx) => ({
+      id: `obj-macro-${idx}`,
+      cantidad: g.cantidad,
+      caras: g.caras
+    }));
+    tirarDado(gruposMacro, macro.bonificador, {
+      forzarPublica: !macroSecreta,
+      forzarSecreta: macroSecreta,
+      nombreMacro: `${nombreObjeto} · ${macro.nombre}`
+    });
   }
 
   function consumirObjetoMochila(id: string): void {
@@ -1514,6 +1606,41 @@ export function HudSalaCompartido({
             x: baseX,
             y: baseY
           });
+          window.setTimeout(() => {
+            arrastreElementoMovido.current = false;
+          }, 0);
+          return;
+        }
+      }
+
+      if (arrastreElementoMovido.current) {
+        const vw = Math.max(1, window.innerWidth);
+        const vh = Math.max(1, window.innerHeight);
+        const hudRect = document
+          .querySelector(".hud-mapa-capa .sala-hud-derecha")
+          ?.getBoundingClientRect();
+        if (hudRect && hudRect.width > 0 && hudRect.height > 0) {
+          const pad = 14;
+          const curX = limitar(baseX + ((ev.clientX - inicioX) / vw) * 100, 3, 97);
+          const curY = limitar(baseY + ((ev.clientY - inicioY) / vh) * 100, 3, 97);
+          const px = (curX / 100) * vw;
+          const py = (curY / 100) * vh;
+          if (
+            px >= hudRect.left - pad &&
+            px <= hudRect.right + pad &&
+            py >= hudRect.top - pad &&
+            py <= hudRect.bottom + pad
+          ) {
+            const libreX = limitar(((hudRect.left - pad - 24) / vw) * 100, 6, 94);
+            const libreY = limitar(((hudRect.bottom + pad + 24) / vh) * 100, 10, 88);
+            onElementosMesaRef.current?.(prev =>
+              prev.map(el =>
+                el.id === elemento.id
+                  ? { ...el, x: curX > 72 ? curX : libreX, y: curX > 72 ? libreY : curY }
+                  : el
+              )
+            );
+          }
         }
       }
 
@@ -1706,6 +1833,7 @@ export function HudSalaCompartido({
           <Posit
             key={posit.id}
             posit={posit}
+            miUsuarioId={miUsuarioId}
             enMesa
             activo={positActivo === posit.id}
             onActivar={setPositActivo}
@@ -2861,6 +2989,40 @@ export function HudSalaCompartido({
                   />
                 </label>
 
+                <div className="macro-campo-nombre">
+                  <span className="dados-campo-etiqueta">Tirada del objeto (opcional)</span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="mochila-accion-sec"
+                      style={{ flex: 1 }}
+                      onClick={abrirMacroParaObjeto}
+                    >
+                      {nuevoObjMacro
+                        ? `Editar tirada · ${formatearFormulaCompuesta(
+                            nuevoObjMacro.grupos.map((g, idx) => ({
+                              id: `obj-${idx}`,
+                              cantidad: g.cantidad,
+                              caras: g.caras
+                            })),
+                            nuevoObjMacro.bonificador
+                          )}`
+                        : "Objeto con macro"}
+                    </button>
+                    {nuevoObjMacro && (
+                      <button
+                        type="button"
+                        className="mochila-accion-sec"
+                        onClick={() => setNuevoObjMacro(null)}
+                        aria-label="Quitar tirada del objeto"
+                        title="Quitar tirada"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <button type="submit" className="dados-lanzar">
                   Guardar en mochila
                 </button>
@@ -2992,6 +3154,21 @@ export function HudSalaCompartido({
                   </div>
                 )}
 
+                {objetoSeleccionado.macro && (
+                  <button
+                    type="button"
+                    className="mochila-btn-tirar-macro"
+                    onClick={() =>
+                      tirarMacroDeObjeto(
+                        objetoSeleccionado.nombre,
+                        objetoSeleccionado.macro!
+                      )
+                    }
+                  >
+                    Tirar · {objetoSeleccionado.macro.nombre}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   className="mochila-consumir-btn"
@@ -3066,9 +3243,11 @@ export function HudSalaCompartido({
                   role="group"
                   aria-label="Colores de tus dados"
                 >
-                  <label
+                  <ColorPickerPopover
+                    value={colorDado}
+                    onChange={actualizarColorDado}
                     title="Color principal (fondo del dado)"
-                    aria-label="Color principal del dado"
+                    ariaLabel="Elegir color principal del dado"
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -3082,32 +3261,19 @@ export function HudSalaCompartido({
                         : tiradaSecreta
                           ? "1.5px solid #c084fc"
                           : "1.5px solid #e8c56a",
-                      backgroundColor: colorDado,
+                      background: colorDado,
                       boxShadow: modoClaro
                         ? "0 2px 5px rgb(100 110 130 / 28%)"
                         : "1.5px 1.5px 0 #090612",
                       cursor: "pointer",
                       overflow: "hidden"
                     }}
-                  >
-                    <input
-                      type="color"
-                      value={colorDado}
-                      onChange={e => actualizarColorDado(e.target.value)}
-                      aria-label="Elegir color principal del dado"
-                      style={{
-                        opacity: 0,
-                        width: "100%",
-                        height: "100%",
-                        padding: 0,
-                        border: "none",
-                        cursor: "pointer"
-                      }}
-                    />
-                  </label>
-                  <label
+                  />
+                  <ColorPickerPopover
+                    value={colorAristasDado}
+                    onChange={actualizarColorAristasDado}
                     title="Color secundario (aristas del dado)"
-                    aria-label="Color secundario de las aristas del dado"
+                    ariaLabel="Elegir color secundario de aristas del dado"
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -3117,29 +3283,14 @@ export function HudSalaCompartido({
                       padding: 0,
                       borderRadius: "5px",
                       border: `2.5px solid ${colorAristasDado}`,
-                      backgroundColor: modoClaro ? "#D8DCE6" : "#14101f",
+                      background: modoClaro ? "#D8DCE6" : "#14101f",
                       boxShadow: modoClaro
                         ? "0 2px 5px rgb(100 110 130 / 28%)"
                         : "1.5px 1.5px 0 #090612",
                       cursor: "pointer",
                       overflow: "hidden"
                     }}
-                  >
-                    <input
-                      type="color"
-                      value={colorAristasDado}
-                      onChange={e => actualizarColorAristasDado(e.target.value)}
-                      aria-label="Elegir color secundario de aristas del dado"
-                      style={{
-                        opacity: 0,
-                        width: "100%",
-                        height: "100%",
-                        padding: 0,
-                        border: "none",
-                        cursor: "pointer"
-                      }}
-                    />
-                  </label>
+                  />
                 </div>
               </div>
               <button
@@ -3523,8 +3674,11 @@ export function HudSalaCompartido({
       {macroModalAbierto && (
         <div
           className="dados-compuesta-backdrop"
-          style={{ pointerEvents: "auto" }}
-          onClick={() => setMacroModalAbierto(false)}
+          style={{ pointerEvents: "auto", ...(macroParaObjeto ? { zIndex: 70 } : {}) }}
+          onClick={() => {
+            setMacroParaObjeto(false);
+            setMacroModalAbierto(false);
+          }}
         >
           <form
             className="dados-compuesta-modal macros-modal"
@@ -3541,7 +3695,10 @@ export function HudSalaCompartido({
               <button
                 type="button"
                 className="dados-cerrar"
-                onClick={() => setMacroModalAbierto(false)}
+                onClick={() => {
+                  setMacroParaObjeto(false);
+                  setMacroModalAbierto(false);
+                }}
                 aria-label="Cerrar editor de macro"
               >
                 <X size={14} strokeWidth={2.4} aria-hidden="true" />
@@ -3868,6 +4025,21 @@ export function HudSalaCompartido({
           <span className="dock-etiqueta">Posits</span>
         </div>
 
+        {onAbrirPersonaje && (
+          <div className="dock-item">
+            <button
+              type="button"
+              className="dock-btn"
+              onClick={onAbrirPersonaje}
+              title="Abrir ficha y retrato de personaje (PJ)"
+              aria-label="PJ"
+            >
+              <UserRound size={20} strokeWidth={1.6} aria-hidden="true" />
+            </button>
+            <span className="dock-etiqueta">PJ</span>
+          </div>
+        )}
+
         {(onAbrirArchivador || archivosDisponibles !== undefined || onElementosMesa) && (
           <div className="dock-item">
             <button
@@ -3946,18 +4118,16 @@ export function HudSalaCompartido({
             top: "auto",
             right: "auto",
             transform: "translateX(-50%)",
-            width: "min(360px, 92vw)",
-            maxHeight: "55vh",
             overflowY: "auto"
           }}
         >
           <div className="dados-selector-cabecera">
             <span>Archivador</span>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <div className="mapa-archivador-cabecera-acciones">
               {onAbrirArchivador && (
                 <button
                   type="button"
-                  className="macro-accion-btn"
+                  className="macro-accion-btn mapa-archivador-ver-todo"
                   onClick={() => {
                     setArchivadorMapaAbierto(false);
                     onAbrirArchivador();
@@ -4107,6 +4277,21 @@ export function HudSalaCompartido({
                   </p>
                 )}
                 <div className="mochila-mesa-acciones">
+                  {objetoMesaActivo.macro && (
+                    <button
+                      type="button"
+                      className="mochila-btn-tirar-macro"
+                      onClick={() =>
+                        tirarMacroDeObjeto(
+                          objetoMesaActivo.nombre,
+                          objetoMesaActivo.macro!,
+                          true
+                        )
+                      }
+                    >
+                      Tirar · {objetoMesaActivo.macro.nombre}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="archivo-visor-descargar"

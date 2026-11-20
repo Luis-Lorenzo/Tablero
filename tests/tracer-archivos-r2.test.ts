@@ -135,9 +135,7 @@ describe("tracer: persistencia de archivos y streaming R2/Almacen", () => {
 
     expect(descarga.status).toBe(200);
     expect(descarga.headers.etag).toBeTruthy();
-    expect(descarga.headers["cache-control"]).toBe(
-      "private, max-age=31536000, immutable"
-    );
+    expect(descarga.headers["cache-control"]).toBe("private, no-cache");
     expect(descarga.headers["accept-ranges"]).toBe("bytes");
     expect(Buffer.from(descarga.body)).toEqual(MP3_BYTES);
 

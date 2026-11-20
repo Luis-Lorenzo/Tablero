@@ -13,7 +13,7 @@ interface ChatSalaProps {
   jugadores: JugadorPreview[];
   miUsuarioId: string;
   mensajes: MensajeSala[];
-  onEnviarMensaje: (texto: string, destinatarioId: string | null) => void | Promise<void>;
+  onEnviarMensaje: (texto: string, destinatarioIds: string[] | null) => void | Promise<void>;
   onIniciarArrastre?: (evento: ReactPointerEvent) => void;
   onIniciarRedimension?: (evento: ReactPointerEvent) => void;
   compartirAbierto?: boolean;
@@ -57,7 +57,7 @@ export function ChatSala({
   const [plegado, setPlegado] = useState(false);
   const [filtro, setFiltro] = useState<FiltroChat>("chat");
   const [texto, setTexto] = useState("");
-  const [destinatario, setDestinatario] = useState<Destinatario | null>(null);
+  const [destinatarios, setDestinatarios] = useState<Destinatario[]>([]);
   const [indiceMencion, setIndiceMencion] = useState(0);
   const [enviando, setEnviando] = useState(false);
 
@@ -84,6 +84,7 @@ export function ChatSala({
           if (!j.activo) return false;
           const uid = j.userId ?? j.id;
           if (uid === miUsuarioId) return false;
+          if (destinatarios.some(d => d.id === uid)) return false;
           return j.nombre.toLowerCase().includes(filtroMencion.toLowerCase());
         });
 
@@ -92,7 +93,9 @@ export function ChatSala({
 
   function seleccionarMencion(jugador: JugadorPreview): void {
     const uid = jugador.userId ?? jugador.id;
-    setDestinatario({ id: uid, nombre: jugador.nombre });
+    setDestinatarios(prev =>
+      prev.some(d => d.id === uid) ? prev : [...prev, { id: uid, nombre: jugador.nombre }]
+    );
     setTexto(prev =>
       prev.replace(/(?:^|\s)@[^\s]*$/, coincidencia =>
         coincidencia.startsWith(" ") ? " " : ""
@@ -109,8 +112,12 @@ export function ChatSala({
 
     setEnviando(true);
     try {
-      await onEnviarMensaje(limpio, destinatario?.id ?? null);
+      await onEnviarMensaje(
+        limpio,
+        destinatarios.length > 0 ? destinatarios.map(d => d.id) : null
+      );
       setTexto("");
+      setDestinatarios([]);
     } finally {
       setEnviando(false);
     }
@@ -144,8 +151,8 @@ export function ChatSala({
       }
     }
 
-    if (evento.key === "Backspace" && texto === "" && destinatario) {
-      setDestinatario(null);
+    if (evento.key === "Backspace" && texto === "" && destinatarios.length > 0) {
+      setDestinatarios(prev => prev.slice(0, -1));
     }
   }
 
@@ -226,7 +233,21 @@ export function ChatSala({
               </p>
             ) : (
               mensajesFiltrados.map(msg => {
-                const esPrivado = msg.destinatarioId !== null;
+                const idsPrivados =
+                  msg.destinatarioIds && msg.destinatarioIds.length > 0
+                    ? msg.destinatarioIds
+                    : msg.destinatarioId
+                      ? [msg.destinatarioId]
+                      : [];
+                const nombresPrivados =
+                  msg.destinatarioNombres && msg.destinatarioNombres.length > 0
+                    ? msg.destinatarioNombres
+                    : msg.destinatarioNombre
+                      ? [msg.destinatarioNombre]
+                      : [];
+                const esPrivado = idsPrivados.length > 0;
+                const esGrupal = nombresPrivados.length > 1;
+                const listaNombres = nombresPrivados.map(n => `@${n}`).join(", ");
                 const esMio = msg.autorId === miUsuarioId;
                 const clase = [
                   "chat-msg",
@@ -236,17 +257,21 @@ export function ChatSala({
                   .filter(Boolean)
                   .join(" ");
 
+                const etiquetaPrivado = esGrupal
+                  ? esMio
+                    ? `Susurro grupal a ${listaNombres}`
+                    : `Susurro de ${msg.autorNombre} (para ${listaNombres})`
+                  : esMio
+                    ? `Susurro a @${nombresPrivados[0] ?? "jugador"}`
+                    : `Susurro de ${msg.autorNombre}`;
+
                 return (
                   <div key={msg.id} className={clase}>
                     <div className="chat-msg-meta">
                       {esPrivado ? (
                         <span className="chat-msg-privado-etiqueta">
                           <Lock size={11} aria-hidden="true" />
-                          <span>
-                            {esMio
-                              ? `Susurro a @${msg.destinatarioNombre ?? "jugador"}`
-                              : `Susurro de ${msg.autorNombre}`}
-                          </span>
+                          <span>{etiquetaPrivado}</span>
                         </span>
                       ) : (
                         <span className="chat-msg-autor">{msg.autorNombre}</span>
@@ -290,17 +315,37 @@ export function ChatSala({
               </ul>
             )}
 
-            {destinatario && (
-              <div className="chat-destinatario-chip">
-                <Lock size={11} aria-hidden="true" />
-                <span>Privado a @{destinatario.nombre}</span>
-                <button
-                  type="button"
-                  onClick={() => setDestinatario(null)}
-                  aria-label="Cancelar mensaje privado"
-                >
-                  <X size={12} aria-hidden="true" />
-                </button>
+            {destinatarios.length > 0 && (
+              <div className="chat-susurro-chips" role="group" aria-label="Destinatarios del susurro">
+                <span className="chat-susurro-etiqueta">
+                  <Lock size={11} aria-hidden="true" />
+                  <span>Susurro a:</span>
+                </span>
+                {destinatarios.map(dest => (
+                  <span key={dest.id} className="chat-susurro-chip">
+                    <span>@{dest.nombre}</span>
+                    <button
+                      type="button"
+                      className="chat-susurro-chip-quitar"
+                      onClick={() =>
+                        setDestinatarios(prev => prev.filter(d => d.id !== dest.id))
+                      }
+                      aria-label={`Quitar a ${dest.nombre}`}
+                    >
+                      <X size={11} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+                {destinatarios.length > 1 && (
+                  <button
+                    type="button"
+                    className="chat-susurro-limpiar"
+                    onClick={() => setDestinatarios([])}
+                    aria-label="Limpiar todos los destinatarios"
+                  >
+                    Limpiar
+                  </button>
+                )}
               </div>
             )}
 
@@ -312,8 +357,8 @@ export function ChatSala({
                 value={texto}
                 maxLength={500}
                 placeholder={
-                  destinatario
-                    ? `Susurrar a @${destinatario.nombre}…`
+                  destinatarios.length > 0
+                    ? `Susurrar a ${destinatarios.map(d => `@${d.nombre}`).join(", ")}…`
                     : "Mensaje… (@ para privado)"
                 }
                 onChange={e => {

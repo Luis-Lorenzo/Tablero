@@ -71,9 +71,10 @@ export function createArchivoRouter(
       );
       const { archivo } = resultado;
 
-      const etag = `"${archivo.id}"`;
+      const version = (archivo.updatedAt ?? archivo.createdAt).getTime();
+      const etag = `"${archivo.id}-${version}-${archivo.tamano}"`;
       res.setHeader("ETag", etag);
-      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      res.setHeader("Cache-Control", "private, no-cache");
       res.setHeader("Accept-Ranges", "bytes");
 
       const ifNoneMatch = req.headers["if-none-match"];
@@ -86,7 +87,7 @@ export function createArchivoRouter(
         (ifNoneMatch === etag || ifNoneMatch.includes(archivo.id))
       ) {
         if ("stream" in resultado) {
-          void resultado.stream.cancel().catch(() => {});
+          void resultado.stream.cancel().catch(() => { });
         }
         res.status(304).end();
         return;
@@ -135,6 +136,50 @@ export function createArchivoRouter(
       if (!res.headersSent) {
         next(error);
       }
+    }
+  });
+
+  router.put("/:id", requireAuth, binario, async (req, res, next) => {
+    try {
+      const datos = req.body;
+      if (!Buffer.isBuffer(datos)) {
+        throw errors.invalidRequest();
+      }
+
+      const tipoHeader =
+        typeof req.headers["content-type"] === "string"
+          ? req.headers["content-type"]
+          : "";
+
+      const actualizado = await context.archivoService.actualizar(
+        req.currentUser!,
+        String(req.params.id),
+        {
+          datos: new Uint8Array(datos),
+          ...(tipoHeader ? { tipo: tipoHeader } : {})
+        }
+      );
+
+      if (actualizado.mesaId) {
+        const mesa = await context.mesaRepository.findById(actualizado.mesaId);
+        if (mesa) {
+          context.mesasNotifier.enviarAUsuarios(
+            [mesa.hostId, ...mesa.players],
+            {
+              type: "archivo:actualizado",
+              mesaId: actualizado.mesaId,
+              archivoId: actualizado.id,
+              autorId: req.currentUser!.id,
+              updatedAt: (actualizado.updatedAt ?? actualizado.createdAt).toISOString(),
+              tamano: actualizado.tamano
+            }
+          );
+        }
+      }
+
+      res.status(200).json(toPublicArchivo(actualizado));
+    } catch (error) {
+      next(error);
     }
   });
 

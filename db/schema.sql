@@ -94,6 +94,7 @@ ALTER TABLE mesas ADD COLUMN IF NOT EXISTS imagen_proyectada_titulo TEXT;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS divisa_nombre TEXT NOT NULL DEFAULT 'Divisa';
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS divisas_config JSONB;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS musica_ambiente JSONB;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS contrasena TEXT;
 
 CREATE TABLE IF NOT EXISTS mesa_jugadores ( 
   mesa_id UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE, 
@@ -124,6 +125,7 @@ CREATE TABLE IF NOT EXISTS archivos (
 );
 
 ALTER TABLE archivos ADD COLUMN IF NOT EXISTS mesa_id UUID REFERENCES mesas(id) ON DELETE SET NULL;
+ALTER TABLE archivos ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS archivos_owner_idx
   ON archivos (owner_id, created_at DESC);
@@ -134,6 +136,13 @@ CREATE INDEX IF NOT EXISTS archivos_clave_idx
 CREATE INDEX IF NOT EXISTS archivos_mesa_idx
   ON archivos (mesa_id)
   WHERE mesa_id IS NOT NULL;
+
+-- Columnas de Personaje (PJ) por jugador en una mesa (tras crear `archivos`).
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS pj_retrato_archivo_id UUID REFERENCES archivos(id) ON DELETE SET NULL;
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS pj_ficha_archivo_id UUID REFERENCES archivos(id) ON DELETE SET NULL;
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS pj_ficha_nombre TEXT;
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS pj_pdfs JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE mesa_jugadores ADD COLUMN IF NOT EXISTS pj_notas TEXT NOT NULL DEFAULT '';
 
 -- Estado personal en mesa de cada jugador (notas/archivos colocados o archivados),
 -- aislado por (mesa_id, user_id). Los binarios viven en R2, aquí solo metadatos.
@@ -154,15 +163,20 @@ ALTER TABLE mesa_jugador_estado ADD COLUMN IF NOT EXISTS mochila JSONB NOT NULL 
 
 -- Historial de mensajes de chat por mesa (públicos o susurros).
 CREATE TABLE IF NOT EXISTS chat_mensajes (
-  id                  UUID PRIMARY KEY,
-  mesa_id             UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
-  autor_id            UUID NOT NULL,
-  autor_nombre        TEXT NOT NULL,
-  texto               TEXT NOT NULL,
-  destinatario_id     UUID,
-  destinatario_nombre TEXT,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                   UUID PRIMARY KEY,
+  mesa_id              UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
+  autor_id             UUID NOT NULL,
+  autor_nombre         TEXT NOT NULL,
+  texto                TEXT NOT NULL,
+  destinatario_id      UUID,
+  destinatario_nombre  TEXT,
+  destinatario_ids     UUID[],
+  destinatario_nombres TEXT[],
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE chat_mensajes ADD COLUMN IF NOT EXISTS destinatario_ids UUID[];
+ALTER TABLE chat_mensajes ADD COLUMN IF NOT EXISTS destinatario_nombres TEXT[];
 
 CREATE INDEX IF NOT EXISTS chat_mensajes_mesa_created_idx
   ON chat_mensajes (mesa_id, created_at DESC);

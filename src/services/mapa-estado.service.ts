@@ -10,8 +10,10 @@ import {
   sanitizarTrazo,
   type AreaMapa,
   type EstadoMapaCompartido,
+  type IniciativaEntrada,
   type MapaEstadoRepository,
   type MapaFondoConfig,
+  type MapaIniciativaEstado,
   type MapaRejillaConfig,
   type PlantillaTokenMapa,
   type TokenMapa,
@@ -50,6 +52,13 @@ export interface ActualizarPlantillaMapaInput {
   nombre?: unknown;
 }
 
+export interface AvanzarTurnoOpciones {
+  porTiempo?: boolean;
+  rondaEsperada?: number;
+  turnoIndiceEsperado?: number;
+  entradaIdEsperada?: string;
+}
+
 export class MapaEstadoService {
   constructor(
     private readonly mesas: MesaRepository,
@@ -60,7 +69,8 @@ export class MapaEstadoService {
   async obtenerMapa(actor: User, mesaId: string): Promise<EstadoMapaCompartido> {
     const mesa = await this.obtenerMesaParticipante(actor, mesaId);
     void mesa;
-    return this.mapaEstado.getEstado(mesaId);
+    const estado = await this.mapaEstado.getEstado(mesaId);
+    return this.conMarcaServidor(estado);
   }
 
   async guardarFondoYRejilla(
@@ -102,37 +112,97 @@ export class MapaEstadoService {
     }
 
     const actual = await this.mapaEstado.getEstado(mesaId);
+    const prevIni = actual.iniciativa;
+    const prevEntradaId = prevIni?.entradas[prevIni.turnoIndice]?.id;
+    const nextEntradaId = limpia.entradas[limpia.turnoIndice]?.id;
+    const mismoTurno = Boolean(
+      prevIni &&
+        prevIni.activa &&
+        limpia.activa &&
+        limpia.entradas.length > 0 &&
+        prevIni.ronda === limpia.ronda &&
+        prevIni.turnoIndice === limpia.turnoIndice &&
+        prevEntradaId === nextEntradaId &&
+        (prevIni.turnoMaxSegundos ?? null) === (limpia.turnoMaxSegundos ?? null) &&
+        typeof prevIni.turnoIniciadoEn === "number"
+    );
+
+    const iniciativaConTiempo: MapaIniciativaEstado =
+      limpia.activa && limpia.entradas.length > 0
+        ? {
+            ...limpia,
+            turnoIniciadoEn: mismoTurno ? prevIni!.turnoIniciadoEn : Date.now()
+          }
+        : {
+            activa: limpia.activa,
+            ronda: limpia.ronda,
+            turnoIndice: limpia.turnoIndice,
+            entradas: limpia.entradas,
+            ...(limpia.turnoMaxSegundos !== undefined
+              ? { turnoMaxSegundos: limpia.turnoMaxSegundos }
+              : {})
+          };
+
     const siguiente: EstadoMapaCompartido = sanitizarMapaEstado({
       ...actual,
-      iniciativa: limpia
+      iniciativa: iniciativaConTiempo
     });
 
     await this.mapaEstado.saveEstado(mesaId, siguiente);
     this.difundir(mesa, siguiente);
-    return siguiente;
+    return this.conMarcaServidor(siguiente);
   }
 
   async avanzarTurnoIniciativa(
     actor: User,
-    mesaId: string
+    mesaId: string,
+    opciones?: AvanzarTurnoOpciones
   ): Promise<EstadoMapaCompartido> {
     const mesa = await this.obtenerMesaParticipante(actor, mesaId);
     const actual = await this.mapaEstado.getEstado(mesaId);
     const iniciativa = actual.iniciativa;
 
     if (!iniciativa?.activa || iniciativa.entradas.length === 0) {
-      return actual;
+      return this.conMarcaServidor(actual);
     }
 
     const entradaActual = iniciativa.entradas[iniciativa.turnoIndice];
     const tokenTurno = entradaActual?.tokenId
       ? actual.tokens.find(t => t.id === entradaActual.tokenId)
       : undefined;
-    const esDuenoDelTurno =
-      entradaActual?.jugadorId === actor.id ||
-      Boolean(tokenTurno && !tokenTurno.esMonstruo && tokenTurno.autorId === actor.id);
-    if (!this.esMaster(actor, mesa) && !esDuenoDelTurno) {
-      throw errors.forbidden();
+
+    if (opciones?.porTiempo) {
+      if (
+        (typeof opciones.rondaEsperada === "number" &&
+          opciones.rondaEsperada !== iniciativa.ronda) ||
+        (typeof opciones.turnoIndiceEsperado === "number" &&
+          opciones.turnoIndiceEsperado !== iniciativa.turnoIndice) ||
+        (typeof opciones.entradaIdEsperada === "string" &&
+          opciones.entradaIdEsperada !== entradaActual?.id)
+      ) {
+        return this.conMarcaServidor(actual);
+      }
+
+      const maxSeg = iniciativa.turnoMaxSegundos;
+      if (typeof maxSeg !== "number" || maxSeg <= 0) {
+        return this.conMarcaServidor(actual);
+      }
+      if (this.esTurnoDelMaster(mesa, entradaActual, actual.tokens)) {
+        return this.conMarcaServidor(actual);
+      }
+      if (
+        typeof iniciativa.turnoIniciadoEn !== "number" ||
+        Date.now() - iniciativa.turnoIniciadoEn < maxSeg * 1000 - 400
+      ) {
+        return this.conMarcaServidor(actual);
+      }
+    } else {
+      const esDuenoDelTurno =
+        entradaActual?.jugadorId === actor.id ||
+        Boolean(tokenTurno && !tokenTurno.esMonstruo && tokenTurno.autorId === actor.id);
+      if (!this.esMaster(actor, mesa) && !esDuenoDelTurno) {
+        throw errors.forbidden();
+      }
     }
 
     const haySiguiente = iniciativa.turnoIndice + 1 < iniciativa.entradas.length;
@@ -141,13 +211,14 @@ export class MapaEstadoService {
       iniciativa: {
         ...iniciativa,
         turnoIndice: haySiguiente ? iniciativa.turnoIndice + 1 : 0,
-        ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1
+        ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1,
+        turnoIniciadoEn: Date.now()
       }
     });
 
     await this.mapaEstado.saveEstado(mesaId, siguiente);
     this.difundir(mesa, siguiente);
-    return siguiente;
+    return this.conMarcaServidor(siguiente);
   }
 
   async crearToken(
@@ -359,15 +430,23 @@ export class MapaEstadoService {
 
     let iniciativa = actual.iniciativa;
     if (iniciativa) {
+      const prevEntradaId = iniciativa.entradas[iniciativa.turnoIndice]?.id;
       const nuevasEntradas = iniciativa.entradas.filter(e => e.tokenId !== tokenId);
       if (nuevasEntradas.length !== iniciativa.entradas.length) {
+        const nuevoIndice = Math.min(
+          iniciativa.turnoIndice,
+          Math.max(0, nuevasEntradas.length - 1)
+        );
+        const nuevaEntradaId = nuevasEntradas[nuevoIndice]?.id;
         iniciativa = {
           ...iniciativa,
           entradas: nuevasEntradas,
-          turnoIndice: Math.min(
-            iniciativa.turnoIndice,
-            Math.max(0, nuevasEntradas.length - 1)
-          )
+          turnoIndice: nuevoIndice,
+          ...(nuevasEntradas.length === 0 || !iniciativa.activa
+            ? { turnoIniciadoEn: undefined }
+            : prevEntradaId !== nuevaEntradaId
+              ? { turnoIniciadoEn: Date.now() }
+              : {})
         };
       }
     }
@@ -522,6 +601,54 @@ export class MapaEstadoService {
     return siguiente;
   }
 
+  async eliminarTrazos(
+    actor: User,
+    mesaId: string,
+    idsRaw: unknown
+  ): Promise<EstadoMapaCompartido> {
+    const mesa = await this.obtenerMesaParticipante(actor, mesaId);
+    if (!Array.isArray(idsRaw)) {
+      throw errors.invalidRequest();
+    }
+
+    const idsLimpias = Array.from(
+      new Set(
+        idsRaw
+          .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+          .map(id => id.trim())
+      )
+    ).slice(0, 500);
+
+    const actual = await this.mapaEstado.getEstado(mesaId);
+    if (idsLimpias.length === 0) {
+      return this.conMarcaServidor(actual);
+    }
+
+    const esMaster = this.esMaster(actor, mesa);
+    if (actual.dibujoCongelado && !esMaster) {
+      throw errors.forbidden();
+    }
+
+    const idsSet = new Set(idsLimpias);
+    const trazosActuales = actual.trazos ?? [];
+    const aBorrar = trazosActuales.filter(t => idsSet.has(t.id));
+    if (!esMaster && aBorrar.some(t => t.autorId !== actor.id)) {
+      throw errors.forbidden();
+    }
+    if (aBorrar.length === 0) {
+      return this.conMarcaServidor(actual);
+    }
+
+    const siguiente = sanitizarMapaEstado({
+      ...actual,
+      trazos: trazosActuales.filter(t => !idsSet.has(t.id))
+    });
+
+    await this.mapaEstado.saveEstado(mesaId, siguiente);
+    this.difundir(mesa, siguiente);
+    return this.conMarcaServidor(siguiente);
+  }
+
   async borrarTodosTrazos(
     actor: User,
     mesaId: string
@@ -570,6 +697,9 @@ export class MapaEstadoService {
   ): Promise<EstadoMapaCompartido> {
     const mesa = await this.obtenerMesaParticipante(actor, mesaId);
     const actual = await this.mapaEstado.getEstado(mesaId);
+    if (actual.dibujoCongelado && !this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     const obj = (raw && typeof raw === "object" && !Array.isArray(raw)
       ? raw
@@ -605,6 +735,9 @@ export class MapaEstadoService {
   ): Promise<EstadoMapaCompartido> {
     const mesa = await this.obtenerMesaParticipante(actor, mesaId);
     const actual = await this.mapaEstado.getEstado(mesaId);
+    if (actual.dibujoCongelado && !this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     const areasActuales = actual.areas ?? [];
     const indice = areasActuales.findIndex(a => a.id === areaId);
@@ -656,6 +789,9 @@ export class MapaEstadoService {
   ): Promise<EstadoMapaCompartido> {
     const mesa = await this.obtenerMesaParticipante(actor, mesaId);
     const actual = await this.mapaEstado.getEstado(mesaId);
+    if (actual.dibujoCongelado && !this.esMaster(actor, mesa)) {
+      throw errors.forbidden();
+    }
 
     const areasActuales = actual.areas ?? [];
     const area = areasActuales.find(a => a.id === areaId);
@@ -686,18 +822,38 @@ export class MapaEstadoService {
 
   private async obtenerMesaParticipante(actor: User, mesaId: string): Promise<Mesa> {
     const mesa = await this.obtenerMesa(mesaId);
-    if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id)) {
+    const adminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+    if (mesa.hostId !== actor.id && !mesa.players.includes(actor.id) && !adminLibre) {
       throw errors.forbidden();
     }
     return mesa;
   }
 
   private esMaster(actor: User, mesa: Mesa): boolean {
-    return mesa.hostId === actor.id || actor.role === "ADMIN";
+    const adminLibre = actor.role === "ADMIN" && !mesa.players.includes(actor.id);
+    return mesa.hostId === actor.id || adminLibre;
+  }
+
+  private esTurnoDelMaster(
+    mesa: Mesa,
+    entrada: IniciativaEntrada | undefined,
+    tokens: TokenMapa[]
+  ): boolean {
+    if (!entrada || entrada.esMonstruo) return true;
+    if (entrada.jugadorId) return entrada.jugadorId === mesa.hostId;
+    if (entrada.tokenId) {
+      const token = tokens.find(t => t.id === entrada.tokenId);
+      return !token || Boolean(token.esMonstruo) || token.autorId === mesa.hostId;
+    }
+    return true;
+  }
+
+  private conMarcaServidor(estado: EstadoMapaCompartido): EstadoMapaCompartido {
+    return { ...estado, servidorAhora: Date.now() };
   }
 
   private difundir(mesa: Mesa, mapa: EstadoMapaCompartido): void {
     const miembros = [mesa.hostId, ...mesa.players];
-    this.notifier.mapaActualizado(miembros, mesa.id, mapa);
+    this.notifier.mapaActualizado(miembros, mesa.id, this.conMarcaServidor(mapa));
   }
 }

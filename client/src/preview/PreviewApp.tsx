@@ -45,6 +45,7 @@ import type {
   PlantillaTokenMapa,
   PositPreview,
   SolicitudTransferencia,
+  TextoEscena,
   TokenMapa,
   TrazoPizarra
 } from "./tipos";
@@ -259,6 +260,12 @@ export default function PreviewApp() {
   const [objetosPizarra, setObjetosPizarra] = useState<ObjetoPizarra[]>(
     cargarObjetosPizarraPreview
   );
+  const [trazosEscena, setTrazosEscena] = useState<TrazoPizarra[]>([]);
+  const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
+  const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
+  const [textosEscena, setTextosEscena] = useState<TextoEscena[]>([]);
+  const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
+  const archivadorOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const [divisasConfig, setDivisasConfig] = useState<DivisaConfig[]>([
     { id: "principal", nombre: "Divisa", color: "#e8c56a" }
   ]);
@@ -489,7 +496,42 @@ export default function PreviewApp() {
 
   const cambiarIniciativaPreview = useCallback(
     (iniciativa: MapaIniciativaEstado) => {
-      setEstadoMapa(prev => ({ ...prev, iniciativa }));
+      setEstadoMapa(prev => {
+        const prevIni = prev.iniciativa;
+        const prevEntradaId = prevIni?.entradas[prevIni.turnoIndice]?.id;
+        const nextEntradaId = iniciativa.entradas[iniciativa.turnoIndice]?.id;
+        const mismoTurno = Boolean(
+          prevIni &&
+            prevIni.activa &&
+            iniciativa.activa &&
+            iniciativa.entradas.length > 0 &&
+            prevIni.ronda === iniciativa.ronda &&
+            prevIni.turnoIndice === iniciativa.turnoIndice &&
+            prevEntradaId === nextEntradaId &&
+            (prevIni.turnoMaxSegundos ?? null) === (iniciativa.turnoMaxSegundos ?? null) &&
+            typeof prevIni.turnoIniciadoEn === "number"
+        );
+        return {
+          ...prev,
+          iniciativa:
+            iniciativa.activa && iniciativa.entradas.length > 0
+              ? {
+                  ...iniciativa,
+                  turnoIniciadoEn: mismoTurno
+                    ? prevIni!.turnoIniciadoEn
+                    : Date.now()
+                }
+              : {
+                  activa: iniciativa.activa,
+                  ronda: iniciativa.ronda,
+                  turnoIndice: iniciativa.turnoIndice,
+                  entradas: iniciativa.entradas,
+                  ...(iniciativa.turnoMaxSegundos !== undefined
+                    ? { turnoMaxSegundos: iniciativa.turnoMaxSegundos }
+                    : {})
+                }
+        };
+      });
     },
     []
   );
@@ -507,7 +549,8 @@ export default function PreviewApp() {
         iniciativa: {
           ...iniciativa,
           turnoIndice: haySiguiente ? iniciativa.turnoIndice + 1 : 0,
-          ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1
+          ronda: haySiguiente ? iniciativa.ronda : iniciativa.ronda + 1,
+          turnoIniciadoEn: Date.now()
         }
       };
     });
@@ -527,6 +570,15 @@ export default function PreviewApp() {
     setEstadoMapa(prev => ({
       ...prev,
       trazos: (prev.trazos ?? []).filter(t => t.id !== trazoId)
+    }));
+  }, []);
+
+  const eliminarTrazosLotePreview = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    const set = new Set(ids);
+    setEstadoMapa(prev => ({
+      ...prev,
+      trazos: (prev.trazos ?? []).filter(t => !set.has(t.id))
     }));
   }, []);
 
@@ -697,10 +749,25 @@ export default function PreviewApp() {
         objetosPizarra={objetosPizarra}
         onObjetosPizarra={setObjetosPizarra}
         onSacarDePizarraAMesa={sacarDePizarraAMesaPreview}
+        trazosEscena={trazosEscena}
+        onTrazosEscena={setTrazosEscena}
+        positsEscena={positsEscena}
+        onPositsEscena={setPositsEscena}
+        docsEscena={docsEscena}
+        onDocsEscena={setDocsEscena}
+        textosEscena={textosEscena}
+        onTextosEscena={setTextosEscena}
+        vistaPizarra={vistaPizarra}
+        onVistaPizarra={setVistaPizarra}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
         onVolver={volverASala}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "pizarra";
+          setFase("archivador");
+        }}
         esMaster
+        miUsuarioId="master"
         colorJugador="#e8c56a"
         nombreJugador="Máster"
         imagenEscena={imagenEscena}
@@ -730,6 +797,7 @@ export default function PreviewApp() {
           onTerminarTurnoIniciativa={terminarTurnoIniciativaPreview}
           onAgregarTrazo={agregarTrazoPreview}
           onEliminarTrazo={eliminarTrazoPreview}
+          onEliminarTrazosLote={eliminarTrazosLotePreview}
           onBorrarTrazos={borrarTrazosPreview}
           onCambiarDibujoCongelado={cambiarDibujoCongeladoPreview}
           archivosDisponibles={ARCHIVOS_PREVIEW_INICIALES}
@@ -755,7 +823,10 @@ export default function PreviewApp() {
               elemento.tipo === "posit" ? "nota" : elemento.nombre;
             mostrarAvisoPreview(`Enviado (${etiqueta}) a ${destino.nombre} (modo preview).`);
           }}
-          onAbrirArchivador={() => setFase("archivador")}
+          onAbrirArchivador={() => {
+            archivadorOrigenRef.current = "mapa";
+            setFase("archivador");
+          }}
           onCompartirATodos={compartirATodosPreview}
         />
       </>
@@ -765,7 +836,7 @@ export default function PreviewApp() {
       <Archivador
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
-        onVolver={volverASala}
+        onVolver={() => setFase(archivadorOrigenRef.current)}
         esMaster
         imagenEscena={imagenEscena}
         imagenProyectada={imagenProyectada}
@@ -781,7 +852,10 @@ export default function PreviewApp() {
         onCalibracion={setCalibracion}
         onAbrirPizarra={() => setFase("pizarra")}
         onAbrirMapa={() => setFase("mapa")}
-        onAbrirArchivador={() => setFase("archivador")}
+        onAbrirArchivador={() => {
+          archivadorOrigenRef.current = "sala";
+          setFase("archivador");
+        }}
         onVolver={() => setFase("lobby")}
         esMaster
         miUsuarioId="master"
