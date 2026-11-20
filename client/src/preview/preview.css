@@ -14963,6 +14963,41 @@ html.modo-claro .ficha-retro-tab:focus-visible {
   border-color: #f6e3b0;
 }
 
+.mochila-consumir-fila {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mochila-consumir-fila .mochila-consumir-btn {
+  flex: 1;
+}
+
+.mochila-macro-d6-btn {
+  flex: 0 0 38px;
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1.5px solid #e8c56a;
+  background: rgb(232 197 106 / 20%);
+  color: #f6e3b0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+}
+
+.mochila-macro-d6-btn:hover {
+  background: rgb(232 197 106 / 34%);
+  border-color: #f6e3b0;
+}
+
+.mochila-macro-d6-btn:active {
+  transform: scale(0.95);
+}
+
 /* =========================================================================
    FASE E — Overrides en html.modo-claro
    ========================================================================= */
@@ -15317,6 +15352,17 @@ html.modo-claro .mochila-btn-tirar-macro {
 
 html.modo-claro .mochila-btn-tirar-macro:hover {
   background: #9A6E1F;
+}
+
+html.modo-claro .mochila-macro-d6-btn {
+  background: #B8862B;
+  border-color: #9A6E1F;
+  color: #FFFDF8;
+}
+
+html.modo-claro .mochila-macro-d6-btn:hover {
+  background: #9A6E1F;
+  border-color: #7D5817;
 }
 
 /* ==================== PersonajePanel 50/50 Split Layout ==================== */

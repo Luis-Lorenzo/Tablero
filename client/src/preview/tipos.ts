@@ -173,7 +173,11 @@ export const COLORES_DIVISA = [
   { id: "plata", nombre: "Plata", hex: "#cbd5e1" },
   { id: "negro-carbon", nombre: "Negro carbón", hex: "#27272a" },
   { id: "rojo-rubi", nombre: "Rojo rubí", hex: "#e11d48" },
-  { id: "naranja", nombre: "Naranja", hex: "#f97316" }
+  { id: "naranja", nombre: "Naranja", hex: "#f97316" },
+  { id: "oro", nombre: "Oro", hex: "#eab308" },
+  { id: "amatista", nombre: "Amatista", hex: "#7c3aed" },
+  { id: "turquesa", nombre: "Turquesa", hex: "#06b6d4" },
+  { id: "rosa", nombre: "Rosa", hex: "#f472b6" }
 ] as const;
 
 export interface DivisaConfig {

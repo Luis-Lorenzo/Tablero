@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Dice6,
   Eye,
   FileText,
   Minus,
@@ -3093,6 +3094,32 @@ export function HudSalaCompartido({
                       />
                     </label>
                   </div>
+                </div>
+
+                <div className="mochila-consumir-fila">
+                  <button
+                    type="button"
+                    className="mochila-consumir-btn"
+                    onClick={() => consumirObjetoMochila(objetoSeleccionado.id)}
+                  >
+                    Consumir -1
+                  </button>
+                  {objetoSeleccionado.macro && (
+                    <button
+                      type="button"
+                      className="mochila-macro-d6-btn"
+                      title={`Ejecutar macro: ${objetoSeleccionado.macro.nombre}`}
+                      aria-label={`Ejecutar macro ${objetoSeleccionado.macro.nombre}`}
+                      onClick={() =>
+                        tirarMacroDeObjeto(
+                          objetoSeleccionado.nombre,
+                          objetoSeleccionado.macro!
+                        )
+                      }
+                    >
+                      <Dice6 size={18} strokeWidth={2.2} aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
 
                 <label className="macro-campo-nombre">
