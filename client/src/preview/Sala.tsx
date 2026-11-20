@@ -3814,13 +3814,16 @@ export function Sala({
                     className={`sala-musica-estado${musicaActual.loop ? " bucle" : ""}`}
                     aria-label={
                       musicaActual.loop
-                        ? "Reproducción en bucle"
+                        ? `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)} (bucle activado)`
                         : `Tiempo de música ${formatearTiempoMusica(musicaTiempo)} de ${formatearTiempoMusica(musicaDuracion)}`
                     }
                   >
-                    {musicaActual.loop
-                      ? "BUCLE"
-                      : `${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
+                    <span>
+                      {`${formatearTiempoMusica(musicaTiempo)} / ${formatearTiempoMusica(musicaDuracion)}`}
+                    </span>
+                    {musicaActual.loop && (
+                      <Repeat size={11} strokeWidth={2.4} aria-hidden="true" />
+                    )}
                   </span>
                 )}
 

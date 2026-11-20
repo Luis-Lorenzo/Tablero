@@ -1493,7 +1493,7 @@ function SalaRealContent({
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.loop = musicaAmbiente.pistas.length === 1 && musicaAmbiente.loop;
+    audio.loop = musicaAmbiente.loop;
     audio.muted = musicaSilenciadaLocal;
     audio.volume = Math.max(0, Math.min(1, volumenMusicaLocal));
 
@@ -1574,12 +1574,21 @@ function SalaRealContent({
 
   const alTerminarPista = useCallback(() => {
     const actual = musicaAmbienteRef.current;
-    if (!esMaster || actual.pistas.length === 0) return;
+    if (actual.pistas.length === 0) return;
+
+    if (actual.loop) {
+      const audio = audioRef.current;
+      if (audio && actual.reproduciendo) {
+        audio.currentTime = 0;
+        void audio.play().catch(() => undefined);
+      }
+      return;
+    }
+
+    if (!esMaster) return;
 
     if (actual.pistas.length === 1) {
-      if (!actual.loop) {
-        void actualizarMusica({ ...actual, reproduciendo: false });
-      }
+      void actualizarMusica({ ...actual, reproduciendo: false });
       return;
     }
 

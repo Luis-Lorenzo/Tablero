@@ -2175,14 +2175,20 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mapa-contrareloj-paleta {
-  flex-basis: 100%;
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding-top: 6px;
+  padding: 7px 10px;
   margin-top: 2px;
-  border-top: 1px solid rgb(255 255 255 / 12%);
+  border: 1.5px solid rgb(232 197 106 / 45%);
+  border-radius: 10px;
+  background: rgb(20 23 30 / 95%);
+  color: #ece8df;
+  box-shadow: 4px 4px 0 #090b0f, 0 10px 24px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(6px);
+  max-width: min(760px, calc(100vw - 24px));
 }
 
 .mapa-contrareloj-form {
@@ -9977,6 +9983,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .sala-musica-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -12811,7 +12820,10 @@ html.modo-claro .mapa-contrareloj-titulo {
 }
 
 html.modo-claro .mapa-contrareloj-paleta {
-  border-top-color: rgb(184 134 43 / 28%);
+  border-color: #B8862B;
+  background: #FFF8EC;
+  color: #2A1F3D;
+  box-shadow: 0 6px 18px rgb(60 40 90 / 22%);
 }
 
 html.modo-claro .mapa-herramienta-btn {
