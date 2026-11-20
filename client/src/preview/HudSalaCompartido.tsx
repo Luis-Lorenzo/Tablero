@@ -2983,6 +2983,7 @@ export function HudSalaCompartido({
                   <textarea
                     rows={3}
                     maxLength={1000}
+                    spellCheck={false}
                     value={nuevoObjDesc}
                     onChange={e => setNuevoObjDesc(e.target.value)}
                     placeholder="Efecto, peso, notas..."
@@ -3099,6 +3100,7 @@ export function HudSalaCompartido({
                   <textarea
                     rows={4}
                     maxLength={1000}
+                    spellCheck={false}
                     value={objetoSeleccionado.descripcion}
                     onChange={e => {
                       const desc = e.target.value;

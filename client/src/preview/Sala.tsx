@@ -5147,6 +5147,7 @@ export function Sala({
                       <textarea
                         rows={3}
                         maxLength={1000}
+                        spellCheck={false}
                         value={nuevoObjDesc}
                         onChange={e => setNuevoObjDesc(e.target.value)}
                         placeholder="Efecto, peso, notas..."
@@ -5263,6 +5264,7 @@ export function Sala({
                       <textarea
                         rows={4}
                         maxLength={1000}
+                        spellCheck={false}
                         value={objetoSeleccionado.descripcion}
                         onChange={e => {
                           const desc = e.target.value;
@@ -7181,6 +7183,7 @@ export function Sala({
               {itemAbierto.tipo === "posit" ? (
                 <textarea
                   className="mesa-visor-posit-editor"
+                  spellCheck={false}
                   style={{
                     background: itemAbierto.color,
                     color: textoLegible(itemAbierto.color)

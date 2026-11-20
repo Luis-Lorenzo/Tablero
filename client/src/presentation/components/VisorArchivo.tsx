@@ -57,6 +57,27 @@ interface PaginaPdfRender {
   widgets: WidgetAcroForm[];
 }
 
+interface PdfPageProxy {
+  getViewport: (opts: { scale: number }) => {
+    width: number;
+    height: number;
+    convertToViewportRectangle: (rect: number[]) => number[];
+  };
+  getAnnotations: (opts?: { intent?: string }) => Promise<Array<Record<string, unknown>>>;
+  render: (opts: {
+    canvasContext: CanvasRenderingContext2D;
+    viewport: unknown;
+    transform?: number[];
+    canvas: HTMLCanvasElement;
+  }) => { promise: Promise<void>; cancel?: () => void };
+}
+
+interface PdfDocProxy {
+  numPages: number;
+  getPage: (n: number) => Promise<PdfPageProxy>;
+  destroy?: () => Promise<void>;
+}
+
 export function VisorArchivo(props: VisorArchivoProps) {
   return <VisorArchivoContenido key={props.archivo.id} {...props} />;
 }
@@ -303,6 +324,7 @@ function VisorArchivoContenido({
           <VisorPdf
             key={recursoUrl}
             archivoId={archivo.id}
+            nombre={archivo.nombre}
             url={recursoUrl}
             edicionHabilitada={edicionHabilitada}
             onRegistrarGuardado={registrarGuardado}
@@ -615,6 +637,7 @@ function VisorTexto({
 
 function VisorPdf({
   archivoId,
+  nombre,
   url,
   edicionHabilitada,
   onRegistrarGuardado,
@@ -623,6 +646,7 @@ function VisorPdf({
   onError
 }: {
   archivoId: string;
+  nombre: string;
   url: string;
   edicionHabilitada: boolean;
   onRegistrarGuardado: (fn: (() => Promise<void>) | null, dirty: boolean) => void;
@@ -634,6 +658,7 @@ function VisorPdf({
   const [escala, setEscala] = useState(1.15);
   const [cargando, setCargando] = useState(true);
   const [errorPdf, setErrorPdf] = useState<string | null>(null);
+  const [usarFallbackIframe, setUsarFallbackIframe] = useState(false);
   const [paginas, setPaginas] = useState<PaginaPdfRender[]>([]);
   const [tieneFormulario, setTieneFormulario] = useState(false);
   const [valoresForm, setValoresForm] = useState<Record<string, string | boolean>>({});
@@ -642,7 +667,7 @@ function VisorPdf({
 
   const montadoRef = useRef(true);
   const bytesRef = useRef<Uint8Array | null>(null);
-  const pdfDocRef = useRef<unknown>(null);
+  const pdfDocRef = useRef<PdfDocProxy | null>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const valoresRef = useRef<Record<string, string | boolean>>({});
   const camposModificadosRef = useRef<Set<string>>(new Set());
@@ -661,6 +686,14 @@ function VisorPdf({
 
   // 1. Carga el PDF y extrae los campos AcroForm iniciales con pdf-lib
   useEffect(() => {
+    if (!url) {
+      const msg = "No se pudo cargar este documento PDF.";
+      setErrorPdf(msg);
+      onError(msg);
+      setCargando(false);
+      return;
+    }
+
     let cancelado = false;
 
     (async () => {
@@ -719,25 +752,30 @@ function VisorPdf({
           // PDF sin AcroForm o cifrado solo lectura: sigue renderizando como visor.
         }
 
-        const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
+        const loadingTask = pdfjs.getDocument({
+          data: bytes.slice(),
+          useSystemFonts: true
+        });
         const proxy = await loadingTask.promise;
         if (cancelado) {
           void loadingTask.destroy().catch(() => {});
           return;
         }
 
-        pdfDocRef.current = proxy;
+        pdfDocRef.current = proxy as unknown as PdfDocProxy;
         camposModificadosRef.current.clear();
         valoresRef.current = iniciales;
         setTieneFormulario(hayCampos);
         setValoresForm(iniciales);
         setDirty(false);
+        setErrorPdf(null);
+        setUsarFallbackIframe(false);
         setCargando(false);
-      } catch {
+      } catch (err) {
+        console.error("[VisorPdf]", err);
         if (!cancelado) {
-          const msg = "No se pudo cargar este documento PDF.";
-          setErrorPdf(msg);
-          onError(msg);
+          setErrorPdf(null);
+          setUsarFallbackIframe(true);
           setCargando(false);
         }
       }
@@ -745,7 +783,7 @@ function VisorPdf({
 
     return () => {
       cancelado = true;
-      const proxyAnterior = pdfDocRef.current as { destroy?: () => Promise<void> } | null;
+      const proxyAnterior = pdfDocRef.current;
       pdfDocRef.current = null;
       if (proxyAnterior?.destroy) {
         void proxyAnterior.destroy().catch(() => {});
@@ -753,113 +791,141 @@ function VisorPdf({
     };
   }, [url, onError]);
 
-  // 2. Renderiza las páginas y calcula los widgets sobre cada página al cambiar el zoom
+  // 2. Calcula las páginas y los widgets AcroForm al cambiar el zoom o recargar el documento
   useEffect(() => {
-    const proxy = pdfDocRef.current as {
-      numPages: number;
-      getPage: (n: number) => Promise<{
-        getViewport: (opts: { scale: number }) => {
-          width: number;
-          height: number;
-          convertToViewportRectangle: (rect: number[]) => number[];
-        };
-        getAnnotations: (opts?: { intent?: string }) => Promise<Array<Record<string, unknown>>>;
-        render: (opts: {
-          canvasContext: CanvasRenderingContext2D;
-          viewport: unknown;
-          transform?: number[];
-          canvas: HTMLCanvasElement;
-        }) => { promise: Promise<void>; cancel?: () => void };
-      }>;
-    } | null;
+    const proxy = pdfDocRef.current;
+    if (!proxy || cargando || usarFallbackIframe) return undefined;
 
-    if (!proxy || cargando) return undefined;
+    let cancelado = false;
+
+    (async () => {
+      try {
+        const listas: PaginaPdfRender[] = [];
+        let hayWidgets = false;
+
+        for (let num = 1; num <= proxy.numPages; num++) {
+          const page = await proxy.getPage(num);
+          if (cancelado) return;
+          const viewport = page.getViewport({ scale: escala });
+
+          let anotaciones: Array<Record<string, unknown>> = [];
+          try {
+            anotaciones = await page.getAnnotations({ intent: "display" });
+          } catch (errAnnot) {
+            console.error("[VisorPdf] Error leyendo anotaciones:", errAnnot);
+            anotaciones = [];
+          }
+          if (cancelado) return;
+
+          const widgets: WidgetAcroForm[] = [];
+          for (let i = 0; i < anotaciones.length; i++) {
+            try {
+              const annot = anotaciones[i];
+              if (!annot || annot.subtype !== "Widget") continue;
+              const nombreCampo =
+                typeof annot.fieldName === "string" ? annot.fieldName : "";
+              const rect = Array.isArray(annot.rect) ? (annot.rect as number[]) : null;
+              if (!nombreCampo || !rect || rect.length < 4) continue;
+
+              const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
+              if (
+                !Number.isFinite(x1) ||
+                !Number.isFinite(y1) ||
+                !Number.isFinite(x2) ||
+                !Number.isFinite(y2)
+              ) {
+                continue;
+              }
+              const left = Math.min(x1, x2);
+              const top = Math.min(y1, y2);
+              const width = Math.max(8, Math.abs(x2 - x1));
+              const height = Math.max(8, Math.abs(y2 - y1));
+
+              const fieldType = String(annot.fieldType ?? "");
+              const soloLectura = Boolean(annot.readOnly);
+              let tipo: WidgetAcroForm["tipo"] | null = null;
+              if (fieldType === "Tx") {
+                tipo = annot.multiLine ? "textarea" : "texto";
+              } else if (fieldType === "Btn") {
+                if (annot.checkBox) tipo = "checkbox";
+                else if (annot.radioButton) tipo = "radio";
+              } else if (fieldType === "Ch") {
+                tipo = "select";
+              }
+              if (!tipo) continue;
+
+              const opcionesBrutas = Array.isArray(annot.options)
+                ? (annot.options as Array<{ exportValue?: string; displayValue?: string }>)
+                : undefined;
+              const opciones = opcionesBrutas?.map(op => ({
+                value: String(op?.exportValue ?? op?.displayValue ?? ""),
+                label: String(op?.displayValue ?? op?.exportValue ?? "")
+              }));
+
+              widgets.push({
+                id: `${num}-${nombreCampo}-${i}`,
+                nombre: nombreCampo,
+                tipo,
+                valorRadio:
+                  typeof annot.buttonValue === "string" ? annot.buttonValue : undefined,
+                opciones,
+                soloLectura,
+                left,
+                top,
+                width,
+                height
+              });
+            } catch (errWidget) {
+              console.error("[VisorPdf] Error procesando widget AcroForm:", errWidget);
+            }
+          }
+
+          if (widgets.length > 0) {
+            hayWidgets = true;
+          }
+
+          listas.push({
+            numero: num,
+            ancho: viewport.width,
+            alto: viewport.height,
+            widgets
+          });
+        }
+
+        if (cancelado) return;
+        if (hayWidgets) {
+          setTieneFormulario(true);
+        }
+        setPaginas(listas);
+      } catch (err) {
+        console.error("[VisorPdf]", err);
+        if (!cancelado) {
+          setPaginas([]);
+          setUsarFallbackIframe(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [escala, cargando, url, renderTick, usarFallbackIframe]);
+
+  // 3. Pinta los <canvas> una vez React ha montado las páginas y poblado canvasRefs
+  useEffect(() => {
+    const proxy = pdfDocRef.current;
+    if (!proxy || paginas.length === 0) return undefined;
 
     let cancelado = false;
     const tareasActivas: Array<{ cancel?: () => void }> = [];
 
     (async () => {
-      const listas: PaginaPdfRender[] = [];
-      for (let num = 1; num <= proxy.numPages; num++) {
-        const page = await proxy.getPage(num);
-        if (cancelado) return;
-        const viewport = page.getViewport({ scale: escala });
-        const anotaciones = await page.getAnnotations({ intent: "display" });
-        if (cancelado) return;
-
-        const widgets: WidgetAcroForm[] = [];
-        for (let i = 0; i < anotaciones.length; i++) {
-          const annot = anotaciones[i];
-          if (annot.subtype !== "Widget") continue;
-          const nombreCampo =
-            typeof annot.fieldName === "string" ? annot.fieldName : "";
-          const rect = Array.isArray(annot.rect) ? (annot.rect as number[]) : null;
-          if (!nombreCampo || !rect || rect.length < 4) continue;
-
-          const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
-          const left = Math.min(x1, x2);
-          const top = Math.min(y1, y2);
-          const width = Math.max(8, Math.abs(x2 - x1));
-          const height = Math.max(8, Math.abs(y2 - y1));
-
-          const fieldType = String(annot.fieldType ?? "");
-          const soloLectura = Boolean(annot.readOnly);
-          let tipo: WidgetAcroForm["tipo"] | null = null;
-          if (fieldType === "Tx") {
-            tipo = annot.multiLine ? "textarea" : "texto";
-          } else if (fieldType === "Btn") {
-            if (annot.checkBox) tipo = "checkbox";
-            else if (annot.radioButton) tipo = "radio";
-          } else if (fieldType === "Ch") {
-            tipo = "select";
-          }
-          if (!tipo) continue;
-
-          const opcionesBrutas = Array.isArray(annot.options)
-            ? (annot.options as Array<{ exportValue?: string; displayValue?: string }>)
-            : undefined;
-          const opciones = opcionesBrutas?.map(op => ({
-            value: String(op.exportValue ?? op.displayValue ?? ""),
-            label: String(op.displayValue ?? op.exportValue ?? "")
-          }));
-
-          widgets.push({
-            id: `${num}-${nombreCampo}-${i}`,
-            nombre: nombreCampo,
-            tipo,
-            valorRadio:
-              typeof annot.buttonValue === "string" ? annot.buttonValue : undefined,
-            opciones,
-            soloLectura,
-            left,
-            top,
-            width,
-            height
-          });
-        }
-
-        if (widgets.length > 0) {
-          setTieneFormulario(true);
-        }
-
-        listas.push({
-          numero: num,
-          ancho: viewport.width,
-          alto: viewport.height,
-          widgets
-        });
-      }
-
-      if (cancelado) return;
-      setPaginas(listas);
-
-      // Pintar tras montar los <canvas>
-      window.requestAnimationFrame(async () => {
-        if (cancelado) return;
+      try {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        for (const info of listas) {
+        for (const info of paginas) {
+          if (cancelado) return;
           const canvas = canvasRefs.current.get(info.numero);
-          if (!canvas || cancelado) continue;
+          if (!canvas) continue;
           const page = await proxy.getPage(info.numero);
           if (cancelado) return;
           const viewport = page.getViewport({ scale: escala });
@@ -879,11 +945,17 @@ function VisorPdf({
           tareasActivas.push(task);
           try {
             await task.promise;
-          } catch {
-            // Cancelado al hacer zoom o cerrar.
+          } catch (errRender) {
+            if (!cancelado) {
+              console.error("[VisorPdf] Error renderizando página:", errRender);
+            }
           }
         }
-      });
+      } catch (err) {
+        if (!cancelado) {
+          console.error("[VisorPdf]", err);
+        }
+      }
     })();
 
     return () => {
@@ -892,7 +964,7 @@ function VisorPdf({
         tarea.cancel?.();
       }
     };
-  }, [escala, cargando, url, renderTick]);
+  }, [paginas, escala, renderTick]);
 
   const guardarPdf = useCallback(async () => {
     const originales = bytesRef.current;
@@ -1048,13 +1120,16 @@ function VisorPdf({
     try {
       const pdfjs = await import("pdfjs-dist");
       pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-      const loadingTask = pdfjs.getDocument({ data: bytesEditados.slice() });
+      const loadingTask = pdfjs.getDocument({
+        data: bytesEditados.slice(),
+        useSystemFonts: true
+      });
       const nuevoProxy = await loadingTask.promise;
       if (!montadoRef.current) {
         void loadingTask.destroy().catch(() => {});
       } else {
-        const proxyAnterior = pdfDocRef.current as { destroy?: () => Promise<void> } | null;
-        pdfDocRef.current = nuevoProxy;
+        const proxyAnterior = pdfDocRef.current;
+        pdfDocRef.current = nuevoProxy as unknown as PdfDocProxy;
         setRenderTick(t => t + 1);
         if (proxyAnterior?.destroy) {
           void proxyAnterior.destroy().catch(() => {});
@@ -1092,6 +1167,7 @@ function VisorPdf({
           <button
             type="button"
             className="visor-tool-btn"
+            disabled={usarFallbackIframe}
             onClick={() => setEscala(s => Math.max(0.6, Number((s - 0.15).toFixed(2))))}
             aria-label="Alejar PDF"
           >
@@ -1102,6 +1178,7 @@ function VisorPdf({
           <button
             type="button"
             className="visor-tool-btn"
+            disabled={usarFallbackIframe}
             onClick={() => setEscala(s => Math.min(2.5, Number((s + 0.15).toFixed(2))))}
             aria-label="Acercar PDF"
           >
@@ -1111,6 +1188,7 @@ function VisorPdf({
           <button
             type="button"
             className="visor-tool-btn"
+            disabled={usarFallbackIframe}
             onClick={() => setEscala(1.15)}
           >
             Ajustar
@@ -1118,13 +1196,15 @@ function VisorPdf({
         </div>
 
         <span className="muted">
-          {tieneFormulario
-            ? edicionHabilitada
-              ? "Formulario editable · Pulsa «Guardar cambios» al terminar"
-              : "Formulario PDF (solo lectura)"
-            : paginas.length > 0
-              ? `${paginas.length} ${paginas.length === 1 ? "página" : "páginas"}`
-              : "Cargando PDF…"}
+          {usarFallbackIframe
+            ? "Visor nativo del navegador"
+            : tieneFormulario
+              ? edicionHabilitada
+                ? "Formulario editable · Pulsa «Guardar cambios» al terminar"
+                : "Formulario PDF (solo lectura)"
+              : paginas.length > 0
+                ? `${paginas.length} ${paginas.length === 1 ? "página" : "páginas"}`
+                : "Cargando PDF…"}
         </span>
       </div>
 
@@ -1150,7 +1230,16 @@ function VisorPdf({
         )}
         {errorPdf && <p className="visor-feedback-bar ko">{errorPdf}</p>}
 
+        {!cargando && usarFallbackIframe && (
+          <iframe
+            src={url}
+            title={nombre}
+            className="visor-pdf-iframe-fallback"
+          />
+        )}
+
         {!cargando &&
+          !usarFallbackIframe &&
           paginas.map(pag => (
             <div
               key={pag.numero}

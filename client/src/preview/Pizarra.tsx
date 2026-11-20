@@ -612,6 +612,7 @@ export function Posit({
         ref={area}
         value={posit.texto}
         readOnly={bloqueado}
+        spellCheck={false}
         placeholder={bloqueado ? "" : "Escribe una nota…"}
         style={!editando ? { pointerEvents: "none" } : undefined}
         onBlur={() => setEditando(false)}
@@ -851,6 +852,7 @@ function CuadroTextoEscena({
         ref={areaRef}
         value={item.texto}
         readOnly={bloqueado}
+        spellCheck={false}
         rows={1}
         placeholder={bloqueado ? "" : "Escribe…"}
         style={!editando ? { pointerEvents: "none" } : undefined}
