@@ -24,6 +24,7 @@ import type {
 } from "../../api/types";
 import { describeError } from "../errorMessages";
 import { useMesasLive } from "../hooks/useMesasLive";
+import type { FaseSala, VistaPizarra } from "../routing/rutas";
 import {
   Sala,
   type MusicaAmbienteMesa
@@ -91,9 +92,12 @@ interface SalaRealProps {
   onActualizarMesa: (mesa: PublicMesa) => void;
   onVolver: (motivo?: string) => void;
   onSessionExpired?: () => void;
+  faseExterna?: Fase;
+  vistaPizarraExterna?: VistaPizarra;
+  onCambiarRutaSala?: (fase: Fase, vistaPizarra?: VistaPizarra) => void;
 }
 
-type Fase = "sala" | "pizarra" | "mapa" | "archivador" | "personaje";
+type Fase = FaseSala;
 type ObjetoPizarra = Extract<ElementoMesa, { tipo: "objeto" }>;
 
 function elegirPosicionLibrePizarra(
@@ -233,9 +237,12 @@ function SalaRealContent({
   user,
   onActualizarMesa,
   onVolver,
-  onSessionExpired
+  onSessionExpired,
+  faseExterna,
+  vistaPizarraExterna,
+  onCambiarRutaSala
 }: SalaRealProps) {
-  const [fase, setFase] = useState<Fase>("sala");
+  const [fase, setFase] = useState<Fase>(faseExterna ?? "sala");
   const [calibracion, setCalibracion] = useState<Calibracion>(cargarCalibracion);
   const [posits, setPosits] = useState<PositPreview[]>([]);
   const [elementosMesa, setElementosMesa] = useState<ElementoMesa[]>([]);
@@ -249,7 +256,53 @@ function SalaRealContent({
   const [positsEscena, setPositsEscena] = useState<PositPreview[]>([]);
   const [docsEscena, setDocsEscena] = useState<DocumentoMesa[]>([]);
   const [textosEscena, setTextosEscena] = useState<TextoEscena[]>([]);
-  const [vistaPizarra, setVistaPizarra] = useState<"pizarra" | "escena">("pizarra");
+  const [vistaPizarra, setVistaPizarra] = useState<VistaPizarra>(
+    vistaPizarraExterna ?? "pizarra"
+  );
+  const vistaPizarraRef = useRef<VistaPizarra>(vistaPizarra);
+
+  useEffect(() => {
+    vistaPizarraRef.current = vistaPizarra;
+  }, [vistaPizarra]);
+
+  useEffect(() => {
+    if (faseExterna !== undefined) {
+      setFase(faseExterna);
+    }
+  }, [faseExterna]);
+
+  useEffect(() => {
+    if (vistaPizarraExterna !== undefined) {
+      vistaPizarraRef.current = vistaPizarraExterna;
+      setVistaPizarra(vistaPizarraExterna);
+    }
+  }, [vistaPizarraExterna]);
+
+  const cambiarFase = useCallback(
+    (nuevaFase: Fase, nuevaVistaPizarra?: VistaPizarra) => {
+      const vistaFinal = nuevaVistaPizarra ?? vistaPizarraRef.current;
+      setFase(nuevaFase);
+      if (nuevaVistaPizarra !== undefined) {
+        vistaPizarraRef.current = nuevaVistaPizarra;
+        setVistaPizarra(nuevaVistaPizarra);
+      }
+      onCambiarRutaSala?.(
+        nuevaFase,
+        nuevaFase === "pizarra" ? vistaFinal : undefined
+      );
+    },
+    [onCambiarRutaSala]
+  );
+
+  const cambiarVistaPizarra = useCallback(
+    (nuevaVista: VistaPizarra) => {
+      vistaPizarraRef.current = nuevaVista;
+      setVistaPizarra(nuevaVista);
+      onCambiarRutaSala?.("pizarra", nuevaVista);
+    },
+    [onCambiarRutaSala]
+  );
+
   const archivadorOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const personajeOrigenRef = useRef<"sala" | "pizarra" | "mapa">("sala");
   const [tamanoImagenesEscena, setTamanoImagenesEscena] = useState<
@@ -2417,15 +2470,15 @@ function SalaRealContent({
         textosEscena={textosEscena}
         onTextosEscena={setTextosEscena}
         vistaPizarra={vistaPizarra}
-        onVistaPizarra={setVistaPizarra}
+        onVistaPizarra={cambiarVistaPizarra}
         tamanoImagenesEscena={tamanoImagenesEscena}
         onTamanoImagenesEscena={setTamanoImagenesEscena}
         congelada={pizarraCongelada}
         onCongelada={setPizarraCongelada}
-        onVolver={() => setFase("sala")}
+        onVolver={() => cambiarFase("sala")}
         onAbrirArchivador={() => {
           archivadorOrigenRef.current = "pizarra";
-          setFase("archivador");
+          cambiarFase("archivador");
         }}
         mesaId={mesa.id}
         esMaster={esMaster}
@@ -2445,7 +2498,7 @@ function SalaRealContent({
     contenido = (
       <>
         <Mapa
-          onVolver={() => setFase("sala")}
+          onVolver={() => cambiarFase("sala")}
           pingsActivos={pingsActivos}
           onEnviarPing={enviarPing}
           reglasRemotas={reglasRemotas}
@@ -2516,11 +2569,11 @@ function SalaRealContent({
           onEnviarElemento={enviarElemento}
           onAbrirArchivador={() => {
             archivadorOrigenRef.current = "mapa";
-            setFase("archivador");
+            cambiarFase("archivador");
           }}
           onAbrirPersonaje={() => {
             personajeOrigenRef.current = "mapa";
-            setFase("personaje");
+            cambiarFase("personaje");
           }}
           onCompartirATodos={compartirATodos}
         />
@@ -2531,7 +2584,7 @@ function SalaRealContent({
       <Archivador
         elementosMesa={elementosMesa}
         onElementosMesa={setElementosMesa}
-        onVolver={() => setFase(archivadorOrigenRef.current)}
+        onVolver={() => cambiarFase(archivadorOrigenRef.current)}
         mesaId={mesa.id}
         esMaster={esMaster}
         imagenEscena={imagenEscena}
@@ -2547,7 +2600,7 @@ function SalaRealContent({
     contenido = (
       <PersonajePanel
         mesaId={mesa.id}
-        onVolver={() => setFase(personajeOrigenRef.current)}
+        onVolver={() => cambiarFase(personajeOrigenRef.current)}
         personaje={miPersonaje}
         onActualizarPersonaje={actualizarPersonaje}
         apodoActual={mesa.playerApodos?.[user.id] ?? ""}
@@ -2565,15 +2618,15 @@ function SalaRealContent({
         mesaId={mesa.id}
         calibracion={calibracion}
         onCalibracion={setCalibracion}
-        onAbrirPizarra={() => setFase("pizarra")}
-        onAbrirMapa={() => setFase("mapa")}
+        onAbrirPizarra={() => cambiarFase("pizarra")}
+        onAbrirMapa={() => cambiarFase("mapa")}
         onAbrirArchivador={() => {
           archivadorOrigenRef.current = "sala";
-          setFase("archivador");
+          cambiarFase("archivador");
         }}
         onAbrirPersonaje={() => {
           personajeOrigenRef.current = "sala";
-          setFase("personaje");
+          cambiarFase("personaje");
         }}
         onVolver={volverAEspera}
         etiquetaVolver={esAdminLibre ? "Salir de administración" : undefined}
@@ -2787,8 +2840,7 @@ function SalaRealContent({
           const archivoParaVisor = encontrada ?? {
             id: miPersonaje.fichaArchivoId,
             nombre,
-            vista: inferirVistaPorNombre(nombre),
-            url: archivosApi.url(miPersonaje.fichaArchivoId)
+            vista: inferirVistaPorNombre(nombre)
           };
           return (
             <VisorArchivo
@@ -2806,7 +2858,7 @@ function SalaRealContent({
                     if (fase === "sala" || fase === "pizarra" || fase === "mapa") {
                       personajeOrigenRef.current = fase;
                     }
-                    setFase("personaje");
+                    cambiarFase("personaje");
                   }}
                 >
                   Ir a PJ
@@ -2820,5 +2872,5 @@ function SalaRealContent({
 }
 
 export function SalaReal(props: SalaRealProps) {
-  return <SalaRealContent key={props.user.id} {...props} />;
+  return <SalaRealContent key={`${props.user.id}:${props.mesa.id}`} {...props} />;
 }

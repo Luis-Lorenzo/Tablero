@@ -49,7 +49,8 @@ export function inferirVistaPorNombre(nombre: string): string {
   const lower = nombre.toLowerCase();
   if (lower.endsWith(".pdf")) return "pdf";
   if (/\.(png|jpe?g|gif|webp)$/.test(lower)) return "imagen";
-  if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "doc";
+  if (lower.endsWith(".docx")) return "docx";
+  if (lower.endsWith(".doc")) return "doc";
   return "texto";
 }
 
@@ -93,6 +94,11 @@ export function PersonajePanel({
   const selectorPdfExtra = useRef<HTMLInputElement>(null);
   const onArchivosCambioRef = useRef(onArchivosCambio);
   onArchivosCambioRef.current = onArchivosCambio;
+  const archivosRef = useRef(archivos);
+
+  useEffect(() => {
+    archivosRef.current = archivos;
+  }, [archivos]);
 
   useEffect(() => {
     if (personaje !== undefined) {
@@ -156,6 +162,21 @@ export function PersonajePanel({
       }
     }
   }, [mesaId]);
+
+  const alGuardarArchivo = useCallback(
+    (actualizado: PublicArchivo) => {
+      const base = archivosRef.current;
+      const existe = base.some(item => item.id === actualizado.id);
+      const siguiente = existe
+        ? base.map(item => (item.id === actualizado.id ? actualizado : item))
+        : [actualizado, ...base];
+      archivosRef.current = siguiente;
+      setArchivos(siguiente);
+      onArchivosCambioRef.current?.(siguiente);
+      void refrescarArchivos();
+    },
+    [refrescarArchivos]
+  );
 
   async function guardarPersonaje(datos: ActualizacionPersonaje): Promise<void> {
     setPjLocal(prev => ({
@@ -665,7 +686,7 @@ export function PersonajePanel({
                   embebido
                   archivo={fichaParaVisor}
                   onCerrar={() => {}}
-                  onGuardado={() => void refrescarArchivos()}
+                  onGuardado={alGuardarArchivo}
                 />
               ) : (
                 <div className="pj-visor-vacio">

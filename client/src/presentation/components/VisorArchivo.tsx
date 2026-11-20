@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import {
@@ -69,10 +69,13 @@ function VisorArchivoContenido({
   onCerrar,
   onGuardado
 }: VisorArchivoProps) {
+  const [versionCarga, setVersionCarga] = useState<string>(archivo.updatedAt ?? "");
   const [versionActual, setVersionActual] = useState<string>(archivo.updatedAt ?? "");
   const [recargaTick, setRecargaTick] = useState(0);
   const [hayActualizacionRemota, setHayActualizacionRemota] = useState(false);
   const versionPendienteRef = useRef<string>("");
+  const ultimaVersionConocidaRef = useRef<string>(archivo.updatedAt ?? "");
+  const onGuardadoRef = useRef(onGuardado);
 
   const [guardando, setGuardando] = useState(false);
   const [feedback, setFeedback] = useState<{ tipo: "ok" | "ko"; texto: string } | null>(
@@ -80,7 +83,36 @@ function VisorArchivoContenido({
   );
   const [tieneAccionGuardar, setTieneAccionGuardar] = useState(false);
   const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
+  const hayCambiosSinGuardarRef = useRef(false);
   const accionGuardarRef = useRef<(() => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    onGuardadoRef.current = onGuardado;
+  }, [onGuardado]);
+
+  useEffect(() => {
+    hayCambiosSinGuardarRef.current = hayCambiosSinGuardar;
+  }, [hayCambiosSinGuardar]);
+
+  useEffect(() => {
+    const entrante = archivo.updatedAt ?? "";
+    if (!entrante) return;
+    if (!ultimaVersionConocidaRef.current) {
+      ultimaVersionConocidaRef.current = entrante;
+      setVersionActual(entrante);
+      return;
+    }
+    if (entrante === ultimaVersionConocidaRef.current) return;
+    if (hayCambiosSinGuardarRef.current) {
+      versionPendienteRef.current = entrante;
+      setHayActualizacionRemota(true);
+      return;
+    }
+    ultimaVersionConocidaRef.current = entrante;
+    setVersionCarga(entrante);
+    setVersionActual(entrante);
+    setHayActualizacionRemota(false);
+  }, [archivo.updatedAt]);
 
   useEffect(() => {
     if (embebido) return;
@@ -109,20 +141,31 @@ function VisorArchivoContenido({
     };
   }, [archivo.id]);
 
-  const esExterno = Boolean(archivo.url || archivo.contenidoLocal);
+  const esUrlInternaArchivo =
+    typeof archivo.url === "string" &&
+    (archivo.url.startsWith("/api/archivos/") || archivo.url.includes("/api/archivos/"));
+  const esExterno = Boolean(
+    archivo.contenidoLocal || (archivo.url && !esUrlInternaArchivo)
+  );
   const edicionHabilitada = puedeGuardar && !esExterno;
-  const versionParam =
-    versionActual || (recargaTick > 0 ? String(recargaTick) : undefined);
+  const urlExterna = esUrlInternaArchivo ? undefined : archivo.url;
+  const versionCargaParam =
+    versionCarga || (recargaTick > 0 ? String(recargaTick) : undefined);
+  const versionDescargaParam = versionActual || versionCargaParam;
   const recursoUrl =
     archivo.contenidoLocal ??
-    archivo.url ??
-    archivosApi.url(archivo.id, false, versionParam);
-  const descargaUrl = archivo.url ?? archivosApi.url(archivo.id, true, versionParam);
+    urlExterna ??
+    archivosApi.url(archivo.id, false, versionCargaParam);
+  const descargaUrl =
+    urlExterna ?? archivosApi.url(archivo.id, true, versionDescargaParam);
 
   const recargarRemoto = () => {
+    const siguienteVersion = versionPendienteRef.current || String(Date.now());
     setHayActualizacionRemota(false);
     setFeedback(null);
-    setVersionActual(versionPendienteRef.current || String(Date.now()));
+    ultimaVersionConocidaRef.current = siguienteVersion;
+    setVersionCarga(siguienteVersion);
+    setVersionActual(siguienteVersion);
     setRecargaTick(t => t + 1);
   };
 
@@ -153,18 +196,26 @@ function VisorArchivoContenido({
   }, [guardando]);
 
   const confirmarGuardado = useCallback(
-    (actualizado: PublicArchivo) => {
-      setVersionActual(actualizado.updatedAt ?? String(Date.now()));
-      setHayCambiosSinGuardar(false);
+    (actualizado: PublicArchivo, hayPendientes = false) => {
+      const nuevaVersion = actualizado.updatedAt ?? String(Date.now());
+      ultimaVersionConocidaRef.current = nuevaVersion;
+      setVersionActual(nuevaVersion);
+      setHayCambiosSinGuardar(hayPendientes);
       setHayActualizacionRemota(false);
       setFeedback({ tipo: "ok", texto: "Cambios guardados en la nube." });
-      onGuardado?.(actualizado);
+      onGuardadoRef.current?.(actualizado);
     },
-    [onGuardado]
+    []
   );
 
+  const esPdf = archivo.vista === "pdf" || /\.pdf$/i.test(archivo.nombre);
+  const esDocx =
+    archivo.vista === "docx" ||
+    archivo.vista === "doc" ||
+    /\.docx$/i.test(archivo.nombre);
+
   const soportaGuardado =
-    edicionHabilitada && (archivo.vista === "texto" || archivo.vista === "pdf");
+    edicionHabilitada && (esPdf || archivo.vista === "texto");
 
   const contenidoCaja = (
     <div
@@ -185,7 +236,11 @@ function VisorArchivoContenido({
               className="visor-unificado-btn guardar"
               disabled={guardando || !hayCambiosSinGuardar}
               onClick={() => void ejecutarGuardado()}
-              title="Guardar cambios en la nube"
+              title={
+                hayCambiosSinGuardar
+                  ? "Guardar cambios en la nube"
+                  : "Edita un campo para activar el guardado"
+              }
             >
               {guardando ? (
                 <Loader2 size={14} className="icono-girando" aria-hidden="true" />
@@ -244,7 +299,7 @@ function VisorArchivoContenido({
       <div className="visor-unificado-marco">
         {archivo.vista === "imagen" ? (
           <VisorImagen key={recursoUrl} url={recursoUrl} nombre={archivo.nombre} />
-        ) : archivo.vista === "pdf" ? (
+        ) : esPdf ? (
           <VisorPdf
             key={recursoUrl}
             archivoId={archivo.id}
@@ -252,9 +307,10 @@ function VisorArchivoContenido({
             edicionHabilitada={edicionHabilitada}
             onRegistrarGuardado={registrarGuardado}
             onGuardadoOk={confirmarGuardado}
+            onGuardarAtajo={() => void ejecutarGuardado()}
             onError={mostrarErrorVisor}
           />
-        ) : archivo.vista === "docx" ? (
+        ) : esDocx ? (
           <VisorDocx key={recursoUrl} url={recursoUrl} />
         ) : archivo.vista === "texto" ? (
           <VisorTexto
@@ -525,8 +581,11 @@ function VisorTexto({
 
   useEffect(() => {
     onRegistrarGuardado(edicionHabilitada ? guardar : null, dirty);
-    return () => onRegistrarGuardado(null, false);
   }, [edicionHabilitada, guardar, dirty, onRegistrarGuardado]);
+
+  useEffect(() => {
+    return () => onRegistrarGuardado(null, false);
+  }, [onRegistrarGuardado]);
 
   return (
     <div className="visor-texto-wrap">
@@ -560,15 +619,18 @@ function VisorPdf({
   edicionHabilitada,
   onRegistrarGuardado,
   onGuardadoOk,
+  onGuardarAtajo,
   onError
 }: {
   archivoId: string;
   url: string;
   edicionHabilitada: boolean;
   onRegistrarGuardado: (fn: (() => Promise<void>) | null, dirty: boolean) => void;
-  onGuardadoOk: (actualizado: PublicArchivo) => void;
+  onGuardadoOk: (actualizado: PublicArchivo, hayPendientes?: boolean) => void;
+  onGuardarAtajo?: () => void;
   onError: (msg: string) => void;
 }) {
+  const radioGrupoPrefijo = useId();
   const [escala, setEscala] = useState(1.15);
   const [cargando, setCargando] = useState(true);
   const [errorPdf, setErrorPdf] = useState<string | null>(null);
@@ -576,11 +638,22 @@ function VisorPdf({
   const [tieneFormulario, setTieneFormulario] = useState(false);
   const [valoresForm, setValoresForm] = useState<Record<string, string | boolean>>({});
   const [dirty, setDirty] = useState(false);
+  const [renderTick, setRenderTick] = useState(0);
 
+  const montadoRef = useRef(true);
   const bytesRef = useRef<Uint8Array | null>(null);
   const pdfDocRef = useRef<unknown>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const valoresRef = useRef<Record<string, string | boolean>>({});
+  const camposModificadosRef = useRef<Set<string>>(new Set());
+  const edicionSeqRef = useRef(0);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     valoresRef.current = valoresForm;
@@ -614,19 +687,32 @@ function VisorPdf({
           });
           const form = docLib.getForm();
           const fields = form.getFields();
-          hayCampos = fields.length > 0;
           for (const field of fields) {
-            const nombreCampo = field.getName();
-            if (field instanceof pdfLib.PDFTextField) {
-              iniciales[nombreCampo] = field.getText() ?? "";
-            } else if (field instanceof pdfLib.PDFCheckBox) {
-              iniciales[nombreCampo] = field.isChecked();
-            } else if (field instanceof pdfLib.PDFDropdown) {
-              iniciales[nombreCampo] = field.getSelected()[0] ?? "";
-            } else if (field instanceof pdfLib.PDFOptionList) {
-              iniciales[nombreCampo] = field.getSelected()[0] ?? "";
-            } else if (field instanceof pdfLib.PDFRadioGroup) {
-              iniciales[nombreCampo] = field.getSelected() ?? "";
+            try {
+              const nombreCampo = field.getName();
+              if (field instanceof pdfLib.PDFTextField) {
+                hayCampos = true;
+                try {
+                  iniciales[nombreCampo] = field.getText() ?? "";
+                } catch {
+                  // Campos de texto enriquecido (XFA/RichText) no permiten getText().
+                  iniciales[nombreCampo] = "";
+                }
+              } else if (field instanceof pdfLib.PDFCheckBox) {
+                hayCampos = true;
+                iniciales[nombreCampo] = field.isChecked();
+              } else if (field instanceof pdfLib.PDFDropdown) {
+                hayCampos = true;
+                iniciales[nombreCampo] = field.getSelected()[0] ?? "";
+              } else if (field instanceof pdfLib.PDFOptionList) {
+                hayCampos = true;
+                iniciales[nombreCampo] = field.getSelected()[0] ?? "";
+              } else if (field instanceof pdfLib.PDFRadioGroup) {
+                hayCampos = true;
+                iniciales[nombreCampo] = field.getSelected() ?? "";
+              }
+            } catch {
+              // Ignora un campo corrupto puntual sin abortar la lectura del resto del formulario.
             }
           }
         } catch {
@@ -636,13 +722,16 @@ function VisorPdf({
         const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
         const proxy = await loadingTask.promise;
         if (cancelado) {
-          void loadingTask.destroy();
+          void loadingTask.destroy().catch(() => {});
           return;
         }
 
         pdfDocRef.current = proxy;
+        camposModificadosRef.current.clear();
+        valoresRef.current = iniciales;
         setTieneFormulario(hayCampos);
         setValoresForm(iniciales);
+        setDirty(false);
         setCargando(false);
       } catch {
         if (!cancelado) {
@@ -659,7 +748,7 @@ function VisorPdf({
       const proxyAnterior = pdfDocRef.current as { destroy?: () => Promise<void> } | null;
       pdfDocRef.current = null;
       if (proxyAnterior?.destroy) {
-        void proxyAnterior.destroy();
+        void proxyAnterior.destroy().catch(() => {});
       }
     };
   }, [url, onError]);
@@ -803,68 +892,196 @@ function VisorPdf({
         tarea.cancel?.();
       }
     };
-  }, [escala, cargando, url]);
+  }, [escala, cargando, url, renderTick]);
 
   const guardarPdf = useCallback(async () => {
     const originales = bytesRef.current;
     if (!originales) return;
+
+    const actuales = { ...valoresRef.current };
+    const modificados = new Set(camposModificadosRef.current);
+    const seqAlGuardar = edicionSeqRef.current;
 
     const pdfLib = await import("pdf-lib");
     const docLib = await pdfLib.PDFDocument.load(originales, {
       ignoreEncryption: true
     });
     const form = docLib.getForm();
-    const actuales = valoresRef.current;
+    const fields = form.getFields();
 
-    for (const field of form.getFields()) {
+    if (fields.length > 0 && form.hasXFA()) {
+      form.deleteXFA();
+    }
+
+    for (const field of fields) {
       const nombreCampo = field.getName();
       if (!(nombreCampo in actuales)) continue;
       const val = actuales[nombreCampo];
+      const fueEditado = modificados.has(nombreCampo);
 
-      if (field instanceof pdfLib.PDFTextField) {
-        field.setText(typeof val === "string" ? val : String(val ?? ""));
-      } else if (field instanceof pdfLib.PDFCheckBox) {
-        if (val) field.check();
-        else field.uncheck();
-      } else if (
-        field instanceof pdfLib.PDFDropdown ||
-        field instanceof pdfLib.PDFOptionList
-      ) {
-        if (typeof val === "string" && val) {
-          field.select(val);
+      try {
+        if (field instanceof pdfLib.PDFTextField) {
+          const texto = typeof val === "string" ? val : String(val ?? "");
+          let actualPdf: string | null = null;
+          try {
+            actualPdf = field.getText() ?? "";
+          } catch {
+            actualPdf = null;
+          }
+          if (fueEditado || (actualPdf !== null && actualPdf !== texto)) {
+            const maxLength = field.getMaxLength();
+            if (maxLength !== undefined && texto.length > maxLength) {
+              field.removeMaxLength();
+            }
+            field.setText(texto);
+          }
+        } else if (field instanceof pdfLib.PDFCheckBox) {
+          const marcado = Boolean(val);
+          let actualPdf: boolean | null = null;
+          try {
+            actualPdf = field.isChecked();
+          } catch {
+            actualPdf = null;
+          }
+          if (fueEditado || actualPdf !== marcado) {
+            if (marcado) field.check();
+            else field.uncheck();
+          }
+        } else if (field instanceof pdfLib.PDFDropdown) {
+          const seleccion = typeof val === "string" ? val : "";
+          const actualPdf = field.getSelected()[0] ?? "";
+          if (fueEditado || actualPdf !== seleccion) {
+            if (seleccion) field.select(seleccion);
+            else field.clear();
+          }
+        } else if (field instanceof pdfLib.PDFOptionList) {
+          const seleccion = typeof val === "string" ? val : "";
+          const actualPdf = field.getSelected()[0] ?? "";
+          if (fueEditado || actualPdf !== seleccion) {
+            if (!seleccion) {
+              field.clear();
+            } else {
+              const opciones = field.getOptions();
+              if (opciones.includes(seleccion)) {
+                field.select(seleccion);
+              } else {
+                const coincidencia = field.acroField
+                  .getOptions()
+                  .find(op => op.value.decodeText() === seleccion);
+                if (coincidencia) {
+                  field.select((coincidencia.display ?? coincidencia.value).decodeText());
+                }
+              }
+            }
+          }
+        } else if (field instanceof pdfLib.PDFRadioGroup) {
+          const seleccion = typeof val === "string" ? val : "";
+          const actualPdf = field.getSelected() ?? "";
+          if (fueEditado || actualPdf !== seleccion) {
+            if (!seleccion || seleccion === "Off") {
+              field.clear();
+            } else {
+              const opciones = field.getOptions();
+              if (opciones.includes(seleccion)) {
+                field.select(seleccion);
+              } else {
+                const onValues = field.acroField.getOnValues();
+                const exportValues = field.acroField.getExportValues();
+                const idx = onValues.findIndex(v => v.decodeText() === seleccion);
+                if (idx !== -1) {
+                  const objetivo = exportValues?.[idx]?.decodeText() ?? opciones[idx];
+                  if (objetivo) field.select(objetivo);
+                }
+              }
+            }
+          }
         }
-      } else if (field instanceof pdfLib.PDFRadioGroup) {
-        if (typeof val === "string" && val) {
-          field.select(val);
-        }
+      } catch {
+        // Evita que un campo AcroForm atípico aborte el guardado del resto del PDF.
       }
     }
 
+    let huboFalloApariencia = false;
     try {
-      form.updateFieldAppearances();
+      const fuentePorDefecto = form.getDefaultFont();
+      for (const field of fields) {
+        try {
+          if (field.needsAppearancesUpdate()) {
+            field.defaultUpdateAppearances(fuentePorDefecto);
+          }
+        } catch {
+          huboFalloApariencia = true;
+        }
+      }
     } catch {
-      // Algunos PDFs omiten fuentes estándar al regenerar apariencias.
+      huboFalloApariencia = true;
     }
 
-    const bytesEditados = await docLib.save();
+    if (huboFalloApariencia) {
+      form.acroForm.dict.set(pdfLib.PDFName.of("NeedAppearances"), pdfLib.PDFBool.True);
+    }
+
+    // Evita que docLib.save() vuelva a invocar updateFieldAppearances() y falle con caracteres fuera de WinAnsi.
+    const bytesEditados = await docLib.save({ updateFieldAppearances: false });
     const actualizado = await archivosApi.actualizar(
       archivoId,
       bytesEditados,
       "application/pdf"
     );
     bytesRef.current = new Uint8Array(bytesEditados);
-    setDirty(false);
-    onGuardadoOk(actualizado);
+
+    const hayPendientes = edicionSeqRef.current !== seqAlGuardar;
+    if (!hayPendientes) {
+      camposModificadosRef.current.clear();
+      setDirty(false);
+    } else {
+      for (const clave of modificados) {
+        if (valoresRef.current[clave] === actuales[clave]) {
+          camposModificadosRef.current.delete(clave);
+        }
+      }
+    }
+
+    onGuardadoOk(actualizado, hayPendientes);
+
+    // Refresca el lienzo local desde los bytes ya guardados sin volver a descargar de red.
+    try {
+      const pdfjs = await import("pdfjs-dist");
+      pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      const loadingTask = pdfjs.getDocument({ data: bytesEditados.slice() });
+      const nuevoProxy = await loadingTask.promise;
+      if (!montadoRef.current) {
+        void loadingTask.destroy().catch(() => {});
+      } else {
+        const proxyAnterior = pdfDocRef.current as { destroy?: () => Promise<void> } | null;
+        pdfDocRef.current = nuevoProxy;
+        setRenderTick(t => t + 1);
+        if (proxyAnterior?.destroy) {
+          void proxyAnterior.destroy().catch(() => {});
+        }
+      }
+    } catch {
+      // El guardado ya está persistido; mantenemos el lienzo actual si falla el repintado local.
+    }
   }, [archivoId, onGuardadoOk]);
 
   useEffect(() => {
     const activo = edicionHabilitada && tieneFormulario;
     onRegistrarGuardado(activo ? guardarPdf : null, activo && dirty);
-    return () => onRegistrarGuardado(null, false);
   }, [edicionHabilitada, tieneFormulario, guardarPdf, dirty, onRegistrarGuardado]);
 
+  useEffect(() => {
+    return () => onRegistrarGuardado(null, false);
+  }, [onRegistrarGuardado]);
+
   const actualizarValor = (nombre: string, valor: string | boolean) => {
-    setValoresForm(prev => ({ ...prev, [nombre]: valor }));
+    edicionSeqRef.current += 1;
+    camposModificadosRef.current.add(nombre);
+    setValoresForm(prev => {
+      const siguiente = { ...prev, [nombre]: valor };
+      valoresRef.current = siguiente;
+      return siguiente;
+    });
     setDirty(true);
   };
 
@@ -911,7 +1128,20 @@ function VisorPdf({
         </span>
       </div>
 
-      <div className="visor-pdf-scroll">
+      <div
+        className="visor-pdf-scroll"
+        onKeyDown={evento => {
+          if (
+            edicionHabilitada &&
+            tieneFormulario &&
+            (evento.ctrlKey || evento.metaKey) &&
+            evento.key.toLowerCase() === "s"
+          ) {
+            evento.preventDefault();
+            if (dirty) onGuardarAtajo?.();
+          }
+        }}
+      >
         {cargando && (
           <div className="visor-centro-estado">
             <Loader2 size={22} className="icono-girando" aria-hidden="true" />
@@ -968,7 +1198,7 @@ function VisorPdf({
                           type="radio"
                           className="visor-acro-check"
                           style={estilo}
-                          name={`pdf-radio-${w.nombre}`}
+                          name={`${radioGrupoPrefijo}-${w.nombre}`}
                           aria-label={w.nombre}
                           disabled={deshabilitado}
                           checked={valoresForm[w.nombre] === (w.valorRadio ?? "")}
@@ -995,8 +1225,8 @@ function VisorPdf({
                           onChange={e => actualizarValor(w.nombre, e.target.value)}
                         >
                           <option value="" />
-                          {(w.opciones ?? []).map(op => (
-                            <option key={op.value} value={op.value}>
+                          {(w.opciones ?? []).map((op, idx) => (
+                            <option key={`${op.value}-${idx}`} value={op.value}>
                               {op.label}
                             </option>
                           ))}
