@@ -1426,6 +1426,25 @@ export function HudSalaCompartido({
     );
   }
 
+  function consumirObjetoMesa(
+    obj: Extract<ElementoMesa, { tipo: "objeto" }>
+  ): void {
+    reproducirSonidoConsumir();
+    const restante = obj.cantidad - 1;
+    if (restante <= 0) {
+      onElementosMesa?.(prev => prev.filter(el => el.id !== obj.id));
+      setObjetoMesaActivo(actual => (actual?.id === obj.id ? null : actual));
+    } else {
+      const actualizado = { ...obj, cantidad: restante };
+      onElementosMesa?.(prev =>
+        prev.map(el => (el.id === obj.id ? actualizado : el))
+      );
+      setObjetoMesaActivo(actual =>
+        actual?.id === obj.id ? actualizado : actual
+      );
+    }
+  }
+
   function eliminarObjetoMochila(id: string): void {
     actualizarListaMochila(prev => prev.filter(item => item.id !== id));
     setObjetoMochilaId(actual => (actual === id ? null : actual));
@@ -1958,6 +1977,38 @@ export function HudSalaCompartido({
               }
             }}
           >
+            <div
+              className="mesa-objeto-acciones-hover"
+              onPointerDown={evento => evento.stopPropagation()}
+              onClick={evento => evento.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="mesa-objeto-btn-consumir"
+                onPointerDown={evento => evento.stopPropagation()}
+                onClick={evento => {
+                  evento.stopPropagation();
+                  consumirObjetoMesa(obj);
+                }}
+              >
+                Consumir -1
+              </button>
+              {obj.macro && (
+                <button
+                  type="button"
+                  className="mesa-objeto-btn-d6"
+                  title={`Ejecutar macro: ${obj.macro.nombre}`}
+                  aria-label={`Ejecutar macro ${obj.macro.nombre}`}
+                  onPointerDown={evento => evento.stopPropagation()}
+                  onClick={evento => {
+                    evento.stopPropagation();
+                    tirarMacroDeObjeto(obj.nombre, obj.macro!, true);
+                  }}
+                >
+                  <Dice6 size={14} strokeWidth={2.3} aria-hidden="true" />
+                </button>
+              )}
+            </div>
             <div className="mesa-objeto-cuadro">
               {obj.imagenLocal || obj.archivoId ? (
                 <img
