@@ -6505,7 +6505,7 @@ export function Sala({
               <span className="dock-etiqueta">Posits</span>
             </div>
 
-            {onAbrirPersonaje && (
+            {!esMaster && onAbrirPersonaje && (
               <div className="dock-item">
                 <button
                   type="button"
