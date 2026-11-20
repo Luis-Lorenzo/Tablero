@@ -78,7 +78,14 @@ export function createArchivoRouter(
       res.setHeader("Accept-Ranges", "bytes");
 
       const ifNoneMatch = req.headers["if-none-match"];
-      if (typeof ifNoneMatch === "string" && ifNoneMatch.trim() === etag) {
+      // Los navegadores piden rangos para reproducir y buscar dentro del audio.
+      // Responder 304 a una petición con `Range` rompe la reproducción en
+      // algunos navegadores, así que solo revalidamos cuando no hay rango.
+      if (
+        !range &&
+        typeof ifNoneMatch === "string" &&
+        (ifNoneMatch === etag || ifNoneMatch.includes(archivo.id))
+      ) {
         if ("stream" in resultado) {
           void resultado.stream.cancel().catch(() => { });
         }

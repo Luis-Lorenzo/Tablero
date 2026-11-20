@@ -1338,6 +1338,27 @@ export function createMesaRouter(context: AppContext, requireAuth: RequestHandle
         throw errors.invalidRequest();
       }
 
+      // Avance automático de pista con control de concurrencia. El reproductor
+      // del Máster envía el índice que creía estar sonando; si otra pestaña (u
+      // otro dispositivo) ya lo cambió, ignoramos este aviso para no saltarnos
+      // canciones. Los cambios manuales no envían `indiceEsperado`.
+      const indiceEsperadoRaw =
+        req.body && typeof req.body === "object" && !Array.isArray(req.body)
+          ? (req.body as { indiceEsperado?: unknown }).indiceEsperado
+          : undefined;
+      const indiceEsperado =
+        typeof indiceEsperadoRaw === "number" && Number.isFinite(indiceEsperadoRaw)
+          ? Math.trunc(indiceEsperadoRaw)
+          : null;
+      if (
+        indiceEsperado !== null &&
+        mesa.musicaAmbiente &&
+        mesa.musicaAmbiente.indiceActual !== indiceEsperado
+      ) {
+        res.json({ musica: mesa.musicaAmbiente });
+        return;
+      }
+
       const pistasExistentes = new Set(
         (mesa.musicaAmbiente?.pistas ?? []).map(p => p.archivoId)
       );

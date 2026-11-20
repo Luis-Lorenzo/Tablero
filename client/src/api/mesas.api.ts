@@ -312,8 +312,17 @@ export const mesasApi = {
     putJson<PublicMesa>(`/api/mesas/${id}/divisas`, { divisas }),
 
   /** Actualiza el estado de la música ambiente de la mesa (solo Máster/Admin). */
-  actualizarMusica: (id: string, musica: MusicaAmbienteMesa) =>
-    putJson<{ musica: MusicaAmbienteMesa }>(`/api/mesas/${id}/musica`, musica),
+  actualizarMusica: (
+    id: string,
+    musica: MusicaAmbienteMesa,
+    opciones?: { indiceEsperado?: number }
+  ) =>
+    putJson<{ musica: MusicaAmbienteMesa }>(
+      `/api/mesas/${id}/musica`,
+      opciones && opciones.indiceEsperado !== undefined
+        ? { musica, indiceEsperado: opciones.indiceEsperado }
+        : musica
+    ),
 
   /** Carga el estado compartido de la pizarra y vista escena de la mesa. */
   obtenerPizarra: (id: string) =>

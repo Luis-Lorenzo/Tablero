@@ -188,6 +188,47 @@ describe("tracer-bullet: persistencia Mesa, Divisas, Macros y Música", () => {
       volumenMaster: 0.45
     });
 
+    // 1b. Avance automático con índice esperado: si dos pestañas del Máster
+    // avisan a la vez, solo la primera mueve la pista y la segunda no se salta
+    // una canción (recibe el estado que ya había).
+    const dosPistas = [
+      { archivoId: mp3Id, nombre: "Pista A" },
+      { archivoId: mp3Id, nombre: "Pista B" }
+    ];
+    const avance = await request(app)
+      .put(`/api/mesas/${mesaId}/musica`)
+      .set("Cookie", cookieMaster)
+      .send({
+        musica: { ...musicaPayload, pistas: dosPistas, indiceActual: 1 },
+        indiceEsperado: 0
+      });
+    expect(avance.status).toBe(200);
+    expect(avance.body.musica.indiceActual).toBe(1);
+
+    const avanceDuplicado = await request(app)
+      .put(`/api/mesas/${mesaId}/musica`)
+      .set("Cookie", cookieMaster)
+      .send({
+        musica: {
+          ...musicaPayload,
+          pistas: dosPistas,
+          indiceActual: 1
+        },
+        indiceEsperado: 0
+      });
+    expect(avanceDuplicado.status).toBe(200);
+    expect(avanceDuplicado.body.musica.indiceActual).toBe(1);
+
+    // Un cambio manual (sin `indiceEsperado`) siempre se aplica.
+    const cambioManual = await request(app)
+      .put(`/api/mesas/${mesaId}/musica`)
+      .set("Cookie", cookieMaster)
+      .send({
+        musica: { ...musicaPayload, pistas: dosPistas, indiceActual: 0 }
+      });
+    expect(cambioManual.status).toBe(200);
+    expect(cambioManual.body.musica.indiceActual).toBe(0);
+
     // 2. Divisas: configurar divisas, actualizar saldos distintos para dos jugadores y verificar master-resumen con carga por lotes
     const configDivisas = await request(app)
       .put(`/api/mesas/${mesaId}/divisas`)

@@ -149,6 +149,28 @@ describe("tracer: persistencia de archivos y streaming R2/Almacen", () => {
 
     expect(revalidacion.status).toBe(304);
 
+    // 3b. Con `Range` no se responde 304: algunos navegadores dejan de
+    //     reproducir audio si una petición de rango recibe un 304.
+    const revalidacionConRango = await request(montado.app)
+      .get(`/api/archivos/${archivoId}`)
+      .set("Cookie", hostCookie)
+      .set("If-None-Match", etag)
+      .set("Range", "bytes=0-3")
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on("data", chunk => chunks.push(Buffer.from(chunk)));
+        res.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
+
+    expect(revalidacionConRango.status).toBe(206);
+    expect(revalidacionConRango.headers["content-range"]).toBe(
+      `bytes 0-3/${MP3_BYTES.length}`
+    );
+    expect(Buffer.from(revalidacionConRango.body)).toEqual(
+      MP3_BYTES.subarray(0, 4)
+    );
+
     // 4. Petición Range: bytes=0-3 -> 206 Partial Content y esos 4 bytes exactos
     const parcial = await request(montado.app)
       .get(`/api/archivos/${archivoId}`)
