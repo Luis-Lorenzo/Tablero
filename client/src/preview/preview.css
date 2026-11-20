@@ -8999,7 +8999,28 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
   padding-bottom: 6px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+  z-index: 2;
+}
+
+.mesa-objeto-envoltura {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mesa-objeto-macro-izq {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  padding-right: 6px;
+  display: flex;
+  align-items: center;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.14s ease;
@@ -9007,7 +9028,9 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mesa-objeto:hover .mesa-objeto-acciones-hover,
-.mesa-objeto:focus-within .mesa-objeto-acciones-hover {
+.mesa-objeto:focus-within .mesa-objeto-acciones-hover,
+.mesa-objeto:hover .mesa-objeto-macro-izq,
+.mesa-objeto:focus-within .mesa-objeto-macro-izq {
   opacity: 1;
   pointer-events: auto;
 }
@@ -9039,11 +9062,11 @@ body[data-mapa-arrastrando-envio="true"] .mapa-jugador-item:not(.es-mio) .mapa-j
 }
 
 .mesa-objeto-btn-d6 {
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   border: 1.5px solid #e8c56a;
   background: rgb(28 21 38 / 94%);
   color: #f6e3b0;

@@ -1993,33 +1993,41 @@ export function HudSalaCompartido({
               >
                 Consumir -1
               </button>
-              {obj.macro && (
-                <button
-                  type="button"
-                  className="mesa-objeto-btn-d6"
-                  title={`Ejecutar macro: ${obj.macro.nombre}`}
-                  aria-label={`Ejecutar macro ${obj.macro.nombre}`}
-                  onPointerDown={evento => evento.stopPropagation()}
-                  onClick={evento => {
-                    evento.stopPropagation();
-                    tirarMacroDeObjeto(obj.nombre, obj.macro!, true);
-                  }}
-                >
-                  <Dice6 size={14} strokeWidth={2.3} aria-hidden="true" />
-                </button>
-              )}
             </div>
-            <div className="mesa-objeto-cuadro">
-              {obj.imagenLocal || obj.archivoId ? (
-                <img
-                  src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
-                  alt={obj.nombre}
-                  draggable={false}
-                />
-              ) : (
-                <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+            <div className="mesa-objeto-envoltura">
+              {obj.macro && (
+                <div
+                  className="mesa-objeto-macro-izq"
+                  onPointerDown={evento => evento.stopPropagation()}
+                  onClick={evento => evento.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="mesa-objeto-btn-d6"
+                    title={`Ejecutar macro: ${obj.macro.nombre}`}
+                    aria-label={`Ejecutar macro ${obj.macro.nombre}`}
+                    onPointerDown={evento => evento.stopPropagation()}
+                    onClick={evento => {
+                      evento.stopPropagation();
+                      tirarMacroDeObjeto(obj.nombre, obj.macro!, true);
+                    }}
+                  >
+                    <Dice6 size={15} strokeWidth={2.3} aria-hidden="true" />
+                  </button>
+                </div>
               )}
-              <span className="mochila-slot-cant">{obj.cantidad}</span>
+              <div className="mesa-objeto-cuadro">
+                {obj.imagenLocal || obj.archivoId ? (
+                  <img
+                    src={obj.imagenLocal ?? archivosApi.url(obj.archivoId ?? "")}
+                    alt={obj.nombre}
+                    draggable={false}
+                  />
+                ) : (
+                  <span className="mesa-objeto-emoji">{obj.emoji ?? "🎒"}</span>
+                )}
+                <span className="mochila-slot-cant">{obj.cantidad}</span>
+              </div>
             </div>
             <span className="mesa-objeto-nombre">{obj.nombre}</span>
           </div>
