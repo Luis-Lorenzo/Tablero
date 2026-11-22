@@ -107,3 +107,56 @@ export function crearElementoDesdeArchivo(
     contenidoLocal: archivo.contenidoLocal
   };
 }
+
+/**
+ * Normaliza el texto introducido en el campo de cantidad de monedas a enviar.
+ * Permite dejar el campo vacío mientras el usuario borra el valor inicial
+ * para escribir cualquier cantidad (menor que 10 o que no empiece por "1").
+ */
+export function sanitizarEntradaCantidadMonedas(valor: string): string {
+  const limpio = valor.trim();
+  if (limpio === "") return "";
+  if (/^\d+$/.test(limpio)) {
+    return limpio.replace(/^0+(?=\d)/, "");
+  }
+  const parsed = Number(limpio);
+  if (!Number.isFinite(parsed) || parsed < 0) return "";
+  return String(Math.trunc(parsed));
+}
+
+/** Convierte el texto del campo de envío de monedas a un entero positivo (0 si está vacío o es inválido). */
+export function parsearCantidadMonedas(valor: string): number {
+  const limpio = valor.trim();
+  if (!limpio) return 0;
+  const n = Math.trunc(Number(limpio));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Resuelve la cantidad real de monedas a transferir acotada al saldo disponible (0 si no se puede enviar). */
+export function resolverCantidadEnvioMonedas(
+  valor: string,
+  saldoActual: number
+): number {
+  const saldo = Number.isFinite(saldoActual)
+    ? Math.max(0, Math.trunc(saldoActual))
+    : 0;
+  if (saldo <= 0) return 0;
+  const cantidad = parsearCantidadMonedas(valor);
+  if (cantidad <= 0) return 0;
+  return Math.min(saldo, cantidad);
+}
+
+/** Incrementa la cantidad escrita mediante los botones rápidos (+1, +5, +10), acotando al saldo. */
+export function incrementarCantidadMonedas(
+  valorActual: string,
+  incremento: number,
+  saldoActual: number
+): string {
+  const actual = parsearCantidadMonedas(valorActual);
+  const max = Math.max(
+    1,
+    Number.isFinite(saldoActual) ? Math.trunc(saldoActual) : 1
+  );
+  const siguiente = Math.min(max, Math.max(1, actual + Math.trunc(incremento)));
+  return String(siguiente);
+}

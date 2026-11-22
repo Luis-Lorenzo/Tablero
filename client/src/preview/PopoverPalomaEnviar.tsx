@@ -1,6 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
-import { nuevoIdElemento } from "./compartir";
+import {
+  incrementarCantidadMonedas,
+  nuevoIdElemento,
+  resolverCantidadEnvioMonedas,
+  sanitizarEntradaCantidadMonedas
+} from "./compartir";
 import { IconoPaloma } from "./inventario";
 import type {
   DivisaConfig,
@@ -67,7 +72,7 @@ export function PopoverPalomaEnviar({
   const [divisaSelId, setDivisaSelId] = useState<string>(
     divisasLista[0]?.id ?? "principal"
   );
-  const [cantidadMonedas, setCantidadMonedas] = useState<number>(1);
+  const [cantidadMonedasTexto, setCantidadMonedasTexto] = useState<string>("1");
   const [enviandoMonedas, setEnviandoMonedas] = useState(false);
 
   useEffect(() => {
@@ -94,6 +99,10 @@ export function PopoverPalomaEnviar({
     : elementosEnviables.filter(el => el.tipo !== "macro");
 
   const saldoActual = saldoDeDivisa(divisaSelId);
+  const cantidadMonedasValida = resolverCantidadEnvioMonedas(
+    cantidadMonedasTexto,
+    saldoActual
+  );
   const divisaActualMeta =
     divisasLista.find(d => d.id === divisaSelId) ?? divisasLista[0];
 
@@ -159,8 +168,8 @@ export function PopoverPalomaEnviar({
 
   async function manejarEnviarMonedas(): Promise<void> {
     if (!destinoActivo || enviandoMonedas) return;
-    const cant = Math.max(1, Math.min(saldoActual, Math.trunc(cantidadMonedas) || 0));
-    if (cant <= 0 || saldoActual <= 0) return;
+    const cant = resolverCantidadEnvioMonedas(cantidadMonedasTexto, saldoActual);
+    if (cant <= 0) return;
     setEnviandoMonedas(true);
     try {
       if (onTransferirDivisa) {
@@ -377,11 +386,27 @@ export function PopoverPalomaEnviar({
                   <input
                     className="paloma-monedas-input"
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     max={Math.max(1, saldoActual)}
-                    value={cantidadMonedas}
+                    step={1}
+                    placeholder="1"
+                    aria-label="Cantidad de monedas a enviar"
+                    value={cantidadMonedasTexto}
+                    onKeyDown={e => {
+                      if (
+                        !e.ctrlKey &&
+                        !e.metaKey &&
+                        !e.altKey &&
+                        ["e", "E", "+", "-", ".", ","].includes(e.key)
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
                     onChange={e =>
-                      setCantidadMonedas(Math.max(1, Math.trunc(Number(e.target.value)) || 1))
+                      setCantidadMonedasTexto(
+                        sanitizarEntradaCantidadMonedas(e.target.value)
+                      )
                     }
                   />
                   {[1, 5, 10].map(step => (
@@ -390,8 +415,8 @@ export function PopoverPalomaEnviar({
                       type="button"
                       className="mochila-destino-chip"
                       onClick={() =>
-                        setCantidadMonedas(c =>
-                          Math.min(Math.max(1, saldoActual), Math.max(1, c + step))
+                        setCantidadMonedasTexto(actual =>
+                          incrementarCantidadMonedas(actual, step, saldoActual)
                         )
                       }
                       style={{ fontSize: 11, padding: "3px 6px" }}
@@ -402,7 +427,7 @@ export function PopoverPalomaEnviar({
                   <button
                     type="button"
                     className="macro-lanzar-btn"
-                    disabled={saldoActual <= 0 || cantidadMonedas <= 0 || enviandoMonedas}
+                    disabled={saldoActual <= 0 || cantidadMonedasValida <= 0 || enviandoMonedas}
                     onClick={() => void manejarEnviarMonedas()}
                     style={{ marginLeft: "auto", fontSize: 11, padding: "4px 10px" }}
                   >
